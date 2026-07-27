@@ -9,7 +9,10 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "vercel-build": "npm run db:migrate && next build"
   },
   "dependencies": {
     "better-auth": "^1.6.24",
@@ -21,6 +24,7 @@
     "resend": "^6.18.0"
   },
   "devDependencies": {
+    "@next/env": "16.2.11",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
