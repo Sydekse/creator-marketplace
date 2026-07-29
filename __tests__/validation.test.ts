@@ -1,0 +1,476 @@
+import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import {
+  ErrorCode,
+  ErrorMessage,
+  ErrorHttpStatus,
+  errorResponse,
+  validationError,
+  fromZodError,
+  createCreatorSchema,
+  discoverCreatorsSchema,
+  createCampaignSchema,
+  addCampaignItemSchema,
+  acceptDealSchema,
+  submitDeliverableSchema,
+  rejectDeliverableSchema,
+  updateMetricsSchema,
+  verifyCreatorSchema,
+  resolveDisputeSchema,
+} from '../lib/validation';
+
+// ---------------------------------------------------------------------------
+// Error codes
+// ---------------------------------------------------------------------------
+
+describe('ErrorCode enum', () => {
+  it('defines all 12 error codes from the spec', () => {
+    const codes = Object.values(ErrorCode);
+    expect(codes).toHaveLength(12);
+    expect(codes).toContain(ErrorCode.TIKTOK_HANDLE_TAKEN);
+    expect(codes).toContain(ErrorCode.BUDGET_NOT_POSITIVE);
+    expect(codes).toContain(ErrorCode.BUDGET_EXCEEDED);
+    expect(codes).toContain(ErrorCode.OFFER_NOT_PENDING);
+    expect(codes).toContain(ErrorCode.OFFER_EXPIRED);
+    expect(codes).toContain(ErrorCode.PAYMENT_FAILED);
+    expect(codes).toContain(ErrorCode.NO_ACCEPTED_DEALS);
+    expect(codes).toContain(ErrorCode.INVALID_TIKTOK_URL);
+    expect(codes).toContain(ErrorCode.DEAL_NOT_FUNDED);
+    expect(codes).toContain(ErrorCode.DEAL_NOT_DELIVERED);
+    expect(codes).toContain(ErrorCode.FORBIDDEN);
+    expect(codes).toContain(ErrorCode.VALIDATION_ERROR);
+  });
+});
+
+describe('ErrorMessage', () => {
+  it('maps each code to the exact PRD-required message', () => {
+    expect(ErrorMessage[ErrorCode.TIKTOK_HANDLE_TAKEN]).toBe(
+      'This TikTok account is already registered.'
+    );
+    expect(ErrorMessage[ErrorCode.BUDGET_NOT_POSITIVE]).toBe(
+      'Budget must be greater than zero.'
+    );
+    expect(ErrorMessage[ErrorCode.BUDGET_EXCEEDED]).toBe(
+      'This exceeds your remaining budget.'
+    );
+    expect(ErrorMessage[ErrorCode.PAYMENT_FAILED]).toBe(
+      'Payment failed — please try again.'
+    );
+    expect(ErrorMessage[ErrorCode.INVALID_TIKTOK_URL]).toBe(
+      'Enter a valid public TikTok video link.'
+    );
+  });
+
+  it('has a message for every code', () => {
+    for (const code of Object.values(ErrorCode)) {
+      expect(typeof ErrorMessage[code]).toBe('string');
+      expect(ErrorMessage[code].length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('ErrorHttpStatus', () => {
+  it('maps each code to the correct HTTP status', () => {
+    expect(ErrorHttpStatus[ErrorCode.TIKTOK_HANDLE_TAKEN]).toBe(409);
+    expect(ErrorHttpStatus[ErrorCode.BUDGET_NOT_POSITIVE]).toBe(422);
+    expect(ErrorHttpStatus[ErrorCode.BUDGET_EXCEEDED]).toBe(409);
+    expect(ErrorHttpStatus[ErrorCode.OFFER_NOT_PENDING]).toBe(409);
+    expect(ErrorHttpStatus[ErrorCode.OFFER_EXPIRED]).toBe(409);
+    expect(ErrorHttpStatus[ErrorCode.PAYMENT_FAILED]).toBe(402);
+    expect(ErrorHttpStatus[ErrorCode.NO_ACCEPTED_DEALS]).toBe(409);
+    expect(ErrorHttpStatus[ErrorCode.INVALID_TIKTOK_URL]).toBe(422);
+    expect(ErrorHttpStatus[ErrorCode.DEAL_NOT_FUNDED]).toBe(409);
+    expect(ErrorHttpStatus[ErrorCode.DEAL_NOT_DELIVERED]).toBe(409);
+    expect(ErrorHttpStatus[ErrorCode.FORBIDDEN]).toBe(403);
+    expect(ErrorHttpStatus[ErrorCode.VALIDATION_ERROR]).toBe(422);
+  });
+
+  it('has a status for every code', () => {
+    for (const code of Object.values(ErrorCode)) {
+      expect(typeof ErrorHttpStatus[code]).toBe('number');
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Error envelope helpers
+// ---------------------------------------------------------------------------
+
+describe('errorResponse', () => {
+  it('returns the correct envelope shape', () => {
+    const result = errorResponse(ErrorCode.BUDGET_NOT_POSITIVE);
+    expect(result).toEqual({
+      error: {
+        code: ErrorCode.BUDGET_NOT_POSITIVE,
+        message: 'Budget must be greater than zero.',
+      },
+    });
+  });
+
+  it('includes details when provided', () => {
+    const result = errorResponse(ErrorCode.BUDGET_NOT_POSITIVE, {
+      budget: ['Must be greater than zero.'],
+    });
+    expect(result.error.details).toEqual({
+      budget: ['Must be greater than zero.'],
+    });
+  });
+});
+
+describe('validationError', () => {
+  it('returns VALIDATION_ERROR with details', () => {
+    const result = validationError({ name: ['Required.'] });
+    expect(result.error.code).toBe(ErrorCode.VALIDATION_ERROR);
+    expect(result.error.message).toBe('Validation failed.');
+    expect(result.error.details).toEqual({ name: ['Required.'] });
+  });
+});
+
+describe('fromZodError', () => {
+  it('converts a ZodError into the error envelope', () => {
+    const schema = z.object({ name: z.string().min(1) });
+    try {
+      schema.parse({ name: '' });
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        const result = fromZodError(e);
+        expect(result.error.code).toBe(ErrorCode.VALIDATION_ERROR);
+        expect(result.error.details).toBeDefined();
+        expect(result.error.details!['name']).toBeDefined();
+        expect(result.error.details!['name'].length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('handles multiple field errors', () => {
+    const schema = z.object({
+      name: z.string().min(1),
+      age: z.number().int().positive(),
+    });
+    try {
+      schema.parse({ name: '', age: -1 });
+    } catch (e) {
+      if (e instanceof z.ZodError) {
+        const result = fromZodError(e);
+        expect(result.error.details!['name']).toBeDefined();
+        expect(result.error.details!['age']).toBeDefined();
+      }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schemas — Creators
+// ---------------------------------------------------------------------------
+
+describe('createCreatorSchema', () => {
+  it('accepts valid creator data', () => {
+    const result = createCreatorSchema.parse({
+      tiktokHandle: '@beautybyhana',
+      niche: 'beauty',
+      audience: { geo: 'ET', age: '18-24' },
+    });
+    expect(result.tiktokHandle).toBe('@beautybyhana');
+    expect(result.niche).toBe('beauty');
+  });
+
+  it('rejects missing tiktokHandle', () => {
+    expect(() =>
+      createCreatorSchema.parse({
+        niche: 'beauty',
+        audience: { geo: 'ET' },
+      })
+    ).toThrow();
+  });
+
+  it('rejects empty niche', () => {
+    expect(() =>
+      createCreatorSchema.parse({
+        tiktokHandle: '@test',
+        niche: '',
+        audience: { geo: 'ET' },
+      })
+    ).toThrow();
+  });
+
+  it('rejects empty audience', () => {
+    expect(() =>
+      createCreatorSchema.parse({
+        tiktokHandle: '@test',
+        niche: 'beauty',
+        audience: {},
+      })
+    ).toThrow();
+  });
+});
+
+describe('discoverCreatorsSchema', () => {
+  it('accepts no filters (all optional)', () => {
+    const result = discoverCreatorsSchema.parse({});
+    expect(result).toEqual({});
+  });
+
+  it('accepts all filters', () => {
+    const result = discoverCreatorsSchema.parse({
+      niche: 'beauty',
+      minEngagement: 2.5,
+      priceMin: 50000,
+      priceMax: 200000,
+      audience: { geo: 'ET' },
+    });
+    expect(result.niche).toBe('beauty');
+    expect(result.minEngagement).toBe(2.5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schemas — Campaigns
+// ---------------------------------------------------------------------------
+
+describe('createCampaignSchema', () => {
+  it('accepts valid campaign data', () => {
+    const result = createCampaignSchema.parse({
+      name: 'Summer Launch',
+      goal: 'Increase brand awareness',
+      budget: 500000,
+      desiredVideos: 10,
+    });
+    expect(result.name).toBe('Summer Launch');
+    expect(result.budget).toBe(500000);
+    expect(result.desiredVideos).toBe(10);
+  });
+
+  it('rejects zero budget (AC-008)', () => {
+    expect(() =>
+      createCampaignSchema.parse({
+        name: 'Test',
+        budget: 0,
+        desiredVideos: 5,
+      })
+    ).toThrow('Budget must be greater than zero.');
+  });
+
+  it('rejects negative budget', () => {
+    expect(() =>
+      createCampaignSchema.parse({
+        name: 'Test',
+        budget: -100,
+        desiredVideos: 5,
+      })
+    ).toThrow();
+  });
+
+  it('rejects non-integer budget', () => {
+    expect(() =>
+      createCampaignSchema.parse({
+        name: 'Test',
+        budget: 100.5,
+        desiredVideos: 5,
+      })
+    ).toThrow();
+  });
+
+  it('rejects zero desiredVideos', () => {
+    expect(() =>
+      createCampaignSchema.parse({
+        name: 'Test',
+        budget: 1000,
+        desiredVideos: 0,
+      })
+    ).toThrow();
+  });
+
+  it('accepts optional fields', () => {
+    const result = createCampaignSchema.parse({
+      name: 'Test',
+      budget: 1000,
+      desiredVideos: 5,
+    });
+    expect(result.goal).toBeUndefined();
+    expect(result.targetAudience).toBeUndefined();
+  });
+});
+
+describe('addCampaignItemSchema', () => {
+  it('accepts valid item data', () => {
+    const result = addCampaignItemSchema.parse({
+      creatorId: '550e8400-e29b-41d4-a716-446655440000',
+      videoCount: 3,
+    });
+    expect(result.creatorId).toBe('550e8400-e29b-41d4-a716-446655440000');
+    expect(result.videoCount).toBe(3);
+  });
+
+  it('rejects invalid creatorId', () => {
+    expect(() =>
+      addCampaignItemSchema.parse({
+        creatorId: 'not-a-uuid',
+        videoCount: 1,
+      })
+    ).toThrow();
+  });
+
+  it('rejects zero videoCount', () => {
+    expect(() =>
+      addCampaignItemSchema.parse({
+        creatorId: '550e8400-e29b-41d4-a716-446655440000',
+        videoCount: 0,
+      })
+    ).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schemas — Deals
+// ---------------------------------------------------------------------------
+
+describe('acceptDealSchema', () => {
+  it('accepts valid rightsTermsId', () => {
+    const result = acceptDealSchema.parse({
+      rightsTermsId: '550e8400-e29b-41d4-a716-446655440000',
+    });
+    expect(result.rightsTermsId).toBe('550e8400-e29b-41d4-a716-446655440000');
+  });
+
+  it('rejects invalid rightsTermsId', () => {
+    expect(() => acceptDealSchema.parse({ rightsTermsId: 'bad' })).toThrow();
+  });
+});
+
+describe('submitDeliverableSchema', () => {
+  it('accepts a valid TikTok video URL', () => {
+    const result = submitDeliverableSchema.parse({
+      tiktokUrl: 'https://www.tiktok.com/@user/video/1234567890123456789',
+    });
+    expect(result.tiktokUrl).toContain('tiktok.com');
+  });
+
+  it('accepts a valid vm.tiktok.com short URL', () => {
+    const result = submitDeliverableSchema.parse({
+      tiktokUrl: 'https://vm.tiktok.com/abc123/',
+    });
+    expect(result.tiktokUrl).toContain('vm.tiktok.com');
+  });
+
+  it('rejects a non-TikTok URL (AC-025)', () => {
+    expect(() =>
+      submitDeliverableSchema.parse({
+        tiktokUrl: 'https://youtube.com/watch?v=123',
+      })
+    ).toThrow('Enter a valid public TikTok video link.');
+  });
+
+  it('rejects an empty URL', () => {
+    expect(() => submitDeliverableSchema.parse({ tiktokUrl: '' })).toThrow();
+  });
+});
+
+describe('rejectDeliverableSchema', () => {
+  it('accepts a rejection with reason', () => {
+    const result = rejectDeliverableSchema.parse({
+      reason: 'Does not match the brief.',
+    });
+    expect(result.reason).toBe('Does not match the brief.');
+  });
+
+  it('rejects empty reason', () => {
+    expect(() => rejectDeliverableSchema.parse({ reason: '' })).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schemas — Metrics
+// ---------------------------------------------------------------------------
+
+describe('updateMetricsSchema', () => {
+  it('accepts all metrics as optional', () => {
+    const result = updateMetricsSchema.parse({});
+    expect(result).toEqual({});
+  });
+
+  it('accepts partial metrics', () => {
+    const result = updateMetricsSchema.parse({ views: 1000, likes: 500 });
+    expect(result.views).toBe(1000);
+    expect(result.likes).toBe(500);
+  });
+
+  it('rejects negative values', () => {
+    expect(() => updateMetricsSchema.parse({ views: -1 })).toThrow();
+  });
+
+  it('rejects non-integer values', () => {
+    expect(() => updateMetricsSchema.parse({ views: 100.5 })).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schemas — Admin
+// ---------------------------------------------------------------------------
+
+describe('verifyCreatorSchema', () => {
+  it('accepts verified decision', () => {
+    const result = verifyCreatorSchema.parse({ decision: 'verified' });
+    expect(result.decision).toBe('verified');
+  });
+
+  it('accepts rejected decision', () => {
+    const result = verifyCreatorSchema.parse({ decision: 'rejected' });
+    expect(result.decision).toBe('rejected');
+  });
+
+  it('rejects invalid decision', () => {
+    expect(() => verifyCreatorSchema.parse({ decision: 'maybe' })).toThrow();
+  });
+
+  it('accepts optional note', () => {
+    const result = verifyCreatorSchema.parse({
+      decision: 'verified',
+      note: 'Handle confirmed.',
+    });
+    expect(result.note).toBe('Handle confirmed.');
+  });
+});
+
+describe('resolveDisputeSchema', () => {
+  it('accepts release resolution', () => {
+    const result = resolveDisputeSchema.parse({
+      resolution: 'release',
+      note: 'Approved after review.',
+    });
+    expect(result.resolution).toBe('release');
+  });
+
+  it('accepts refund resolution', () => {
+    const result = resolveDisputeSchema.parse({
+      resolution: 'refund',
+      note: 'Refunding due to non-delivery.',
+    });
+    expect(result.resolution).toBe('refund');
+  });
+
+  it('accepts revision resolution', () => {
+    const result = resolveDisputeSchema.parse({
+      resolution: 'revision',
+      note: 'Requesting re-edit.',
+    });
+    expect(result.resolution).toBe('revision');
+  });
+
+  it('rejects invalid resolution', () => {
+    expect(() =>
+      resolveDisputeSchema.parse({
+        resolution: 'invalid',
+        note: 'Reason.',
+      })
+    ).toThrow();
+  });
+
+  it('rejects empty note', () => {
+    expect(() =>
+      resolveDisputeSchema.parse({
+        resolution: 'release',
+        note: '',
+      })
+    ).toThrow();
+  });
+});
