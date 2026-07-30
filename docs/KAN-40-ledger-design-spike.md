@@ -20,14 +20,14 @@ so KAN-41 and KAN-42 share a single source of truth.
 The existing `ledger_entry` table in `db/schema.ts:300` supports every required
 operation with no changes needed.
 
-| Field | Role |
-|---|---|
-| `campaign_id` | Groups entries — campaign is the escrow container |
-| `deal_id` | Nullable; links `hold`/`release_payout`/`commission` to a specific deal |
-| `entry_type` | `hold`, `release_payout`, `commission`, `refund` |
-| `amount` | Signed integer (positive = into escrow, negative = out) |
-| `balance_after` | Campaign running balance after this entry |
-| `provider_ref` | External PSP transaction ID (nullable) |
+| Field           | Role                                                                    |
+| --------------- | ----------------------------------------------------------------------- |
+| `campaign_id`   | Groups entries — campaign is the escrow container                       |
+| `deal_id`       | Nullable; links `hold`/`release_payout`/`commission` to a specific deal |
+| `entry_type`    | `hold`, `release_payout`, `commission`, `refund`                        |
+| `amount`        | Signed integer (positive = into escrow, negative = out)                 |
+| `balance_after` | Campaign running balance after this entry                               |
+| `provider_ref`  | External PSP transaction ID (nullable)                                  |
 
 **Decision:** No schema changes needed. The table is append-only per existing
 design — rows are never updated or deleted.
@@ -103,10 +103,7 @@ export interface PaymentProvider {
    * Returns a provider reference string on success.
    * Throws PaymentError on failure (KAN-44).
    */
-  hold(
-    amount: number,
-    idempotencyKey: string,
-  ): Promise<ProviderHoldResult>;
+  hold(amount: number, idempotencyKey: string): Promise<ProviderHoldResult>;
 
   /**
    * Capture held funds and transfer to the platform's settlement account.
@@ -120,7 +117,7 @@ export interface PaymentProvider {
   capturePayout(
     amount: number,
     holdRef: string,
-    idempotencyKey: string,
+    idempotencyKey: string
   ): Promise<ProviderCaptureResult>;
 
   /**
@@ -131,7 +128,7 @@ export interface PaymentProvider {
    */
   releaseHold(
     holdRef: string,
-    idempotencyKey: string,
+    idempotencyKey: string
   ): Promise<ProviderReleaseResult>;
 
   /**
@@ -172,7 +169,7 @@ export interface ProviderStatus {
 export class PaymentError extends Error {
   constructor(
     message: string,
-    public readonly code: PaymentErrorCode,
+    public readonly code: PaymentErrorCode
   ) {
     super(message);
     this.name = 'PaymentError';
@@ -190,6 +187,7 @@ export type PaymentErrorCode =
 ### 4.1 Why three separate methods, not one `transfer`
 
 The escrow pattern demands a two-phase flow:
+
 1. **hold** — reserves funds at campaign funding time (KAN-43)
 2. **capturePayout** / **releaseHold** — days or weeks later after work is done
 
@@ -206,6 +204,7 @@ the ledger service retry safely on timeout (KAN-44).
 ### 4.3 MockPaymentProvider
 
 KAN-41 builds a `MockPaymentProvider` that:
+
 - Stores "holds" in an in-memory `Map<providerRef, { amount, status }>`
 - Always succeeds (unless explicitly configured to fail for testing)
 - Generates provider refs as `mock_${uuid}`
@@ -269,21 +268,23 @@ explicit check (`IF balance_after < 0 THEN ROLLBACK`) inside the transaction.
 
 ## 6. Key Invariants
 
-| # | Invariant | Enforced by |
-|---|---|---|
-| 1 | Campaign balance = sum of all `amount` in its `ledger_entry` rows | `balance_after` + in-transaction guard |
-| 2 | Every `release_payout` is paired with a prior `hold` for the same deal | Deal state machine (funded → completed) |
-| 3 | Total of `release_payout` + `commission` = `total_price` (that deal) | In-transaction assertion in KAN-45 |
-| 4 | One `hold` entry per deal per campaign — no double-funding | `ledger_entry` UNIQUE on `(deal_id, 'hold')` (DB constraint) — **needs migration** |
-| 5 | `provider_ref` on `hold` entries matches a real PSP hold | Not nullable after funding — written in same transaction |
-| 6 | Money is never created or destroyed — ledger sum is zero-sum | Audit: sum all entries across time = 0 |
-| 7 | Failed provider calls leave campaign untouched | KAN-44: roll back DB changes on `PaymentError` |
+| #   | Invariant                                                              | Enforced by                                                                        |
+| --- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 1   | Campaign balance = sum of all `amount` in its `ledger_entry` rows      | `balance_after` + in-transaction guard                                             |
+| 2   | Every `release_payout` is paired with a prior `hold` for the same deal | Deal state machine (funded → completed)                                            |
+| 3   | Total of `release_payout` + `commission` = `total_price` (that deal)   | In-transaction assertion in KAN-45                                                 |
+| 4   | One `hold` entry per deal per campaign — no double-funding             | `ledger_entry` UNIQUE on `(deal_id, 'hold')` (DB constraint) — **needs migration** |
+| 5   | `provider_ref` on `hold` entries matches a real PSP hold               | Not nullable after funding — written in same transaction                           |
+| 6   | Money is never created or destroyed — ledger sum is zero-sum           | Audit: sum all entries across time = 0                                             |
+| 7   | Failed provider calls leave campaign untouched                         | KAN-44: roll back DB changes on `PaymentError`                                     |
 
 **Invariant 4 — recommended migration:** Add a partial unique index on `ledger_entry`:
+
 ```sql
 CREATE UNIQUE INDEX ledger_entry_deal_hold_unique
   ON ledger_entry (deal_id) WHERE entry_type = 'hold';
 ```
+
 This prevents a second `hold` for the same deal. Discuss in KAN-42 review.
 
 ---
@@ -293,6 +294,7 @@ This prevents a second `hold` for the same deal. Discuss in KAN-42 review.
 ### 7.1 Funding failure (KAN-44)
 
 If `provider.hold()` throws `PaymentError`:
+
 - The DB transaction is rolled back — no entries written
 - Campaign status stays `confirmed` (not `funded`)
 - Brand sees error and can retry
@@ -325,15 +327,15 @@ user is sufficient).
 
 ## 8. Summary of Decisions
 
-| Decision | Choice | Rationale |
-|---|---|---|
-| Schema change needed? | **No** — `ledger_entry` covers all operations | Existing schema matches the escrow pattern |
-| Commission rate | **15% default**, configurable per-deal via snapshot | Q1 still open; parameterise in KAN-42 |
-| Provider methods | `hold()`, `capturePayout()`, `releaseHold()` | Two-phase escrow requires funding/approval separation |
-| Idempotency | UUID key passed by caller, enforced by provider | Enables safe retry on timeout |
-| Mock ships to prod | Yes — `MockPaymentProvider` inlined, not test-only | Preview/staging runs without real PSP |
-| Invariant 4 | Partial unique index on `(deal_id) WHERE entry_type = 'hold'` | Prevents double-funding a deal |
-| Funding model | All-or-nothing per campaign | MVP scope; partial funding is a future enhancement |
+| Decision              | Choice                                                        | Rationale                                             |
+| --------------------- | ------------------------------------------------------------- | ----------------------------------------------------- |
+| Schema change needed? | **No** — `ledger_entry` covers all operations                 | Existing schema matches the escrow pattern            |
+| Commission rate       | **15% default**, configurable per-deal via snapshot           | Q1 still open; parameterise in KAN-42                 |
+| Provider methods      | `hold()`, `capturePayout()`, `releaseHold()`                  | Two-phase escrow requires funding/approval separation |
+| Idempotency           | UUID key passed by caller, enforced by provider               | Enables safe retry on timeout                         |
+| Mock ships to prod    | Yes — `MockPaymentProvider` inlined, not test-only            | Preview/staging runs without real PSP                 |
+| Invariant 4           | Partial unique index on `(deal_id) WHERE entry_type = 'hold'` | Prevents double-funding a deal                        |
+| Funding model         | All-or-nothing per campaign                                   | MVP scope; partial funding is a future enhancement    |
 
 ---
 
