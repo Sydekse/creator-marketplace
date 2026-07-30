@@ -12,6 +12,7 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { user } from './auth-schema';
 
 /**
  * Data model for the Creator Marketplace MVP — Tech Spec §3.2.
@@ -59,23 +60,16 @@ export type MetricSource = 'creator' | 'admin';
 // -- Identity ---------------------------------------------------------------
 
 /**
- * Better Auth owns this table at runtime; `role` is our extension and is what
- * every server-side RBAC gate reads (FR-001, NFR-005).
+ * Better Auth owns and manages the `user`, `session`, `account`, and
+ * `verification` tables at runtime via the schema in `db/auth-schema.ts`.
  *
- * Better Auth's own `session`, `account`, and `verification` tables are
- * deliberately not declared here — the spec defers them as framework defaults,
- * and they land with the Better Auth wiring ticket.
+ * We re-export `user` here so that every business table in this file can
+ * declare foreign-key references to it with a single import from `@/db/schema`.
+ *
+ * The `role` column (one of brand, creator, admin) is a Better Auth additional
+ * field that every server-side RBAC gate reads (FR-001, NFR-005).
  */
-export const user = pgTable('user', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  email: text('email').notNull().unique(),
-  emailVerified: boolean('email_verified').notNull().default(false),
-  name: text('name'),
-  role: text('role').$type<UserRole>().notNull().default('creator'),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export { user };
 
 // -- Pricing ----------------------------------------------------------------
 

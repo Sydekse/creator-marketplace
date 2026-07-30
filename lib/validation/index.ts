@@ -9,6 +9,8 @@ export {
 export type { ErrorEnvelope } from './errors';
 
 export {
+  signUpSchema,
+  signInSchema,
   createCreatorSchema,
   discoverCreatorsSchema,
   createCampaignSchema,

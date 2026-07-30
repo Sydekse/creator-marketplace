@@ -3,6 +3,7 @@ import path from 'node:path';
 import { getTableConfig } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
 import * as schema from '../db/schema';
+import * as authSchema from '../db/auth-schema';
 
 /**
  * Schema guards for KAN-14 (Tech Spec §3.2).
@@ -31,6 +32,23 @@ const TABLES = {
   audit_log: schema.auditLog,
   notification: schema.notification,
 } as const;
+
+/**
+ * Better Auth's remaining tables. `user` is in TABLES above because the spec
+ * lists it as an MVP entity; these three are framework defaults the spec
+ * defers, but they live in our migrations so the same invariants apply.
+ */
+const AUTH_TABLES = {
+  session: authSchema.session,
+  account: authSchema.account,
+  verification: authSchema.verification,
+} as const;
+
+/** Every table in the migration history, business and framework alike. */
+const ALL_TABLES = [
+  ...Object.entries(TABLES),
+  ...Object.entries(AUTH_TABLES),
+] as const;
 
 /**
  * Money is an integer count of ETB santim everywhere. A float or numeric here
@@ -66,17 +84,14 @@ describe('schema tables', () => {
     }
   );
 
-  it.each(Object.entries(TABLES))(
-    '%s has a uuid primary key',
-    (_name, table) => {
-      const pk = getTableConfig(table).columns.find((c) => c.primary);
-      expect(pk?.name).toBe('id');
-      expect(pk?.columnType).toBe('PgUUID');
-      expect(pk?.hasDefault).toBe(true);
-    }
-  );
+  it.each(ALL_TABLES)('%s has a uuid primary key', (_name, table) => {
+    const pk = getTableConfig(table).columns.find((c) => c.primary);
+    expect(pk?.name).toBe('id');
+    expect(pk?.columnType).toBe('PgUUID');
+    expect(pk?.hasDefault).toBe(true);
+  });
 
-  it.each(Object.entries(TABLES))(
+  it.each(ALL_TABLES)(
     '%s stores every timestamp with a timezone',
     (_name, table) => {
       const timestamps = getTableConfig(table).columns.filter(
@@ -91,6 +106,19 @@ describe('schema tables', () => {
       }
     }
   );
+
+  it('points every foreign key to user.id at a uuid column', () => {
+    const referencing = ALL_TABLES.flatMap(([, table]) =>
+      getTableConfig(table).foreignKeys.flatMap((fk) => {
+        const ref = fk.reference();
+        return ref.foreignTable === authSchema.user ? ref.columns : [];
+      })
+    );
+    expect(referencing.length).toBeGreaterThan(0);
+    for (const column of referencing) {
+      expect(column.columnType).toBe('PgUUID');
+    }
+  });
 });
 
 describe('money columns', () => {
@@ -106,14 +134,35 @@ describe('money columns', () => {
 });
 
 describe('generated migration', () => {
-  it('defaults every primary key to gen_random_uuid()', () => {
+  it('creates every table with a uuid primary key', () => {
     const pkLines = migrationSql
       .split('\n')
       .filter((l) => l.includes('PRIMARY KEY'));
-    expect(pkLines).toHaveLength(13);
+    // The 13 MVP entities plus session, account and verification.
+    expect(pkLines).toHaveLength(16);
     for (const line of pkLines) {
-      expect(line).toContain('gen_random_uuid()');
+      expect(line).toContain('"id" uuid PRIMARY KEY');
     }
+  });
+
+  // The three guards below exist because a later migration *did* walk these
+  // back and it went unnoticed. The invariants are uuid PKs defaulting to
+  // gen_random_uuid() and timestamptz throughout (Tech Spec §3, invariant 11);
+  // a migration is the only place they can be undone.
+  it('never drops the generated default off an id column', () => {
+    expect(migrationSql).not.toMatch(/ALTER COLUMN "id" DROP DEFAULT/);
+  });
+
+  it('never converts an id column to text', () => {
+    expect(migrationSql).not.toMatch(
+      /ALTER COLUMN "(id|user_id|actor_id|creator_id|campaign_id|deal_id|deliverable_id|tier_id)" SET DATA TYPE text/
+    );
+  });
+
+  it('never converts a timestamp column to a timezone-less type', () => {
+    expect(migrationSql).not.toMatch(
+      /SET DATA TYPE timestamp(?! with time zone)/
+    );
   });
 
   it.each([
