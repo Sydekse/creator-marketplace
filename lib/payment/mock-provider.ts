@@ -19,7 +19,10 @@ type IdempotencyRecord =
 
 export class MockPaymentProvider implements PaymentProvider {
   private holds = new Map<string, HoldRecord>();
-  private idempotency = new Map<string, { key: string; result: IdempotencyRecord }>();
+  private idempotency = new Map<
+    string,
+    { key: string; result: IdempotencyRecord }
+  >();
   private failNext = new Map<string, true>();
 
   setFailNext(method: string): void {
@@ -74,7 +77,10 @@ export class MockPaymentProvider implements PaymentProvider {
   ): Promise<ProviderHoldResult> {
     this.assertValidAmount(amount);
 
-    const cached = this.checkIdempotency<ProviderHoldResult>('hold', idempotencyKey);
+    const cached = this.checkIdempotency<ProviderHoldResult>(
+      'hold',
+      idempotencyKey
+    );
     if (cached) {
       if (cached.amount !== amount) {
         throw new PaymentError(
@@ -119,7 +125,10 @@ export class MockPaymentProvider implements PaymentProvider {
   ): Promise<ProviderCaptureResult> {
     this.assertValidAmount(amount);
 
-    const cached = this.checkIdempotency<ProviderCaptureResult>('capturePayout', idempotencyKey);
+    const cached = this.checkIdempotency<ProviderCaptureResult>(
+      'capturePayout',
+      idempotencyKey
+    );
     if (cached) {
       return cached;
     }
@@ -169,7 +178,10 @@ export class MockPaymentProvider implements PaymentProvider {
     holdRef: string,
     idempotencyKey: string
   ): Promise<ProviderReleaseResult> {
-    const cached = this.checkIdempotency<ProviderReleaseResult>('releaseHold', idempotencyKey);
+    const cached = this.checkIdempotency<ProviderReleaseResult>(
+      'releaseHold',
+      idempotencyKey
+    );
     if (cached) {
       return cached;
     }
