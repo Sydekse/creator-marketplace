@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { MockPaymentProvider } from '@/lib/payment/mock-provider';
-import { PaymentError } from '@/lib/payment/types';
+import { MockPaymentProvider } from '../lib/payment/mock-provider';
+import { PaymentError } from '../lib/payment/types';
 
 describe('MockPaymentProvider', () => {
   let provider: MockPaymentProvider;
