@@ -42,6 +42,7 @@ export interface PaymentProvider {
 export interface ProviderHoldResult {
   providerRef: string;
   status: 'held';
+  amount: number;
   heldAt: string;
 }
 

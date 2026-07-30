@@ -103,6 +103,7 @@ export class MockPaymentProvider implements PaymentProvider {
     const result: ProviderHoldResult = {
       providerRef,
       status: 'held',
+      amount,
       heldAt: now,
     };
 
