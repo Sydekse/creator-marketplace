@@ -42,7 +42,7 @@ export class MockPaymentProvider implements PaymentProvider {
   private assertValidAmount(amount: number): void {
     if (!Number.isInteger(amount) || amount <= 0) {
       throw new PaymentError(
-        'Amount must be a positive integer',
+        'INVALID_AMOUNT: Amount must be a positive integer',
         'INVALID_AMOUNT'
       );
     }
@@ -84,7 +84,7 @@ export class MockPaymentProvider implements PaymentProvider {
     if (cached) {
       if (cached.amount !== amount) {
         throw new PaymentError(
-          'Idempotency key reused with different arguments',
+          'DUPLICATE_IDEMPOTENCY: Idempotency key reused with different arguments',
           'DUPLICATE_IDEMPOTENCY'
         );
       }
@@ -152,7 +152,7 @@ export class MockPaymentProvider implements PaymentProvider {
 
     if (amount > record.amount) {
       throw new PaymentError(
-        'Capture amount exceeds hold amount',
+        'INSUFFICIENT_FUNDS: Capture amount exceeds hold amount',
         'INSUFFICIENT_FUNDS'
       );
     }
