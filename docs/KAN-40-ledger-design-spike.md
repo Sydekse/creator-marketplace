@@ -143,9 +143,9 @@ export interface PaymentProvider {
 export interface ProviderHoldResult {
   providerRef: string;
   status: 'held';
+  amount: number;
   heldAt: string; // ISO 8601
 }
-
 export interface ProviderCaptureResult {
   providerRef: string;
   status: 'captured';
