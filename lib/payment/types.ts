@@ -1,17 +1,41 @@
+/**
+ * Abstract payment processor interface.
+ *
+ * All amounts are integer ETB santim (1 ETB = 100 santim).
+ * Every mutation accepts an `idempotencyKey` — re-invoking with the same key
+ * returns the original result without re-executing. Different methods that
+ * share the same key are NOT deduplicated (each method's key space is
+ * independent).
+ *
+ * Implementations must guard against illegal state transitions:
+ *   held  → captured  (allowed once)
+ *   held  → released  (allowed once)
+ *   captured  → ×     (no further transitions)
+ *   released  → ×     (no further transitions)
+ */
 export interface PaymentProvider {
+  /** Reserve `amount` santim. Returns a `providerRef` used in subsequent calls. */
   hold(amount: number, idempotencyKey: string): Promise<ProviderHoldResult>;
 
+  /**
+   * Transfer `amount` santim from the hold identified by `holdRef` to `recipient`.
+   * `amount` must be ≤ the hold's original amount. Throws if the hold is not
+   * in `held` state.
+   */
   capturePayout(
     amount: number,
+    recipient: string,
     holdRef: string,
     idempotencyKey: string
   ): Promise<ProviderCaptureResult>;
 
+  /** Release the entire hold identified by `holdRef`. Throws if not `held`. */
   releaseHold(
     holdRef: string,
     idempotencyKey: string
   ): Promise<ProviderReleaseResult>;
 
+  /** Query current state of a hold by its `providerRef`. */
   getStatus(providerRef: string): Promise<ProviderStatus>;
 }
 
@@ -56,4 +80,5 @@ export type PaymentErrorCode =
   | 'PROVIDER_UNAVAILABLE'
   | 'INVALID_REFERENCE'
   | 'DUPLICATE_IDEMPOTENCY'
+  | 'INVALID_AMOUNT'
   | 'UNKNOWN';

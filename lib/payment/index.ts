@@ -8,4 +8,14 @@ export type {
   PaymentErrorCode,
 } from './types';
 
-export { MockPaymentProvider } from './mock-provider';
+import { MockPaymentProvider } from './mock-provider';
+import type { PaymentProvider as PaymentProviderType } from './types';
+
+let cachedProvider: PaymentProviderType | null = null;
+
+export function getPaymentProvider(): PaymentProviderType {
+  if (!cachedProvider) {
+    cachedProvider = new MockPaymentProvider();
+  }
+  return cachedProvider;
+}

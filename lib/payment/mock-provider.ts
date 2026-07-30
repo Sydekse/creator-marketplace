@@ -19,7 +19,7 @@ type IdempotencyRecord =
 
 export class MockPaymentProvider implements PaymentProvider {
   private holds = new Map<string, HoldRecord>();
-  private idempotency = new Map<string, IdempotencyRecord>();
+  private idempotency = new Map<string, { key: string; result: IdempotencyRecord }>();
   private failNext = new Map<string, true>();
 
   setFailNext(method: string): void {
@@ -36,13 +36,53 @@ export class MockPaymentProvider implements PaymentProvider {
     this.failNext.clear();
   }
 
+  private assertValidAmount(amount: number): void {
+    if (!Number.isInteger(amount) || amount <= 0) {
+      throw new PaymentError(
+        'Amount must be a positive integer',
+        'INVALID_AMOUNT'
+      );
+    }
+  }
+
+  private idempotencyKey(method: string, key: string): string {
+    return `${method}:${key}`;
+  }
+
+  private checkIdempotency<T extends IdempotencyRecord>(
+    method: string,
+    key: string
+  ): T | null {
+    const cached = this.idempotency.get(this.idempotencyKey(method, key));
+    return (cached?.result ?? null) as T | null;
+  }
+
+  private setIdempotency<T extends IdempotencyRecord>(
+    method: string,
+    key: string,
+    result: T
+  ): void {
+    this.idempotency.set(this.idempotencyKey(method, key), {
+      key,
+      result,
+    });
+  }
+
   async hold(
     amount: number,
     idempotencyKey: string
   ): Promise<ProviderHoldResult> {
-    const cached = this.idempotency.get(idempotencyKey);
-    if (cached && cached.status === 'held') {
-      return cached as ProviderHoldResult;
+    this.assertValidAmount(amount);
+
+    const cached = this.checkIdempotency<ProviderHoldResult>('hold', idempotencyKey);
+    if (cached) {
+      if (cached.amount !== amount) {
+        throw new PaymentError(
+          'Idempotency key reused with different arguments',
+          'DUPLICATE_IDEMPOTENCY'
+        );
+      }
+      return cached;
     }
 
     if (this.failNext.has('hold')) {
@@ -66,18 +106,21 @@ export class MockPaymentProvider implements PaymentProvider {
       heldAt: now,
     };
 
-    this.idempotency.set(idempotencyKey, result);
+    this.setIdempotency('hold', idempotencyKey, result);
     return result;
   }
 
   async capturePayout(
     amount: number,
+    recipient: string,
     holdRef: string,
     idempotencyKey: string
   ): Promise<ProviderCaptureResult> {
-    const cached = this.idempotency.get(idempotencyKey);
-    if (cached && cached.status === 'captured') {
-      return cached as ProviderCaptureResult;
+    this.assertValidAmount(amount);
+
+    const cached = this.checkIdempotency<ProviderCaptureResult>('capturePayout', idempotencyKey);
+    if (cached) {
+      return cached;
     }
 
     if (this.failNext.has('capturePayout')) {
@@ -90,8 +133,25 @@ export class MockPaymentProvider implements PaymentProvider {
       throw new PaymentError('Hold not found', 'INVALID_REFERENCE');
     }
 
+    if (record.state !== 'held') {
+      throw new PaymentError(
+        `Hold is in state '${record.state}', expected 'held'`,
+        'INVALID_REFERENCE'
+      );
+    }
+
+    if (amount > record.amount) {
+      throw new PaymentError(
+        'Capture amount exceeds hold amount',
+        'INSUFFICIENT_FUNDS'
+      );
+    }
+
     const now = new Date().toISOString();
-    record.state = 'captured';
+    record.amount -= amount;
+    if (record.amount === 0) {
+      record.state = 'captured';
+    }
     record.updatedAt = now;
 
     const result: ProviderCaptureResult = {
@@ -100,7 +160,7 @@ export class MockPaymentProvider implements PaymentProvider {
       capturedAt: now,
     };
 
-    this.idempotency.set(idempotencyKey, result);
+    this.setIdempotency('capturePayout', idempotencyKey, result);
     return result;
   }
 
@@ -108,9 +168,9 @@ export class MockPaymentProvider implements PaymentProvider {
     holdRef: string,
     idempotencyKey: string
   ): Promise<ProviderReleaseResult> {
-    const cached = this.idempotency.get(idempotencyKey);
-    if (cached && cached.status === 'released') {
-      return cached as ProviderReleaseResult;
+    const cached = this.checkIdempotency<ProviderReleaseResult>('releaseHold', idempotencyKey);
+    if (cached) {
+      return cached;
     }
 
     if (this.failNext.has('releaseHold')) {
@@ -123,6 +183,13 @@ export class MockPaymentProvider implements PaymentProvider {
       throw new PaymentError('Hold not found', 'INVALID_REFERENCE');
     }
 
+    if (record.state !== 'held') {
+      throw new PaymentError(
+        `Hold is in state '${record.state}', expected 'held'`,
+        'INVALID_REFERENCE'
+      );
+    }
+
     const now = new Date().toISOString();
     record.state = 'released';
     record.updatedAt = now;
@@ -133,20 +200,14 @@ export class MockPaymentProvider implements PaymentProvider {
       releasedAt: now,
     };
 
-    this.idempotency.set(idempotencyKey, result);
+    this.setIdempotency('releaseHold', idempotencyKey, result);
     return result;
   }
 
   async getStatus(providerRef: string): Promise<ProviderStatus> {
     const record = this.holds.get(providerRef);
     if (!record) {
-      return {
-        providerRef,
-        state: 'failed',
-        amount: 0,
-        updatedAt: new Date().toISOString(),
-        errorMessage: 'Hold not found',
-      };
+      throw new PaymentError('Hold not found', 'INVALID_REFERENCE');
     }
 
     return {
