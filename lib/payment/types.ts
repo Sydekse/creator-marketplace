@@ -8,10 +8,10 @@
  * independent).
  *
  * Implementations must guard against illegal state transitions:
- *   held  → captured  (allowed once)
+ *   held  → held      (allowed: partial capture reduces remaining amount)
+ *   held  → captured  (allowed once, when remaining amount reaches 0)
  *   held  → released  (allowed once)
- *   captured  → ×     (no further transitions)
- *   released  → ×     (no further transitions)
+ *   captured/released → × (no further transitions)
  */
 export interface PaymentProvider {
   /** Reserve `amount` santim. Returns a `providerRef` used in subsequent calls. */
