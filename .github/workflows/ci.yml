@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+# All three jobs below are configured as REQUIRED status checks in the `main`
+# branch protection rule. Every check must pass before squash-merge is allowed.
+# See KAN-61 for the full gate configuration.
+
 jobs:
   ci:
     name: CI
