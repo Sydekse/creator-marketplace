@@ -119,7 +119,7 @@ export class MockPaymentProvider implements PaymentProvider {
 
   async capturePayout(
     amount: number,
-    recipient: string,
+    _recipient: string,
     holdRef: string,
     idempotencyKey: string
   ): Promise<ProviderCaptureResult> {
