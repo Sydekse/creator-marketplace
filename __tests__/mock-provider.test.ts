@@ -44,15 +44,21 @@ describe('MockPaymentProvider', () => {
     });
 
     it('rejects non-integer amount', async () => {
-      await expect(provider.hold(10.5, 'int-1')).rejects.toThrow('INVALID_AMOUNT');
+      await expect(provider.hold(10.5, 'int-1')).rejects.toThrow(
+        'INVALID_AMOUNT'
+      );
     });
 
     it('rejects negative amount', async () => {
-      await expect(provider.hold(-5000, 'neg-1')).rejects.toThrow('INVALID_AMOUNT');
+      await expect(provider.hold(-5000, 'neg-1')).rejects.toThrow(
+        'INVALID_AMOUNT'
+      );
     });
 
     it('rejects zero amount', async () => {
-      await expect(provider.hold(0, 'zero-1')).rejects.toThrow('INVALID_AMOUNT');
+      await expect(provider.hold(0, 'zero-1')).rejects.toThrow(
+        'INVALID_AMOUNT'
+      );
     });
   });
 
@@ -77,7 +83,12 @@ describe('MockPaymentProvider', () => {
 
     it('rejects capture when hold is already captured', async () => {
       const hold = await provider.hold(5000, 'st-c1');
-      await provider.capturePayout(5000, 'creator_abc', hold.providerRef, 'st-c2');
+      await provider.capturePayout(
+        5000,
+        'creator_abc',
+        hold.providerRef,
+        'st-c2'
+      );
       await expect(
         provider.capturePayout(100, 'creator_abc', hold.providerRef, 'st-c3')
       ).rejects.toThrow(/expected 'held'/);
@@ -100,7 +111,12 @@ describe('MockPaymentProvider', () => {
 
     it('partial capture reduces remaining amount', async () => {
       const hold = await provider.hold(3000, 'part-1');
-      await provider.capturePayout(1000, 'creator_abc', hold.providerRef, 'part-2');
+      await provider.capturePayout(
+        1000,
+        'creator_abc',
+        hold.providerRef,
+        'part-2'
+      );
       const status = await provider.getStatus(hold.providerRef);
       expect(status.amount).toBe(2000);
       expect(status.state).toBe('held');
@@ -108,7 +124,12 @@ describe('MockPaymentProvider', () => {
 
     it('full capture marks state captured', async () => {
       const hold = await provider.hold(3000, 'full-1');
-      await provider.capturePayout(3000, 'creator_abc', hold.providerRef, 'full-2');
+      await provider.capturePayout(
+        3000,
+        'creator_abc',
+        hold.providerRef,
+        'full-2'
+      );
       const status = await provider.getStatus(hold.providerRef);
       expect(status.amount).toBe(0);
       expect(status.state).toBe('captured');
@@ -135,7 +156,12 @@ describe('MockPaymentProvider', () => {
       const hold = await provider.hold(2000, 'cap-fail-1');
       provider.setFailNext('capturePayout');
       await expect(
-        provider.capturePayout(2000, 'creator_abc', hold.providerRef, 'cap-fail-2')
+        provider.capturePayout(
+          2000,
+          'creator_abc',
+          hold.providerRef,
+          'cap-fail-2'
+        )
       ).rejects.toThrow(PaymentError);
     });
 
@@ -162,7 +188,12 @@ describe('MockPaymentProvider', () => {
 
     it('rejects release when hold is already captured', async () => {
       const hold = await provider.hold(5000, 'rs-c1');
-      await provider.capturePayout(5000, 'creator_abc', hold.providerRef, 'rs-c2');
+      await provider.capturePayout(
+        5000,
+        'creator_abc',
+        hold.providerRef,
+        'rs-c2'
+      );
       await expect(
         provider.releaseHold(hold.providerRef, 'rs-c3')
       ).rejects.toThrow(/expected 'held'/);
@@ -194,7 +225,12 @@ describe('MockPaymentProvider', () => {
 
     it('returns captured status after capture', async () => {
       const hold = await provider.hold(8000, 'stat-key-2');
-      await provider.capturePayout(8000, 'creator_abc', hold.providerRef, 'stat-key-3');
+      await provider.capturePayout(
+        8000,
+        'creator_abc',
+        hold.providerRef,
+        'stat-key-3'
+      );
       const status = await provider.getStatus(hold.providerRef);
       expect(status.state).toBe('captured');
       expect(status.amount).toBe(0);
@@ -202,7 +238,12 @@ describe('MockPaymentProvider', () => {
 
     it('returns held status after partial capture', async () => {
       const hold = await provider.hold(5000, 'stat-part-1');
-      await provider.capturePayout(2000, 'creator_abc', hold.providerRef, 'stat-part-2');
+      await provider.capturePayout(
+        2000,
+        'creator_abc',
+        hold.providerRef,
+        'stat-part-2'
+      );
       const status = await provider.getStatus(hold.providerRef);
       expect(status.state).toBe('held');
       expect(status.amount).toBe(3000);
@@ -216,7 +257,12 @@ describe('MockPaymentProvider', () => {
   describe('idempotency cross-method', () => {
     it('does not deduplicate across different methods with same key', async () => {
       const hold = await provider.hold(5000, 'cross-1');
-      await provider.capturePayout(5000, 'creator_abc', hold.providerRef, 'cross-key');
+      await provider.capturePayout(
+        5000,
+        'creator_abc',
+        hold.providerRef,
+        'cross-key'
+      );
       const secondHold = await provider.hold(3000, 'cross-key');
       expect(secondHold.status).toBe('held');
       expect(secondHold.providerRef).not.toBe(hold.providerRef);
