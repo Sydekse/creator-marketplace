@@ -1,5 +1,21 @@
 import { z } from 'zod';
 
+export const signUpSchema = z.object({
+  name: z.string().min(1, { message: 'Name is required.' }),
+  email: z.string().email({ message: 'Enter a valid email address.' }),
+  password: z
+    .string()
+    .min(8, { message: 'Password must be at least 8 characters.' }),
+  role: z.enum(['brand', 'creator'], {
+    message: 'Role must be "brand" or "creator".',
+  }),
+});
+
+export const signInSchema = z.object({
+  email: z.string().email({ message: 'Enter a valid email address.' }),
+  password: z.string().min(1, { message: 'Password is required.' }),
+});
+
 export const createCreatorSchema = z.object({
   tiktokHandle: z.string().min(1, { message: 'TikTok handle is required.' }),
   niche: z.string().min(1, { message: 'Niche is required.' }),

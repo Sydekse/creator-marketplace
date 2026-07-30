@@ -1,15 +1,14 @@
 import { Header } from '@/components/layout/header';
 import { Toaster } from '@/components/ui/sonner';
-import { getCurrentUser } from '@/lib/auth';
-import { redirect } from 'next/navigation';
+import { requireRole } from '@/lib/auth';
 
 export default async function BrandLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
-  if (!user) redirect('/sign-in');
+  // Role gate, not just an auth check — every route in this group is brand-only.
+  const user = await requireRole('brand');
 
   return (
     <>

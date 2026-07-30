@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { getNavLinks } from '../lib/navigation';
+import { getNavLinks, roleHomePath } from '../lib/navigation';
 
 describe('getNavLinks', () => {
   it('returns brand links for brand role', () => {
@@ -19,6 +19,7 @@ describe('getNavLinks', () => {
   it('returns admin links for admin role', () => {
     const links = getNavLinks('admin');
     expect(links.map((l) => l.label)).toEqual([
+      'Console',
       'Verification',
       'Campaigns',
       'Deals',
@@ -32,6 +33,15 @@ describe('getNavLinks', () => {
         expect(link.href).toBeTruthy();
         expect(link.href.startsWith('/')).toBe(true);
       }
+    }
+  });
+
+  // Every role signs in to its own landing page, so every role needs a way back
+  // to it once it navigates away.
+  it('gives every role a link to its own home', () => {
+    for (const role of ['brand', 'creator', 'admin'] as const) {
+      const hrefs = getNavLinks(role).map((l) => l.href);
+      expect(hrefs).toContain(roleHomePath(role));
     }
   });
 });

@@ -7,7 +7,10 @@ loadEnvConfig(process.cwd());
 
 export default defineConfig({
   dialect: 'postgresql',
-  schema: './db/schema.ts',
+  // Two files, one migration history: business tables in `schema.ts`, the four
+  // Better Auth tables in `auth-schema.ts`. Both must be listed or drizzle-kit
+  // reads the absent one as a drop.
+  schema: ['./db/schema.ts', './db/auth-schema.ts'],
   out: './drizzle',
   dbCredentials: {
     url: process.env.DATABASE_URL!,
