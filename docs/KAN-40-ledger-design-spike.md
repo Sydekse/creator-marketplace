@@ -106,7 +106,7 @@ export interface PaymentProvider {
   hold(amount: number, idempotencyKey: string): Promise<ProviderHoldResult>;
 
   /**
-   * Capture held funds and transfer to the platform's settlement account.
+   * Capture held funds and transfer to `recipient`.
    * Called when a deal is approved (KAN-45).
    *
    * - amount: the exact creator payout (total_price - commission)
