@@ -36,8 +36,14 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Fails on high or critical (KAN-61 AC4). Moderate and below are
+      # reported by `npm audit` locally but do not gate the merge.
+      #
+      # Accepted advisories are pinned out via `overrides` in package.json
+      # rather than suppressed here, so the audit output stays honest — an
+      # ignore-list would hide a future advisory in the same package.
       - name: Dependency vulnerability scan
-        run: npm audit --audit-level=critical
+        run: npm audit --audit-level=high
 
       - name: Upload coverage report
         uses: actions/upload-artifact@v5
