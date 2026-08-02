@@ -12,7 +12,12 @@
     "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "vercel-build": "if [ \"$VERCEL_ENV\" = \"production\" ]; then npm run db:migrate; fi && next build"
+    "vercel-build": "if [ -n \"$DATABASE_URL\" ]; then npm run db:migrate || exit 1; fi && next build"
+  },
+  "overrides": {
+    "brace-expansion@<1.1.17": "^1.1.18",
+    "postcss@<=8.5.17": "^8.5.18",
+    "sharp@<0.35.0": "^0.35.0"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
