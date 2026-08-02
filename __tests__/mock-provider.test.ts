@@ -135,7 +135,7 @@ describe('MockPaymentProvider', () => {
       expect(status.state).toBe('captured');
     });
 
-    it('deduplicates by idempotency key', async () => {
+    it('deduplicates an identical retry by idempotency key', async () => {
       const hold = await provider.hold(3000, 'cap-dup-1');
       const first = await provider.capturePayout(
         3000,
@@ -144,12 +144,92 @@ describe('MockPaymentProvider', () => {
         'cap-dup-2'
       );
       const second = await provider.capturePayout(
-        999,
-        'creator_wrong',
-        'some-ref',
+        3000,
+        'creator_abc',
+        hold.providerRef,
         'cap-dup-2'
       );
       expect(second.providerRef).toBe(first.providerRef);
+      expect(second.capturedAt).toBe(first.capturedAt);
+    });
+
+    it('does not re-execute on an identical retry', async () => {
+      const hold = await provider.hold(3000, 'cap-once-1');
+      await provider.capturePayout(
+        1000,
+        'creator_abc',
+        hold.providerRef,
+        'cap-once-2'
+      );
+      await provider.capturePayout(
+        1000,
+        'creator_abc',
+        hold.providerRef,
+        'cap-once-2'
+      );
+      // Draining the hold twice would leave 1000. The replay must be a no-op.
+      const status = await provider.getStatus(hold.providerRef);
+      expect(status.amount).toBe(2000);
+    });
+
+    it('throws DUPLICATE_IDEMPOTENCY when key reused with a different amount', async () => {
+      const hold = await provider.hold(5000, 'cap-mis-1');
+      await provider.capturePayout(
+        1000,
+        'creator_abc',
+        hold.providerRef,
+        'cap-mis-2'
+      );
+      await expect(
+        provider.capturePayout(
+          2000,
+          'creator_abc',
+          hold.providerRef,
+          'cap-mis-2'
+        )
+      ).rejects.toThrow('DUPLICATE_IDEMPOTENCY');
+    });
+
+    it('throws DUPLICATE_IDEMPOTENCY when key reused with a different recipient', async () => {
+      const hold = await provider.hold(5000, 'cap-rcp-1');
+      await provider.capturePayout(
+        1000,
+        'creator_abc',
+        hold.providerRef,
+        'cap-rcp-2'
+      );
+      await expect(
+        provider.capturePayout(
+          1000,
+          'creator_xyz',
+          hold.providerRef,
+          'cap-rcp-2'
+        )
+      ).rejects.toThrow('DUPLICATE_IDEMPOTENCY');
+    });
+
+    it('throws DUPLICATE_IDEMPOTENCY when key reused against a different hold', async () => {
+      const first = await provider.hold(1000, 'cap-ref-1');
+      const second = await provider.hold(5000, 'cap-ref-2');
+      await provider.capturePayout(
+        1000,
+        'creator_abc',
+        first.providerRef,
+        'cap-ref-3'
+      );
+      await expect(
+        provider.capturePayout(
+          1000,
+          'creator_abc',
+          second.providerRef,
+          'cap-ref-3'
+        )
+      ).rejects.toThrow('DUPLICATE_IDEMPOTENCY');
+
+      // The mismatched request must not have moved money on the second hold.
+      const status = await provider.getStatus(second.providerRef);
+      expect(status.state).toBe('held');
+      expect(status.amount).toBe(5000);
     });
 
     it('throws PaymentError when failNext is set', async () => {
@@ -207,11 +287,26 @@ describe('MockPaymentProvider', () => {
       ).rejects.toThrow(/expected 'held'/);
     });
 
-    it('deduplicates by idempotency key', async () => {
+    it('deduplicates an identical retry by idempotency key', async () => {
       const hold = await provider.hold(6000, 'rel-dup-1');
       const first = await provider.releaseHold(hold.providerRef, 'rel-dup-2');
-      const second = await provider.releaseHold('some-ref', 'rel-dup-2');
+      const second = await provider.releaseHold(hold.providerRef, 'rel-dup-2');
       expect(second.providerRef).toBe(first.providerRef);
+      expect(second.releasedAt).toBe(first.releasedAt);
+    });
+
+    it('throws DUPLICATE_IDEMPOTENCY when key reused against a different hold', async () => {
+      const first = await provider.hold(6000, 'rel-mis-1');
+      const second = await provider.hold(7000, 'rel-mis-2');
+      await provider.releaseHold(first.providerRef, 'rel-mis-3');
+      await expect(
+        provider.releaseHold(second.providerRef, 'rel-mis-3')
+      ).rejects.toThrow('DUPLICATE_IDEMPOTENCY');
+
+      // The second hold must be untouched by the rejected replay.
+      const status = await provider.getStatus(second.providerRef);
+      expect(status.state).toBe('held');
+      expect(status.amount).toBe(7000);
     });
   });
 

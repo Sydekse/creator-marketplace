@@ -21,7 +21,7 @@ export class MockPaymentProvider implements PaymentProvider {
   private holds = new Map<string, HoldRecord>();
   private idempotency = new Map<
     string,
-    { key: string; result: IdempotencyRecord }
+    { args: string; result: IdempotencyRecord }
   >();
   private failNext = new Map<string, true>();
 
@@ -52,21 +52,47 @@ export class MockPaymentProvider implements PaymentProvider {
     return `${method}:${key}`;
   }
 
+  /**
+   * Returns the cached result for `key`, or null on first use.
+   *
+   * A key replayed with the *same* arguments is a retry — §5.3 of the KAN-40
+   * spike retries serialization failures up to three times, and each attempt
+   * reuses the key — so the original result is returned without re-executing.
+   *
+   * A key replayed with *different* arguments is a caller bug, not a retry. The
+   * request being made is not the request that was executed, so returning the
+   * original result would report success for work that never happened. Throw
+   * instead, and let the caller's transaction roll back.
+   *
+   * `args` is compared by JSON serialisation. Every call site builds its literal
+   * with the same key order, so the encoding is stable.
+   */
   private checkIdempotency<T extends IdempotencyRecord>(
     method: string,
-    key: string
+    key: string,
+    args: unknown
   ): T | null {
     const cached = this.idempotency.get(this.idempotencyKey(method, key));
-    return (cached?.result ?? null) as T | null;
+    if (!cached) return null;
+
+    if (cached.args !== JSON.stringify(args)) {
+      throw new PaymentError(
+        'DUPLICATE_IDEMPOTENCY: Idempotency key reused with different arguments',
+        'DUPLICATE_IDEMPOTENCY'
+      );
+    }
+
+    return cached.result as T;
   }
 
   private setIdempotency<T extends IdempotencyRecord>(
     method: string,
     key: string,
+    args: unknown,
     result: T
   ): void {
     this.idempotency.set(this.idempotencyKey(method, key), {
-      key,
+      args: JSON.stringify(args),
       result,
     });
   }
@@ -77,19 +103,13 @@ export class MockPaymentProvider implements PaymentProvider {
   ): Promise<ProviderHoldResult> {
     this.assertValidAmount(amount);
 
+    const args = { amount };
     const cached = this.checkIdempotency<ProviderHoldResult>(
       'hold',
-      idempotencyKey
+      idempotencyKey,
+      args
     );
-    if (cached) {
-      if (cached.amount !== amount) {
-        throw new PaymentError(
-          'DUPLICATE_IDEMPOTENCY: Idempotency key reused with different arguments',
-          'DUPLICATE_IDEMPOTENCY'
-        );
-      }
-      return cached;
-    }
+    if (cached) return cached;
 
     if (this.failNext.has('hold')) {
       this.failNext.delete('hold');
@@ -113,25 +133,25 @@ export class MockPaymentProvider implements PaymentProvider {
       heldAt: now,
     };
 
-    this.setIdempotency('hold', idempotencyKey, result);
+    this.setIdempotency('hold', idempotencyKey, args, result);
     return result;
   }
 
   async capturePayout(
     amount: number,
-    _recipient: string,
+    recipient: string,
     holdRef: string,
     idempotencyKey: string
   ): Promise<ProviderCaptureResult> {
     this.assertValidAmount(amount);
 
+    const args = { amount, recipient, holdRef };
     const cached = this.checkIdempotency<ProviderCaptureResult>(
       'capturePayout',
-      idempotencyKey
+      idempotencyKey,
+      args
     );
-    if (cached) {
-      return cached;
-    }
+    if (cached) return cached;
 
     if (this.failNext.has('capturePayout')) {
       this.failNext.delete('capturePayout');
@@ -170,7 +190,7 @@ export class MockPaymentProvider implements PaymentProvider {
       capturedAt: now,
     };
 
-    this.setIdempotency('capturePayout', idempotencyKey, result);
+    this.setIdempotency('capturePayout', idempotencyKey, args, result);
     return result;
   }
 
@@ -178,13 +198,13 @@ export class MockPaymentProvider implements PaymentProvider {
     holdRef: string,
     idempotencyKey: string
   ): Promise<ProviderReleaseResult> {
+    const args = { holdRef };
     const cached = this.checkIdempotency<ProviderReleaseResult>(
       'releaseHold',
-      idempotencyKey
+      idempotencyKey,
+      args
     );
-    if (cached) {
-      return cached;
-    }
+    if (cached) return cached;
 
     if (this.failNext.has('releaseHold')) {
       this.failNext.delete('releaseHold');
@@ -213,7 +233,7 @@ export class MockPaymentProvider implements PaymentProvider {
       releasedAt: now,
     };
 
-    this.setIdempotency('releaseHold', idempotencyKey, result);
+    this.setIdempotency('releaseHold', idempotencyKey, args, result);
     return result;
   }
 
