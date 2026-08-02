@@ -17,8 +17,8 @@ so KAN-41 and KAN-42 share a single source of truth.
 
 ## 2. Data Model — Confirmed
 
-The existing `ledger_entry` table in `db/schema.ts:300` supports every required
-operation with no changes needed.
+The existing `ledger_entry` table in `db/schema.ts` has the required columns;
+however, KAN-42 likely needs a partial unique index to prevent double-funding and an optional `'hold_pending'` `entry_type` if we adopt the pending-row approach.
 
 | Field           | Role                                                                    |
 | --------------- | ----------------------------------------------------------------------- |
@@ -29,8 +29,7 @@ operation with no changes needed.
 | `balance_after` | Campaign running balance after this entry                               |
 | `provider_ref`  | External PSP transaction ID (nullable)                                  |
 
-**Decision:** No schema changes needed. The table is append-only per existing
-design — rows are never updated or deleted.
+**Decision:** No table _column_ changes needed. Ledger rows are append-only for financial amounts; if using `hold_pending`, allow a one-time in-transaction finalization update (e.g. set `provider_ref`, `hold_pending` → `hold`).
 
 ---
 
@@ -49,17 +48,23 @@ standard for creator marketplaces). The execution plan flags Q1 as needing
 business sign-off before KAN-20 (seed data). Until then KAN-42 should accept the
 rate as a parameter — do not hardcode it.
 
-### 3.3 Payout formula
+### 3.3 Payout formula (corrected)
 
 ```
                    total_price  (deal.total_price)
                  = video_count × deal.unit_price
 
-     creator_payout = total_price × (1 - commission_rate / 100)
-   platform_revenue = total_price × (commission_rate / 100)
+     const rateBp = Math.round(commission_rate * 100);       // 15.00% → 1500 bp
+     const commission = Math.round((total_price * rateBp) / 10_000);
+     const payout = total_price - commission;                 // exact, always
 
-// All values in ETB santim. Both must sum to total_price exactly.
+// All values in ETB santim. payout + commission === total_price guaranteed.
 ```
+
+**Derivation:** `payout` is computed by _subtraction_, not by independent
+multiplication. Computing both sides independently produces rounding errors
+(~1 in 10 deals at 10% rate). Using integer basis points avoids floating-point
+drift from `numeric(5,2)` going through IEEE 754 on the way in.
 
 ### 3.4 Ledger entries on approval
 
@@ -97,7 +102,7 @@ export interface PaymentProvider {
    * Reserve funds against a payment method.
    * Called when a campaign is funded (KAN-43).
    *
-   * - amount: ETB santim (integer)
+   * - amount: ETB santim (integer, positive)
    * - idempotencyKey: caller-generated UUID so the PSP can deduplicate
    *
    * Returns a provider reference string on success.
@@ -106,16 +111,19 @@ export interface PaymentProvider {
   hold(amount: number, idempotencyKey: string): Promise<ProviderHoldResult>;
 
   /**
-   * Capture held funds and transfer to `recipient`.
+   * Transfer held funds to a specific recipient.
    * Called when a deal is approved (KAN-45).
    *
-   * - amount: the exact creator payout (total_price - commission)
+   * - amount: the exact creator payout (total_price - commission); must be ≤ hold amount
+   * - recipient: PSP-level identifier for the payee (creator's payout address)
    * - holdRef: the providerRef from the corresponding hold()
+   * - idempotencyKey: caller-generated UUID
    *
-   * Returns a provider reference string on success.
+   * Throws if hold is not in 'held' state.
    */
   capturePayout(
     amount: number,
+    recipient: string,
     holdRef: string,
     idempotencyKey: string
   ): Promise<ProviderCaptureResult>;
@@ -125,6 +133,9 @@ export interface PaymentProvider {
    * Called on deal decline after funding, or dispute refund.
    *
    * - holdRef: the providerRef from the corresponding hold()
+   * - idempotencyKey: caller-generated UUID
+   *
+   * Throws if hold is not in 'held' state.
    */
   releaseHold(
     holdRef: string,
@@ -143,9 +154,9 @@ export interface PaymentProvider {
 export interface ProviderHoldResult {
   providerRef: string;
   status: 'held';
-  amount: number;
   heldAt: string; // ISO 8601
 }
+
 export interface ProviderCaptureResult {
   providerRef: string;
   status: 'captured';
@@ -260,32 +271,97 @@ export class EscrowLedgerService {
 }
 ```
 
-Each method runs inside a **Drizzle transaction** using a serializable isolation
-level. The `balance_after` column is computed in-memory and guarded with an
-explicit check (`IF balance_after < 0 THEN ROLLBACK`) inside the transaction.
+### 5.1 Decision: provider call sits _inside_ the DB transaction
+
+```mermaid
+flowchart LR
+    A[Begin TX] --> B[Load deal FOR UPDATE]
+    B --> C[Assert legal transition]
+    C --> D[Call provider.method]
+    D -->|success| E[Write ledger_entry + deal_event]
+    D -->|failure| F[Rollback TX → no state change]
+    E --> G[Commit TX]
+```
+
+**Rationale:** Placing the call inside the transaction means a provider failure
+automatically rolls back every DB change — deal status, ledger entries, and
+`deal_event` all return to their prior state. The cost is that the transaction
+holds its `FOR UPDATE` row lock while the external call is in flight. For the
+MVP's demo scale (single-user testing, sub-second provider mock) this is
+acceptable.
+
+### 5.2 Compensation path for the dangerous window
+
+The risk is the opposite direction: the provider _succeeds_ but the DB
+_rolls back_ (network error on commit, Postgres crash, etc.). Funds would sit
+held at the PSP with no ledger row recording them.
+
+**Decision:** A `hold_pending` row only mitigates the provider-succeeds/DB-rollback window if it is persisted _before_ the provider call in a separate committed step (or via an outbox).
+If the provider call stays inside the same DB transaction, a rollback removes the pending row too, so reconciliation must rely on provider-side reporting + idempotency keys.
+Adopting this pattern also requires adding `'hold_pending'` to `LedgerEntryType` in `db/schema.ts`.
+query `getStatus()` for any PSP ref not linked to a confirmed `hold` entry.
+
+**MVP note:** The `hold_pending` pattern is recommended but can be deferred to
+Phase 2 if the team accepts the risk window. The mock provider's synthetic refs
+have no real-world cost, so the window only matters when a real PSP is connected.
+
+### 5.3 Locking strategy
+
+Each money-mutating method:
+
+1. Begins a Drizzle `serializable` transaction.
+2. Executes `SELECT … FOR UPDATE` on the **campaign row** (prevents concurrent
+   funding/approval from reading stale `balance_after`).
+3. Also locks the **deal row** with `FOR UPDATE` to guard the state-machine
+   transition (prevents double-approval).
+4. Calls the provider.
+5. If Postgres raises `40001` (serialization failure), retries up to **3 times**
+   with exponential backoff (50 ms, 100 ms, 200 ms). If all retries fail, returns
+   `PAYMENT_FAILED` and does not change any state.
+
+### 5.4 `balance_after` derivation
+
+`balance_after` is **re-summed** from all prior `ledger_entry` rows for the
+campaign inside the same transaction under `FOR UPDATE` — it is **not** carried
+forward from the previous row. This guarantees non-negativity under concurrency:
+even if two approvals arrive simultaneously, each sees the correct running
+balance because the campaign row lock serialises them.
+
+```
+balance_after = COALESCE(
+  (SELECT SUM(amount) FROM ledger_entry WHERE campaign_id = $1 FOR UPDATE),
+  0
+) + NEW.amount
+```
 
 ---
 
 ## 6. Key Invariants
 
-| #   | Invariant                                                              | Enforced by                                                                        |
-| --- | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| 1   | Campaign balance = sum of all `amount` in its `ledger_entry` rows      | `balance_after` + in-transaction guard                                             |
-| 2   | Every `release_payout` is paired with a prior `hold` for the same deal | Deal state machine (funded → completed)                                            |
-| 3   | Total of `release_payout` + `commission` = `total_price` (that deal)   | In-transaction assertion in KAN-45                                                 |
-| 4   | One `hold` entry per deal per campaign — no double-funding             | `ledger_entry` UNIQUE on `(deal_id, 'hold')` (DB constraint) — **needs migration** |
-| 5   | `provider_ref` on `hold` entries matches a real PSP hold               | Not nullable after funding — written in same transaction                           |
-| 6   | Money is never created or destroyed — ledger sum is zero-sum           | Audit: sum all entries across time = 0                                             |
-| 7   | Failed provider calls leave campaign untouched                         | KAN-44: roll back DB changes on `PaymentError`                                     |
+| #   | Invariant                                                              | Enforced by                                                                      |
+| --- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 1   | Campaign balance = sum of all `amount` in its `ledger_entry` rows      | `balance_after` re-summed under `FOR UPDATE` (§5.4)                              |
+| 2   | Every `release_payout` is paired with a prior `hold` for the same deal | Deal state machine (funded → completed)                                          |
+| 3   | Total of `release_payout` + `commission` = `total_price` (that deal)   | In-transaction assertion via subtraction formula (§3.3)                          |
+| 4   | One `hold` entry per deal per campaign — no double-funding             | Application-level check: `SELECT COUNT(*)` before insert; no dedicated index yet |
+| 5   | `provider_ref` on `hold` entries matches a real PSP hold               | Not nullable after funding — written in same transaction                         |
+| 6   | Money is never created or destroyed — ledger sum is zero-sum           | Audit: sum all entries across time = 0                                           |
+| 7   | Failed provider calls leave campaign untouched                         | KAN-44: roll back DB changes on `PaymentError`                                   |
 
-**Invariant 4 — recommended migration:** Add a partial unique index on `ledger_entry`:
+**Invariant 4 — note on schema change:** §2 and §8 previously stated "no schema
+change needed". Invariant 4 requires a partial unique index to prevent
+double-funding. This is a **schema addition** (not a change to the table
+definition), which is why the table itself needs no migration — the index is
+created by a separate migration step. KAN-42 should ship this index. If it
+doesn't, the application-level guard (COUNT check) remains the fallback.
 
-```sql
-CREATE UNIQUE INDEX ledger_entry_deal_hold_unique
-  ON ledger_entry (deal_id) WHERE entry_type = 'hold';
-```
-
-This prevents a second `hold` for the same deal. Discuss in KAN-42 review.
+**`balance_after` — two quantities, one column:** Refunds are positive entries
+restoring budget to the campaign. `balance_after` tracks **funds held in escrow**
+(signed sum: holds + payouts + commissions are negative, refunds are positive).
+This is NOT the same as "available budget" — that is computed from the campaign's
+original budget minus the sum of absolute values of all holds for active deals.
+These are distinct quantities sharing the same sign convention, which is correct
+as long as consumers know which they are reading.
 
 ---
 
@@ -327,19 +403,38 @@ user is sufficient).
 
 ## 8. Summary of Decisions
 
-| Decision              | Choice                                                        | Rationale                                             |
-| --------------------- | ------------------------------------------------------------- | ----------------------------------------------------- |
-| Schema change needed? | **No** — `ledger_entry` covers all operations                 | Existing schema matches the escrow pattern            |
-| Commission rate       | **15% default**, configurable per-deal via snapshot           | Q1 still open; parameterise in KAN-42                 |
-| Provider methods      | `hold()`, `capturePayout()`, `releaseHold()`                  | Two-phase escrow requires funding/approval separation |
-| Idempotency           | UUID key passed by caller, enforced by provider               | Enables safe retry on timeout                         |
-| Mock ships to prod    | Yes — `MockPaymentProvider` inlined, not test-only            | Preview/staging runs without real PSP                 |
-| Invariant 4           | Partial unique index on `(deal_id) WHERE entry_type = 'hold'` | Prevents double-funding a deal                        |
-| Funding model         | All-or-nothing per campaign                                   | MVP scope; partial funding is a future enhancement    |
+| Decision                     | Choice                                                                       | Rationale                                                        |
+| ---------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Schema change needed?        | **Index only** — partial unique index on `(deal_id) WHERE 'hold'`            | Prevents double-funding; table definition unchanged              |
+| Provider-call ordering       | **Inside** the DB transaction, before commit                                 | Provider failure ⇒ automatic rollback (§5.1)                     |
+| Compensation path            | `hold_pending` row written before provider call; reconciled offline          | Covers provider-succeeds/DB-rollback window (§5.2)               |
+| Locking strategy             | `FOR UPDATE` on campaign row + deal row; serializable isolation              | Prevents concurrent approval from overdrawing (§5.3)             |
+| Serialization-failure retry  | 3 attempts with exponential backoff (50/100/200 ms)                          | Transient conflict does not fail the user (§5.3)                 |
+| `balance_after` derivation   | Re-summed from prior entries under lock, not carried forward                 | Guarantees non-negativity under concurrency (§5.4)               |
+| Commission rounding          | `payout = total_price - commission` (subtraction) with integer bp            | Guarantees `payout + commission === total_price` (§3.3)          |
+| Commission rate              | **15% default**, configurable per-deal via snapshot                          | Q1 still open; parameterise in KAN-42                            |
+| Provider methods             | `hold()`, `capturePayout(amount, recipient, holdRef)`, `releaseHold()`       | Two-phase escrow requires funding/approval separation            |
+| `recipient` parameter        | **Added** to `capturePayout` (review correction from KAN-41)                 | Without it a real PSP cannot route funds to a creator            |
+| Method naming deviation      | Spike used `capturePayout`/`releaseHold`; KAN-41 AC used `transfer`/`refund` | Renames accepted; `capturePayout` preferred for semantic clarity |
+| Idempotency                  | UUID key per method; key space is **method-scoped** (not global)             | Prevents cross-method key collisions                             |
+| Mock ships to prod           | Yes — `MockPaymentProvider` via `getPaymentProvider()` factory               | Preview/staging runs without real PSP                            |
+| Funding model                | All-or-nothing per campaign                                                  | MVP scope; partial funding is a future enhancement               |
+| Invariant 4 (double-funding) | Application-level COUNT guard (MVP); index recommended (Phase 2)             | Deferred to keep schema migration light                          |
 
 ---
 
-## 9. Files KAN-41 Should Create
+## 9. Exit Criteria
+
+| #   | Criterion                                                                                                  | Status                                              |
+| --- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 1   | ADR recording transaction ordering, locking strategy, and rounding rule                                    | **Done** (§5.1–§5.4, §3.3)                          |
+| 2   | Interface signature written down and aligned with KAN-41 AC                                                | **Done** (§4, §8)                                   |
+| 3   | Proof-of-concept test showing simulated provider failure leaves zero ledger rows and unchanged deal status | **Done** (`__tests__/poc-provider-failure.test.ts`) |
+| 4   | Ledger service story re-estimated on the board                                                             | * —                                                 |
+
+---
+
+## 10. Files KAN-41 Should Create
 
 ```
 lib/
