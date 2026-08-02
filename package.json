@@ -17,7 +17,8 @@
   "overrides": {
     "brace-expansion@<1.1.17": "^1.1.18",
     "postcss@<=8.5.17": "^8.5.18",
-    "sharp@<0.35.0": "^0.35.0"
+    "sharp@<0.35.0": "^0.35.0",
+    "@emnapi/wasi-threads": "^1.2.2"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
