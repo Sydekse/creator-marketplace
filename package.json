@@ -12,6 +12,7 @@
     "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx db/seed.ts",
     "vercel-build": "if [ -n \"$DATABASE_URL\" ]; then npm run db:migrate || exit 1; fi && next build"
   },
   "overrides": {
@@ -51,6 +52,7 @@
     "eslint-config-next": "16.2.11",
     "prettier": "^3.9.6",
     "tailwindcss": "^4",
+    "tsx": "^4.19.0",
     "typescript": "^5",
     "vitest": "^4.1.10"
   }
