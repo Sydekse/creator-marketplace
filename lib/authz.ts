@@ -11,6 +11,11 @@ import {
 import type { UserRole } from '@/db/schema';
 import { getCurrentUser as getSessionUser } from '@/lib/auth';
 import type { CurrentUser } from '@/lib/auth';
+// Deep imports rather than a `lib/audit` barrel: `lib/audit/queries` imports
+// `guard` from this module, so a barrel would close the loop.
+import { AUDIT_ACTION_TARGET } from '@/lib/audit/actions';
+import type { AuditAction, AuditTargetType } from '@/lib/audit/actions';
+import { redactDetail } from '@/lib/audit/redact';
 import { ErrorCode, ErrorHttpStatus, errorResponse } from '@/lib/validation';
 import type { ErrorEnvelope } from '@/lib/validation';
 
@@ -323,13 +328,27 @@ export function toActionError(error: unknown): ErrorEnvelope {
 
 // -- Admin actions (AC5) ----------------------------------------------------
 
-export interface AuditEntry {
-  /** Dotted entity.verb, per the audit_log spec: creator.verify, deal.resolve_dispute. */
-  action: string;
-  targetType: string;
+export interface AuditEntry<T = unknown> {
+  /**
+   * Dotted entity.verb from the closed vocabulary in `lib/audit/actions.ts`
+   * (KAN-52). Typed rather than `string` so that "filterable by action type" has
+   * a finite list to filter on.
+   */
+  action: AuditAction;
+  targetType: AuditTargetType;
   targetId: string;
-  /** Before/after or context. */
-  detail?: Record<string, unknown>;
+  /**
+   * Before/after or context, redacted before it is written — see
+   * `lib/audit/redact.ts`. Callers do not need to pre-sanitise it, and should
+   * not rely on having done so.
+   *
+   * Accepts a function of the mutation's result because half of "before/after"
+   * does not exist yet when this entry is constructed. A dispute resolution
+   * only learns which way the ledger went once it has run, and a caller forced
+   * to supply the value upfront would either log the intent instead of the
+   * outcome or re-read the row to find out.
+   */
+  detail?: Record<string, unknown> | ((result: T) => Record<string, unknown>);
 }
 
 export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
@@ -361,22 +380,45 @@ const defaultAdminAuditDeps: AdminAuditDeps = {
  * causes a connection to be taken from the pool.
  */
 export async function withAdminAudit<T>(
-  entry: AuditEntry,
+  entry: AuditEntry<T>,
   fn: (tx: Tx, ctx: AuthzContext) => Promise<T>,
   deps: AdminAuditDeps = defaultAdminAuditDeps
 ): Promise<T> {
   const ctx = await createGuard(deps)({ roles: ['admin'] });
 
+  // A mismatched pair is a wiring mistake, not a runtime condition: it can only
+  // be reached by a developer naming the wrong target type, and it would leave
+  // a row that looks valid while pointing into the wrong table. So it throws a
+  // plain Error rather than an ErrorCode — there is no user-facing form of
+  // "this action was logged against the wrong kind of thing", and turning it
+  // into a 4xx would invite someone to catch and ignore it.
+  //
+  // Checked before the transaction opens, so a miswired call never starts one.
+  const expectedTarget = AUDIT_ACTION_TARGET[entry.action];
+  if (entry.targetType !== expectedTarget) {
+    throw new Error(
+      `Audit action ${entry.action} targets ${expectedTarget}, got ${entry.targetType}.`
+    );
+  }
+
   return deps.transaction(async (tx) => {
     // The caller's mutation runs first so that `detail` can carry a before and
     // after, and so a failed mutation throws before any audit row is built.
     const result = await fn(tx, ctx);
+
+    const detail =
+      typeof entry.detail === 'function' ? entry.detail(result) : entry.detail;
+
     await tx.insert(auditLog).values({
       actorId: ctx.user.id,
       action: entry.action,
       targetType: entry.targetType,
       targetId: entry.targetId,
-      detail: entry.detail ?? null,
+      // Redaction is here, not at the call site, so that no caller can skip it
+      // (NFR-010). `redactDetail` returns null for an absent or empty detail,
+      // which is what the nullable column wants — `undefined` would make
+      // Drizzle omit the field entirely.
+      detail: redactDetail(detail),
     });
     return result;
   });
