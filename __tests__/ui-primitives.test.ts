@@ -61,7 +61,17 @@ describe('Base UI usage', () => {
     const offenders = SOURCES.filter(({ src }) =>
       // `[\w.]*` so the dotted primitive forms are covered too, not just the
       // re-exported wrappers: `<SheetPrimitive.Close>` as well as `<SheetClose>`.
-      /<[\w.]*(?:Trigger|Close)\b[\s\S]*?>\s*<Button\b/.test(src)
+      //
+      // `[^<]*` — not `[\s\S]*?` — bounds the match to the trigger's *own*
+      // opening tag. The lazy any-character form looked equivalent but scans
+      // for the nearest `>` that happens to be followed by `<Button`, and `>`
+      // ends every intervening tag too. So a file with `<SelectTrigger>` near
+      // the top and an unrelated submit `<Button>` 120 lines below matched,
+      // reporting a hydration bug that was not there. Excluding `<` stops the
+      // match at the first nested element, which is the actual rule: a
+      // *direct* `<Button>` child. `>` stays allowed inside the tag so arrow
+      // functions in attributes (`onClick={() => …}`) still parse.
+      /<[\w.]*(?:Trigger|Close)\b[^<]*>\s*<Button\b/.test(src)
     ).map(({ file }) => file);
     expect(offenders).toEqual([]);
   });

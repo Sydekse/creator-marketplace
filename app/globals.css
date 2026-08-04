@@ -39,6 +39,20 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  /**
+   * Creator/deal status colours.
+   *
+   * Registered as real theme colours rather than applied as one-off utility
+   * classes because `creator_profile.status` has three values today and
+   * `deal.status` has nine in later waves, all of which reduce to
+   * waiting / good / bad. Keeping the mapping in one place means a status chip
+   * cannot end up a different shade of amber on the creator page than on the
+   * brand dashboard.
+   */
+  --color-status-pending: var(--status-pending);
+  --color-status-pending-foreground: var(--status-pending-foreground);
+  --color-status-verified: var(--status-verified);
+  --color-status-verified-foreground: var(--status-verified-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -64,6 +78,11 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  /* Rejected reuses --destructive; only the two states it lacks are defined. */
+  --status-pending: oklch(0.968 0.062 87);
+  --status-pending-foreground: oklch(0.47 0.11 72);
+  --status-verified: oklch(0.955 0.045 158);
+  --status-verified-foreground: oklch(0.44 0.1 158);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -99,6 +118,11 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  /* Dark mode inverts the pair: the tint becomes the surface, the ink lifts. */
+  --status-pending: oklch(0.32 0.055 78);
+  --status-pending-foreground: oklch(0.85 0.11 85);
+  --status-verified: oklch(0.31 0.05 160);
+  --status-verified-foreground: oklch(0.84 0.11 160);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
