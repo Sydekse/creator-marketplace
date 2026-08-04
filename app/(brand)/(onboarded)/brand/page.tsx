@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { buttonVariants } from '@/components/ui/button';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 
@@ -28,16 +28,18 @@ export default async function BrandDashboardPage() {
           <h1 className="text-3xl font-semibold tracking-tight break-words sm:text-4xl">
             {profile.companyName}
           </h1>
-          {/* `render` rather than a nested <Link>: Base UI's Button renders its
-              own element, and nesting an anchor inside it would break hydration
-              (see __tests__/ui-primitives.test.ts). */}
-          <Button
-            variant="outline"
-            size="sm"
-            render={<Link href="/brand/settings" />}
+          {/* A styled link, not a button: this navigates, so it must stay an
+              <a> that middle-clicks and opens in a new tab. `buttonVariants`
+              borrows the look without Base UI's button behaviour — `<Button
+              render={<Link/>}>` would warn that `nativeButton` is true, and
+              setting it false makes Base UI apply `role="button"`, announcing a
+              link as a button. */}
+          <Link
+            href="/brand/settings"
+            className={buttonVariants({ variant: 'outline', size: 'sm' })}
           >
             Edit name
-          </Button>
+          </Link>
         </div>
       </div>
 
