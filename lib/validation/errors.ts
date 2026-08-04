@@ -91,7 +91,17 @@ export function validationError(
   };
 }
 
-export function fromZodError(zodError: ZodError): ErrorEnvelope {
+/**
+ * Flattens zod issues into the `details` map, keyed by dotted field path.
+ *
+ * Exported so a form validating the same schema in the browser produces the
+ * *same keys* as the server does — the two error paths merge into one rendering
+ * path instead of each side inventing its own naming. An issue with no path
+ * (a whole-object refinement) lands under `_root`.
+ */
+export function zodIssuesToDetails(
+  zodError: ZodError
+): Record<string, string[]> {
   const details: Record<string, string[]> = {};
   for (const issue of zodError.issues) {
     const path = issue.path.length > 0 ? issue.path.join('.') : '_root';
@@ -100,5 +110,9 @@ export function fromZodError(zodError: ZodError): ErrorEnvelope {
     }
     details[path].push(issue.message);
   }
-  return validationError(details);
+  return details;
+}
+
+export function fromZodError(zodError: ZodError): ErrorEnvelope {
+  return validationError(zodIssuesToDetails(zodError));
 }

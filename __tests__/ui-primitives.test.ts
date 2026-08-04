@@ -105,4 +105,26 @@ describe('Base UI usage', () => {
     );
     expect(offenders).toEqual([]);
   });
+
+  /**
+   * A fourth of the same kind, found the same way — by opening the page.
+   *
+   * `<Button render={<Link/>}>` renders an `<a>` while `nativeButton` still
+   * defaults to `true`, which Base UI warns about at runtime. Setting it
+   * `false` silences the warning and is still wrong: `useButton` then applies
+   * `role="button"` to the anchor, so a link announces as a button and loses
+   * the affordances that go with being one.
+   *
+   * A link that looks like a button is styling, not behaviour. `buttonVariants`
+   * is exported for it, and keeps a real `<a>` — middle-clickable, openable in
+   * a new tab, announced as a link.
+   */
+  it('never renders a Button as a Link', () => {
+    const offenders = SOURCES.filter(({ src }) =>
+      // Bounded to the Button's own opening tag by `[^<]*`, for the reason
+      // spelled out in the trigger guard above.
+      /<Button\b[^<]*render=\{<Link\b/.test(src)
+    ).map(({ file }) => file);
+    expect(offenders).toEqual([]);
+  });
 });
