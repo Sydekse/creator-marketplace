@@ -31,7 +31,12 @@ import {
 } from '@/lib/config/creator-profile';
 import type { AgeRange, Niche } from '@/lib/config/creator-profile';
 import { normalizeTiktokHandle } from '@/lib/creators/handle';
-import { createCreatorSchema } from '@/lib/validation';
+import {
+  createCreatorSchema,
+  fieldErrorsAt,
+  zodIssuesToDetails,
+} from '@/lib/validation';
+import type { FieldErrorMap } from '@/lib/validation';
 
 /**
  * Creator onboarding form (US-001, AC-001, AC-003).
@@ -46,8 +51,6 @@ import { createCreatorSchema } from '@/lib/validation';
  * the right input.
  */
 
-type FieldErrors = Record<string, string[]>;
-
 export function CreatorOnboardingForm() {
   const router = useRouter();
 
@@ -57,7 +60,7 @@ export function CreatorOnboardingForm() {
   const [ageRange, setAgeRange] = useState<AgeRange | null>(null);
   const [followerCount, setFollowerCount] = useState('');
   const [engagementRate, setEngagementRate] = useState('');
-  const [errors, setErrors] = useState<FieldErrors>({});
+  const [errors, setErrors] = useState<FieldErrorMap>({});
   const [submitting, setSubmitting] = useState(false);
 
   // The canonical form the server will store, computed with the exact function
@@ -66,22 +69,10 @@ export function CreatorOnboardingForm() {
   const normalized = normalizeTiktokHandle(handleInput);
   const handleChanged = normalized !== '' && normalized !== `@${handleInput}`;
 
-  /**
-   * Errors at or under a field path.
-   *
-   * Prefix-matched rather than looked up, because zod reports an invalid array
-   * *member* at `audience.topCountries.0` and the server's `fromZodError` joins
-   * the same path. An exact lookup would silently render nothing for a bad
-   * market code — the field would just look valid.
-   */
+  // Prefix-matched, not looked up — see `lib/validation/field-errors.ts` for
+  // why an exact lookup renders nothing for a bad audience market.
   function fieldError(name: string) {
-    const messages = Object.entries(errors)
-      .filter(([key]) => key === name || key.startsWith(`${name}.`))
-      .flatMap(([, value]) => value);
-
-    return messages.length > 0
-      ? messages.map((message) => ({ message }))
-      : undefined;
+    return fieldErrorsAt(errors, name);
   }
 
   function hasError(name: string) {
@@ -108,12 +99,9 @@ export function CreatorOnboardingForm() {
 
     const parsed = createCreatorSchema.safeParse(payload);
     if (!parsed.success) {
-      const next: FieldErrors = {};
-      for (const issue of parsed.error.issues) {
-        const key = issue.path.length > 0 ? issue.path.join('.') : '_root';
-        (next[key] ??= []).push(issue.message);
-      }
-      setErrors(next);
+      // The same flattener the server uses, so client-side and server-side
+      // issues arrive under identical keys and render through one path.
+      setErrors(zodIssuesToDetails(parsed.error));
       return;
     }
 
@@ -147,7 +135,7 @@ export function CreatorOnboardingForm() {
     // `details` from the server wins, so AC-003's exact string lands under the
     // handle input rather than in a toast the creator has to translate.
     if (error?.details) {
-      setErrors(error.details as FieldErrors);
+      setErrors(error.details as FieldErrorMap);
     }
     if (error?.message && !error?.details) {
       toast.error(error.message);

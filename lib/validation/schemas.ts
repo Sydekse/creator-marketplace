@@ -71,6 +71,51 @@ export const createCreatorSchema = z.object({
 
 export type CreateCreatorInput = z.infer<typeof createCreatorSchema>;
 
+/**
+ * Longest company name accepted. `company_name` is an unbounded `text` column,
+ * so this is the only limit there is — without it a brand could store a
+ * megabyte of prose that every creator then has to read on every offer.
+ * Exported so the input's `maxLength` and the server bound are one number.
+ */
+export const MAX_COMPANY_NAME_LENGTH = 120;
+
+/**
+ * The company name, shared by create and update.
+ *
+ * `.trim()` runs before the length checks, so `'   '` is rejected as empty
+ * rather than stored as three spaces — a name that renders as nothing on a deal
+ * offer would satisfy `not null` while defeating the point of the column. The
+ * trimmed value is what parsing yields, so the row can never hold the padded
+ * form either.
+ *
+ * That is the whole of the normalisation here. Unlike a TikTok handle, a company
+ * name is not a key — two brands may legitimately share one, and case is the
+ * brand's to choose — so there is nothing else to canonicalise.
+ */
+const companyName = z
+  .string({ message: 'Company name is required.' })
+  .trim()
+  .min(1, { message: 'Company name is required.' })
+  .max(MAX_COMPANY_NAME_LENGTH, {
+    message: `Company name cannot exceed ${MAX_COMPANY_NAME_LENGTH} characters.`,
+  });
+
+/** Brand onboarding payload — `POST /api/brands` (KAN-27, FR-001). */
+export const createBrandSchema = z.object({ companyName });
+
+/**
+ * Brand profile edit — `PATCH /api/brands/{id}`.
+ *
+ * Identical to `createBrandSchema` today because `company_name` is the only
+ * column a brand owns. Kept as a separate schema rather than an alias so that a
+ * create-only field added later (say, a signup source) does not silently become
+ * editable by inheriting this route's parser.
+ */
+export const updateBrandSchema = z.object({ companyName });
+
+export type CreateBrandInput = z.infer<typeof createBrandSchema>;
+export type UpdateBrandInput = z.infer<typeof updateBrandSchema>;
+
 export const discoverCreatorsSchema = z.object({
   niche: z.string().optional(),
   minEngagement: z.number().min(0).optional(),
