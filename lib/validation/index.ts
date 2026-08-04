@@ -8,6 +8,8 @@ export {
 } from './errors';
 export type { ErrorEnvelope } from './errors';
 
+export type { CreateCreatorInput } from './schemas';
+
 export {
   signUpSchema,
   signInSchema,

@@ -2,6 +2,17 @@ import type { ZodError } from 'zod';
 
 export enum ErrorCode {
   TIKTOK_HANDLE_TAKEN = 'TIKTOK_HANDLE_TAKEN',
+  /**
+   * Extends the error table in CLAUDE.md — flagged in the KAN-21 PR.
+   *
+   * `creator_profile.user_id` carries its own unique constraint, so a second
+   * submit by the same signed-in creator violates a *different* constraint than
+   * AC-003's. Reusing TIKTOK_HANDLE_TAKEN there would tell someone their handle
+   * belongs to a stranger when in fact it is already theirs, which sends them
+   * to support instead of to their own dashboard. The same code covers the
+   * brand side, since `brand_profile.user_id` is unique for the same reason.
+   */
+  PROFILE_EXISTS = 'PROFILE_EXISTS',
   BUDGET_NOT_POSITIVE = 'BUDGET_NOT_POSITIVE',
   BUDGET_EXCEEDED = 'BUDGET_EXCEEDED',
   OFFER_NOT_PENDING = 'OFFER_NOT_PENDING',
@@ -17,6 +28,7 @@ export enum ErrorCode {
 
 export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.TIKTOK_HANDLE_TAKEN]: 'This TikTok account is already registered.',
+  [ErrorCode.PROFILE_EXISTS]: 'You already have a profile.',
   [ErrorCode.BUDGET_NOT_POSITIVE]: 'Budget must be greater than zero.',
   [ErrorCode.BUDGET_EXCEEDED]: 'This exceeds your remaining budget.',
   [ErrorCode.OFFER_NOT_PENDING]: 'This offer is no longer pending.',
@@ -32,6 +44,7 @@ export const ErrorMessage: Record<ErrorCode, string> = {
 
 export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.TIKTOK_HANDLE_TAKEN]: 409,
+  [ErrorCode.PROFILE_EXISTS]: 409,
   [ErrorCode.BUDGET_NOT_POSITIVE]: 422,
   [ErrorCode.BUDGET_EXCEEDED]: 409,
   [ErrorCode.OFFER_NOT_PENDING]: 409,

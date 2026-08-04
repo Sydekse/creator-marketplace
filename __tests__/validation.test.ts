@@ -24,10 +24,15 @@ import {
 // ---------------------------------------------------------------------------
 
 describe('ErrorCode enum', () => {
-  it('defines all 12 error codes from the spec', () => {
+  it('defines the 12 spec codes plus PROFILE_EXISTS', () => {
     const codes = Object.values(ErrorCode);
-    expect(codes).toHaveLength(12);
+    // 12 from the PRD table, plus PROFILE_EXISTS added by KAN-21. That code is
+    // not an AC string — it covers the *other* unique constraint on
+    // `creator_profile` (`user_id`), which AC-003's message would describe
+    // wrongly. See the comment on the enum member.
+    expect(codes).toHaveLength(13);
     expect(codes).toContain(ErrorCode.TIKTOK_HANDLE_TAKEN);
+    expect(codes).toContain(ErrorCode.PROFILE_EXISTS);
     expect(codes).toContain(ErrorCode.BUDGET_NOT_POSITIVE);
     expect(codes).toContain(ErrorCode.BUDGET_EXCEEDED);
     expect(codes).toContain(ErrorCode.OFFER_NOT_PENDING);
@@ -163,12 +168,19 @@ describe('fromZodError', () => {
 // Schemas — Creators
 // ---------------------------------------------------------------------------
 
+/**
+ * Smoke-level only. `audience` became a structured object in KAN-21 (closed
+ * niche/market/age lists, so AC-010's discovery filters can match on equality),
+ * and the handle field now normalises on parse. The exhaustive cases for all of
+ * that — normalisation, field paths, bounds — live in
+ * `__tests__/creator-onboarding.test.ts`, next to the code they constrain.
+ */
 describe('createCreatorSchema', () => {
   it('accepts valid creator data', () => {
     const result = createCreatorSchema.parse({
       tiktokHandle: '@beautybyhana',
       niche: 'beauty',
-      audience: { geo: 'ET', age: '18-24' },
+      audience: { topCountries: ['ET'], ageRange: '18-24' },
     });
     expect(result.tiktokHandle).toBe('@beautybyhana');
     expect(result.niche).toBe('beauty');
@@ -178,7 +190,7 @@ describe('createCreatorSchema', () => {
     expect(() =>
       createCreatorSchema.parse({
         niche: 'beauty',
-        audience: { geo: 'ET' },
+        audience: { topCountries: ['ET'], ageRange: '18-24' },
       })
     ).toThrow();
   });
@@ -188,7 +200,7 @@ describe('createCreatorSchema', () => {
       createCreatorSchema.parse({
         tiktokHandle: '@test',
         niche: '',
-        audience: { geo: 'ET' },
+        audience: { topCountries: ['ET'], ageRange: '18-24' },
       })
     ).toThrow();
   });

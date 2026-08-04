@@ -1,4 +1,14 @@
 import { z } from 'zod';
+import {
+  AGE_RANGES,
+  AUDIENCE_MARKET_CODES,
+  MAX_ENGAGEMENT_RATE,
+  NICHES,
+} from '@/lib/config/creator-profile';
+import {
+  isValidTiktokHandle,
+  normalizeTiktokHandle,
+} from '@/lib/creators/handle';
 
 export const signUpSchema = z.object({
   name: z.string().min(1, { message: 'Name is required.' }),
@@ -16,15 +26,50 @@ export const signInSchema = z.object({
   password: z.string().min(1, { message: 'Password is required.' }),
 });
 
+/**
+ * Creator onboarding payload — `POST /api/creators` (AC-001, AC-003).
+ *
+ * The handle field is the security-relevant one. `.transform()` runs before
+ * `.refine()`, so parsing *is* normalisation: there is no way to hold a parsed
+ * `createCreatorSchema` output whose handle has not been canonicalised, and
+ * therefore no code path that can reach the unique index with a raw value.
+ * That ordering is what makes AC-003 hold for `@BeautyByHana` vs `beautybyhana`
+ * — see `lib/creators/handle.ts` for why that matters.
+ */
 export const createCreatorSchema = z.object({
-  tiktokHandle: z.string().min(1, { message: 'TikTok handle is required.' }),
-  niche: z.string().min(1, { message: 'Niche is required.' }),
-  audience: z
-    .record(z.string(), z.unknown())
-    .refine((val) => Object.keys(val).length > 0, {
-      message: 'Audience details are required.',
+  tiktokHandle: z
+    .string({ message: 'TikTok handle is required.' })
+    .transform(normalizeTiktokHandle)
+    .refine(isValidTiktokHandle, {
+      message:
+        'Enter a valid TikTok handle — 2–24 letters, numbers, underscores or periods.',
     }),
+  niche: z.enum(NICHES, { message: 'Choose a niche.' }),
+  audience: z.object({
+    topCountries: z
+      .array(z.enum(AUDIENCE_MARKET_CODES))
+      .min(1, { message: 'Choose at least one audience market.' }),
+    ageRange: z.enum(AGE_RANGES, { message: 'Choose an audience age range.' }),
+    interests: z.array(z.string().min(1)).optional(),
+  }),
+  // Optional at sign-up, per the ticket. Left empty means no tier is assigned
+  // and the creator is not bookable (AC-006) — which is already true here,
+  // because tier assignment is KAN-23 and every profile starts untiered.
+  followerCount: z
+    .number()
+    .int({ message: 'Follower count must be a whole number.' })
+    .min(0, { message: 'Follower count cannot be negative.' })
+    .optional(),
+  engagementRate: z
+    .number()
+    .min(0, { message: 'Engagement rate cannot be negative.' })
+    .max(MAX_ENGAGEMENT_RATE, {
+      message: `Engagement rate cannot exceed ${MAX_ENGAGEMENT_RATE}%.`,
+    })
+    .optional(),
 });
+
+export type CreateCreatorInput = z.infer<typeof createCreatorSchema>;
 
 export const discoverCreatorsSchema = z.object({
   niche: z.string().optional(),
