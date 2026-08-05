@@ -16,6 +16,7 @@ export type {
   CreateCreatorInput,
   CreateBrandInput,
   UpdateBrandInput,
+  AuditLogQueryInput,
 } from './schemas';
 
 export {
@@ -34,4 +35,5 @@ export {
   updateMetricsSchema,
   verifyCreatorSchema,
   resolveDisputeSchema,
+  auditLogQuerySchema,
 } from './schemas';

@@ -316,20 +316,44 @@ export const ledgerEntry = pgTable(
 
 // -- Admin and notifications ------------------------------------------------
 
-/** Append-only. Every admin action writes a row with actor and timestamp (AC-031). */
-export const auditLog = pgTable('audit_log', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  actorId: uuid('actor_id')
-    .notNull()
-    .references(() => user.id),
-  action: text('action').notNull(),
-  targetType: text('target_type').notNull(),
-  targetId: uuid('target_id').notNull(),
-  detail: jsonb('detail'),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+/**
+ * Append-only. Every admin action writes a row with actor and timestamp
+ * (AC-031, FR-008).
+ *
+ * `action` and `target_type` are `text` rather than enums for the reason given
+ * at the top of this file, but they are not free-form: the closed vocabulary
+ * lives in `lib/audit/actions.ts` and `withAdminAudit` is the only writer.
+ *
+ * Insert-only is enforced by a trigger (migration 0002) as well as by
+ * convention, because "no application code path updates or deletes a row" is a
+ * property of code that a future ticket can break by accident, and this table
+ * is worthless the moment it can be rewritten.
+ */
+export const auditLog = pgTable(
+  'audit_log',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    actorId: uuid('actor_id')
+      .notNull()
+      .references(() => user.id),
+    action: text('action').notNull(),
+    targetType: text('target_type').notNull(),
+    targetId: uuid('target_id').notNull(),
+    detail: jsonb('detail'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // One index per filter the read path offers, each leading with the filtered
+    // column and trailing with `created_at` — every query sorts by it, so
+    // carrying it in the index is what keeps the sort off the heap.
+    index('audit_log_created_at_idx').on(t.createdAt),
+    index('audit_log_actor_created_idx').on(t.actorId, t.createdAt),
+    index('audit_log_action_created_idx').on(t.action, t.createdAt),
+    index('audit_log_target_idx').on(t.targetType, t.targetId),
+  ]
+);
 
 export const notification = pgTable('notification', {
   id: uuid('id').primaryKey().defaultRandom(),
