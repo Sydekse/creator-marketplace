@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import {
   AUDIT_ACTIONS,
@@ -243,12 +244,34 @@ describe('redactDetail', () => {
     expect(out._truncated).toBe(true);
   });
 
-  it('drops the whole payload when it is still oversize', () => {
-    const wide: Record<string, unknown> = {};
-    for (let i = 0; i < 50; i++) wide[`k${i}`] = 'x'.repeat(600);
-    const out = redactDetail(wide) as Record<string, unknown>;
+  it('keeps top-level scalars when the payload is oversize', () => {
+    // The readable half (a status, an id) survives; the bulk — nested objects
+    // and arrays — is what gets dropped.
+    const detail: Record<string, unknown> = {
+      status: 'verified',
+      dealId: 'd-1',
+      big: Array.from({ length: 20 }, () => 'x'.repeat(500)),
+    };
+    const out = redactDetail(detail) as Record<string, unknown>;
     expect(out._truncated).toBe(true);
     expect(typeof out._bytes).toBe('number');
+    expect(out.status).toBe('verified');
+    expect(out.dealId).toBe('d-1');
+    expect(out.big).toBeUndefined();
+  });
+
+  it('measures the byte cap in bytes, not UTF-16 code units', () => {
+    // Each 'መ' is 3 UTF-8 bytes but one code unit. Twenty fields of 300 chars
+    // each is 6000 code units — comfortably under the 8192 the old `.length`
+    // check compared against — but 18000 bytes, over the real cap.
+    const detail: Record<string, unknown> = {};
+    for (let i = 0; i < 20; i++) detail[`f${i}`] = 'መ'.repeat(300);
+    const serializedLength = JSON.stringify(detail).length;
+    expect(serializedLength).toBeLessThan(8_192); // would have passed on .length
+
+    const out = redactDetail(detail) as Record<string, unknown>;
+    expect(out._truncated).toBe(true);
+    expect(out._bytes as number).toBeGreaterThan(8_192);
   });
 
   it('survives a cycle instead of throwing', () => {
@@ -585,6 +608,13 @@ describe('auditLogQuerySchema', () => {
     );
     expect(auditLogQuerySchema.safeParse({ limit: '0' }).success).toBe(false);
   });
+
+  it('rejects an unknown key rather than stripping it', () => {
+    // Without `.strict()` zod drops unknown keys, so a misspelled filter would
+    // contribute no condition and the request would read the whole table.
+    const result = auditLogQuerySchema.safeParse({ actor_id: 'x' });
+    expect(result.success).toBe(false);
+  });
 });
 
 // -- Read path: the route ---------------------------------------------------
@@ -678,6 +708,60 @@ describe('GET /api/admin/audit-log', () => {
       detail: { before: 'pending_verification', after: 'verified' },
       created_at: '2026-08-04T10:00:00.000Z',
     });
+  });
+
+  it('accepts snake_case filters, matching the response style', async () => {
+    // The bug the review caught: `?actor_id=` was dropped and the whole log came
+    // back. The filter must reach the query as `actorId`.
+    let seen: SQL | undefined;
+    const actorId = '11111111-1111-4111-8111-111111111111';
+    const response = await handleReadAuditLog(
+      new Request(url(`?actor_id=${actorId}&target_type=creator_profile`)),
+      {
+        requireAdmin: async () => ADMIN_USER,
+        select: async (where) => {
+          seen = where;
+          return [];
+        },
+      }
+    );
+
+    expect(response.status).toBe(200);
+    // A real WHERE, not `undefined` — the filter was applied rather than dropped.
+    expect(seen).toBeDefined();
+    const { sql } = new PgDialect().sqlToQuery(seen as SQL);
+    expect(sql).toContain('actor_id');
+    expect(sql).toContain('target_type');
+  });
+
+  it('rejects an unknown filter instead of ignoring it', async () => {
+    // `.strict()` turns the next misspelled param into a loud 422 rather than a
+    // silent full-table read.
+    const select = vi.fn();
+    const response = await handleReadAuditLog(
+      new Request(url('?actorId=not-a-real-key-typo')),
+      { requireAdmin: async () => ADMIN_USER, select }
+    );
+
+    // Unknown key is caught by the schema, not by the uuid check — either way a
+    // 422, but the point is the request never reaches the database.
+    expect(response.status).toBe(422);
+    expect((await response.json()).error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('rejects a filter spelled two ways with different values', async () => {
+    const select = vi.fn();
+    const a = '11111111-1111-4111-8111-111111111111';
+    const b = '22222222-2222-4222-8222-222222222222';
+    const response = await handleReadAuditLog(
+      new Request(url(`?actor_id=${a}&actorId=${b}`)),
+      { requireAdmin: async () => ADMIN_USER, select }
+    );
+
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.error.details.actorId).toBeDefined();
+    expect(select).not.toHaveBeenCalled();
   });
 });
 

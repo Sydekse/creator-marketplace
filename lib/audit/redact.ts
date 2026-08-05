@@ -187,10 +187,42 @@ export function redactDetail(
   // The per-field caps bound the common case; this catches the pathological one
   // (a wide, shallow object of long-but-legal strings) rather than letting a
   // single row carry an unbounded payload.
+  //
+  // Measured in bytes, not `.length`: `.length` counts UTF-16 code units, so a
+  // detail of Amharic or emoji is ~3x its length in the bytes Postgres actually
+  // stores and would slip a 24KB payload past an 8KB cap named `_bytes`.
   const serialized = JSON.stringify(redacted);
-  if (serialized !== undefined && serialized.length > MAX_SERIALIZED_BYTES) {
-    return { _truncated: true, _bytes: serialized.length };
+  if (
+    serialized !== undefined &&
+    byteLength(serialized) > MAX_SERIALIZED_BYTES
+  ) {
+    return oversize(redacted, byteLength(serialized));
   }
 
   return redacted;
+}
+
+/** UTF-8 byte length, matching what the jsonb column stores. */
+function byteLength(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+/**
+ * The fallback for an over-cap detail. Rather than throwing the whole object
+ * away for a `{ _truncated, _bytes }` stub, keep the top-level scalar keys —
+ * they are the readable half (a status, an id, a reason) and are individually
+ * bounded by `MAX_STRING_LENGTH`, while the nested objects and arrays are what
+ * make a payload large. A reader still learns what the action was about.
+ */
+function oversize(
+  redacted: Record<string, unknown>,
+  bytes: number
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(redacted)) {
+    if (value === null || typeof value !== 'object') out[key] = value;
+  }
+  out._truncated = true;
+  out._bytes = bytes;
+  return out;
 }

@@ -6,6 +6,7 @@ import {
   ErrorHttpStatus,
   auditLogQuerySchema,
   fromZodError,
+  validationError,
 } from '@/lib/validation';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
@@ -29,18 +30,60 @@ export const runtime = 'nodejs';
  */
 
 /**
- * Query strings cannot express "absent", only "empty". A UI that renders every
- * filter as an input sends `?action=&target_id=` when they are untouched, and
- * without this those empty strings reach the schema as values and fail the
- * enum. Dropping them makes an empty filter mean the same thing as an omitted
- * one.
+ * Filters are accepted in snake_case because that is how they are *returned* —
+ * flagged in the KAN-52 review, where `?actor_id=` was silently dropped and the
+ * endpoint answered with the entire log.
+ *
+ * Listed explicitly rather than derived by a `_x -> X` regex. A closed set means
+ * a misspelling stays unknown and is rejected by the schema's `.strict()`, where
+ * a general rule would invent a plausible field name for anything underscored
+ * and put us back where we started.
  */
-function readParams(url: URL): Record<string, string> {
+const PARAM_ALIASES: Record<string, string> = {
+  actor_id: 'actorId',
+  target_type: 'targetType',
+  target_id: 'targetId',
+};
+
+/**
+ * Normalises the query string into schema keys.
+ *
+ * Two things happen here, both about the gap between what a query string can say
+ * and what the schema accepts:
+ *
+ *   - Empty means absent. A UI that renders every filter as an input sends
+ *     `?action=&target_id=` when they are untouched; without this those empty
+ *     strings reach the schema as values and fail the enum.
+ *   - snake_case is folded to camelCase, per `PARAM_ALIASES`.
+ *
+ * `conflicts` carries any filter given under both spellings with *different*
+ * values. That request has no correct answer — one of the two is going to be
+ * ignored — and quietly picking a winner is the same class of bug as dropping
+ * the key was. The same spelling repeated (`?limit=1&limit=2`) is not a conflict:
+ * that is ordinary query-string duplication, and last-wins is what every other
+ * reader of a URL does with it.
+ */
+function readParams(url: URL): {
+  params: Record<string, string>;
+  conflicts: string[];
+} {
   const params: Record<string, string> = {};
+  const spelledAs = new Map<string, string>();
+  const conflicts = new Set<string>();
+
   for (const [key, value] of url.searchParams) {
-    if (value !== '') params[key] = value;
+    if (value === '') continue;
+
+    const name = PARAM_ALIASES[key] ?? key;
+    const previous = spelledAs.get(name);
+    if (previous !== undefined && previous !== key && params[name] !== value) {
+      conflicts.add(name);
+    }
+    spelledAs.set(name, key);
+    params[name] = value;
   }
-  return params;
+
+  return { params, conflicts: [...conflicts] };
 }
 
 /** snake_case out, matching the response style in tech spec §4.2. */
@@ -72,9 +115,22 @@ export async function handleReadAuditLog(
     return toErrorResponse(error);
   }
 
-  const parsed = auditLogQuerySchema.safeParse(
-    readParams(new URL(request.url))
-  );
+  const { params, conflicts } = readParams(new URL(request.url));
+  if (conflicts.length > 0) {
+    return Response.json(
+      validationError(
+        Object.fromEntries(
+          conflicts.map((name) => [
+            name,
+            ['Given twice with different values.'],
+          ])
+        )
+      ),
+      { status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR] }
+    );
+  }
+
+  const parsed = auditLogQuerySchema.safeParse(params);
   if (!parsed.success) {
     return Response.json(fromZodError(parsed.error), {
       status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR],

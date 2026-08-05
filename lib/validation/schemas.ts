@@ -231,6 +231,18 @@ export const auditLogQuerySchema = z
       .min(0, { message: 'Offset cannot be negative.' })
       .optional(),
   })
+  // Unknown keys are rejected, not stripped — flagged in the KAN-52 review.
+  //
+  // Zod's default is to drop what it does not recognise, which on a *filter*
+  // schema is the dangerous direction: a misspelled filter contributes no
+  // condition, so the request succeeds with no WHERE clause and returns the
+  // whole table. An admin asking "what did actor X do" would get every row back
+  // with nothing to indicate their filter was ignored, and on this table of all
+  // tables that answer reads as authoritative.
+  //
+  // `.strict()` turns that into a 422 naming the key. It has to come before
+  // `.refine()`, which returns a schema that no longer has the method.
+  .strict()
   // An inverted range is almost always a swapped pair of inputs rather than a
   // deliberate request for nothing. Saying so beats returning an empty list
   // that looks like a clean bill of health.

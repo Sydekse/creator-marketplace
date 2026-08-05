@@ -15,6 +15,16 @@ CREATE INDEX "audit_log_target_idx" ON "audit_log" USING btree ("target_type","t
 --
 -- Same reasoning as the `campaign_budget_positive` check constraint in 0000 —
 -- the server-side guard is the control, and the database is the line behind it.
+--
+-- Consequence worth stating: DELETE and TRUNCATE both raise, so this table
+-- cannot be cleared by ordinary means. A local reset or demo re-seed that wipes
+-- other tables must either leave `audit_log` alone or explicitly step around the
+-- rule for the duration:
+--     ALTER TABLE audit_log DISABLE TRIGGER ALL;
+--     TRUNCATE audit_log;
+--     ALTER TABLE audit_log ENABLE TRIGGER ALL;
+-- That is deliberately awkward and requires table-owner rights — clearing an
+-- audit trail should never be something a stray line of application code can do.
 CREATE OR REPLACE FUNCTION audit_log_forbid_mutation() RETURNS trigger AS $$
 BEGIN
   RAISE EXCEPTION 'audit_log is insert-only; % is not permitted', TG_OP

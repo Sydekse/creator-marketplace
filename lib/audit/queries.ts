@@ -125,7 +125,12 @@ async function selectRows(
         createdAt: auditLog.createdAt,
       })
       .from(auditLog)
-      .innerJoin(user, eq(auditLog.actorId, user.id))
+      // Left, not inner: the audit row is the record of authority, not the user
+      // row. If an actor's `user` row ever disappears, the entry it left behind
+      // must still be readable — an inner join would silently drop exactly the
+      // history an audit log exists to keep. `actorName`/`actorEmail` are already
+      // nullable, so a missing actor reads as null rather than vanishing.
+      .leftJoin(user, eq(auditLog.actorId, user.id))
       .where(where)
       // `id` is not a meaningful second sort — uuids are random — but it is a
       // stable one, and stability is what pagination needs. `created_at` alone
