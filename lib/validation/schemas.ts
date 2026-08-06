@@ -1,4 +1,8 @@
 import { z } from 'zod';
+// Both are leaf modules — importing the query module instead would close a
+// cycle back through `lib/authz` into this file. See `lib/audit/limits.ts`.
+import { AUDIT_ACTIONS, AUDIT_TARGET_TYPES } from '@/lib/audit/actions';
+import { MAX_AUDIT_LIMIT } from '@/lib/audit/limits';
 import {
   AGE_RANGES,
   AUDIENCE_MARKET_CODES,
@@ -185,3 +189,66 @@ export const resolveDisputeSchema = z.object({
   }),
   note: z.string().min(1, { message: 'A resolution note is required.' }),
 });
+
+/**
+ * Audit log filters — `GET /api/admin/audit-log` (KAN-52, AC-031).
+ *
+ * Every value arrives as a string from the query string, so the numeric and
+ * date fields coerce. `action` and `target_type` are parsed against the closed
+ * vocabulary rather than as free text: an unknown action can only be a typo or
+ * a probe, and returning "no rows" for it would read as "this never happened"
+ * rather than "you asked for something that does not exist".
+ */
+export const auditLogQuerySchema = z
+  .object({
+    actorId: z
+      .string()
+      .uuid({ message: 'Actor must be a valid ID.' })
+      .optional(),
+    action: z
+      .enum(AUDIT_ACTIONS, { message: 'Unknown audit action.' })
+      .optional(),
+    targetType: z
+      .enum(AUDIT_TARGET_TYPES, { message: 'Unknown audit target type.' })
+      .optional(),
+    targetId: z
+      .string()
+      .uuid({ message: 'Target must be a valid ID.' })
+      .optional(),
+    from: z.coerce.date({ message: 'From must be a valid date.' }).optional(),
+    to: z.coerce.date({ message: 'To must be a valid date.' }).optional(),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1, { message: 'Limit must be at least 1.' })
+      .max(MAX_AUDIT_LIMIT, {
+        message: `Limit cannot exceed ${MAX_AUDIT_LIMIT}.`,
+      })
+      .optional(),
+    offset: z.coerce
+      .number()
+      .int()
+      .min(0, { message: 'Offset cannot be negative.' })
+      .optional(),
+  })
+  // Unknown keys are rejected, not stripped — flagged in the KAN-52 review.
+  //
+  // Zod's default is to drop what it does not recognise, which on a *filter*
+  // schema is the dangerous direction: a misspelled filter contributes no
+  // condition, so the request succeeds with no WHERE clause and returns the
+  // whole table. An admin asking "what did actor X do" would get every row back
+  // with nothing to indicate their filter was ignored, and on this table of all
+  // tables that answer reads as authoritative.
+  //
+  // `.strict()` turns that into a 422 naming the key. It has to come before
+  // `.refine()`, which returns a schema that no longer has the method.
+  .strict()
+  // An inverted range is almost always a swapped pair of inputs rather than a
+  // deliberate request for nothing. Saying so beats returning an empty list
+  // that looks like a clean bill of health.
+  .refine((v) => !v.from || !v.to || v.from <= v.to, {
+    message: 'From must be on or before to.',
+    path: ['from'],
+  });
+
+export type AuditLogQueryInput = z.infer<typeof auditLogQuerySchema>;
