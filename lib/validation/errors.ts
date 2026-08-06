@@ -16,6 +16,19 @@ export enum ErrorCode {
   BUDGET_NOT_POSITIVE = 'BUDGET_NOT_POSITIVE',
   BUDGET_EXCEEDED = 'BUDGET_EXCEEDED',
   OFFER_NOT_PENDING = 'OFFER_NOT_PENDING',
+  /**
+   * A verify/reject decision landed on a creator that is no longer
+   * `pending_verification` — flagged as the guard AC-029 implies by scoping the
+   * action to "pending_verification creators".
+   *
+   * Its own code rather than a reused OFFER_NOT_PENDING: the two guard the same
+   * *shape* of mistake (a decision on an already-decided row) but name different
+   * things, and an admin told "this offer is no longer pending" about a creator
+   * has been handed the wrong noun. The tech spec's §4.6 lists only 200/403, but
+   * a second decision must not silently re-notify the creator or write a
+   * duplicate audit row, so the state is guarded and this is what it returns.
+   */
+  CREATOR_NOT_PENDING = 'CREATOR_NOT_PENDING',
   OFFER_EXPIRED = 'OFFER_EXPIRED',
   PAYMENT_FAILED = 'PAYMENT_FAILED',
   NO_ACCEPTED_DEALS = 'NO_ACCEPTED_DEALS',
@@ -24,6 +37,15 @@ export enum ErrorCode {
   DEAL_NOT_DELIVERED = 'DEAL_NOT_DELIVERED',
   FORBIDDEN = 'FORBIDDEN',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
+  /**
+   * Not in the §4.7 table, but the spec's endpoint definitions return 404 in
+   * several places (§4.3 cart removal, §4.5 metrics) and `ErrorEnvelope`
+   * requires every response to carry a member of this enum — an ad-hoc string
+   * would bypass the envelope type. Used only where the caller is entitled to
+   * know the row does not exist (admin endpoints); owner-scoped routes keep
+   * collapsing "no such row" into FORBIDDEN so they are not existence oracles.
+   */
+  NOT_FOUND = 'NOT_FOUND',
 }
 
 export const ErrorMessage: Record<ErrorCode, string> = {
@@ -32,6 +54,7 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.BUDGET_NOT_POSITIVE]: 'Budget must be greater than zero.',
   [ErrorCode.BUDGET_EXCEEDED]: 'This exceeds your remaining budget.',
   [ErrorCode.OFFER_NOT_PENDING]: 'This offer is no longer pending.',
+  [ErrorCode.CREATOR_NOT_PENDING]: 'This creator has already been reviewed.',
   [ErrorCode.OFFER_EXPIRED]: 'This offer has expired.',
   [ErrorCode.PAYMENT_FAILED]: 'Payment failed — please try again.',
   [ErrorCode.NO_ACCEPTED_DEALS]: 'No accepted deals to fund.',
@@ -40,6 +63,7 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.DEAL_NOT_DELIVERED]: 'Deal has not been delivered yet.',
   [ErrorCode.FORBIDDEN]: 'You do not have permission to perform this action.',
   [ErrorCode.VALIDATION_ERROR]: 'Validation failed.',
+  [ErrorCode.NOT_FOUND]: 'The requested resource does not exist.',
 };
 
 export const ErrorHttpStatus: Record<ErrorCode, number> = {
@@ -48,6 +72,7 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.BUDGET_NOT_POSITIVE]: 422,
   [ErrorCode.BUDGET_EXCEEDED]: 409,
   [ErrorCode.OFFER_NOT_PENDING]: 409,
+  [ErrorCode.CREATOR_NOT_PENDING]: 409,
   [ErrorCode.OFFER_EXPIRED]: 409,
   [ErrorCode.PAYMENT_FAILED]: 402,
   [ErrorCode.NO_ACCEPTED_DEALS]: 409,
@@ -56,6 +81,7 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.DEAL_NOT_DELIVERED]: 409,
   [ErrorCode.FORBIDDEN]: 403,
   [ErrorCode.VALIDATION_ERROR]: 422,
+  [ErrorCode.NOT_FOUND]: 404,
 };
 
 export interface ErrorEnvelope {
