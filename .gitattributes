@@ -1,0 +1,36 @@
+# Line endings, pinned for everyone (KAN-66).
+#
+# Without this file, line endings are decided by each developer's local
+# `core.autocrlf`, which nobody on this project set deliberately. On a Windows
+# checkout with `autocrlf=true`, git hands back CRLF while Prettier expects LF,
+# so `npm run format:check` fails on every file in the repository regardless of
+# what was changed — while the same command is green in CI, because the
+# committed bytes were LF all along.
+#
+# That gap matters more than it looks. Step 6 of the execution plan tells every
+# developer to run `format:check` before pushing; a check that always fails is a
+# check everyone learns to ignore, and it is the one meant to catch real
+# formatting problems. It also behaves differently per machine, so "passes for
+# me" stops being evidence of anything.
+#
+# `text=auto` lets git classify each file, and `eol=lf` fixes the working-tree
+# form on every platform. The index is already LF, so applying this changes no
+# file content — only what lands on disk at checkout.
+* text=auto eol=lf
+
+# Binary formats, listed explicitly rather than left to detection. `text=auto`
+# does classify these correctly today, but detection reads file contents, and a
+# file that happens to look textual early on would be mangled by normalisation.
+# Naming them removes that possibility for assets added later.
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.avif binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
+*.pdf binary
