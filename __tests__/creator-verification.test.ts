@@ -6,6 +6,9 @@ import {
 } from '../lib/creators/decide-verification';
 import type { DecisionDeps } from '../lib/creators/decide-verification';
 import {
+  PAGE_SIZE,
+  offsetForPage,
+  pageFromParam,
   readVerificationQueue,
   type QueueDeps,
 } from '../lib/creators/verification-queue';
@@ -13,7 +16,13 @@ import type { QueueCreator } from '../lib/creators/verification-queue';
 import { ForbiddenError } from '../lib/authz';
 import type { Tx } from '../lib/authz';
 import type { CurrentUser } from '../lib/auth';
-import { ErrorCode } from '../lib/validation';
+import {
+  ErrorCode,
+  MAX_VERIFICATION_NOTE_LENGTH,
+  verifyCreatorSchema,
+  zodIssuesToDetails,
+} from '../lib/validation';
+import { redactDetail } from '../lib/audit/redact';
 import {
   handleVerifyCreator,
   type VerifyCreatorDeps,
@@ -382,6 +391,81 @@ describe('readVerificationQueue', () => {
 
     expect(select).toHaveBeenCalledWith(11, 0);
   });
+
+  /**
+   * The queue AC is "lists **every** pending_verification creator". The read
+   * path always paged correctly; what was missing was any caller able to ask
+   * for page 2, so creator 51 was unreachable with nothing on screen saying so.
+   */
+  describe('paging past the first page', () => {
+    it('reaches a creator beyond the first page', async () => {
+      const creators = Array.from({ length: PAGE_SIZE + 3 }, (_, i) =>
+        creator(`c-${i}`, `@user${i}`, i)
+      );
+      const deps = queueDeps(creators);
+
+      const first = await readVerificationQueue(
+        { limit: PAGE_SIZE, offset: offsetForPage(1) },
+        deps
+      );
+      const second = await readVerificationQueue(
+        { limit: PAGE_SIZE, offset: offsetForPage(2) },
+        deps
+      );
+
+      expect(first.creators).toHaveLength(PAGE_SIZE);
+      expect(first.hasMore).toBe(true);
+      // The row the old page could not reach at all.
+      expect(second.creators[0]?.tiktokHandle).toBe(`@user${PAGE_SIZE}`);
+      expect(second.creators).toHaveLength(3);
+      expect(second.hasMore).toBe(false);
+    });
+
+    it('pages contiguously, dropping and repeating nobody', async () => {
+      const creators = Array.from({ length: PAGE_SIZE * 2 + 1 }, (_, i) =>
+        creator(`c-${i}`, `@user${i}`, i)
+      );
+      const deps = queueDeps(creators);
+
+      const seen: string[] = [];
+      for (const page of [1, 2, 3]) {
+        const result = await readVerificationQueue(
+          { limit: PAGE_SIZE, offset: offsetForPage(page) },
+          deps
+        );
+        seen.push(...result.creators.map((c) => c.id));
+      }
+
+      expect(seen).toHaveLength(creators.length);
+      expect(new Set(seen).size).toBe(creators.length);
+      expect(seen).toEqual(creators.map((c) => c.id));
+    });
+
+    it('starts page 1 at offset 0', () => {
+      expect(offsetForPage(1)).toBe(0);
+      expect(offsetForPage(2)).toBe(PAGE_SIZE);
+      expect(offsetForPage(3)).toBe(PAGE_SIZE * 2);
+    });
+
+    it.each([
+      ['absent', undefined, 1],
+      ['empty', '', 1],
+      ['whitespace', '  ', 1],
+      ['zero', '0', 1],
+      ['negative', '-4', 1],
+      ['not a number', 'abc', 1],
+      ['infinite', 'Infinity', 1],
+      ['fractional', '2.9', 2],
+      ['valid', '3', 3],
+      // Next hands back an array when the key repeats; last one wins rather
+      // than crashing on `.trim` of an array.
+      ['repeated', ['2', '5'], 5],
+    ])('reads page from a %s param', (_label, raw, expected) => {
+      expect(pageFromParam(raw as string | string[] | undefined)).toBe(
+        expected
+      );
+    });
+  });
 });
 
 // -- POST route -------------------------------------------------------------
@@ -604,5 +688,110 @@ describe('POST /api/admin/creators/:id/verify', () => {
     const body = await response.json();
     expect(body.id).toBe(VALID_ID);
     expect(body.status).toBe('verified');
+  });
+});
+
+// -- Request schema ---------------------------------------------------------
+
+/**
+ * The note is the only free text on this endpoint, and it fans out to three
+ * sinks: `audit_log.detail`, `notification.payload`, and the body of the
+ * creator's rejection email. Only the first is bounded downstream, so the
+ * schema is where the other two get their limit.
+ */
+describe('verifyCreatorSchema', () => {
+  it('accepts a decision with no note', () => {
+    const parsed = verifyCreatorSchema.safeParse({ decision: 'verified' });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.note).toBeUndefined();
+  });
+
+  it('rejects an unknown key instead of silently dropping it', () => {
+    // `notes` for `note` used to parse clean: 200, a creator rejected with no
+    // explanation, and an audit row recording no note. Three wrong outcomes and
+    // no error anywhere.
+    const parsed = verifyCreatorSchema.safeParse({
+      decision: 'rejected',
+      notes: 'handle does not match the linked account',
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it('names the offending key in the error envelope', () => {
+    const parsed = verifyCreatorSchema.safeParse({
+      decision: 'rejected',
+      notes: 'typo',
+    });
+
+    expect(parsed.success).toBe(false);
+    if (parsed.success) return;
+    // A whole-object issue carries no path, so it lands under `_root`.
+    expect(JSON.stringify(zodIssuesToDetails(parsed.error))).toContain('notes');
+  });
+
+  it('accepts a note at exactly the limit', () => {
+    const parsed = verifyCreatorSchema.safeParse({
+      decision: 'rejected',
+      note: 'x'.repeat(MAX_VERIFICATION_NOTE_LENGTH),
+    });
+
+    expect(parsed.success).toBe(true);
+  });
+
+  it('rejects a note past the limit rather than truncating it', () => {
+    const parsed = verifyCreatorSchema.safeParse({
+      decision: 'rejected',
+      note: 'x'.repeat(MAX_VERIFICATION_NOTE_LENGTH + 1),
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it('bounds a multi-byte note too, so the email cannot balloon', () => {
+    // Amharic costs 3 bytes a character: unbounded, a 200k-character note was
+    // accepted whole, stored as 600kB of jsonb and mailed to the creator.
+    const parsed = verifyCreatorSchema.safeParse({
+      decision: 'rejected',
+      note: 'ሀ'.repeat(200_000),
+    });
+
+    expect(parsed.success).toBe(false);
+  });
+
+  it('never exceeds the audit truncation point, so log and email agree', () => {
+    const note = 'ሀ'.repeat(MAX_VERIFICATION_NOTE_LENGTH);
+    const parsed = verifyCreatorSchema.safeParse({
+      decision: 'rejected',
+      note,
+    });
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    const detail = redactDetail({ note: parsed.data.note });
+    // What the creator read is what the log recorded — no truncation marker.
+    expect((detail as { note: string }).note).toBe(note);
+  });
+
+  it('trims a note', () => {
+    const parsed = verifyCreatorSchema.safeParse({
+      decision: 'rejected',
+      note: '  not your account  ',
+    });
+
+    expect(parsed.success && parsed.data.note).toBe('not your account');
+  });
+
+  it('treats a whitespace-only note as absent', () => {
+    // Left as '', it passes the template's `payload.reason ?` check and renders
+    // an empty paragraph in the rejection email.
+    const parsed = verifyCreatorSchema.safeParse({
+      decision: 'rejected',
+      note: '   ',
+    });
+
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.note).toBeUndefined();
   });
 });

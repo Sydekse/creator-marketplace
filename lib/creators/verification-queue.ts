@@ -40,6 +40,30 @@ export interface QueuePage {
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 100;
 
+/** Rows per page in the admin UI. */
+export const PAGE_SIZE = DEFAULT_LIMIT;
+
+/**
+ * The `?page=` value, normalised.
+ *
+ * Everything unusable — absent, zero, negative, `abc`, `Infinity`, or the array
+ * Next hands back when the key appears twice — collapses to page 1 rather than
+ * erroring. A bad page number in a URL is a typo or a stale bookmark, and the
+ * queue has nothing to hide behind an error page.
+ */
+export function pageFromParam(raw: string | string[] | undefined): number {
+  const value = Array.isArray(raw) ? raw[raw.length - 1] : raw;
+  if (value === undefined || value.trim() === '') return 1;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) return 1;
+  return Math.floor(parsed);
+}
+
+/** Where page `n` starts. Page 1 is offset 0. */
+export function offsetForPage(page: number): number {
+  return (page - 1) * PAGE_SIZE;
+}
+
 /** Seam for tests, matching the shape `lib/authz` uses. */
 export interface QueueDeps {
   requireAdmin: () => Promise<unknown>;

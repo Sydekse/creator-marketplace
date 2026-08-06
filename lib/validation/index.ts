@@ -21,6 +21,7 @@ export type {
 
 export {
   MAX_COMPANY_NAME_LENGTH,
+  MAX_VERIFICATION_NOTE_LENGTH,
   signUpSchema,
   signInSchema,
   createCreatorSchema,
