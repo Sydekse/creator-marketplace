@@ -11,6 +11,7 @@ import {
   Text,
 } from '@react-email/components';
 import { render } from '@react-email/render';
+import { formatEtb } from '@/lib/money';
 import type {
   EmailMessage,
   NotificationInput,
@@ -44,21 +45,11 @@ function appUrl(path: string): string {
 }
 
 /**
- * Integer ETB santim → a human amount (invariant 4).
- *
- * Kept here rather than in a shared module because this is the only consumer
- * today; the brand-facing screens that will also need it are KAN-29 onward, and
- * that is the ticket to promote it on. Integer division, so no float ever
- * touches a money value even for display.
+ * Re-exported so `lib/notifications/index.ts` keeps its surface and the KAN-54
+ * tests that import it from there keep working. The implementation moved to
+ * `lib/money.ts` on KAN-24 — see the note in that module for why.
  */
-export function formatEtb(santim: number): string {
-  const negative = santim < 0;
-  const abs = Math.abs(santim);
-  const birr = Math.trunc(abs / 100);
-  const cents = abs % 100;
-  const formatted = `${birr.toLocaleString('en-US')}.${String(cents).padStart(2, '0')} ETB`;
-  return negative ? `−${formatted}` : formatted;
-}
+export { formatEtb };
 
 const styles = {
   body: {

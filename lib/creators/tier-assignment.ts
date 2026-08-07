@@ -1,6 +1,8 @@
 import { eq } from 'drizzle-orm';
 import { creatorProfile, pricingTier } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
+import { tierNumbers, toBasisPoints } from '@/lib/creators/tier-rules';
+import type { TierableProfile } from '@/lib/creators/tier-rules';
 
 /**
  * Tier assignment service (KAN-23, AC-004/AC-006, Tech Spec §5).
@@ -18,6 +20,11 @@ import type { Tx } from '@/lib/authz';
  * Nothing here knows what a Micro tier is. Thresholds and prices come from the
  * rows, which come from the seed, which comes from `lib/config/pricing.ts`
  * (invariant 8) — so answering Q2 never means editing this file.
+ *
+ * The half of the rule that reads the *creator's* numbers rather than the tier
+ * rows lives in `lib/creators/tier-rules.ts` and is re-exported below. That file
+ * imports nothing, so a client component can call it without pulling drizzle and
+ * the schema into the browser bundle (KAN-24).
  */
 
 /** A `pricing_tier` row, as much of it as the rule needs. */
@@ -31,11 +38,16 @@ export interface TierCandidate {
   active: boolean;
 }
 
-/** The half of `creator_profile` the rule reads. */
-export interface TierableProfile {
-  followerCount: number | null;
-  engagementRate: string | null;
-}
+/**
+ * Re-exported so this module keeps the surface its callers already import, while
+ * the definitions live in a leaf module a client component can also reach. See
+ * `lib/creators/tier-rules.ts` for why the split exists.
+ */
+export type {
+  TierableProfile,
+  MissingTierField,
+} from '@/lib/creators/tier-rules';
+export { missingTierFields } from '@/lib/creators/tier-rules';
 
 /**
  * Why no tier was assigned. Both leave the creator non-bookable (AC-006) but
@@ -48,24 +60,6 @@ export type TierSkipReason = 'missing_data' | 'no_matching_tier';
 export type TierOutcome =
   | { assigned: true; tierId: string; tierName: string; pricePerVideo: number }
   | { assigned: false; reason: TierSkipReason };
-
-/**
- * A percentage string → integer basis points. Returns null for anything that is
- * not a finite number.
- *
- * Drizzle maps `numeric` to string, and comparing those strings directly is the
- * bug this exists to prevent: `'3.50' > '10.00'` is true, so a 3.5% creator
- * would clear a 10% floor. Comparing in integer basis points also keeps floats
- * out of the comparison entirely, the same reasoning `lib/config/pricing.ts`
- * gives for the commission rate.
- */
-function toBasisPoints(rate: string): number | null {
-  const trimmed = rate.trim();
-  if (trimmed === '') return null;
-  const parsed = Number(trimmed);
-  if (!Number.isFinite(parsed)) return null;
-  return Math.round(parsed * 100);
-}
 
 /**
  * Ranks two eligible tiers, highest first.
@@ -89,30 +83,19 @@ function byHighestFirst(a: TierCandidate, b: TierCandidate): number {
  *
  * Pure and total: same inputs, same answer, no exceptions. That is what makes
  * re-running assignment idempotent (AC-3) — there is no state to accumulate and
- * no order-dependence, so the second run writes the same `tier_id` as the first.
- *
- * Missing data is checked before anything else so that a creator with no numbers
- * can never be matched by a tier whose thresholds happen to be zero or null.
+ * no order-dependence, so the second run selects the same tier as the first.
  */
 export function selectTier(
   tiers: readonly TierCandidate[],
   profile: TierableProfile
 ): TierOutcome {
-  const { followerCount, engagementRate } = profile;
-
-  if (followerCount === null || engagementRate === null) {
-    return { assigned: false, reason: 'missing_data' };
-  }
-
-  const engagementBp = toBasisPoints(engagementRate);
-  if (
-    !Number.isFinite(followerCount) ||
-    followerCount < 0 ||
-    engagementBp === null ||
-    engagementBp < 0
-  ) {
-    // A stored value that is not a usable number is not data the rule can act
-    // on. Treated as missing rather than as zero, because zero is a claim.
+  // Missing data is checked before anything else so that a creator with no
+  // numbers can never be matched by a tier whose thresholds happen to be zero or
+  // null. `tierNumbers` is the whole of that judgement, shared with
+  // `missingTierFields` so the screens that name the missing field cannot
+  // disagree with the rule that rejected it.
+  const { followerCount, engagementBp } = tierNumbers(profile);
+  if (followerCount === null || engagementBp === null) {
     return { assigned: false, reason: 'missing_data' };
   }
 

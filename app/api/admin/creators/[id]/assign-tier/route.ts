@@ -63,9 +63,19 @@ interface AssignResult {
  * data does not require un-verifying and re-verifying somebody.
  *
  * Safe to press twice. `selectTier` is a pure function of the tiers and the
- * profile, so a second run writes the same `tier_id` as the first (AC-3) — the
- * only thing that accumulates is audit rows, which is the point of an
- * append-only log.
+ * profile, so a second run selects the same tier as the first (AC-3) — the only
+ * thing that accumulates is audit rows, which is the point of an append-only log.
+ *
+ * With one asymmetry worth stating, because it is the source of a misreading
+ * (KAN-24, F12): a run that matches a tier *writes* it, but a run that matches
+ * none never *clears* one. So an already-tiered creator whose numbers have since
+ * fallen below every band gets `assigned: false` while keeping their existing
+ * `tier_id` — and therefore staying bookable. That is deliberate. Clearing it
+ * would silently un-book a creator who may hold live deals, and the alternative
+ * of refusing to re-run on a tiered creator would break the case this route
+ * exists for: re-seeding the ladder and upgrading somebody into a higher band.
+ * The response carries `before.tier_id` so a caller can tell the two apart
+ * rather than reading `assigned: false` as "this creator has no tier".
  *
  * `withAdminAudit` supplies both the admin role gate and the `audit_log` write
  * inside one transaction (invariant 9, AC-031).
@@ -138,8 +148,18 @@ export async function handleAssignTier(
       deps?.adminAuditDeps ?? {}
     );
 
+    // `before` is the tier the creator held when the transaction opened, already
+    // computed for the audit detail. Surfacing it is what makes a no-match
+    // response unambiguous: `assigned: false` with `before.tier_id` set means
+    // "no band matches their current numbers, and their existing price stands",
+    // which is a different situation from an untiered creator still waiting for
+    // one — and the response and the audit row now agree on which it was (F12).
     return Response.json(
-      { id: result.id, tier: tierOutcomeToResponse(result.tier) },
+      {
+        id: result.id,
+        tier: tierOutcomeToResponse(result.tier),
+        before: { tier_id: result.before.tierId },
+      },
       { status: 200 }
     );
   } catch (error) {

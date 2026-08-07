@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation';
+import { TierPricing } from '@/components/creator/tier-pricing';
 import { VerificationStatus } from '@/components/creator/verification-status';
 import { requireRole } from '@/lib/auth';
 import { NICHE_LABELS } from '@/lib/config/creator-profile';
 import type { Niche } from '@/lib/config/creator-profile';
-import { getCreatorProfileByUserId } from '@/lib/creators/queries';
+import { getCreatorProfileWithTier } from '@/lib/creators/queries';
 
 /**
  * Creator dashboard.
@@ -15,8 +16,10 @@ import { getCreatorProfileByUserId } from '@/lib/creators/queries';
 export default async function CreatorDashboardPage() {
   const user = await requireRole('creator');
 
-  const profile = await getCreatorProfileByUserId(user.id);
-  if (!profile) redirect('/creator/onboarding');
+  const row = await getCreatorProfileWithTier(user.id);
+  if (!row) redirect('/creator/onboarding');
+
+  const { profile, tier } = row;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-10 py-4">
@@ -57,15 +60,15 @@ export default async function CreatorDashboardPage() {
               : `${profile.engagementRate}%`}
           </dd>
         </div>
-        <div className="flex flex-col gap-1">
-          <dt className="text-xs tracking-wide text-muted-foreground uppercase">
-            Tier
-          </dt>
-          <dd className="text-sm">
-            {profile.tierId === null ? 'Not yet assigned' : 'Assigned'}
-          </dd>
-        </div>
       </dl>
+
+      {/* Below the profile numbers on purpose: the tier is derived from them, so
+          a creator reading top to bottom sees the inputs before the rate — and in
+          the untiered case, the blank field this block is about is directly
+          above the sentence naming it. */}
+      <div className="border-t border-border pt-8">
+        <TierPricing tier={tier} profile={profile} />
+      </div>
 
       <p className="text-sm text-muted-foreground">
         Signed in as {user.name ?? user.email}. Deal offers and deliverables
