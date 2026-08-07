@@ -378,12 +378,18 @@ const defaultAdminAuditDeps: AdminAuditDeps = {
  *
  * The role gate runs *before* the transaction opens, so a non-admin never
  * causes a connection to be taken from the pool.
+ *
+ * `deps` is partial so a caller already holding a transaction can hand in only
+ * `transaction: (fn) => fn(tx)` and keep the real auth loaders — the shape
+ * KAN-22 needs to nest this inside `withNotifications` without opening a
+ * second connection. Omitted keys fall back to the real implementations.
  */
 export async function withAdminAudit<T>(
   entry: AuditEntry<T>,
   fn: (tx: Tx, ctx: AuthzContext) => Promise<T>,
-  deps: AdminAuditDeps = defaultAdminAuditDeps
+  partialDeps: Partial<AdminAuditDeps> = {}
 ): Promise<T> {
+  const deps: AdminAuditDeps = { ...defaultAdminAuditDeps, ...partialDeps };
   const ctx = await createGuard(deps)({ roles: ['admin'] });
 
   // A mismatched pair is a wiring mistake, not a runtime condition: it can only

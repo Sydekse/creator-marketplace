@@ -24,15 +24,20 @@ import {
 // ---------------------------------------------------------------------------
 
 describe('ErrorCode enum', () => {
-  it('defines the 12 spec codes plus PROFILE_EXISTS', () => {
+  it('defines the 12 spec codes plus PROFILE_EXISTS and CREATOR_NOT_PENDING', () => {
     const codes = Object.values(ErrorCode);
-    // 12 from the PRD table, plus PROFILE_EXISTS added by KAN-21. That code is
-    // not an AC string — it covers the *other* unique constraint on
-    // `creator_profile` (`user_id`), which AC-003's message would describe
-    // wrongly. See the comment on the enum member.
-    expect(codes).toHaveLength(13);
+    // 12 from the PRD table, plus PROFILE_EXISTS (KAN-21), NOT_FOUND (KAN-52
+    // audit read path) and CREATOR_NOT_PENDING (KAN-22). None is an AC string:
+    // PROFILE_EXISTS covers the *other* unique constraint on `creator_profile`
+    // (`user_id`), which AC-003's message would describe wrongly; NOT_FOUND is
+    // the envelope member admin endpoints return when the caller is entitled to
+    // know a row is absent; CREATOR_NOT_PENDING guards the verification decision
+    // against an already-reviewed creator (distinct from OFFER_NOT_PENDING). See
+    // the comments on the enum members.
+    expect(codes).toHaveLength(15);
     expect(codes).toContain(ErrorCode.TIKTOK_HANDLE_TAKEN);
     expect(codes).toContain(ErrorCode.PROFILE_EXISTS);
+    expect(codes).toContain(ErrorCode.CREATOR_NOT_PENDING);
     expect(codes).toContain(ErrorCode.BUDGET_NOT_POSITIVE);
     expect(codes).toContain(ErrorCode.BUDGET_EXCEEDED);
     expect(codes).toContain(ErrorCode.OFFER_NOT_PENDING);
@@ -44,6 +49,7 @@ describe('ErrorCode enum', () => {
     expect(codes).toContain(ErrorCode.DEAL_NOT_DELIVERED);
     expect(codes).toContain(ErrorCode.FORBIDDEN);
     expect(codes).toContain(ErrorCode.VALIDATION_ERROR);
+    expect(codes).toContain(ErrorCode.NOT_FOUND);
   });
 });
 

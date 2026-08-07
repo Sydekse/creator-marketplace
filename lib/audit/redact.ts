@@ -74,7 +74,13 @@ export function isSensitiveKey(key: string): boolean {
  * brief.
  */
 const MAX_DEPTH = 4;
-const MAX_STRING_LENGTH = 512;
+/**
+ * Exported because an input schema that lets a caller submit a longer string
+ * than this guarantees the log shows a truncated copy of what the user actually
+ * saw. `verifyCreatorSchema` bounds the rejection note by this exact value so
+ * the note in the creator's email and the note in `audit_log` are the same text.
+ */
+export const MAX_STRING_LENGTH = 512;
 const MAX_KEYS_PER_OBJECT = 50;
 const MAX_ARRAY_ITEMS = 20;
 /** Last-resort ceiling on the whole serialized value. */

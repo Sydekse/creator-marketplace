@@ -3,6 +3,9 @@ import { z } from 'zod';
 // cycle back through `lib/authz` into this file. See `lib/audit/limits.ts`.
 import { AUDIT_ACTIONS, AUDIT_TARGET_TYPES } from '@/lib/audit/actions';
 import { MAX_AUDIT_LIMIT } from '@/lib/audit/limits';
+// Also a leaf module — it imports nothing at all, which is what makes it safe
+// to reach into from here.
+import { MAX_STRING_LENGTH } from '@/lib/audit/redact';
 import {
   AGE_RANGES,
   AUDIENCE_MARKET_CODES,
@@ -176,12 +179,46 @@ export const updateMetricsSchema = z.object({
   comments: z.number().int().min(0).optional(),
 });
 
-export const verifyCreatorSchema = z.object({
-  decision: z.enum(['verified', 'rejected'], {
-    message: 'Decision must be "verified" or "rejected".',
-  }),
-  note: z.string().optional(),
-});
+/**
+ * Longest rejection note accepted, deliberately the same bound `audit_log`
+ * truncates at.
+ *
+ * The note fans out to three places from one field: the audit row, the
+ * `notification.payload` jsonb, and the body of the creator's email. Only the
+ * first of those is bounded downstream — `redactDetail` caps it — so without a
+ * limit here the other two are unbounded, and an admin's note is the one piece
+ * of free text on this endpoint that reaches an outbound email. Matching
+ * `MAX_STRING_LENGTH` rather than picking a larger round number means the log
+ * records the note in full, so what the creator read and what the audit trail
+ * shows can never be two different strings (AC-031, NFR-010).
+ */
+export const MAX_VERIFICATION_NOTE_LENGTH = MAX_STRING_LENGTH;
+
+export const verifyCreatorSchema = z
+  .object({
+    decision: z.enum(['verified', 'rejected'], {
+      message: 'Decision must be "verified" or "rejected".',
+    }),
+    note: z
+      .string()
+      .trim()
+      .max(MAX_VERIFICATION_NOTE_LENGTH, {
+        message: `Note cannot exceed ${MAX_VERIFICATION_NOTE_LENGTH} characters.`,
+      })
+      // A note of spaces is not a note. Collapsed to `undefined` here rather
+      // than rejected, because the field is optional and "I typed nothing" is
+      // the same intent as "I left it blank" — but left as `''` it would reach
+      // the template's `payload.reason ?` truthiness check as a real value and
+      // render an empty paragraph in the rejection email.
+      .transform((value) => value || undefined)
+      .optional(),
+  })
+  // Unknown keys are rejected rather than stripped, the same call
+  // `auditLogQuerySchema` makes below and for the same reason. Stripping is the
+  // default, and it means a caller who sends `notes` gets a 200, a creator
+  // rejected with no explanation, and an audit row recording no note — three
+  // wrong outcomes and no error anywhere.
+  .strict();
 
 export const resolveDisputeSchema = z.object({
   resolution: z.enum(['release', 'refund', 'revision'], {
