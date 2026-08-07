@@ -6,13 +6,12 @@ import {
 } from '../lib/creators/decide-verification';
 import type { DecisionDeps } from '../lib/creators/decide-verification';
 import {
-  PAGE_SIZE,
-  offsetForPage,
-  pageFromParam,
   readVerificationQueue,
   type QueueDeps,
 } from '../lib/creators/verification-queue';
 import type { QueueCreator } from '../lib/creators/verification-queue';
+import { PAGE_SIZE, offsetForPage, pageFromParam } from '../lib/paging';
+import type { TierCandidate } from '../lib/creators/tier-assignment';
 import { ForbiddenError } from '../lib/authz';
 import type { Tx } from '../lib/authz';
 import type { CurrentUser } from '../lib/auth';
@@ -48,8 +47,32 @@ const ADMIN_USER: CurrentUser = {
 describe('decideVerification', () => {
   interface Recorded {
     rows: Record<string, unknown>[];
+    updates: Record<string, unknown>[];
     committed: boolean;
   }
+
+  /**
+   * The ladder handed to tier assignment. Injected rather than read from
+   * `lib/config/pricing.ts` so resolving Q2 cannot break this suite.
+   */
+  const TIERS: TierCandidate[] = [
+    {
+      id: 'tier-micro',
+      name: 'Micro',
+      pricePerVideo: 150_000,
+      minFollowers: 10_000,
+      minEngagement: '2.00',
+      active: true,
+    },
+    {
+      id: 'tier-macro',
+      name: 'Macro',
+      pricePerVideo: 900_000,
+      minFollowers: 500_000,
+      minEngagement: '2.00',
+      active: true,
+    },
+  ];
 
   /**
    * Fake transaction deps that record writes and only "commit" them when the
@@ -60,30 +83,51 @@ describe('decideVerification', () => {
    * the notification row arrive through `mockTx.insert` — recorded in `rows`.
    */
   function txDeps(
-    creator: { id: string; userId: string; status: string } | null
+    creator: {
+      id: string;
+      userId: string;
+      status: string;
+      followerCount?: number | null;
+      engagementRate?: string | null;
+    } | null
   ): {
     deps: DecisionDeps;
     recorded: Recorded;
   } {
     const recorded: Recorded = {
       rows: [],
+      updates: [],
       committed: false,
     };
+
+    // Defaults land the creator on Micro, so a test that says nothing about
+    // tiers still exercises the assigned branch.
+    const row =
+      creator === null
+        ? null
+        : {
+            followerCount: 25_000,
+            engagementRate: '3.50',
+            ...creator,
+          };
 
     const mockTx = {
       select: vi.fn(() => ({
         from: vi.fn(() => ({
           where: vi.fn(() => ({
             for: vi.fn(() => ({
-              limit: vi.fn(() => Promise.resolve(creator ? [creator] : [])),
+              limit: vi.fn(() => Promise.resolve(row ? [row] : [])),
             })),
           })),
         })),
       })),
       update: vi.fn(() => ({
-        set: vi.fn(() => ({
-          where: vi.fn(() => Promise.resolve()),
-        })),
+        set: vi.fn((values) => {
+          recorded.updates.push(values);
+          return {
+            where: vi.fn(() => Promise.resolve()),
+          };
+        }),
       })),
       insert: vi.fn(() => ({
         values: vi.fn((row) => {
@@ -94,6 +138,10 @@ describe('decideVerification', () => {
     } as unknown as Tx;
 
     const deps: DecisionDeps = {
+      // `loadTiers` is seamed because the mock `select` above only answers the
+      // `.where().for().limit()` chain the row lock uses — a bare
+      // `select().from()` would resolve to the mock object, not rows.
+      assignTierDeps: { loadTiers: async () => TIERS },
       notifyDeps: {
         db: {
           transaction: async <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => {
@@ -266,6 +314,123 @@ describe('decideVerification', () => {
       outcome: 'rejected',
       reason: 'Handle does not exist',
     });
+  });
+
+  // -- Tier assignment on activation (KAN-23, AC-004) -----------------------
+
+  it('assigns a tier when approving a creator with recorded audience data', async () => {
+    const creator = {
+      id: 'c-10',
+      userId: 'user-c10',
+      status: 'pending_verification',
+      followerCount: 25_000,
+      engagementRate: '3.50',
+    };
+    const { deps, recorded } = txDeps(creator);
+
+    const result = await decideVerification(
+      'c-10',
+      { decision: 'verified' },
+      deps
+    );
+
+    expect(result.tier).toEqual({
+      assigned: true,
+      tierId: 'tier-micro',
+      tierName: 'Micro',
+      pricePerVideo: 150_000,
+    });
+    expect(recorded.updates).toContainEqual({ tierId: 'tier-micro' });
+  });
+
+  it('records the tier outcome in the audit detail', async () => {
+    const creator = {
+      id: 'c-11',
+      userId: 'user-c11',
+      status: 'pending_verification',
+    };
+    const { deps, recorded } = txDeps(creator);
+
+    await decideVerification('c-11', { decision: 'verified' }, deps);
+
+    const auditRow = recorded.rows.find((r) => r.action === 'creator.verify');
+    expect(auditRow?.detail).toMatchObject({
+      tier: { assigned: true, tierName: 'Micro' },
+    });
+  });
+
+  it('leaves an approved creator untiered when audience data is missing (AC-006)', async () => {
+    const creator = {
+      id: 'c-12',
+      userId: 'user-c12',
+      status: 'pending_verification',
+      followerCount: null,
+      engagementRate: null,
+    };
+    const { deps, recorded } = txDeps(creator);
+
+    const result = await decideVerification(
+      'c-12',
+      { decision: 'verified' },
+      deps
+    );
+
+    expect(result.status).toBe('verified');
+    expect(result.tier).toEqual({ assigned: false, reason: 'missing_data' });
+    // Verified, but no tier write — so still not bookable.
+    expect(recorded.updates).not.toContainEqual(
+      expect.objectContaining({ tierId: expect.anything() })
+    );
+    // And the reason is on the permanent record, not only in the response.
+    const auditRow = recorded.rows.find((r) => r.action === 'creator.verify');
+    expect(auditRow?.detail).toMatchObject({
+      tier: { assigned: false, reason: 'missing_data' },
+    });
+  });
+
+  it('leaves an approved creator untiered when no band matches', async () => {
+    const creator = {
+      id: 'c-13',
+      userId: 'user-c13',
+      status: 'pending_verification',
+      followerCount: 900,
+      engagementRate: '5.00',
+    };
+    const { deps } = txDeps(creator);
+
+    const result = await decideVerification(
+      'c-13',
+      { decision: 'verified' },
+      deps
+    );
+
+    expect(result.tier).toEqual({
+      assigned: false,
+      reason: 'no_matching_tier',
+    });
+  });
+
+  it('never assigns a tier on rejection', async () => {
+    const creator = {
+      id: 'c-14',
+      userId: 'user-c14',
+      status: 'pending_verification',
+      followerCount: 25_000,
+      engagementRate: '3.50',
+    };
+    const { deps, recorded } = txDeps(creator);
+
+    const result = await decideVerification(
+      'c-14',
+      { decision: 'rejected', note: 'Fake following' },
+      deps
+    );
+
+    // Null, not `{ assigned: false }` — rejection never tried.
+    expect(result.tier).toBeNull();
+    expect(recorded.updates).not.toContainEqual(
+      expect.objectContaining({ tierId: expect.anything() })
+    );
   });
 
   it('leaves notifications un-flushed when mutation fails', async () => {
@@ -484,6 +649,18 @@ describe('POST /api/admin/creators/:id/verify', () => {
 
   const successDeps: VerifyCreatorDeps = {
     guard: async () => ADMIN_USER,
+    assignTierDeps: {
+      loadTiers: async () => [
+        {
+          id: 'tier-micro',
+          name: 'Micro',
+          pricePerVideo: 150_000,
+          minFollowers: 10_000,
+          minEngagement: '2.00',
+          active: true,
+        },
+      ],
+    },
     notifyDeps: {
       db: {
         transaction: async <T>(
@@ -629,7 +806,7 @@ describe('POST /api/admin/creators/:id/verify', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
-  it('returns 200 with id and status on success', async () => {
+  it('returns 200 with id, status and the assigned tier on success', async () => {
     const deps: VerifyCreatorDeps = {
       ...successDeps,
       notifyDeps: {
@@ -657,6 +834,8 @@ describe('POST /api/admin/creators/:id/verify', () => {
                               id: 'c-1',
                               userId: 'user-c1',
                               status: 'pending_verification',
+                              followerCount: 25_000,
+                              engagementRate: '3.50',
                             },
                           ]),
                       }),
@@ -688,6 +867,14 @@ describe('POST /api/admin/creators/:id/verify', () => {
     const body = await response.json();
     expect(body.id).toBe(VALID_ID);
     expect(body.status).toBe('verified');
+    // snake_case on the wire, matching Tech Spec §4.6 — the toast reads `name`
+    // out of this, so a rename here is a visible break.
+    expect(body.tier).toEqual({
+      assigned: true,
+      id: 'tier-micro',
+      name: 'Micro',
+      price_per_video: 150_000,
+    });
   });
 });
 

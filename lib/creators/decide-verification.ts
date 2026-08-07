@@ -6,6 +6,11 @@ import type { NotifyDeps } from '@/lib/notifications/notify';
 import { withAdminAudit } from '@/lib/authz';
 import type { AdminAuditDeps, Tx } from '@/lib/authz';
 import { AUDIT_ACTIONS, AUDIT_TARGET_TYPES } from '@/lib/audit/actions';
+import { assignTier } from '@/lib/creators/tier-assignment';
+import type {
+  AssignTierDeps,
+  TierOutcome,
+} from '@/lib/creators/tier-assignment';
 import { ErrorCode } from '@/lib/validation/errors';
 
 /**
@@ -18,6 +23,9 @@ import { ErrorCode } from '@/lib/validation/errors';
  *
  * The `SELECT ... FOR UPDATE` lock serializes concurrent admin decisions —
  * second sees already-changed status and throws `CreatorNotPendingError`.
+ *
+ * KAN-23 adds tier assignment to the approve branch, inside the same
+ * transaction — see step 4.
  */
 
 export class CreatorNotPendingError extends Error {
@@ -45,6 +53,14 @@ export interface DecisionInput {
 export interface DecisionResult {
   id: string;
   status: CreatorStatus;
+  /**
+   * The tier outcome for an approval, null for a rejection (KAN-23).
+   *
+   * Null and `{ assigned: false }` are different answers and the caller shows
+   * different things for each: null is "we never tried", `assigned: false` is
+   * "we tried and they do not fit a band, so they are verified but not bookable".
+   */
+  tier: TierOutcome | null;
   before: { status: CreatorStatus };
   after: { status: CreatorStatus };
 }
@@ -53,6 +69,7 @@ export interface DecisionResult {
 export interface DecisionDeps {
   notifyDeps: NotifyDeps;
   adminAuditDeps: Omit<AdminAuditDeps, 'transaction'>;
+  assignTierDeps?: AssignTierDeps;
 }
 
 async function selectForUpdate(
@@ -96,6 +113,10 @@ export async function decideVerification(
           before: result.before,
           after: result.after,
           note: input.note,
+          // The un-tiered case has to survive the request that produced it
+          // (AC-5). A toast is gone on the next click; this row is not, and it
+          // is already the thing an admin reads back through KAN-52's read path.
+          tier: result.tier,
         }),
       },
       async (auditTx) => {
@@ -124,7 +145,29 @@ export async function decideVerification(
           .set(updates)
           .where(eq(creatorProfile.id, creatorProfileId));
 
-        // 4. Notify creator (writes notification row via tx)
+        // 4. Assign a tier, on approval only (KAN-23, AC-004).
+        //
+        // Same transaction as the status change, so the two halves of "bookable"
+        // can never disagree: a rollback takes the tier with it, and there is no
+        // window in which a creator is verified but pending a separate write
+        // that might not arrive.
+        //
+        // No match is not an error — it leaves `tier_id` null and the creator
+        // non-bookable (AC-006), which is exactly what the state means.
+        const tier =
+          input.decision === 'verified'
+            ? await assignTier(
+                auditTx,
+                {
+                  id: creatorProfileId,
+                  followerCount: creator.followerCount,
+                  engagementRate: creator.engagementRate,
+                },
+                deps?.assignTierDeps
+              )
+            : null;
+
+        // 5. Notify creator (writes notification row via tx)
         // Map 'verified' decision -> 'approved' outcome for notification payload
         await notify(creator.userId, 'verification_result', {
           creatorProfileId,
@@ -135,6 +178,7 @@ export async function decideVerification(
         return {
           id: creatorProfileId,
           status: updates.status,
+          tier,
           before,
           after: { status: updates.status },
         };
