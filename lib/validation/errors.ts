@@ -29,6 +29,18 @@ export enum ErrorCode {
    * duplicate audit row, so the state is guarded and this is what it returns.
    */
   CREATOR_NOT_PENDING = 'CREATOR_NOT_PENDING',
+  /**
+   * A tier assignment was retried against a creator who is not `verified`
+   * (KAN-23). Tier assignment happens on activation, so re-running it for a
+   * pending or rejected creator is a request for something the state machine
+   * does not offer.
+   *
+   * Not CREATOR_NOT_PENDING, which is its near-opposite: that one fires when a
+   * creator has *already* been decided, and its message — "This creator has
+   * already been reviewed." — would be actively misleading here, where the
+   * problem is that they have not been.
+   */
+  CREATOR_NOT_VERIFIED = 'CREATOR_NOT_VERIFIED',
   OFFER_EXPIRED = 'OFFER_EXPIRED',
   PAYMENT_FAILED = 'PAYMENT_FAILED',
   NO_ACCEPTED_DEALS = 'NO_ACCEPTED_DEALS',
@@ -55,6 +67,7 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.BUDGET_EXCEEDED]: 'This exceeds your remaining budget.',
   [ErrorCode.OFFER_NOT_PENDING]: 'This offer is no longer pending.',
   [ErrorCode.CREATOR_NOT_PENDING]: 'This creator has already been reviewed.',
+  [ErrorCode.CREATOR_NOT_VERIFIED]: 'This creator is not verified yet.',
   [ErrorCode.OFFER_EXPIRED]: 'This offer has expired.',
   [ErrorCode.PAYMENT_FAILED]: 'Payment failed — please try again.',
   [ErrorCode.NO_ACCEPTED_DEALS]: 'No accepted deals to fund.',
@@ -73,6 +86,7 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.BUDGET_EXCEEDED]: 409,
   [ErrorCode.OFFER_NOT_PENDING]: 409,
   [ErrorCode.CREATOR_NOT_PENDING]: 409,
+  [ErrorCode.CREATOR_NOT_VERIFIED]: 409,
   [ErrorCode.OFFER_EXPIRED]: 409,
   [ErrorCode.PAYMENT_FAILED]: 402,
   [ErrorCode.NO_ACCEPTED_DEALS]: 409,

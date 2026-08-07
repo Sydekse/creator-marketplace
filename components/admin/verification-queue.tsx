@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/feedback/empty-state';
 import type { QueueCreator } from '@/lib/creators/verification-queue';
+import type { TierResponse } from '@/lib/creators/tier-assignment';
 
 /**
  * Admin verification queue table (KAN-22).
@@ -15,7 +16,26 @@ import type { QueueCreator } from '@/lib/creators/verification-queue';
  * Each row: creator profile details + Approve/Reject actions. Reject reveals
  * an optional note textarea. On action, POST to the verify endpoint, then
  * refresh the server component.
+ *
+ * KAN-23: an approval also reports what tier the creator landed on, or that
+ * they landed on none.
  */
+
+/**
+ * What the admin is told after an approval (KAN-23, AC-5).
+ *
+ * The unmatched cases are deliberately not `toast.success` — approving somebody
+ * who is still not bookable is a half-finished outcome, and a green tick reads
+ * as "done". `/admin/tiers` is named in the message because that is where the
+ * work that is left actually lives.
+ */
+function approvalMessage(handle: string, tier: TierResponse): string {
+  if (tier?.assigned) return `Approved ${handle} — ${tier.name} tier`;
+  if (tier?.reason === 'missing_data') {
+    return `Approved ${handle} — no follower or engagement data, so no tier was assigned. Not bookable yet; see Awaiting tier.`;
+  }
+  return `Approved ${handle} — no tier matched their audience, so none was assigned. Not bookable yet; see Awaiting tier.`;
+}
 
 function formatFollowerCount(count: number | null): string {
   if (count === null) return '—';
@@ -72,11 +92,22 @@ function RowActions({ creator, onSuccess }: RowActionsProps) {
     }
 
     if (response.ok) {
-      toast.success(
-        decision === 'verified'
-          ? `Approved ${creator.tiktokHandle}`
-          : `Rejected ${creator.tiktokHandle}`
-      );
+      if (decision === 'rejected') {
+        toast.success(`Rejected ${creator.tiktokHandle}`);
+      } else {
+        // A body that will not parse must not lose the approval: it succeeded,
+        // and the tier is reportable from `/admin/tiers` either way.
+        const payload = (await response.json().catch(() => null)) as {
+          tier?: TierResponse;
+        } | null;
+        const tier = payload?.tier ?? null;
+        const message = approvalMessage(creator.tiktokHandle, tier);
+        if (tier?.assigned) {
+          toast.success(message);
+        } else {
+          toast.warning(message);
+        }
+      }
       setShowRejectNote(false);
       setRejectNote('');
       onSuccess();

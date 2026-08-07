@@ -26,6 +26,16 @@
 export const AUDIT_ACTIONS = {
   CREATOR_VERIFY: 'creator.verify',
   CREATOR_REJECT: 'creator.reject',
+  /**
+   * A tier assignment run on its own, from `/admin/tiers` (KAN-23).
+   *
+   * Not folded into `creator.verify`: assignment on activation is already
+   * recorded in that action's `detail`, and this one is a *later*, separate
+   * decision — an admin retrying a creator who was verified without a tier,
+   * usually after editing their numbers. Reusing `creator.verify` would put a
+   * second "verification" in the log for somebody who was only verified once.
+   */
+  CREATOR_ASSIGN_TIER: 'creator.assign_tier',
   DEAL_RESOLVE_DISPUTE: 'deal.resolve_dispute',
   METRIC_EDIT: 'metric.edit',
 } as const;
@@ -63,6 +73,7 @@ export const AUDIT_TARGET_TYPE_VALUES = Object.values(
 export const AUDIT_ACTION_TARGET: Record<AuditAction, AuditTargetType> = {
   [AUDIT_ACTIONS.CREATOR_VERIFY]: AUDIT_TARGET_TYPES.CREATOR_PROFILE,
   [AUDIT_ACTIONS.CREATOR_REJECT]: AUDIT_TARGET_TYPES.CREATOR_PROFILE,
+  [AUDIT_ACTIONS.CREATOR_ASSIGN_TIER]: AUDIT_TARGET_TYPES.CREATOR_PROFILE,
   [AUDIT_ACTIONS.DEAL_RESOLVE_DISPUTE]: AUDIT_TARGET_TYPES.DEAL,
   [AUDIT_ACTIONS.METRIC_EDIT]: AUDIT_TARGET_TYPES.VIDEO_METRIC,
 };

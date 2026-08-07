@@ -4,6 +4,7 @@ import {
   CreatorNotFoundError,
 } from '@/lib/creators/decide-verification';
 import type { DecisionDeps } from '@/lib/creators/decide-verification';
+import { tierOutcomeToResponse } from '@/lib/creators/tier-assignment';
 import { guard, toErrorResponse } from '@/lib/authz';
 import type { GuardOptions } from '@/lib/authz';
 import {
@@ -91,9 +92,19 @@ export async function handleVerifyCreator(
       deps
     );
 
-    // snake_case body, matching Tech Spec §4.6 response style
+    // snake_case body, matching Tech Spec §4.6 response style.
+    //
+    // `tier` is additive (KAN-23): null on a rejection, and on an approval
+    // either the assigned band or the reason none was. The admin UI needs the
+    // reason in the same response that reports the approval — telling somebody
+    // "approved" and leaving out "…and still not bookable" is the failure AC-5
+    // names.
     return Response.json(
-      { id: result.id, status: result.status },
+      {
+        id: result.id,
+        status: result.status,
+        tier: tierOutcomeToResponse(result.tier),
+      },
       { status: 200 }
     );
   } catch (error) {

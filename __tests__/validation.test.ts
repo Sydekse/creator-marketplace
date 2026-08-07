@@ -24,20 +24,27 @@ import {
 // ---------------------------------------------------------------------------
 
 describe('ErrorCode enum', () => {
-  it('defines the 12 spec codes plus PROFILE_EXISTS and CREATOR_NOT_PENDING', () => {
+  it('defines the 12 spec codes plus the four of our own', () => {
     const codes = Object.values(ErrorCode);
     // 12 from the PRD table, plus PROFILE_EXISTS (KAN-21), NOT_FOUND (KAN-52
-    // audit read path) and CREATOR_NOT_PENDING (KAN-22). None is an AC string:
-    // PROFILE_EXISTS covers the *other* unique constraint on `creator_profile`
-    // (`user_id`), which AC-003's message would describe wrongly; NOT_FOUND is
-    // the envelope member admin endpoints return when the caller is entitled to
-    // know a row is absent; CREATOR_NOT_PENDING guards the verification decision
-    // against an already-reviewed creator (distinct from OFFER_NOT_PENDING). See
-    // the comments on the enum members.
-    expect(codes).toHaveLength(15);
+    // audit read path), CREATOR_NOT_PENDING (KAN-22) and CREATOR_NOT_VERIFIED
+    // (KAN-23). None is an AC string: PROFILE_EXISTS covers the *other* unique
+    // constraint on `creator_profile` (`user_id`), which AC-003's message would
+    // describe wrongly; NOT_FOUND is the envelope member admin endpoints return
+    // when the caller is entitled to know a row is absent; CREATOR_NOT_PENDING
+    // guards the verification decision against an already-reviewed creator
+    // (distinct from OFFER_NOT_PENDING); CREATOR_NOT_VERIFIED guards tier
+    // assignment, and is not CREATOR_NOT_PENDING's "already been reviewed",
+    // which would be false of a creator still waiting in the queue. See the
+    // comments on the enum members.
+    //
+    // The count is the point of this test: it is what makes adding a code a
+    // deliberate act rather than something that slips in.
+    expect(codes).toHaveLength(16);
     expect(codes).toContain(ErrorCode.TIKTOK_HANDLE_TAKEN);
     expect(codes).toContain(ErrorCode.PROFILE_EXISTS);
     expect(codes).toContain(ErrorCode.CREATOR_NOT_PENDING);
+    expect(codes).toContain(ErrorCode.CREATOR_NOT_VERIFIED);
     expect(codes).toContain(ErrorCode.BUDGET_NOT_POSITIVE);
     expect(codes).toContain(ErrorCode.BUDGET_EXCEEDED);
     expect(codes).toContain(ErrorCode.OFFER_NOT_PENDING);
