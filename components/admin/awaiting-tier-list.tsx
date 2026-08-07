@@ -7,6 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/feedback/empty-state';
 import type { AwaitingTierCreator } from '@/lib/creators/awaiting-tier';
+import {
+  missingFieldLabel,
+  missingTierFields,
+} from '@/lib/creators/tier-rules';
 import type { TierResponse } from '@/lib/creators/tier-assignment';
 
 /**
@@ -45,12 +49,18 @@ function formatDate(date: Date | null): string {
  * the numbers on screen are the current ones, and telling somebody "no tier
  * matched" about a creator whose follower count is blank would send them looking
  * for a band that does not exist instead of at the empty field in front of them.
+ *
+ * Asks `missingTierFields` rather than re-checking the columns, so the reason
+ * shown here cannot disagree with the rule that actually refused to price them.
+ * The check this replaced tested only for nulls, which meant a stored value the
+ * rule rejects as unusable — an unparseable engagement rate — was reported as
+ * "below every tier threshold", sending the admin to look at the bands instead of
+ * at the field (KAN-24, F13).
  */
 function blockedReason(creator: AwaitingTierCreator): string {
-  if (creator.followerCount === null || creator.engagementRate === null) {
-    return 'Missing follower or engagement data';
-  }
-  return 'Below every tier threshold';
+  const missing = missingTierFields(creator);
+  if (missing.length === 0) return 'Below every tier threshold';
+  return `Missing ${missing.map(missingFieldLabel).join(' and ')}`;
 }
 
 function RetryButton({ creator }: { creator: AwaitingTierCreator }) {
@@ -91,8 +101,15 @@ function RetryButton({ creator }: { creator: AwaitingTierCreator }) {
     } else {
       // Still stuck. The row stays on this list, so the state is not lost —
       // but saying so is what stops an admin pressing Retry in a loop.
+      //
+      // Branches on the reason the rule gave rather than restating one: telling
+      // an admin to "update their follower count" about a creator whose numbers
+      // are complete and simply below every band sends them to edit a field that
+      // is already correct (same reasoning as `blockedReason`).
       toast.warning(
-        `${creator.tiktokHandle} still matches no tier. Update their follower count or engagement rate first.`
+        tier?.reason === 'missing_data'
+          ? `${creator.tiktokHandle} still matches no tier. Add their follower count and engagement rate first.`
+          : `${creator.tiktokHandle} is still below every tier threshold.`
       );
     }
 

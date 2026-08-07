@@ -1,6 +1,6 @@
 import { and, eq, isNotNull } from 'drizzle-orm';
 import { db } from '@/db';
-import { creatorProfile } from '@/db/schema';
+import { creatorProfile, pricingTier } from '@/db/schema';
 import type { CreatorStatus } from '@/db/schema';
 
 /**
@@ -65,3 +65,72 @@ export async function getCreatorProfileByUserId(userId: string) {
 export type CreatorProfileRow = NonNullable<
   Awaited<ReturnType<typeof getCreatorProfileByUserId>>
 >;
+
+/** The tier row as the creator's own screens need it, or null when untiered. */
+export interface CreatorTier {
+  id: string;
+  name: string;
+  /** Integer ETB santim — the gross a brand pays per video (invariant 4). */
+  pricePerVideo: number;
+}
+
+export interface CreatorProfileWithTier {
+  profile: CreatorProfileRow;
+  tier: CreatorTier | null;
+}
+
+/**
+ * The creator's profile together with the tier it points at (KAN-24, AC-005).
+ *
+ * A sibling of `getCreatorProfileByUserId` rather than a change to it. That one
+ * is also what `/creator/onboarding` calls, and onboarding only branches on
+ * whether a row exists — making it join would buy that route nothing and cost it
+ * a join on every visit.
+ *
+ * **Left** join, not inner. An untiered creator must still reach their dashboard:
+ * an inner join would return no row for exactly the creator AC-4 is about, and
+ * `/creator` would bounce them to onboarding as though they had never signed up.
+ *
+ * Reads `price_per_video` straight off the tier row rather than recomputing
+ * anything, which is what lets `lib/creators/pricing.ts` be the only place a
+ * price is derived and keeps the creator's number identical to the brand's.
+ */
+export async function getCreatorProfileWithTier(
+  userId: string
+): Promise<CreatorProfileWithTier | null> {
+  // The tier columns are selected flat rather than as a nested object so that
+  // drizzle's per-column nullability from the left join is what TypeScript sees.
+  // Nesting them would type the group as one possibly-null object and force a
+  // cast on each field, which is the kind of cast that outlives the reason for it.
+  const [row] = await db
+    .select({
+      profile: creatorProfile,
+      tierId: pricingTier.id,
+      tierName: pricingTier.name,
+      tierPricePerVideo: pricingTier.pricePerVideo,
+    })
+    .from(creatorProfile)
+    .leftJoin(pricingTier, eq(creatorProfile.tierId, pricingTier.id))
+    .where(eq(creatorProfile.userId, userId))
+    .limit(1);
+
+  if (!row) return null;
+
+  // Collapsed to one nullable object so callers branch on a single thing rather
+  // than each screen picking a different field to null-check. All three are
+  // checked, not just the id: a `tier_id` pointing at a row that has since been
+  // deleted is the case a single-field check would turn into a tier named
+  // `undefined` on the creator's dashboard.
+  const tier =
+    row.tierId === null ||
+    row.tierName === null ||
+    row.tierPricePerVideo === null
+      ? null
+      : {
+          id: row.tierId,
+          name: row.tierName,
+          pricePerVideo: row.tierPricePerVideo,
+        };
+
+  return { profile: row.profile, tier };
+}

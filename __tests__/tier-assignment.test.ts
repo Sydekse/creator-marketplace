@@ -588,6 +588,9 @@ describe('POST /api/admin/creators/:id/assign-tier', () => {
         name: 'Mid',
         price_per_video: 400_000,
       },
+      // The tier held before this run — null here because the creator was
+      // untiered. See the F12 cases below for why it is in the response.
+      before: { tier_id: null },
     });
   });
 
@@ -701,6 +704,111 @@ describe('POST /api/admin/creators/:id/assign-tier', () => {
     expect(AUDIT_ACTION_TARGET[AUDIT_ACTIONS.CREATOR_ASSIGN_TIER]).toBe(
       'creator_profile'
     );
+  });
+
+  /**
+   * F12 — a rerun against an already-tiered creator.
+   *
+   * The handler guards `status` but not `tier_id`, so a tiered creator whose
+   * numbers no longer match any band gets `assigned: false` while their row keeps
+   * its tier and stays bookable. That is the correct write — clearing the tier
+   * would un-book a creator who may hold live deals — but a response saying only
+   * "no tier matched" reads as "this creator has no price", which is false.
+   *
+   * `before.tier_id` is what separates the two. Both cases below return the same
+   * `tier` object and differ only in that field.
+   */
+  describe('F12 — the retry response distinguishes tier-unchanged from untiered', () => {
+    /** Tiered, but with numbers no band accepts any more. */
+    const tieredNoMatch = {
+      ...verified,
+      tierId: 'tier-mid',
+      followerCount: null,
+      engagementRate: null,
+    };
+
+    it('reports the surviving tier when no band matches', async () => {
+      const { deps } = routeDeps(tieredNoMatch);
+
+      const body = await (await handleAssignTier(VALID_ID, deps)).json();
+
+      expect(body.tier).toEqual({ assigned: false, reason: 'missing_data' });
+      expect(body.before).toEqual({ tier_id: 'tier-mid' });
+    });
+
+    it('reports no prior tier for an untiered creator, same tier outcome', async () => {
+      const { deps } = routeDeps({
+        ...tieredNoMatch,
+        tierId: null,
+      });
+
+      const body = await (await handleAssignTier(VALID_ID, deps)).json();
+
+      expect(body.tier).toEqual({ assigned: false, reason: 'missing_data' });
+      expect(body.before).toEqual({ tier_id: null });
+    });
+
+    it('leaves tier_id set — a no-match never un-books a creator', async () => {
+      const set = vi.fn(() => ({ where: vi.fn(() => Promise.resolve()) }));
+      const { deps } = routeDeps(tieredNoMatch, {
+        adminAuditDeps: {
+          getCurrentUser: async () => ADMIN_USER,
+          loadProfileIds: async () => ({
+            brandProfileId: null,
+            creatorProfileId: null,
+          }),
+          loadOwnerRefs: async () => null,
+          transaction: <T>(fn: (t: Tx) => Promise<T>) =>
+            fn({
+              select: vi.fn(() => ({
+                from: vi.fn(() => ({
+                  where: vi.fn(() => ({
+                    for: vi.fn(() => ({
+                      limit: vi.fn(() => Promise.resolve([tieredNoMatch])),
+                    })),
+                  })),
+                })),
+              })),
+              update: vi.fn(() => ({ set })),
+              insert: vi.fn(() => ({ values: vi.fn(() => Promise.resolve()) })),
+            } as unknown as Tx),
+        },
+      });
+
+      await handleAssignTier(VALID_ID, deps);
+
+      // No write at all on a no-match, so there is nothing that could clear it.
+      expect(set).not.toHaveBeenCalled();
+    });
+
+    it('still upgrades a tiered creator who now matches a higher band', async () => {
+      // The reseed-and-upgrade case, and the reason the handler must *not* be
+      // guarded against an existing tier: a creator who grew into Macro is
+      // exactly who a rerun is for.
+      const { deps } = routeDeps({
+        ...verified,
+        tierId: 'tier-micro',
+        followerCount: 900_000,
+        engagementRate: '6.00',
+      });
+
+      const body = await (await handleAssignTier(VALID_ID, deps)).json();
+
+      expect(body.tier).toMatchObject({ assigned: true, id: 'tier-macro' });
+      expect(body.before).toEqual({ tier_id: 'tier-micro' });
+    });
+
+    it('records the same before value in the audit row as in the response', async () => {
+      // The defect was the two disagreeing. Asserting them against each other
+      // rather than against a literal is what keeps them from drifting again.
+      const { deps, rows } = routeDeps(tieredNoMatch);
+
+      const body = await (await handleAssignTier(VALID_ID, deps)).json();
+      const detail = rows.find((r) => r.action === 'creator.assign_tier')
+        ?.detail as { before: { tierId: string | null } };
+
+      expect(detail.before.tierId).toBe(body.before.tier_id);
+    });
   });
 });
 
