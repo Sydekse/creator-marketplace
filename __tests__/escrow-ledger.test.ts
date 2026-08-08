@@ -172,7 +172,9 @@ class FakeDb {
     if (name === 'deal') {
       // Lock-by-id uses .limit(1); the accepted-deals scan does not.
       if (limited) {
-        const d = this.seed.targetDeal;
+        // KAN-34 state machine transitionDeal loads the deal by ID. If we are
+        // in holdForCampaign, targetDeal might be null but deals array is set.
+        const d = this.seed.targetDeal || (this.seed.deals ? this.seed.deals[0] : null);
         return d
           ? [{ ...d, campaignId: CAMPAIGN_ID, creatorId: CREATOR_ID }]
           : [];
