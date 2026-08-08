@@ -1,11 +1,17 @@
 import { loadEnvConfig } from '@next/env';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
+import type {
+  AgeRange,
+  AudienceMarketCode,
+  Niche,
+} from '../lib/config/creator-profile';
 import {
   COMMISSION_RATE,
   PRICING_TIERS,
   RIGHTS_TERMS,
 } from '../lib/config/pricing';
 import { selectTier } from '../lib/creators/tier-assignment';
+import { formatEtb } from '../lib/money';
 import {
   brandProfile,
   creatorProfile,
@@ -31,22 +37,204 @@ loadEnvConfig(process.cwd());
  */
 const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? 'demo-Passw0rd!';
 
+/**
+ * A demo creator's profile row.
+ *
+ * Carried on the spec rather than derived from the email, which is what the
+ * first two demo creators did (`isVerified = spec.email === 'creator@demo.com'`)
+ * and what stopped working the moment there were more than two of them.
+ *
+ * No tier is named here. The tier comes from `selectTier` against the rows
+ * seeded above, so these numbers describe a creator and the ladder decides what
+ * that is worth (invariant 8) — a hardcoded 'Micro' would be a second, silent
+ * definition of the bands that goes stale the moment Q2 moves them.
+ */
+type CreatorSeed = {
+  tiktokHandle: string;
+  niche: Niche;
+  /** Market codes for the `audience` jsonb's `topCountries` (AC-010). */
+  topCountries: readonly AudienceMarketCode[];
+  /**
+   * `'18-34'` on the two original rows only: it predates `AGE_RANGES` and the
+   * note in `lib/config/creator-profile.ts` describes why it is harmless. New
+   * rows use the real vocabulary rather than spreading the quirk.
+   */
+  ageRange: AgeRange | '18-34';
+  followerCount: number;
+  /** Percentage string, matching `creator_profile.engagement_rate`. */
+  engagementRate: string;
+  status: 'verified' | 'pending_verification';
+};
+
 type DemoUser = {
   email: string;
   name: string;
   role: 'admin' | 'brand' | 'creator';
+  creator?: CreatorSeed;
 };
 
-const DEMO_USERS = [
+/**
+ * The demo roster.
+ *
+ * The creators exist so a filter can be told apart from a bug. With one
+ * bookable creator — which is what this seed had before KAN-28 — every filter
+ * looks like it works and every broken filter looks like it works too, because
+ * a single row either survives or it does not. So the set below is spread
+ * deliberately: seven bookable creators across three tiers, six niches and five
+ * markets, giving each AC-010 filter both something to match and something to
+ * exclude, and making AC-011's empty state reachable by *filtering* rather than
+ * by an empty database.
+ *
+ * Two of them are the reason discovery has a rule at all. `@demo_creator_pending`
+ * is verified by nobody, and `@demo_creator_untiered` is verified but falls
+ * below every band — so it is the row that proves AC-006's second half, the one
+ * a `status = 'verified'` query written by hand would wrongly return.
+ */
+// Annotated rather than `as const satisfies`: the literal types that produced
+// would give the admin and brand entries no `creator` property at all, so the
+// loop below could not ask whether one is there. Nothing here needs an email to
+// be a literal type — the old `spec.email === 'creator@demo.com'` test is what
+// this restructure removed.
+const DEMO_USERS: readonly DemoUser[] = [
   { email: 'admin@demo.com', name: 'Admin User', role: 'admin' },
   { email: 'brand@demo.com', name: 'Brand User', role: 'brand' },
-  { email: 'creator@demo.com', name: 'Verified Creator', role: 'creator' },
+  {
+    email: 'creator@demo.com',
+    name: 'Verified Creator',
+    role: 'creator',
+    creator: {
+      tiktokHandle: '@demo_creator',
+      niche: 'lifestyle',
+      topCountries: ['ET', 'US', 'KE'],
+      ageRange: '18-34',
+      followerCount: 25_000,
+      engagementRate: '3.50',
+      status: 'verified',
+    },
+  },
   {
     email: 'creator.pending@demo.com',
     name: 'Pending Creator',
     role: 'creator',
+    creator: {
+      tiktokHandle: '@demo_creator_pending',
+      niche: 'fitness',
+      topCountries: ['ET', 'US', 'KE'],
+      ageRange: '18-34',
+      followerCount: 8_000,
+      engagementRate: '2.10',
+      // AC5 of KAN-19 wants one of each, so the admin verification queue
+      // (KAN-22) has something to show.
+      status: 'pending_verification',
+    },
   },
-] as const satisfies readonly DemoUser[];
+  {
+    email: 'creator.untiered@demo.com',
+    name: 'Untiered Creator',
+    role: 'creator',
+    creator: {
+      tiktokHandle: '@demo_creator_untiered',
+      niche: 'gaming',
+      topCountries: ['ET'],
+      ageRange: '18-24',
+      // Below the lowest band's follower floor, so `selectTier` returns
+      // `no_matching_tier` and the row stays un-tiered — verified and still
+      // invisible to a brand (AC-006).
+      followerCount: 4_200,
+      engagementRate: '2.80',
+      status: 'verified',
+    },
+  },
+  {
+    email: 'creator.beauty@demo.com',
+    name: 'Beauty Creator',
+    role: 'creator',
+    creator: {
+      tiktokHandle: '@demo_beauty',
+      niche: 'beauty',
+      topCountries: ['ET'],
+      ageRange: '18-24',
+      followerCount: 14_500,
+      engagementRate: '3.10',
+      status: 'verified',
+    },
+  },
+  {
+    email: 'creator.beauty.mid@demo.com',
+    name: 'Beauty Creator (Mid)',
+    role: 'creator',
+    creator: {
+      // A second creator on the same niche as the one above but a higher band,
+      // so `?niche=beauty&price_max=` narrows from two rows to one. Two filters
+      // that each match on their own is the only way to see AND working.
+      tiktokHandle: '@demo_beauty_mid',
+      niche: 'beauty',
+      topCountries: ['ET', 'AE'],
+      ageRange: '25-34',
+      followerCount: 82_000,
+      engagementRate: '4.80',
+      status: 'verified',
+    },
+  },
+  {
+    email: 'creator.comedy@demo.com',
+    name: 'Comedy Creator',
+    role: 'creator',
+    creator: {
+      tiktokHandle: '@demo_comedy',
+      niche: 'comedy',
+      topCountries: ['ET', 'KE', 'SO'],
+      ageRange: '18-24',
+      followerCount: 64_000,
+      engagementRate: '6.20',
+      status: 'verified',
+    },
+  },
+  {
+    email: 'creator.fashion@demo.com',
+    name: 'Fashion Creator',
+    role: 'creator',
+    creator: {
+      tiktokHandle: '@demo_fashion',
+      niche: 'fashion',
+      topCountries: ['ET', 'KE'],
+      ageRange: '25-34',
+      followerCount: 31_000,
+      engagementRate: '3.90',
+      status: 'verified',
+    },
+  },
+  {
+    email: 'creator.tech@demo.com',
+    name: 'Tech Creator',
+    role: 'creator',
+    creator: {
+      tiktokHandle: '@demo_tech',
+      niche: 'tech',
+      topCountries: ['ET', 'US', 'GB'],
+      ageRange: '25-34',
+      followerCount: 310_000,
+      engagementRate: '5.60',
+      status: 'verified',
+    },
+  },
+  {
+    email: 'creator.travel@demo.com',
+    name: 'Travel Creator',
+    role: 'creator',
+    creator: {
+      // The only bookable creator with no Ethiopian audience, so `?audience=ET`
+      // has something to leave out.
+      tiktokHandle: '@demo_travel',
+      niche: 'travel',
+      topCountries: ['US', 'GB', 'AE'],
+      ageRange: '35-44',
+      followerCount: 420_000,
+      engagementRate: '5.10',
+      status: 'verified',
+    },
+  },
+] satisfies readonly DemoUser[];
 
 async function main() {
   const { db } = await import('./index');
@@ -148,52 +336,91 @@ async function main() {
         .onConflictDoNothing();
     }
 
-    if (spec.role === 'creator') {
-      const isVerified = spec.email === 'creator@demo.com';
-      const followerCount = isVerified ? 25_000 : 8_000;
-      const engagementRate = isVerified ? '3.50' : '2.10';
+    if (spec.creator) {
+      const seed = spec.creator;
+      const verified = seed.status === 'verified';
 
-      // The seeded verified creator has to be *bookable*, which means tiered as
-      // well as verified (AC-006) — otherwise discovery returns nothing on a
-      // freshly seeded database and looks broken.
+      // A verified creator has to be *bookable* to reach discovery, which means
+      // tiered as well as verified (AC-006).
       //
       // Run through `selectTier` against the rows just seeded rather than named
-      // outright: a hardcoded 'Micro' here would be a second, silent definition
-      // of the ladder, and it would go stale the moment Q2 moves the bands. An
-      // unverified creator is never tiered, matching what activation does.
-      const outcome = isVerified
-        ? selectTier(seededTiers, { followerCount, engagementRate })
+      // outright — see `CreatorSeed`. An unverified creator is never tiered,
+      // matching what activation does; `@demo_creator_untiered` is verified and
+      // still gets no tier, because the ladder says so.
+      const outcome = verified
+        ? selectTier(seededTiers, {
+            followerCount: seed.followerCount,
+            engagementRate: seed.engagementRate,
+          })
         : null;
 
       await db
         .insert(creatorProfile)
         .values({
           userId,
-          // Unique per AC-003, so the second creator needs its own handle.
-          tiktokHandle: isVerified ? '@demo_creator' : '@demo_creator_pending',
-          niche: isVerified ? 'lifestyle' : 'fitness',
-          audience: { topCountries: ['ET', 'US', 'KE'], ageRange: '18-34' },
-          followerCount,
-          engagementRate,
-          // AC5 wants one of each so the admin verification queue (KAN-22) has
-          // something to show and discovery (KAN-28) has something to return.
-          status: isVerified ? 'verified' : 'pending_verification',
-          verifiedAt: isVerified ? new Date() : null,
+          // Unique per AC-003, so every creator needs its own handle.
+          tiktokHandle: seed.tiktokHandle,
+          niche: seed.niche,
+          audience: {
+            topCountries: [...seed.topCountries],
+            ageRange: seed.ageRange,
+          },
+          followerCount: seed.followerCount,
+          engagementRate: seed.engagementRate,
+          status: seed.status,
+          verifiedAt: verified ? new Date() : null,
           tierId: outcome?.assigned ? outcome.tierId : null,
         })
         .onConflictDoNothing();
 
-      if (isVerified && !outcome?.assigned) {
-        // Not fatal — the seed's job is to reflect the ladder, not to override
-        // it. But a demo database whose only verified creator is unbookable is
-        // worth saying out loud rather than discovering from an empty grid.
-        console.log(
-          `      ! ${spec.email} matched no tier (${outcome?.reason}) — not bookable`
-        );
+      // Fills in a tier the insert above could not, and only that.
+      //
+      // `onConflictDoNothing` means a creator seeded before tier assignment
+      // existed (KAN-23) keeps whatever they had, which for `@demo_creator` is
+      // `tier_id = null` — verified, unbookable, and invisible to discovery on
+      // any database that was seeded even once before Wave 6. The insert reports
+      // a tier it never wrote, so the seed's own output says the demo works
+      // while `/discover` shows it does not.
+      //
+      // Guarded on `IS NULL` rather than written unconditionally: this fills a
+      // gap, it does not re-tier anybody. Moving a creator who already has a
+      // band is an admin decision (AC-004) and re-running a seed is not the
+      // place to make it — see the Q2 reseed note in FOLLOWUPS.
+      if (outcome?.assigned) {
+        await db
+          .update(creatorProfile)
+          .set({ tierId: outcome.tierId })
+          .where(
+            and(
+              eq(creatorProfile.userId, userId),
+              isNull(creatorProfile.tierId)
+            )
+          );
       }
-    }
 
-    console.log(`    ${spec.role.padEnd(7)} ${spec.email}`);
+      // Read back rather than reported from `outcome`, because the two can
+      // disagree: everything above is conditional on what was already there, so
+      // printing the computed verdict describes a database that may not exist.
+      // A seed that overstates what it did is worse than one that does less.
+      const [stored] = await db
+        .select({
+          status: creatorProfile.status,
+          tierId: creatorProfile.tierId,
+        })
+        .from(creatorProfile)
+        .where(eq(creatorProfile.userId, userId))
+        .limit(1);
+
+      const storedTier = seededTiers.find((t) => t.id === stored?.tierId);
+      const tier = storedTier
+        ? `${storedTier.name} ${formatEtb(storedTier.pricePerVideo)}`
+        : `no tier${outcome && !outcome.assigned ? ` (${outcome.reason})` : ''}`;
+      console.log(
+        `    creator ${spec.email.padEnd(28)} ${seed.tiktokHandle.padEnd(24)} ${(stored?.status ?? '?').padEnd(21)} ${tier}`
+      );
+    } else {
+      console.log(`    ${spec.role.padEnd(7)} ${spec.email}`);
+    }
   }
 
   console.log('  Done.');

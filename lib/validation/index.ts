@@ -16,6 +16,7 @@ export type {
   CreateCreatorInput,
   CreateBrandInput,
   UpdateBrandInput,
+  DiscoverCreatorsInput,
   AuditLogQueryInput,
 } from './schemas';
 

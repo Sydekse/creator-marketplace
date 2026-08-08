@@ -235,16 +235,21 @@ describe('discoverCreatorsSchema', () => {
     expect(result).toEqual({});
   });
 
-  it('accepts all filters', () => {
+  it('accepts all filters, coercing the numbers out of query strings', () => {
+    // Every value arrives as a string from a query string — the coercion is what
+    // lets the same schema serve the URL and a typed caller.
     const result = discoverCreatorsSchema.parse({
       niche: 'beauty',
-      minEngagement: 2.5,
-      priceMin: 50000,
-      priceMax: 200000,
-      audience: { geo: 'ET' },
+      audience: 'ET',
+      minEngagement: '2.5',
+      priceMin: '50000',
+      priceMax: '200000',
     });
     expect(result.niche).toBe('beauty');
+    expect(result.audience).toBe('ET');
     expect(result.minEngagement).toBe(2.5);
+    expect(result.priceMin).toBe(50_000);
+    expect(result.priceMax).toBe(200_000);
   });
 });
 
