@@ -5,7 +5,9 @@ import type { Tx } from '../lib/authz';
 import type { DealStatus } from '../db/schema';
 
 describe('Deal State Machine (KAN-34)', () => {
-  function createMockTx(existingDeal: { id: string; status: DealStatus } | null) {
+  function createMockTx(
+    existingDeal: { id: string; status: DealStatus } | null
+  ) {
     const limit = vi.fn().mockResolvedValue(existingDeal ? [existingDeal] : []);
     const forUpdate = vi.fn(() => ({ limit }));
     const whereSelect = vi.fn(() => ({ for: forUpdate }));
@@ -27,7 +29,15 @@ describe('Deal State Machine (KAN-34)', () => {
 
     return {
       tx,
-      spies: { select, forUpdate, limit, update, setUpdate, insert, valuesInsert },
+      spies: {
+        select,
+        forUpdate,
+        limit,
+        update,
+        setUpdate,
+        insert,
+        valuesInsert,
+      },
     };
   }
 

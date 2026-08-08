@@ -271,13 +271,9 @@ export class EscrowLedgerService {
         },
       ]);
 
-      await transitionDeal(
-        tx,
-        deal.id,
-        'completed',
-        actorId,
-        { reason: 'Deliverable approved' }
-      );
+      await transitionDeal(tx, deal.id, 'completed', actorId, {
+        reason: 'Deliverable approved',
+      });
     });
   }
 
@@ -450,5 +446,4 @@ export class EscrowLedgerService {
     }
     return entry.providerRef;
   }
-
 }

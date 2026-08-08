@@ -174,7 +174,8 @@ class FakeDb {
       if (limited) {
         // KAN-34 state machine transitionDeal loads the deal by ID. If we are
         // in holdForCampaign, targetDeal might be null but deals array is set.
-        const d = this.seed.targetDeal || (this.seed.deals ? this.seed.deals[0] : null);
+        const d =
+          this.seed.targetDeal || (this.seed.deals ? this.seed.deals[0] : null);
         return d
           ? [{ ...d, campaignId: CAMPAIGN_ID, creatorId: CREATOR_ID }]
           : [];
