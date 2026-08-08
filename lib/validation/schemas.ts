@@ -16,6 +16,9 @@ import {
   isValidTiktokHandle,
   normalizeTiktokHandle,
 } from '@/lib/creators/handle';
+// Another leaf module — it imports nothing, so the discovery filters can share
+// the page ceiling the query clamps to rather than declaring a second one.
+import { MAX_PAGE_SIZE } from '@/lib/paging';
 
 export const signUpSchema = z.object({
   name: z.string().min(1, { message: 'Name is required.' }),
@@ -123,13 +126,88 @@ export const updateBrandSchema = z.object({ companyName });
 export type CreateBrandInput = z.infer<typeof createBrandSchema>;
 export type UpdateBrandInput = z.infer<typeof updateBrandSchema>;
 
-export const discoverCreatorsSchema = z.object({
-  niche: z.string().optional(),
-  minEngagement: z.number().min(0).optional(),
-  priceMin: z.number().int().min(0).optional(),
-  priceMax: z.number().int().min(0).optional(),
-  audience: z.record(z.string(), z.unknown()).optional(),
-});
+/**
+ * Discovery filters — `GET /api/creators` (KAN-28, AC-010, AC-011).
+ *
+ * Every value arrives as a string from the query string, so the numeric fields
+ * coerce. `niche` and `audience` are parsed against the same closed vocabularies
+ * onboarding writes with (`lib/config/creator-profile.ts`), which is what makes
+ * an AND-combined filter able to match at all: if the column could hold "Beauty"
+ * and "beauty & skincare", `?niche=beauty` would be a guess rather than a query.
+ *
+ * `audience` is one market code matched against the creator's `topCountries`,
+ * not an object. The contract in tech spec §4.2 names a single `audience` param,
+ * and the column is a jsonb array — so "does this creator reach Ethiopia" is the
+ * question that can actually be asked of it.
+ *
+ * What this schema does *not* carry is any part of the bookable rule. Verified
+ * and tiered is not a filter a caller can supply, omit, or turn off; it lives in
+ * `buildDiscoveryWhere`, which seeds it before reading any of these fields.
+ */
+export const discoverCreatorsSchema = z
+  .object({
+    niche: z.enum(NICHES, { message: 'Unknown niche.' }).optional(),
+    audience: z
+      .enum(AUDIENCE_MARKET_CODES, { message: 'Unknown audience market.' })
+      .optional(),
+    minEngagement: z.coerce
+      .number({ message: 'Minimum engagement must be a number.' })
+      .min(0, { message: 'Minimum engagement cannot be negative.' })
+      .max(MAX_ENGAGEMENT_RATE, {
+        message: `Minimum engagement cannot exceed ${MAX_ENGAGEMENT_RATE}%.`,
+      })
+      .optional(),
+    // Integer ETB santim, matching `pricing_tier.price_per_video` (invariant 4).
+    // A brand thinks in birr and the UI converts; nothing downstream ever sees
+    // a fractional amount.
+    priceMin: z.coerce
+      .number({ message: 'Minimum price must be a number.' })
+      .int({ message: 'Minimum price must be a whole number of santim.' })
+      .min(0, { message: 'Minimum price cannot be negative.' })
+      .optional(),
+    priceMax: z.coerce
+      .number({ message: 'Maximum price must be a number.' })
+      .int({ message: 'Maximum price must be a whole number of santim.' })
+      .min(0, { message: 'Maximum price cannot be negative.' })
+      .optional(),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1, { message: 'Limit must be at least 1.' })
+      .max(MAX_PAGE_SIZE, {
+        message: `Limit cannot exceed ${MAX_PAGE_SIZE}.`,
+      })
+      .optional(),
+    offset: z.coerce
+      .number()
+      .int()
+      .min(0, { message: 'Offset cannot be negative.' })
+      .optional(),
+  })
+  // Unknown keys are rejected, not stripped — the same call `auditLogQuerySchema`
+  // makes below, for the same reason and with more at stake here. On a filter
+  // schema zod's default is the dangerous direction: `?nich=beauty` would
+  // contribute no condition, so the brand gets the entire bookable catalogue back
+  // with nothing to indicate their filter was ignored. `.strict()` turns that
+  // into a 422 naming the key. It must come before `.refine()`, which returns a
+  // schema that no longer has the method.
+  .strict()
+  // An inverted range is almost always a swapped pair of inputs rather than a
+  // deliberate request for nothing — the same judgement the audit log's date
+  // range makes. Saying so beats rendering AC-011's "try widening your criteria"
+  // at a brand whose criteria are not the problem.
+  .refine(
+    (v) =>
+      v.priceMin === undefined ||
+      v.priceMax === undefined ||
+      v.priceMin <= v.priceMax,
+    {
+      message: 'Minimum price must be less than or equal to maximum price.',
+      path: ['priceMin'],
+    }
+  );
+
+export type DiscoverCreatorsInput = z.infer<typeof discoverCreatorsSchema>;
 
 const tiktokUrlPattern =
   /^(https?:\/\/)?(www\.)?(tiktok\.com\/@[\w.-]+\/video\/\d+|vm\.tiktok\.com\/[\w-]+)/;

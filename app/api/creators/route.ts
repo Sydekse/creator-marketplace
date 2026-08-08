@@ -1,11 +1,18 @@
 import { createCreatorProfile } from '@/lib/creators/create-profile';
 import type { CreateProfileDeps } from '@/lib/creators/create-profile';
+import {
+  DISCOVERY_PARAM_ALIASES,
+  readDiscovery,
+} from '@/lib/creators/discovery';
+import type { DiscoveryDeps, DiscoveryPage } from '@/lib/creators/discovery';
 import { guard, toErrorResponse } from '@/lib/authz';
+import { conflictDetails, readParams } from '@/lib/query-params';
 import {
   ErrorCode,
   ErrorHttpStatus,
   ErrorMessage,
   createCreatorSchema,
+  discoverCreatorsSchema,
   errorResponse,
   fromZodError,
   validationError,
@@ -108,4 +115,89 @@ export async function handleCreateCreator(
  */
 export async function POST(request: Request): Promise<Response> {
   return handleCreateCreator(request);
+}
+
+// -- Discovery --------------------------------------------------------------
+
+/** snake_case out, matching the response style in tech spec §4.2. */
+function serializeDiscovery(page: DiscoveryPage) {
+  return {
+    creators: page.creators.map((row) => ({
+      id: row.id,
+      tiktok_handle: row.tiktokHandle,
+      niche: row.niche,
+      follower_count: row.followerCount,
+      engagement_rate: row.engagementRate,
+      audience: row.audience,
+      tier: {
+        id: row.tierId,
+        name: row.tierName,
+        price_per_video: row.pricePerVideo,
+      },
+    })),
+    has_more: page.hasMore,
+  };
+}
+
+/**
+ * `GET /api/creators` — brand-facing discovery (US-004, AC-010, AC-011).
+ *
+ * Same order of operations the POST above sets out: authorize, then normalise,
+ * then parse, then query. The brand check runs twice and both are load-bearing —
+ * here before parsing, so a caller with no right to be here cannot use
+ * validation responses to map what the endpoint accepts; and again inside
+ * `readDiscovery`, which is what makes the *query* safe rather than this one
+ * route, since the `/discover` page calls it directly.
+ *
+ * A creator, an admin and an anonymous caller all get 403 FORBIDDEN. The AC asks
+ * for 403 on anonymous where tech spec §4.2 says 401, and the AC wins: it is
+ * also what `guard` already does everywhere else, failing closed without
+ * distinguishing "no session" from "wrong role", which is what keeps this
+ * endpoint from being an existence oracle.
+ *
+ * Note there is no `verified` or `tier` parameter to be found here. The bookable
+ * rule is not a filter a caller can supply or omit — `buildDiscoveryWhere` seeds
+ * it before reading anything below (AC-006).
+ */
+export async function handleDiscoverCreators(
+  request: Request,
+  deps?: DiscoveryDeps
+): Promise<Response> {
+  try {
+    // Same seam the query uses, so a test that injects one brand injects both.
+    await (deps?.requireBrand ?? (() => guard({ roles: ['brand'] })))();
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+
+  const { params, conflicts } = readParams(
+    new URL(request.url).searchParams,
+    DISCOVERY_PARAM_ALIASES
+  );
+  if (conflicts.length > 0) {
+    return Response.json(validationError(conflictDetails(conflicts)), {
+      status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR],
+    });
+  }
+
+  const parsed = discoverCreatorsSchema.safeParse(params);
+  if (!parsed.success) {
+    return Response.json(fromZodError(parsed.error), {
+      status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR],
+    });
+  }
+
+  try {
+    const page = await readDiscovery(parsed.data, deps);
+    return Response.json(serializeDiscovery(page));
+  } catch (error) {
+    // Re-throws anything that is not a denial, so a database outage is not
+    // reported as a permission problem.
+    return toErrorResponse(error);
+  }
+}
+
+/** Second argument omitted for the same reason as POST — see above. */
+export async function GET(request: Request): Promise<Response> {
+  return handleDiscoverCreators(request);
 }
