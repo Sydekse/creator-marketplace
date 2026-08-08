@@ -1,21 +1,46 @@
 import { redirect } from 'next/navigation';
+import { DealGroups } from '@/components/creator/deal-groups';
+import { EarningsSummary } from '@/components/creator/earnings-summary';
 import { TierPricing } from '@/components/creator/tier-pricing';
 import { VerificationStatus } from '@/components/creator/verification-status';
+import { EmptyState } from '@/components/feedback/empty-state';
 import { requireRole } from '@/lib/auth';
 import { NICHE_LABELS } from '@/lib/config/creator-profile';
 import type { Niche } from '@/lib/config/creator-profile';
 import {
+  NOT_BOOKABLE_DESCRIPTION,
+  NOT_BOOKABLE_TITLE,
+  NO_DEALS_DESCRIPTION,
+  NO_DEALS_TITLE,
+  readCreatorDashboard,
+} from '@/lib/creators/dashboard';
+import {
   formatEngagementRate,
   formatFollowerCount,
 } from '@/lib/creators/profile-facts';
-import { getCreatorProfileWithTier } from '@/lib/creators/queries';
+import { getCreatorProfileWithTier, isBookable } from '@/lib/creators/queries';
+
+// `pg` needs Node APIs; it cannot run on the edge runtime.
+export const runtime = 'nodejs';
 
 /**
- * Creator dashboard.
+ * Creator dashboard (KAN-25, US-001).
+ *
+ * One place for the three things a creator runs their side of the marketplace
+ * from: where their verification stands and what they are priced at (AC-1),
+ * what deals they have and what state each is in (AC-2), and what they have
+ * been paid (AC-3).
  *
  * A creator with no profile has nothing to see here, so this is also the funnel
  * into onboarding: signing up lands on `/creator`, which sends them straight to
  * the form (US-001).
+ *
+ * Both reads gate themselves. `requireRole` below is the navigation gate — it
+ * redirects rather than throws, which is the right behaviour for someone who
+ * followed a link — and `readCreatorDashboard` runs `guard` again inside the
+ * module and resolves the creator's own profile id from the session. AC-6 is
+ * that second layer's: this page cannot ask for anyone else's deals because the
+ * function takes no id to ask with (NFR-005).
  */
 export default async function CreatorDashboardPage() {
   const user = await requireRole('creator');
@@ -24,6 +49,11 @@ export default async function CreatorDashboardPage() {
   if (!row) redirect('/creator/onboarding');
 
   const { profile, tier } = row;
+
+  const dashboard = await readCreatorDashboard();
+  // Null means no profile row, which the redirect above has already ruled out.
+  // Narrowing rather than asserting keeps that an ordinary branch.
+  if (!dashboard) redirect('/creator/onboarding');
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-10 py-4">
@@ -72,9 +102,37 @@ export default async function CreatorDashboardPage() {
         <TierPricing tier={tier} profile={profile} />
       </div>
 
+      {/* AC-3 and AC-2. Earnings first: a creator opening this page mid-campaign
+          is usually here for the money, and the deal list explains it. Both
+          figures are ledger sums (AC-4) — nothing on this page computes a
+          payout. */}
+      <div className="border-t border-border pt-8">
+        <EarningsSummary earnings={dashboard.earnings} />
+      </div>
+
+      <div className="border-t border-border pt-8">
+        {/* AC-5. Two different empty states, because "no offers yet" is the
+            wrong sentence for a creator who is not bookable: they are not
+            waiting on a brand, they are waiting on verification or a tier, and
+            there is nothing for them to do about it. `isBookable` is the same
+            predicate discovery filters on, so the two cannot disagree about
+            whether this creator is visible to brands. */}
+        {dashboard.isEmpty ? (
+          <EmptyState
+            title={isBookable(profile) ? NO_DEALS_TITLE : NOT_BOOKABLE_TITLE}
+            description={
+              isBookable(profile)
+                ? NO_DEALS_DESCRIPTION
+                : NOT_BOOKABLE_DESCRIPTION
+            }
+          />
+        ) : (
+          <DealGroups groups={dashboard.groups} />
+        )}
+      </div>
+
       <p className="text-sm text-muted-foreground">
-        Signed in as {user.name ?? user.email}. Deal offers and deliverables
-        land here in a later ticket.
+        Signed in as {user.name ?? user.email}.
       </p>
     </div>
   );

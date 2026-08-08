@@ -12,13 +12,19 @@ import {
 } from '../lib/config/pricing';
 import { selectTier } from '../lib/creators/tier-assignment';
 import { formatEtb } from '../lib/money';
+import { getPaymentProvider } from '../lib/payment';
+import { EscrowLedgerService } from '../lib/payment/ledger';
 import {
   brandProfile,
+  campaign,
   creatorProfile,
+  deal,
+  dealEvent,
   pricingTier,
   rightsTerms,
   user,
 } from './schema';
+import type { DealStatus } from './schema';
 
 // `tsx db/seed.ts` runs outside the Next.js runtime, so `.env.local` is not
 // loaded for us — same reason `drizzle.config.ts` does this.
@@ -236,6 +242,85 @@ const DEMO_USERS: readonly DemoUser[] = [
   },
 ] satisfies readonly DemoUser[];
 
+/**
+ * One demo deal, described by where it ends up rather than how it gets there.
+ *
+ * The deal state machine (KAN-34) and the routes that drive it do not exist
+ * yet, so this seed walks each deal to its target itself. Money-moving steps go
+ * through `EscrowLedgerService` — never a hand-written `ledger_entry` — so the
+ * balances a creator reads on the dashboard are computed by the same code that
+ * will compute them in production, under the NFR-009 100%-coverage mandate.
+ * Non-money transitions are written directly, each with its `deal_event`
+ * (invariant 6): a seed that skipped the event would manufacture rows that
+ * violate an invariant later code relies on.
+ */
+type DemoDealSpec = {
+  campaignName: string;
+  goal: string;
+  videoCount: number;
+  target: DealStatus;
+};
+
+/**
+ * Seven campaigns, one deal each, covering all five dashboard groups (AC-2).
+ *
+ * One campaign per deal, which looks redundant and is not: `holdForCampaign`
+ * funds *every* accepted deal in a campaign at once, and `deal` is unique on
+ * `(campaign_id, creator_id)`. So a single creator cannot hold two deals in one
+ * campaign, and two deals in one campaign cannot be at different points on the
+ * money path. A creator working with several brands is the realistic shape
+ * anyway.
+ *
+ * `revision_requested` is deliberately absent. Reaching it needs a deliverable
+ * to reject (KAN-46/47), and faking one would put a `deliverable` row in the
+ * database that no deliverable code has ever seen. The group it belongs to is
+ * covered by the two deals above it.
+ */
+const DEMO_DEALS: readonly DemoDealSpec[] = [
+  {
+    campaignName: 'Ramadan Beauty Push',
+    goal: 'Drive awareness for the seasonal gift set.',
+    videoCount: 2,
+    target: 'pending',
+  },
+  {
+    campaignName: 'Coffee Launch',
+    goal: 'Introduce the single-origin line to Addis.',
+    videoCount: 1,
+    target: 'accepted',
+  },
+  {
+    campaignName: 'Tech Review Series',
+    goal: 'Hands-on reviews of the new handset range.',
+    videoCount: 3,
+    target: 'funded',
+  },
+  {
+    campaignName: 'Fitness January',
+    goal: 'Sign-ups for the new-year membership offer.',
+    videoCount: 2,
+    target: 'delivered',
+  },
+  {
+    campaignName: 'Holiday Fashion',
+    goal: 'Style the winter capsule collection.',
+    videoCount: 2,
+    target: 'completed',
+  },
+  {
+    campaignName: 'Campus Tour',
+    goal: 'Student ambassador content across three universities.',
+    videoCount: 4,
+    target: 'declined',
+  },
+  {
+    campaignName: 'Cancelled Pilot',
+    goal: 'Pilot that the brand pulled after funding.',
+    videoCount: 1,
+    target: 'refunded',
+  },
+];
+
 async function main() {
   const { db } = await import('./index');
   const { auth } = await import('../lib/auth');
@@ -309,8 +394,13 @@ async function main() {
 
   console.log('  Demo users …');
 
+  // Collected as the loop goes, because the deal block below needs the brand's
+  // and the creator's ids and `ensureUser` is the only thing that knows them.
+  const userIdByEmail = new Map<string, string>();
+
   for (const spec of DEMO_USERS) {
     const userId = await ensureUser(db, auth, spec);
+    userIdByEmail.set(spec.email, userId);
 
     // Applied every run, not just on creation, so a half-seeded database heals
     // instead of staying wrong.
@@ -423,7 +513,235 @@ async function main() {
     }
   }
 
+  await seedDemoDeals(db, userIdByEmail);
+
   console.log('  Done.');
+}
+
+/**
+ * Demo campaigns and deals for `creator@demo.com`, so the creator dashboard has
+ * something to show before Waves 9–12 build the routes that write these rows
+ * (KAN-33 offers, KAN-43 funding, KAN-45 payout).
+ *
+ * Every figure the dashboard displays is therefore produced by real code:
+ * `unit_price` comes off the creator's assigned tier row, `commission_rate`
+ * from `lib/config/pricing.ts` (invariant 8 — no literals here), and the ledger
+ * entries and `balance_after` values from `EscrowLedgerService`. Nothing in
+ * this function writes a `ledger_entry` itself, which is what makes the two
+ * earnings totals on screen the numbers the ledger would really produce.
+ */
+async function seedDemoDeals(
+  db: (typeof import('./index'))['db'],
+  userIdByEmail: Map<string, string>
+) {
+  const brandUserId = userIdByEmail.get('brand@demo.com');
+  const creatorUserId = userIdByEmail.get('creator@demo.com');
+  if (!brandUserId || !creatorUserId) return;
+
+  const [brand] = await db
+    .select({ id: brandProfile.id })
+    .from(brandProfile)
+    .where(eq(brandProfile.userId, brandUserId))
+    .limit(1);
+
+  // The tier is joined rather than assumed: `unit_price` is a snapshot of what
+  // this creator is actually priced at, so a demo deal cannot quote a number no
+  // brand would have been charged.
+  const [creator] = await db
+    .select({
+      id: creatorProfile.id,
+      tierId: creatorProfile.tierId,
+      pricePerVideo: pricingTier.pricePerVideo,
+    })
+    .from(creatorProfile)
+    .innerJoin(pricingTier, eq(creatorProfile.tierId, pricingTier.id))
+    .where(eq(creatorProfile.userId, creatorUserId))
+    .limit(1);
+
+  const [terms] = await db
+    .select({ id: rightsTerms.id })
+    .from(rightsTerms)
+    .where(eq(rightsTerms.version, RIGHTS_TERMS.version))
+    .limit(1);
+
+  if (!brand || !creator || !terms) {
+    console.log(
+      '  Demo deals … skipped (brand, tiered creator or terms missing)'
+    );
+    return;
+  }
+
+  // Idempotency, as one check rather than seven.
+  //
+  // `holdForCampaign` throws "Campaign has already been funded" on a second
+  // call, so this block cannot be replayed halfway — a per-campaign
+  // `onConflictDoNothing` would leave the inserts idempotent and the money
+  // steps not. Any campaign for this brand means the block has run.
+  const [existing] = await db
+    .select({ id: campaign.id })
+    .from(campaign)
+    .where(eq(campaign.brandId, brand.id))
+    .limit(1);
+
+  if (existing) {
+    console.log('  Demo deals … already seeded');
+    return;
+  }
+
+  console.log('  Demo deals …');
+
+  const ledger = new EscrowLedgerService(db, getPaymentProvider());
+  const offerExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+  for (const spec of DEMO_DEALS) {
+    const totalPrice = creator.pricePerVideo * spec.videoCount;
+
+    const [row] = await db
+      .insert(campaign)
+      .values({
+        brandId: brand.id,
+        name: spec.campaignName,
+        goal: spec.goal,
+        // Covers the deal exactly. A budget below the committed total would be
+        // a state AC-014's ceiling is supposed to make unreachable.
+        budget: totalPrice,
+        desiredVideos: spec.videoCount,
+        // Every one of these has an offer out, which is past draft. The three
+        // that get funded are moved to 'funded' by `holdForCampaign` itself.
+        status: 'confirmed',
+      })
+      .returning({ id: campaign.id });
+
+    const [created] = await db
+      .insert(deal)
+      .values({
+        campaignId: row.id,
+        creatorId: creator.id,
+        videoCount: spec.videoCount,
+        // Snapshots, not lookups (invariant 8): re-pricing a tier later must
+        // not retroactively change what an offered deal pays out.
+        unitPrice: creator.pricePerVideo,
+        totalPrice,
+        commissionRate: COMMISSION_RATE,
+        rightsTermsId: terms.id,
+        offerExpiresAt,
+      })
+      .returning({ id: deal.id });
+
+    await walkDealTo(db, ledger, {
+      dealId: created.id,
+      campaignId: row.id,
+      target: spec.target,
+      brandUserId,
+      creatorUserId,
+    });
+
+    console.log(
+      `    ${spec.campaignName.padEnd(22)} ${spec.target.padEnd(10)} ${String(spec.videoCount).padStart(2)} × ${formatEtb(creator.pricePerVideo)} = ${formatEtb(totalPrice)}`
+    );
+  }
+}
+
+/**
+ * A status update plus its `deal_event`, in that order and never one without
+ * the other (invariant 6, FR-007). Stands in for transitions whose real
+ * handlers are later tickets — accept (KAN-35), decline (KAN-37), deliver
+ * (KAN-46) — and does not touch money.
+ */
+async function transitionDemoDeal(
+  db: (typeof import('./index'))['db'],
+  dealId: string,
+  from: DealStatus,
+  to: DealStatus,
+  actorId: string,
+  reason: string
+) {
+  await db.update(deal).set({ status: to }).where(eq(deal.id, dealId));
+  await db.insert(dealEvent).values({
+    dealId,
+    fromStatus: from,
+    toStatus: to,
+    actorId,
+    reason,
+  });
+}
+
+/**
+ * Drives one freshly-inserted `pending` deal to its target status.
+ *
+ * The cases fall through deliberately: `completed` is `delivered` plus a
+ * payout, and `delivered` is `funded` plus a submission, so writing them as a
+ * cascade keeps the seed's path through the machine the same one the real
+ * routes will take. Anything the ledger owns goes through the ledger.
+ */
+async function walkDealTo(
+  db: (typeof import('./index'))['db'],
+  ledger: EscrowLedgerService,
+  opts: {
+    dealId: string;
+    campaignId: string;
+    target: DealStatus;
+    brandUserId: string;
+    creatorUserId: string;
+  }
+) {
+  const { dealId, campaignId, target, brandUserId, creatorUserId } = opts;
+
+  if (target === 'pending') return;
+
+  if (target === 'declined') {
+    await transitionDemoDeal(
+      db,
+      dealId,
+      'pending',
+      'declined',
+      creatorUserId,
+      'Creator declined the offer'
+    );
+    return;
+  }
+
+  // Everything below is accepted first — rights are accepted with the offer
+  // (AC-016), so the timestamp is set in the same write as the status.
+  await transitionDemoDeal(
+    db,
+    dealId,
+    'pending',
+    'accepted',
+    creatorUserId,
+    'Creator accepted the offer'
+  );
+  await db
+    .update(deal)
+    .set({ rightsAcceptedAt: new Date() })
+    .where(eq(deal.id, dealId));
+
+  if (target === 'accepted') return;
+
+  // Money from here down. `holdForCampaign` moves the deal to 'funded', the
+  // campaign to 'funded', and writes the `hold` entry and its `deal_event`.
+  await ledger.holdForCampaign(campaignId, brandUserId);
+
+  if (target === 'funded') return;
+
+  if (target === 'refunded') {
+    await ledger.refundDeal(dealId, brandUserId);
+    return;
+  }
+
+  await transitionDemoDeal(
+    db,
+    dealId,
+    'funded',
+    'delivered',
+    creatorUserId,
+    'Creator submitted the deliverable'
+  );
+
+  if (target === 'delivered') return;
+
+  // 'completed' — releases payout and commission against the hold above.
+  await ledger.payoutForDeal(dealId, brandUserId);
 }
 
 /**
