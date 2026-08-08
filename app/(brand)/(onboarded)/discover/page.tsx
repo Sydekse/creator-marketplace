@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CreatorCard } from '@/components/creator/creator-card';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { buttonVariants } from '@/components/ui/button';
 import {
@@ -23,7 +24,7 @@ import { discoverCreatorsSchema } from '@/lib/validation';
 export const runtime = 'nodejs';
 
 /**
- * Creator discovery (KAN-28, US-004, AC-010, AC-011).
+ * Creator discovery (KAN-28, US-004, AC-010, AC-011; cards KAN-29, AC-012).
  *
  * Lives inside `(onboarded)` because the layout there redirects a brand with no
  * profile to onboarding — and that layout's own docstring names this route as
@@ -41,6 +42,11 @@ export const runtime = 'nodejs';
  * a browser writes to it. shadcn's `Select` is Base UI and a client component,
  * and it renders no `<input>`, so it would need a hidden field to submit a
  * value — a client bundle bought for nothing.
+ *
+ * What a result shows is `CreatorCard`'s business, not this page's. This one
+ * owns the URL, the filter form and the pager; the card owns AC-012's four facts
+ * and the link into the detail view. Both stay server-rendered, so the whole
+ * screen still ships no client JavaScript.
  *
  * The bookable rule appears nowhere below. `readDiscovery` owns it, seeded into
  * the query before any filter here is read (AC-006).
@@ -234,27 +240,13 @@ export default async function DiscoverPage({
           description={NO_MATCHES_DESCRIPTION}
         />
       ) : (
-        <ul className="flex flex-col divide-y divide-border rounded-lg border border-border">
+        // One column on a phone, two from `sm:` up (NFR-007). A list, not a bare
+        // grid of divs: these are results, and a screen reader announcing "list,
+        // 12 items" is how a brand hears the size of what they filtered to.
+        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {creators.map((creator) => (
-            <li
-              key={creator.id}
-              className="flex flex-wrap items-center justify-between gap-3 p-4"
-            >
-              <div className="flex flex-col gap-1">
-                <span className="font-medium">{creator.tiktokHandle}</span>
-                <span className="text-sm text-muted-foreground">
-                  {NICHE_LABELS[creator.niche as keyof typeof NICHE_LABELS] ??
-                    creator.niche}
-                </span>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <span className="font-medium">
-                  {formatEtb(creator.pricePerVideo)}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  {creator.tierName} · per video
-                </span>
-              </div>
+            <li key={creator.id}>
+              <CreatorCard creator={creator} />
             </li>
           ))}
         </ul>
