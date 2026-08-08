@@ -212,19 +212,69 @@ export type DiscoverCreatorsInput = z.infer<typeof discoverCreatorsSchema>;
 const tiktokUrlPattern =
   /^(https?:\/\/)?(www\.)?(tiktok\.com\/@[\w.-]+\/video\/\d+|vm\.tiktok\.com\/[\w-]+)/;
 
-export const createCampaignSchema = z.object({
-  name: z.string().min(1, { message: 'Campaign name is required.' }),
-  goal: z.string().optional(),
-  targetAudience: z.record(z.string(), z.unknown()).optional(),
-  budget: z
-    .number()
-    .int()
-    .positive({ message: 'Budget must be greater than zero.' }),
-  desiredVideos: z
-    .number()
-    .int()
-    .positive({ message: 'Desired videos must be greater than zero.' }),
-});
+export const MAX_CAMPAIGN_NAME_LENGTH = 120;
+export const MAX_CAMPAIGN_GOAL_LENGTH = 1000;
+
+export const createCampaignSchema = z
+  .object({
+    name: z
+      .string({ message: 'Campaign name is required.' })
+      .trim()
+      .min(1, { message: 'Campaign name is required.' })
+      .max(MAX_CAMPAIGN_NAME_LENGTH, {
+        message: `Campaign name cannot exceed ${MAX_CAMPAIGN_NAME_LENGTH} characters.`,
+      }),
+    goal: z
+      .string()
+      .trim()
+      .max(MAX_CAMPAIGN_GOAL_LENGTH, {
+        message: `Goal cannot exceed ${MAX_CAMPAIGN_GOAL_LENGTH} characters.`,
+      })
+      .transform((value) => value || undefined)
+      .optional(),
+    targetAudience: z.record(z.string(), z.unknown()).optional(),
+    budget: z
+      .number({ message: 'Budget must be a number.' })
+      .int({ message: 'Budget must be a whole number of santim.' })
+      .positive({ message: 'Budget must be greater than zero.' }),
+    desiredVideos: z
+      .number({ message: 'Desired videos must be a number.' })
+      .int({ message: 'Desired videos must be a whole number.' })
+      .positive({ message: 'Desired videos must be greater than zero.' }),
+  })
+  .strict();
+
+export const updateCampaignSchema = z
+  .object({
+    name: z
+      .string({ message: 'Campaign name is required.' })
+      .trim()
+      .min(1, { message: 'Campaign name is required.' })
+      .max(MAX_CAMPAIGN_NAME_LENGTH, {
+        message: `Campaign name cannot exceed ${MAX_CAMPAIGN_NAME_LENGTH} characters.`,
+      }),
+    goal: z
+      .string()
+      .trim()
+      .max(MAX_CAMPAIGN_GOAL_LENGTH, {
+        message: `Goal cannot exceed ${MAX_CAMPAIGN_GOAL_LENGTH} characters.`,
+      })
+      .transform((value) => value || undefined)
+      .optional(),
+    targetAudience: z.record(z.string(), z.unknown()).optional(),
+    budget: z
+      .number({ message: 'Budget must be a number.' })
+      .int({ message: 'Budget must be a whole number of santim.' })
+      .positive({ message: 'Budget must be greater than zero.' }),
+    desiredVideos: z
+      .number({ message: 'Desired videos must be a number.' })
+      .int({ message: 'Desired videos must be a whole number.' })
+      .positive({ message: 'Desired videos must be greater than zero.' }),
+  })
+  .strict();
+
+export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
+export type UpdateCampaignInput = z.infer<typeof updateCampaignSchema>;
 
 export const addCampaignItemSchema = z.object({
   creatorId: z.string().uuid({ message: 'Valid creator ID is required.' }),
