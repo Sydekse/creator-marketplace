@@ -20,6 +20,7 @@ export type {
   UpdateCampaignInput,
   DiscoverCreatorsInput,
   AuditLogQueryInput,
+  AddCampaignItemInput,
 } from './schemas';
 
 export {

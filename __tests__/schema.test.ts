@@ -73,7 +73,7 @@ const migrationSql = (() => {
 })();
 
 describe('schema tables', () => {
-  it('declares all 13 MVP entities', () => {
+  it('declares all marketplace entities', () => {
     expect(Object.keys(TABLES)).toHaveLength(13);
   });
 
@@ -138,7 +138,7 @@ describe('generated migration', () => {
     const pkLines = migrationSql
       .split('\n')
       .filter((l) => l.includes('PRIMARY KEY'));
-    // The 13 MVP entities plus session, account and verification.
+    // The 13 entities plus session, account and verification.
     expect(pkLines).toHaveLength(16);
     for (const line of pkLines) {
       expect(line).toContain('"id" uuid PRIMARY KEY');

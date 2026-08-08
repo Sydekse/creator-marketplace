@@ -328,6 +328,8 @@ export const addCampaignItemSchema = z.object({
     .positive({ message: 'Video count must be greater than zero.' }),
 });
 
+export type AddCampaignItemInput = z.infer<typeof addCampaignItemSchema>;
+
 export const acceptDealSchema = z.object({
   rightsTermsId: z
     .string()
