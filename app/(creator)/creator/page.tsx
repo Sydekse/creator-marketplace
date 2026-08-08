@@ -4,6 +4,10 @@ import { VerificationStatus } from '@/components/creator/verification-status';
 import { requireRole } from '@/lib/auth';
 import { NICHE_LABELS } from '@/lib/config/creator-profile';
 import type { Niche } from '@/lib/config/creator-profile';
+import {
+  formatEngagementRate,
+  formatFollowerCount,
+} from '@/lib/creators/profile-facts';
 import { getCreatorProfileWithTier } from '@/lib/creators/queries';
 
 /**
@@ -43,11 +47,11 @@ export default async function CreatorDashboardPage() {
             Followers
           </dt>
           {/* AC-027's rule generalises: an absent number is not zero. A creator
-              who skipped this optional field has not claimed no followers. */}
+              who skipped this optional field has not claimed no followers. The
+              rule lives in `profile-facts.ts` because the brand-facing card
+              renders the same two fields and must answer null the same way. */}
           <dd className="font-mono text-sm">
-            {profile.followerCount === null
-              ? 'Not provided'
-              : profile.followerCount.toLocaleString('en-US')}
+            {formatFollowerCount(profile.followerCount)}
           </dd>
         </div>
         <div className="flex flex-col gap-1">
@@ -55,9 +59,7 @@ export default async function CreatorDashboardPage() {
             Engagement rate
           </dt>
           <dd className="font-mono text-sm">
-            {profile.engagementRate === null
-              ? 'Not provided'
-              : `${profile.engagementRate}%`}
+            {formatEngagementRate(profile.engagementRate)}
           </dd>
         </div>
       </dl>
