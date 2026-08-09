@@ -5,6 +5,8 @@ import {
   addToCart,
 } from '../lib/campaigns/add-to-cart';
 import type { AddToCartDeps } from '../lib/campaigns/add-to-cart';
+import { removeFromCart } from '../lib/campaigns/remove-from-cart';
+import type { RemoveFromCartDeps } from '../lib/campaigns/remove-from-cart';
 import { ForbiddenError } from '../lib/authz';
 import type { Tx } from '../lib/authz';
 import {
@@ -28,6 +30,8 @@ vi.mock('../lib/authz', async (importOriginal) => {
 
 const { handleAddCampaignItem } =
   await import('../app/api/campaigns/[id]/items/route');
+const { handleDeleteCampaignItem } =
+  await import('../app/api/campaigns/[id]/items/[creatorId]/route');
 
 const BRAND_USER_ID = 'user-brand-1';
 const BRAND_PROFILE_ID = '11111111-1111-4111-8111-111111111111';
@@ -41,6 +45,15 @@ function postRequest(body: unknown, raw?: string) {
     headers: { 'Content-Type': 'application/json' },
     body: raw ?? JSON.stringify(body),
   });
+}
+
+function deleteRequest() {
+  return new Request(
+    `http://localhost/api/campaigns/${CAMPAIGN_ID}/items/${CREATOR_ID}`,
+    {
+      method: 'DELETE',
+    }
+  );
 }
 
 function uniqueViolation(constraint: string) {
@@ -519,5 +532,226 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
     const body = await response.json();
     expect(body.error.code).toBe(ErrorCode.BUDGET_EXCEEDED);
     expect(body.error.details.excess[0]).toContain('0.01 ETB');
+  });
+});
+
+describe('removeFromCart service', () => {
+  const mockCampaign = {
+    id: CAMPAIGN_ID,
+    brandId: BRAND_PROFILE_ID,
+    budget: 500000,
+    status: 'draft' as const,
+  };
+
+  function createMockRemoveDeps(
+    overrides: Partial<RemoveFromCartDeps> = {}
+  ): RemoveFromCartDeps {
+    return {
+      getCampaign: vi.fn().mockResolvedValue(mockCampaign),
+      deleteItem: vi.fn().mockResolvedValue([{ id: 'item-uuid-1' }]),
+      getRunningTotal: vi.fn().mockResolvedValue(100000), // new total after removal
+      transaction: async (fn) => fn({} as Tx),
+      ...overrides,
+    };
+  }
+
+  it('removes item from cart, returning updated running total and budget', async () => {
+    const deps = createMockRemoveDeps();
+    const result = await removeFromCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      CREATOR_ID,
+      deps
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.runningTotal).toBe(100000);
+      expect(result.remainingBudget).toBe(400000);
+    }
+
+    expect(deps.deleteItem).toHaveBeenCalledWith(
+      expect.anything(),
+      CAMPAIGN_ID,
+      CREATOR_ID
+    );
+  });
+
+  it('rejects if campaign does not exist or does not belong to brand', async () => {
+    const deps = createMockRemoveDeps({
+      getCampaign: vi.fn().mockResolvedValue(null),
+    });
+
+    const result = await removeFromCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      CREATOR_ID,
+      deps
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'not_found' });
+  });
+
+  it('rejects if campaign is not in draft status', async () => {
+    const deps = createMockRemoveDeps({
+      getCampaign: vi.fn().mockResolvedValue({
+        ...mockCampaign,
+        status: 'confirmed',
+      }),
+    });
+
+    const result = await removeFromCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      CREATOR_ID,
+      deps
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'not_draft' });
+  });
+
+  it('rejects if creator item was not found in cart', async () => {
+    const deps = createMockRemoveDeps({
+      deleteItem: vi.fn().mockResolvedValue([]),
+    });
+
+    const result = await removeFromCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      CREATOR_ID,
+      deps
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'item_not_found' });
+  });
+});
+
+describe('DELETE /api/campaigns/[id]/items/[creatorId] route handler', () => {
+  const mockCampaign = {
+    id: CAMPAIGN_ID,
+    brandId: BRAND_PROFILE_ID,
+    budget: 500000,
+    status: 'draft' as const,
+  };
+
+  function createMockRemoveDeps(
+    overrides: Partial<RemoveFromCartDeps> = {}
+  ): RemoveFromCartDeps {
+    return {
+      getCampaign: vi.fn().mockResolvedValue(mockCampaign),
+      deleteItem: vi.fn().mockResolvedValue([{ id: 'item-uuid-1' }]),
+      getRunningTotal: vi.fn().mockResolvedValue(100000), // new total after removal
+      transaction: async (fn) => fn({} as Tx),
+      ...overrides,
+    };
+  }
+
+  it('returns 200 with new totals on successful removal', async () => {
+    const deps = createMockRemoveDeps();
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID,
+      { removeFromCartDeps: deps }
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({
+      running_total: 100000,
+      remaining_budget: 400000,
+    });
+  });
+
+  it('enforces RBAC — rejects unauthorized callers with 403 FORBIDDEN', async () => {
+    guardMock.mockRejectedValue(new ForbiddenError('wrong role'));
+
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
+  });
+
+  it('rejects malformed campaign id with 403 FORBIDDEN', async () => {
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      'not-a-uuid',
+      CREATOR_ID
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
+  });
+
+  it('rejects malformed creatorId with 403 FORBIDDEN', async () => {
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      'not-a-uuid'
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
+  });
+
+  it('returns 403 FORBIDDEN when campaign is not found', async () => {
+    const deps = createMockRemoveDeps({
+      getCampaign: vi.fn().mockResolvedValue(null),
+    });
+
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID,
+      { removeFromCartDeps: deps }
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
+  });
+
+  it('returns 409 CAMPAIGN_NOT_DRAFT when campaign is not draft', async () => {
+    const deps = createMockRemoveDeps({
+      getCampaign: vi.fn().mockResolvedValue({
+        ...mockCampaign,
+        status: 'confirmed',
+      }),
+    });
+
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID,
+      { removeFromCartDeps: deps }
+    );
+
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.CAMPAIGN_NOT_DRAFT);
+  });
+
+  it('returns 404 NOT_FOUND when item not found in cart', async () => {
+    const deps = createMockRemoveDeps({
+      deleteItem: vi.fn().mockResolvedValue([]),
+    });
+
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID,
+      { removeFromCartDeps: deps }
+    );
+
+    expect(response.status).toBe(404);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.NOT_FOUND);
   });
 });
