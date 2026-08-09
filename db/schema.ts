@@ -216,6 +216,10 @@ export const deal = pgTable(
     // One deal per creator per campaign.
     unique('deal_campaign_creator_unique').on(t.campaignId, t.creatorId),
     check('deal_video_count_positive', sql`${t.videoCount} > 0`),
+    check(
+      'deal_total_price_valid',
+      sql`${t.totalPrice} = ${t.unitPrice} * ${t.videoCount}`
+    ),
   ]
 );
 

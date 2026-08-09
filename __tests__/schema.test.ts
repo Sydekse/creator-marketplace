@@ -169,6 +169,10 @@ describe('generated migration', () => {
     ['campaign_budget_positive', '"campaign"."budget" > 0'],
     ['campaign_desired_videos_positive', '"campaign"."desired_videos" > 0'],
     ['deal_video_count_positive', '"deal"."video_count" > 0'],
+    [
+      'deal_total_price_valid',
+      '"deal"."total_price" = "deal"."unit_price" * "deal"."video_count"',
+    ],
   ])('enforces %s at the database level', (name, predicate) => {
     expect(migrationSql).toContain(`CONSTRAINT "${name}" CHECK (${predicate})`);
   });

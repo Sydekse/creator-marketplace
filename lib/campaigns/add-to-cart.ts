@@ -154,6 +154,10 @@ export async function addToCart(
   const unitPrice = creator.pricePerVideo;
   const totalPrice = unitPrice * input.videoCount;
 
+  // NOTE: Cart-add intentionally writes NO deal_event. A cart item has not
+  // transitioned into the state machine yet. This omission is load-bearing
+  // because it allows cart removal (KAN-32) to use a plain DELETE without
+  // hitting a foreign key constraint. `deal_event` writes begin at confirm.
   let inserted: { id: string };
   try {
     inserted = await deps.insertItem({
