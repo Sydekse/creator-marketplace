@@ -11,8 +11,7 @@ import {
 } from '@/lib/campaigns/cart-queries';
 import { getCampaignForBrand } from '@/lib/campaigns/queries';
 import { formatEtb } from '@/lib/money';
-import { NICHES } from '@/lib/config/creator-profile';
-import type { Niche } from '@/lib/config/creator-profile';
+
 import { EmptyState } from '@/components/feedback/empty-state';
 
 export const runtime = 'nodejs';
@@ -185,9 +184,7 @@ export default async function CampaignCartPage({
               </div>
               <div className="pt-4 border-t border-border flex justify-between items-center">
                 <span className="font-semibold">Remaining</span>
-                <span
-                  className={`font-semibold ${remainingBudget < 0 ? 'text-destructive' : 'text-primary'}`}
-                >
+                <span className="font-semibold text-primary">
                   {formatEtb(remainingBudget)}
                 </span>
               </div>

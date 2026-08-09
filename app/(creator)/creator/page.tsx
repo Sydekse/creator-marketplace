@@ -120,12 +120,12 @@ export default async function CreatorDashboardPage() {
         {dashboard.isEmpty ? (
           <EmptyState
             title={
-              isBookable({ ...profile, tierActive: tier?.active })
+              isBookable({ ...profile, tierActive: tier?.active ?? null })
                 ? NO_DEALS_TITLE
                 : NOT_BOOKABLE_TITLE
             }
             description={
-              isBookable({ ...profile, tierActive: tier?.active })
+              isBookable({ ...profile, tierActive: tier?.active ?? null })
                 ? NO_DEALS_DESCRIPTION
                 : NOT_BOOKABLE_DESCRIPTION
             }

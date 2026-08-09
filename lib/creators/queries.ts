@@ -41,7 +41,7 @@ export const BOOKABLE_CREATOR = and(
 export function isBookable(row: {
   status: CreatorStatus;
   tierId: string | null;
-  tierActive?: boolean | null;
+  tierActive: boolean | null;
 }): boolean {
   return (
     row.status === 'verified' && row.tierId !== null && row.tierActive !== false

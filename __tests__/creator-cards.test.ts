@@ -7,7 +7,7 @@ import { AUDIENCE_MARKET_LABELS } from '../lib/config/creator-profile';
 import {
   ADD_TO_CAMPAIGN_LABEL,
   NO_DRAFT_CAMPAIGN_MESSAGE,
-} from '../components/campaign/add-to-cart-form';
+} from '../lib/campaigns/constants';
 import {
   buildCreatorDetailWhere,
   creatorDetailQuery,
@@ -392,5 +392,11 @@ describe('the add-to-campaign action', () => {
     expect(NO_DRAFT_CAMPAIGN_MESSAGE).toBe(
       'You need a draft campaign before you can shortlist a creator.'
     );
+  });
+
+  it('is not retyped on the form', () => {
+    const formSource = src('components/campaign/add-to-cart-form.tsx');
+    // If the form retypes the literal instead of using the constant, it will contain the text in quotes
+    expect(formSource).not.toMatch(/['"]Add to campaign['"]/);
   });
 });

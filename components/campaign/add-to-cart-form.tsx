@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
-export const ADD_TO_CAMPAIGN_LABEL = 'Add to campaign';
-export const NO_DRAFT_CAMPAIGN_MESSAGE =
-  'You need a draft campaign before you can shortlist a creator.';
+import {
+  ADD_TO_CAMPAIGN_LABEL,
+  NO_DRAFT_CAMPAIGN_MESSAGE,
+} from '@/lib/campaigns/constants';
 
 export interface AddToCartFormProps {
   creatorId: string;
@@ -73,7 +74,7 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
 
       toast.success('Creator added to campaign!');
       router.push(`/campaigns/${campaignId}`);
-    } catch (err) {
+    } catch {
       toast.error('An unexpected error occurred.');
     } finally {
       setLoading(false);
@@ -118,7 +119,7 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
           disabled={loading}
           className={buttonVariants({ variant: 'default', size: 'default' })}
         >
-          {loading ? 'Adding...' : 'Add to campaign'}
+          {loading ? 'Adding...' : ADD_TO_CAMPAIGN_LABEL}
         </button>
       </form>
     </section>

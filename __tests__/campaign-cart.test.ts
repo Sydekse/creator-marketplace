@@ -125,6 +125,7 @@ describe('addToCart service', () => {
     status: 'verified' as const,
     tierId: TIER_ID,
     pricePerVideo: 100000, // 1,000 ETB in santim
+    tierActive: true,
   };
 
   function createMockDeps(
@@ -237,6 +238,24 @@ describe('addToCart service', () => {
         ...mockCreator,
         tierId: null,
         pricePerVideo: null,
+      }),
+    });
+
+    const result = await addToCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      { creatorId: CREATOR_ID, videoCount: 1 },
+      deps
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'creator_not_bookable' });
+  });
+
+  it('rejects if creator tier is inactive', async () => {
+    const deps = createMockDeps({
+      getCreatorWithTier: vi.fn().mockResolvedValue({
+        ...mockCreator,
+        tierActive: false,
       }),
     });
 

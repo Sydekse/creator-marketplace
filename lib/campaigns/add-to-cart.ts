@@ -46,6 +46,7 @@ export interface AddToCartDeps {
     status: CreatorStatus;
     tierId: string | null;
     pricePerVideo: number | null;
+    tierActive: boolean | null;
   } | null>;
   insertItem: (values: {
     campaignId: string;
@@ -82,6 +83,7 @@ const defaultDeps: AddToCartDeps = {
         status: creatorProfile.status,
         tierId: creatorProfile.tierId,
         pricePerVideo: pricingTier.pricePerVideo,
+        tierActive: pricingTier.active,
       })
       .from(creatorProfile)
       .leftJoin(pricingTier, eq(creatorProfile.tierId, pricingTier.id))
