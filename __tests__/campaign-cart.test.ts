@@ -143,7 +143,10 @@ describe('addToCart service', () => {
   }
 
   it('locks the campaign row for update', () => {
-    const source = require('fs').readFileSync('lib/campaigns/add-to-cart.ts', 'utf8');
+    const source = require('fs').readFileSync(
+      'lib/campaigns/add-to-cart.ts',
+      'utf8'
+    );
     expect(source).toMatch(/\.for\(['"]update['"]\)/);
   });
 

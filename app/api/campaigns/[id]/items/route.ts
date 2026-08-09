@@ -97,7 +97,9 @@ export async function handleAddCampaignItem(
         const excess = result.excess;
         return Response.json(
           errorResponse(ErrorCode.BUDGET_EXCEEDED, {
-            excess: [`This exceeds your remaining budget by ${formatEtb(excess)} ETB.`],
+            excess: [
+              `This exceeds your remaining budget by ${formatEtb(excess)} ETB.`,
+            ],
           }),
           { status: ErrorHttpStatus[ErrorCode.BUDGET_EXCEEDED] }
         );

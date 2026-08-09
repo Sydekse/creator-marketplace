@@ -13,7 +13,7 @@ import { guard } from '@/lib/authz';
 import type { Tx } from '@/lib/authz';
 
 /**
- * Calculates the total price from campaign items, decoupled from authz 
+ * Calculates the total price from campaign items, decoupled from authz
  * to allow safe use inside transactions without deadlocks.
  */
 export async function sumCartTotal(
