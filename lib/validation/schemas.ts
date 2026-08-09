@@ -237,7 +237,17 @@ export const createCampaignSchema = z
       })
       .transform((value) => value || undefined)
       .optional(),
-    targetAudience: z.record(z.string(), z.unknown()).optional(),
+    targetAudience: z
+      .object({
+        description: z
+          .string()
+          .trim()
+          .max(MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH, {
+            message: `Audience description cannot exceed ${MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH} characters.`,
+          }),
+      })
+      .strict()
+      .optional(),
     budget: z
       .number({ message: 'Budget must be a number.' })
       .int({ message: 'Budget must be a whole number of santim.' })
@@ -272,7 +282,17 @@ export const updateCampaignSchema = z
       })
       .transform((value) => value || undefined)
       .optional(),
-    targetAudience: z.record(z.string(), z.unknown()).optional(),
+    targetAudience: z
+      .object({
+        description: z
+          .string()
+          .trim()
+          .max(MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH, {
+            message: `Audience description cannot exceed ${MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH} characters.`,
+          }),
+      })
+      .strict()
+      .optional(),
     budget: z
       .number({ message: 'Budget must be a number.' })
       .int({ message: 'Budget must be a whole number of santim.' })
