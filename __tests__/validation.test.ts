@@ -34,8 +34,8 @@ describe('ErrorCode enum', () => {
     // (`user_id`), which AC-003's message would describe wrongly; NOT_FOUND is
     // the envelope member admin endpoints return when the caller is entitled to
     // know a row is absent; CREATOR_NOT_PENDING guards the verification decision
-    // against an already-reviewed creator (distinct from OFFER_NOT_PENDING); 
-    // CREATOR_NOT_VERIFIED guards tier assignment against a pending/rejected one; 
+    // against an already-reviewed creator (distinct from OFFER_NOT_PENDING);
+    // CREATOR_NOT_VERIFIED guards tier assignment against a pending/rejected one;
     // CREATOR_NOT_BOOKABLE guards bookability;
     // CREATOR_ALREADY_IN_CART guards duplicate items; CAMPAIGN_NOT_DRAFT guards
     // edits against non-draft campaigns. See the comments on the enum members.

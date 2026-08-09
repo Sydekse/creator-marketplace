@@ -63,7 +63,9 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
         } else if (data?.error?.code === 'CREATOR_NOT_BOOKABLE') {
           toast.error('This creator is not currently bookable.');
         } else if (data?.error?.code === 'CAMPAIGN_NOT_DRAFT') {
-          toast.error('This campaign is no longer a draft and cannot be edited.');
+          toast.error(
+            'This campaign is no longer a draft and cannot be edited.'
+          );
         } else {
           toast.error('Failed to add creator to campaign.');
         }
