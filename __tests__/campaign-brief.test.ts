@@ -253,7 +253,9 @@ describe('createCampaignSchema', () => {
           description: 'A'.repeat(MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH + 1),
         },
       })
-    ).toThrow(`Audience description cannot exceed ${MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH} characters.`);
+    ).toThrow(
+      `Audience description cannot exceed ${MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH} characters.`
+    );
   });
 
   it('accepts targetAudience description at the exact limit', () => {
@@ -306,13 +308,13 @@ describe('ETB ↔ santim round-trip', () => {
   // santim = 1500.50 ETB). The reviewer asked for this test after the pair
   // was wrong twice.
   it.each([
-    1,           // minimum: 0.01 ETB
-    100,         // 1.00 ETB — whole
-    10000,       // 100.00 ETB — whole
-    150050,      // 1500.50 ETB — fractional
-    500001,      // 5000.01 ETB — one santim past a whole
-    999999,      // 9999.99 ETB — boundary
-    1000000,     // 10000.00 ETB — round
+    1, // minimum: 0.01 ETB
+    100, // 1.00 ETB — whole
+    10000, // 100.00 ETB — whole
+    150050, // 1500.50 ETB — fractional
+    500001, // 5000.01 ETB — one santim past a whole
+    999999, // 9999.99 ETB — boundary
+    1000000, // 10000.00 ETB — round
   ])('round-trips %i santim through the ETB conversion pair', (santim) => {
     // Prefill expression (campaign-brief-form.tsx L47)
     const etbString = String(santim / 100);
