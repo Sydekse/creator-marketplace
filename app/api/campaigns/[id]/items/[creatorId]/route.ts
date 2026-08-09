@@ -2,11 +2,14 @@ import { removeFromCart } from '@/lib/campaigns/remove-from-cart';
 import type { RemoveFromCartDeps } from '@/lib/campaigns/remove-from-cart';
 import { ForbiddenError, guard, toErrorResponse } from '@/lib/authz';
 import type { AuthzContext, GuardOptions } from '@/lib/authz';
-import { ErrorCode, ErrorHttpStatus, UUID_REGEX, errorResponse } from '@/lib/validation';
+import {
+  ErrorCode,
+  ErrorHttpStatus,
+  UUID_REGEX,
+  errorResponse,
+} from '@/lib/validation';
 
 export const runtime = 'nodejs';
-
-
 
 export interface RouteDeps {
   removeFromCartDeps?: RemoveFromCartDeps;
