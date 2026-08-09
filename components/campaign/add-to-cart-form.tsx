@@ -4,10 +4,9 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
-import {
-  ADD_TO_CAMPAIGN_LABEL,
-  NO_DRAFT_CAMPAIGN_MESSAGE,
-} from '@/lib/creators/detail';
+const ADD_TO_CAMPAIGN_LABEL = 'Add to campaign';
+const NO_DRAFT_CAMPAIGN_MESSAGE =
+  'You need a draft campaign before you can shortlist a creator.';
 
 export interface AddToCartFormProps {
   creatorId: string;
