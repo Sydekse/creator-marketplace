@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Audience } from '@/components/creator/audience-display';
 import { AddToCartForm } from '@/components/campaign/add-to-cart-form';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';

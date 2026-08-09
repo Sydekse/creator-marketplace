@@ -11,8 +11,8 @@ import {
 } from '@/lib/campaigns/cart-queries';
 import { getCampaignForBrand } from '@/lib/campaigns/queries';
 import { formatEtb } from '@/lib/money';
-import { NICHES } from '@/lib/validation';
-import type { Niche } from '@/lib/validation';
+import { NICHES } from '@/lib/config/creator-profile';
+import type { Niche } from '@/lib/config/creator-profile';
 import { EmptyState } from '@/components/feedback/empty-state';
 
 export const runtime = 'nodejs';
@@ -122,7 +122,7 @@ export default async function CampaignCartPage({
                           >
                             {item.creator.tiktokHandle}
                           </Link>
-                          {item.tier && (
+                          {item.tier?.id && (
                             <Badge variant="outline" className="text-xs">
                               {item.tier.name} Tier
                             </Badge>
