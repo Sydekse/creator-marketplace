@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { deal, creatorProfile, pricingTier } from '@/db/schema';
+import { campaignItem, creatorProfile, pricingTier } from '@/db/schema';
 
 /**
  * Read paths for cart items (deals in a draft campaign).
@@ -13,10 +13,10 @@ import { deal, creatorProfile, pricingTier } from '@/db/schema';
 export async function getCartRunningTotal(campaignId: string): Promise<number> {
   const [result] = await db
     .select({
-      total: sql<number>`coalesce(sum(${deal.totalPrice}), 0)::int`,
+      total: sql<number>`coalesce(sum(${campaignItem.totalPrice}), 0)::int`,
     })
-    .from(deal)
-    .where(eq(deal.campaignId, campaignId));
+    .from(campaignItem)
+    .where(eq(campaignItem.campaignId, campaignId));
 
   return result?.total ?? 0;
 }
@@ -27,14 +27,14 @@ export async function getCartRunningTotal(campaignId: string): Promise<number> {
 export async function listCartItems(campaignId: string) {
   const rows = await db
     .select({
-      id: deal.id,
-      campaignId: deal.campaignId,
-      creatorId: deal.creatorId,
-      videoCount: deal.videoCount,
-      unitPrice: deal.unitPrice,
-      totalPrice: deal.totalPrice,
-      commissionRate: deal.commissionRate,
-      createdAt: deal.createdAt,
+      id: campaignItem.id,
+      campaignId: campaignItem.campaignId,
+      creatorId: campaignItem.creatorId,
+      videoCount: campaignItem.videoCount,
+      unitPrice: campaignItem.unitPrice,
+      totalPrice: campaignItem.totalPrice,
+      commissionRate: campaignItem.commissionRate,
+      createdAt: campaignItem.createdAt,
       creator: {
         tiktokHandle: creatorProfile.tiktokHandle,
         niche: creatorProfile.niche,
@@ -45,11 +45,11 @@ export async function listCartItems(campaignId: string) {
         name: pricingTier.name,
       },
     })
-    .from(deal)
-    .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
+    .from(campaignItem)
+    .innerJoin(creatorProfile, eq(campaignItem.creatorId, creatorProfile.id))
     .leftJoin(pricingTier, eq(creatorProfile.tierId, pricingTier.id))
-    .where(eq(deal.campaignId, campaignId))
-    .orderBy(desc(deal.createdAt));
+    .where(eq(campaignItem.campaignId, campaignId))
+    .orderBy(desc(campaignItem.createdAt));
 
   return rows;
 }
@@ -62,8 +62,13 @@ export type CartItemRow = Awaited<ReturnType<typeof listCartItems>>[number];
 export async function getCartItem(campaignId: string, creatorId: string) {
   const [row] = await db
     .select()
-    .from(deal)
-    .where(and(eq(deal.campaignId, campaignId), eq(deal.creatorId, creatorId)))
+    .from(campaignItem)
+    .where(
+      and(
+        eq(campaignItem.campaignId, campaignId),
+        eq(campaignItem.creatorId, creatorId)
+      )
+    )
     .limit(1);
 
   return row ?? null;

@@ -1,6 +1,11 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { campaign, deal, creatorProfile, pricingTier } from '@/db/schema';
+import {
+  campaign,
+  campaignItem,
+  creatorProfile,
+  pricingTier,
+} from '@/db/schema';
 import type { CampaignStatus, CreatorStatus } from '@/db/schema';
 import { COMMISSION_RATE } from '@/lib/config/pricing';
 import { isBookable } from '@/lib/creators/queries';
@@ -12,7 +17,7 @@ const UNIQUE_VIOLATION = '23505';
 
 /** Constraint name from `db/schema.ts` */
 export const CAMPAIGN_CREATOR_UNIQUE_CONSTRAINT =
-  'deal_campaign_creator_unique';
+  'campaign_item_campaign_creator_unique';
 
 export type AddToCartResult =
   | {
@@ -94,7 +99,7 @@ const defaultDeps: AddToCartDeps = {
   },
   insertItem: async (values) => {
     const [row] = await db
-      .insert(deal)
+      .insert(campaignItem)
       .values({
         campaignId: values.campaignId,
         creatorId: values.creatorId,
@@ -102,9 +107,8 @@ const defaultDeps: AddToCartDeps = {
         unitPrice: values.unitPrice,
         totalPrice: values.totalPrice,
         commissionRate: values.commissionRate,
-        status: 'pending',
       })
-      .returning({ id: deal.id });
+      .returning({ id: campaignItem.id });
 
     return row;
   },
@@ -156,10 +160,9 @@ export async function addToCart(
   const unitPrice = creator.pricePerVideo;
   const totalPrice = unitPrice * input.videoCount;
 
-  // NOTE: Cart-add intentionally writes NO deal_event. A cart item has not
-  // transitioned into the state machine yet. This omission is load-bearing
-  // because it allows cart removal (KAN-32) to use a plain DELETE without
-  // hitting a foreign key constraint. `deal_event` writes begin at confirm.
+  // We insert into `campaignItem` instead of `deal` to prevent leaking `pending` offers
+  // before campaign confirmation (PRD AC-013, AC-009, AC-016) and to respect Tech Spec
+  // NFR-012 (audit logging). Cart items have not transitioned into the deal state machine yet.
   let inserted: { id: string };
   try {
     inserted = await deps.insertItem({
