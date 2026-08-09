@@ -1,5 +1,5 @@
 {
-  "id": "711ed4b5-175d-4de6-9caf-82e7b60b5652",
+  "id": "c9cf6d0f-edf4-4791-adc1-80be17f59240",
   "prevId": "e25de413-60ec-4113-a61b-4c227eb38f0d",
   "version": "7",
   "dialect": "postgresql",
@@ -426,7 +426,12 @@
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "campaign_item_total_price_valid": {
+          "name": "campaign_item_total_price_valid",
+          "value": "\"campaign_item\".\"total_price\" = \"campaign_item\".\"unit_price\" * \"campaign_item\".\"video_count\""
+        }
+      },
       "isRLSEnabled": false
     },
     "public.creator_profile": {

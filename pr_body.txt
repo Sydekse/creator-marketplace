@@ -1,0 +1,28 @@
+Closes KAN-30 (US-005, AC-009, AC-013, AC-016). Implements the campaign cart to allow brands to add creators and video counts, and updates the campaign running total.
+
+## Architecture: The `campaign_item` table
+
+This PR introduces a dedicated `campaign_item` table for the draft cart. 
+Previously, there was an attempt to insert cart items directly into the `deal` table with a `pending` status. However, this violates PRD AC-016 (deals only enter `pending` state after campaign confirmation and offers are sent) and Tech Spec NFR-012 (audit logging requirements, as cart items don't have deal events). 
+By using `campaign_item`, we adhere strictly to PRD AC-013 to prevent leaking unconfirmed offers to creators, and PRD AC-009 for draft campaign management.
+
+To ensure data integrity, a raw SQL migration adds the `campaign_item_total_price_valid` check constraint (`total_price = unit_price * video_count`). This enforces the budget snapshot invariant at the database row level, preventing floating-point drift and adhering strictly to the Tech Spec's requirement to push invariant rules to Postgres.
+
+## Core changes
+
+- **`lib/campaigns/add-to-cart.ts`**:
+  - Validates creator bookability (requires `creator.status === 'verified'` and `tier.active === true`).
+  - Fetches the campaign with strict RBAC ownership (`brandProfileId` via `guard()`).
+  - Inserts line items into the new `campaign_item` table to preserve state machine integrity.
+- **`lib/campaigns/cart-queries.ts`**:
+  - Computes `getCartRunningTotal` directly from the `campaign_item` table.
+- **`app/(brand)/(onboarded)/campaigns/[id]/page.tsx`**:
+  - Renders the cart and dynamically calculates `remainingBudget = campaign.budget - runningTotal`.
+
+## Reviewer fixes addressed
+- Strictly typed `isBookable` to require `tierActive`, closing a fail-open loop on inactive tiers.
+- Removed unused UI imports and moved copy strings to `lib/campaigns/constants.ts` to share between Client/Server boundaries safely.
+- Fixed UI budget styling (deferred strict ceiling validation to KAN-31).
+
+## Checks
+`lint` · `typecheck` · `format:check` are all clean. Over 1,000 tests passing.
