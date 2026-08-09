@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CAMPAIGN_CREATOR_UNIQUE_CONSTRAINT,
@@ -143,10 +144,7 @@ describe('addToCart service', () => {
   }
 
   it('locks the campaign row for update', () => {
-    const source = require('fs').readFileSync(
-      'lib/campaigns/add-to-cart.ts',
-      'utf8'
-    );
+    const source = readFileSync('lib/campaigns/add-to-cart.ts', 'utf8');
     expect(source).toMatch(/\.for\(['"]update['"]\)/);
   });
 
