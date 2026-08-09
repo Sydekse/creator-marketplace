@@ -7,6 +7,8 @@ import { AUDIENCE_MARKET_LABELS } from '../lib/config/creator-profile';
 import {
   ADD_TO_CAMPAIGN_LABEL,
   NO_DRAFT_CAMPAIGN_MESSAGE,
+} from '../components/campaign/add-to-cart-form';
+import {
   buildCreatorDetailWhere,
   creatorDetailQuery,
   readAudience,
