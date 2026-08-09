@@ -8,20 +8,11 @@ import {
   fromZodError,
   updateBrandSchema,
   validationError,
+  UUID_REGEX,
 } from '@/lib/validation';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
-
-/**
- * Canonical uuid shape, checked before the id reaches a query.
- *
- * `brand_profile.id` is a `uuid` column, so Postgres answers a non-uuid
- * comparison with `22P02 invalid_text_representation` — a 500 on a request that
- * is simply malformed. Rejecting the shape first keeps that out of the logs.
- */
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * `PATCH /api/brands/{id}` — rename a brand profile (KAN-27 AC-5).
@@ -46,7 +37,9 @@ export async function handleUpdateBrand(
     // else. Distinguishing them would make this endpoint an existence oracle
     // for ids the caller has no right to (Tech Spec §6.3), and the guard
     // already collapses "no such row" into the same 403.
-    if (!UUID_PATTERN.test(id)) throw new ForbiddenError('malformed id');
+    if (!UUID_REGEX.test(id)) {
+      throw new ForbiddenError('malformed id');
+    }
 
     const ctx = await guard({
       roles: ['brand'],

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+
 // Both are leaf modules — importing the query module instead would close a
 // cycle back through `lib/authz` into this file. See `lib/audit/limits.ts`.
 import { AUDIT_ACTIONS, AUDIT_TARGET_TYPES } from '@/lib/audit/actions';
@@ -19,6 +20,22 @@ import {
 // Another leaf module — it imports nothing, so the discovery filters can share
 // the page ceiling the query clamps to rather than declaring a second one.
 import { MAX_PAGE_SIZE } from '@/lib/paging';
+
+/**
+ * Validates standard UUID formats.
+ *
+ * Many of our tables (e.g. `creator_profile`, `campaign`) use UUID primary keys.
+ * Postgres answers a non-uuid comparison with a `22P02` exception, which turns
+ * a mistyped link into a 500 error instead of a handled not-found.
+ *
+ * Call sites share this pattern to prevent the 500, but deliberately do NOT
+ * share the response:
+ * - Admin routes return `404 NOT_FOUND` for an invalid UUID.
+ * - Owner-scoped routes return `403 FORBIDDEN` so as to not become an existence
+ *   oracle for IDs the caller has no right to (Tech Spec §6.3).
+ */
+export const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const signUpSchema = z.object({
   name: z.string().min(1, { message: 'Name is required.' }),
@@ -214,6 +231,7 @@ const tiktokUrlPattern =
 
 export const MAX_CAMPAIGN_NAME_LENGTH = 120;
 export const MAX_CAMPAIGN_GOAL_LENGTH = 1000;
+export const MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH = 1000;
 
 export const createCampaignSchema = z
   .object({
@@ -232,7 +250,17 @@ export const createCampaignSchema = z
       })
       .transform((value) => value || undefined)
       .optional(),
-    targetAudience: z.record(z.string(), z.unknown()).optional(),
+    targetAudience: z
+      .object({
+        description: z
+          .string()
+          .trim()
+          .max(MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH, {
+            message: `Audience description cannot exceed ${MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH} characters.`,
+          }),
+      })
+      .strict()
+      .optional(),
     budget: z
       .number({ message: 'Budget must be a number.' })
       .int({ message: 'Budget must be a whole number of santim.' })
@@ -244,6 +272,12 @@ export const createCampaignSchema = z
   })
   .strict();
 
+/**
+ * Brand edit campaign brief — `PATCH /api/campaigns/{id}`.
+ *
+ * Identical to `createCampaignSchema` deliberately so both routes parse the exact same shape.
+ * Kept separate so a field added later only for creation does not become editable.
+ */
 export const updateCampaignSchema = z
   .object({
     name: z
@@ -261,7 +295,17 @@ export const updateCampaignSchema = z
       })
       .transform((value) => value || undefined)
       .optional(),
-    targetAudience: z.record(z.string(), z.unknown()).optional(),
+    targetAudience: z
+      .object({
+        description: z
+          .string()
+          .trim()
+          .max(MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH, {
+            message: `Audience description cannot exceed ${MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH} characters.`,
+          }),
+      })
+      .strict()
+      .optional(),
     budget: z
       .number({ message: 'Budget must be a number.' })
       .int({ message: 'Budget must be a whole number of santim.' })

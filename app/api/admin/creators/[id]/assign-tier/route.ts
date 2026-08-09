@@ -11,19 +11,15 @@ import type {
   AssignTierDeps,
   TierOutcome,
 } from '@/lib/creators/tier-assignment';
-import { ErrorCode, ErrorHttpStatus, errorResponse } from '@/lib/validation';
+import {
+  ErrorCode,
+  ErrorHttpStatus,
+  errorResponse,
+  UUID_REGEX,
+} from '@/lib/validation';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
-
-/**
- * Canonical uuid shape, checked before the id reaches a query — same reasoning
- * as the verify route: `creator_profile.id` is a `uuid` column, so Postgres
- * answers a non-uuid comparison with `22P02` and turns a merely malformed
- * request into a 500.
- */
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Thrown when the target is not `verified`. Typed, so the mapping below cannot break on a reworded string. */
 export class CreatorNotVerifiedError extends Error {
@@ -96,7 +92,7 @@ export async function handleAssignTier(
   // Shape checked before any work: a well-formed request naming a row that
   // cannot exist is a 404, not a Postgres `22P02` surfacing as a 500. This
   // route takes no body, so there is nothing to validate ahead of it.
-  if (!UUID_PATTERN.test(creatorProfileId)) {
+  if (!UUID_REGEX.test(creatorProfileId)) {
     return Response.json(errorResponse(ErrorCode.NOT_FOUND), {
       status: ErrorHttpStatus[ErrorCode.NOT_FOUND],
     });

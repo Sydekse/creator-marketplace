@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   MAX_CAMPAIGN_GOAL_LENGTH,
   MAX_CAMPAIGN_NAME_LENGTH,
+  MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH,
   createCampaignSchema,
   fieldErrorsAt,
   updateCampaignSchema,
@@ -41,9 +42,10 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
   const router = useRouter();
 
   const [name, setName] = useState(campaign?.name ?? '');
-  // Budget is entered in whole ETB by the brand (1 ETB = 100 santim)
+  // Budget is entered in ETB by the brand (1 ETB = 100 santim); fractional
+  // values like 1500.50 are valid and round-trip losslessly through santim.
   const [budget, setBudget] = useState(
-    campaign ? String(Math.floor(campaign.budget / 100)) : ''
+    campaign ? String(campaign.budget / 100) : ''
   );
   const [desiredVideos, setDesiredVideos] = useState(
     campaign ? String(campaign.desiredVideos) : ''
@@ -76,6 +78,10 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
     setErrors({});
 
     const etbNum = budget.trim() === '' ? undefined : Number(budget);
+    // Note on float math: `etbNum * 100` is float multiplication on a money
+    // value, which is generally unsafe. It is defensible here because it is
+    // client-side, immediately rounded, and strictly re-validated by `.int()`
+    // on the server-side schema.
     const santim =
       etbNum === undefined || isNaN(etbNum) ? etbNum : Math.round(etbNum * 100);
     const videosNum =
@@ -174,8 +180,8 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
               id="budget"
               name="budget"
               type="number"
-              min="1"
-              step="1"
+              min="0.01"
+              step="0.01"
               value={budget}
               onChange={(e) => setBudget(e.target.value)}
               className="h-11 text-base"
@@ -183,7 +189,7 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
               aria-invalid={budgetErrors !== undefined || undefined}
             />
             <FieldDescription>
-              Total budget in Ethiopian Birr. Minimum 1 ETB.
+              Total budget in Ethiopian Birr (e.g. 1500.50). Minimum 0.01 ETB.
             </FieldDescription>
             <FieldError errors={budgetErrors} />
           </Field>
@@ -239,7 +245,7 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
             onChange={(e) => setAudienceDescription(e.target.value)}
             className="min-h-24 text-base"
             placeholder="Describe your ideal audience demographics, interests, or location."
-            maxLength={1000}
+            maxLength={MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH}
             aria-invalid={targetAudienceErrors !== undefined || undefined}
           />
           <FieldDescription>

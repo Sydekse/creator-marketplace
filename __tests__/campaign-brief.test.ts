@@ -14,6 +14,7 @@ import {
   ErrorMessage,
   MAX_CAMPAIGN_GOAL_LENGTH,
   MAX_CAMPAIGN_NAME_LENGTH,
+  MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH,
   createCampaignSchema,
   updateCampaignSchema,
 } from '../lib/validation';
@@ -104,15 +105,14 @@ describe('createCampaignSchema', () => {
     const parsed = createCampaignSchema.parse({
       name: 'Summer Product Launch',
       goal: 'Drive awareness for new cosmetic line',
-      targetAudience: { region: 'Addis Ababa', age: '18-35' },
+      targetAudience: { description: 'Women aged 18-35 in Addis Ababa' },
       budget: 500000, // in santim
       desiredVideos: 5,
     });
     expect(parsed.name).toBe('Summer Product Launch');
     expect(parsed.goal).toBe('Drive awareness for new cosmetic line');
     expect(parsed.targetAudience).toEqual({
-      region: 'Addis Ababa',
-      age: '18-35',
+      description: 'Women aged 18-35 in Addis Ababa',
     });
     expect(parsed.budget).toBe(500000);
     expect(parsed.desiredVideos).toBe(5);
@@ -231,6 +231,46 @@ describe('createCampaignSchema', () => {
       })
     ).toThrow();
   });
+
+  it('rejects targetAudience with unknown keys (.strict())', () => {
+    expect(() =>
+      createCampaignSchema.parse({
+        name: 'Test',
+        budget: 10000,
+        desiredVideos: 1,
+        targetAudience: { description: 'ok', region: 'ET' },
+      })
+    ).toThrow();
+  });
+
+  it('rejects targetAudience description exceeding MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH', () => {
+    expect(() =>
+      createCampaignSchema.parse({
+        name: 'Test',
+        budget: 10000,
+        desiredVideos: 1,
+        targetAudience: {
+          description: 'A'.repeat(MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH + 1),
+        },
+      })
+    ).toThrow(
+      `Audience description cannot exceed ${MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH} characters.`
+    );
+  });
+
+  it('accepts targetAudience description at the exact limit', () => {
+    const parsed = createCampaignSchema.parse({
+      name: 'Test',
+      budget: 10000,
+      desiredVideos: 1,
+      targetAudience: {
+        description: 'A'.repeat(MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH),
+      },
+    });
+    expect(parsed.targetAudience?.description).toHaveLength(
+      MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH
+    );
+  });
 });
 
 describe('updateCampaignSchema', () => {
@@ -254,6 +294,33 @@ describe('updateCampaignSchema', () => {
         desiredVideos: 1,
       })
     ).toThrow('Budget must be greater than zero.');
+  });
+});
+
+// ============================================================================
+// ETB ↔ santim round-trip conversion
+// ============================================================================
+
+describe('ETB ↔ santim round-trip', () => {
+  // The form prefills with `String(santim / 100)` and submits
+  // `Math.round(Number(value) * 100)`. This must be lossless for every
+  // representable santim value, including fractional-ETB ones (e.g. 150050
+  // santim = 1500.50 ETB). The reviewer asked for this test after the pair
+  // was wrong twice.
+  it.each([
+    1, // minimum: 0.01 ETB
+    100, // 1.00 ETB — whole
+    10000, // 100.00 ETB — whole
+    150050, // 1500.50 ETB — fractional
+    500001, // 5000.01 ETB — one santim past a whole
+    999999, // 9999.99 ETB — boundary
+    1000000, // 10000.00 ETB — round
+  ])('round-trips %i santim through the ETB conversion pair', (santim) => {
+    // Prefill expression (campaign-brief-form.tsx L47)
+    const etbString = String(santim / 100);
+    // Submit expression (campaign-brief-form.tsx L81)
+    const backToSantim = Math.round(Number(etbString) * 100);
+    expect(backToSantim).toBe(santim);
   });
 });
 
@@ -652,7 +719,7 @@ describe('PATCH /api/campaigns/:id (handleUpdateCampaign)', () => {
     const request = patchRequest(CAMPAIGN_ID, {
       name: 'Updated Name',
       goal: 'Updated Goal',
-      targetAudience: { age: '25-34' },
+      targetAudience: { description: 'Adults aged 25-34' },
       budget: 600000,
       desiredVideos: 6,
     });

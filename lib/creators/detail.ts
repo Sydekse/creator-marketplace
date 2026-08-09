@@ -7,6 +7,7 @@ import { AUDIENCE_MARKET_LABELS } from '@/lib/config/creator-profile';
 import type { AudienceMarketCode } from '@/lib/config/creator-profile';
 import type { DiscoveryCreator } from '@/lib/creators/discovery';
 import { BOOKABLE_CREATOR } from '@/lib/creators/queries';
+import { UUID_REGEX } from '@/lib/validation';
 
 /**
  * One creator, for the brand-facing detail view (KAN-29, AC-012, US-004).
@@ -23,23 +24,6 @@ import { BOOKABLE_CREATOR } from '@/lib/creators/queries';
  * unbookable creator and one that never existed are indistinguishable from
  * outside — no existence oracle on a table brands cannot otherwise enumerate.
  */
-
-/**
- * `creator_profile.id` is `uuid`, and Postgres raises `22P02` on a value that
- * is not one. Without this check `/discover/not-a-uuid` would be a 500 instead
- * of a not-found, which is both a worse page and a louder error log for a
- * mistyped link.
- *
- * Checked here rather than in the route because the shape of the column is this
- * module's business, and every caller would otherwise have to remember. The same
- * pattern is spelled out in three route handlers already
- * (`app/api/brands/[id]`, `app/api/admin/creators/[id]/verify`,
- * `app/api/admin/creators/[id]/assign-tier`); this is a fourth copy, and pulling
- * all four into one place is a change to those files rather than this ticket —
- * logged as a follow-up.
- */
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The audience jsonb, narrowed to what the detail view renders. */
 export interface CreatorAudience {
@@ -172,7 +156,7 @@ export async function readCreatorDetail(
 ): Promise<CreatorDetail | null> {
   await deps.requireBrand();
 
-  if (!UUID_PATTERN.test(id)) return null;
+  if (!UUID_REGEX.test(id)) return null;
 
   return deps.select(buildCreatorDetailWhere(id));
 }

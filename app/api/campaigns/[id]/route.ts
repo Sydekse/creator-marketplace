@@ -8,12 +8,10 @@ import {
   fromZodError,
   updateCampaignSchema,
   validationError,
+  UUID_REGEX,
 } from '@/lib/validation';
 
 export const runtime = 'nodejs';
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
  * `PATCH /api/campaigns/:id` — update a draft campaign brief (KAN-26).
@@ -25,7 +23,7 @@ export async function handleUpdateCampaign(
 ): Promise<Response> {
   let brandProfileId: string;
   try {
-    if (!UUID_PATTERN.test(id)) {
+    if (!UUID_REGEX.test(id)) {
       throw new ForbiddenError('malformed id');
     }
 
