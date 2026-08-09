@@ -160,4 +160,3 @@ export async function readCreatorDetail(
 
   return deps.select(buildCreatorDetailWhere(id));
 }
-
