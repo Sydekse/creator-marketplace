@@ -1,4 +1,5 @@
 ### Description
+
 This PR addresses the follow-up feedback items recorded in the KAN-30 code review (PR #28):
 
 1. **Move cart items to `deal`**: Replaced the `campaign_item` table with `deal` table. Cart additions insert directly into `deal` with `status: 'pending'` and `offer_expires_at: null`.
