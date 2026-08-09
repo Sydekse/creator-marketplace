@@ -28,7 +28,14 @@ describe('ErrorCode enum', () => {
     const codes = Object.values(ErrorCode);
     // 12 from the PRD table, plus PROFILE_EXISTS (KAN-21), NOT_FOUND (KAN-52
     // audit read path), CREATOR_NOT_PENDING (KAN-22), CREATOR_NOT_VERIFIED
-    // (KAN-23), and CAMPAIGN_NOT_DRAFT (KAN-26).
+    // (KAN-23), and CAMPAIGN_NOT_DRAFT (KAN-26). None is an AC string:
+    // PROFILE_EXISTS covers the *other* unique constraint on `creator_profile`
+    // (`user_id`), which AC-003's message would describe wrongly; NOT_FOUND is
+    // the envelope member admin endpoints return when the caller is entitled to
+    // know a row is absent; CREATOR_NOT_PENDING guards the verification decision
+    // against an already-reviewed creator; CREATOR_NOT_VERIFIED guards tier
+    // assignment against a pending/rejected one; CAMPAIGN_NOT_DRAFT guards
+    // campaign edits against active campaigns. See the comments on the enum members.
     //
     // The count is the point of this test: it is what makes adding a code a
     // deliberate act rather than something that slips in.

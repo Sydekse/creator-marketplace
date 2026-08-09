@@ -14,22 +14,11 @@ import {
   fromZodError,
   validationError,
   verifyCreatorSchema,
+  UUID_REGEX,
 } from '@/lib/validation';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
-
-/**
- * Canonical uuid shape, checked before the id reaches a query.
- *
- * `creator_profile.id` is a `uuid` column, so Postgres answers a non-uuid
- * comparison with `22P02 invalid_text_representation` — a 500 on a request that
- * is merely malformed. Rejecting the shape first keeps that out of the logs.
- * This is an admin-only endpoint, so a malformed id is honestly a 404 rather
- * than the FORBIDDEN the owner-scoped routes return to avoid being an oracle.
- */
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface VerifyCreatorDeps extends DecisionDeps {
   guard: (options: GuardOptions) => Promise<unknown>;
@@ -79,7 +68,7 @@ export async function handleVerifyCreator(
 
   // Malformed id after auth + validation: a well-formed request naming a row
   // that cannot exist. 404, not a Postgres 22P02 → 500.
-  if (!UUID_PATTERN.test(creatorProfileId)) {
+  if (!UUID_REGEX.test(creatorProfileId)) {
     return Response.json(errorResponse(ErrorCode.NOT_FOUND), {
       status: ErrorHttpStatus[ErrorCode.NOT_FOUND],
     });

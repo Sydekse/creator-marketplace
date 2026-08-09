@@ -1,4 +1,8 @@
 import { z } from 'zod';
+
+export const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Both are leaf modules — importing the query module instead would close a
 // cycle back through `lib/authz` into this file. See `lib/audit/limits.ts`.
 import { AUDIT_ACTIONS, AUDIT_TARGET_TYPES } from '@/lib/audit/actions';
@@ -214,6 +218,7 @@ const tiktokUrlPattern =
 
 export const MAX_CAMPAIGN_NAME_LENGTH = 120;
 export const MAX_CAMPAIGN_GOAL_LENGTH = 1000;
+export const MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH = 1000;
 
 export const createCampaignSchema = z
   .object({
@@ -244,6 +249,12 @@ export const createCampaignSchema = z
   })
   .strict();
 
+/**
+ * Brand edit campaign brief — `PATCH /api/campaigns/{id}`.
+ *
+ * Identical to `createCampaignSchema` deliberately so both routes parse the exact same shape.
+ * Kept separate so a field added later only for creation does not become editable.
+ */
 export const updateCampaignSchema = z
   .object({
     name: z

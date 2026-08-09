@@ -18,6 +18,7 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   MAX_CAMPAIGN_GOAL_LENGTH,
   MAX_CAMPAIGN_NAME_LENGTH,
+  MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH,
   createCampaignSchema,
   fieldErrorsAt,
   updateCampaignSchema,
@@ -43,7 +44,7 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
   const [name, setName] = useState(campaign?.name ?? '');
   // Budget is entered in whole ETB by the brand (1 ETB = 100 santim)
   const [budget, setBudget] = useState(
-    campaign ? String(Math.floor(campaign.budget / 100)) : ''
+    campaign ? String(campaign.budget / 100) : ''
   );
   const [desiredVideos, setDesiredVideos] = useState(
     campaign ? String(campaign.desiredVideos) : ''
@@ -239,7 +240,7 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
             onChange={(e) => setAudienceDescription(e.target.value)}
             className="min-h-24 text-base"
             placeholder="Describe your ideal audience demographics, interests, or location."
-            maxLength={1000}
+            maxLength={MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH}
             aria-invalid={targetAudienceErrors !== undefined || undefined}
           />
           <FieldDescription>

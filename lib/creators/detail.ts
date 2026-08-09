@@ -7,6 +7,7 @@ import { AUDIENCE_MARKET_LABELS } from '@/lib/config/creator-profile';
 import type { AudienceMarketCode } from '@/lib/config/creator-profile';
 import type { DiscoveryCreator } from '@/lib/creators/discovery';
 import { BOOKABLE_CREATOR } from '@/lib/creators/queries';
+import { UUID_REGEX } from '@/lib/validation';
 
 /**
  * One creator, for the brand-facing detail view (KAN-29, AC-012, US-004).
@@ -38,8 +39,6 @@ import { BOOKABLE_CREATOR } from '@/lib/creators/queries';
  * all four into one place is a change to those files rather than this ticket —
  * logged as a follow-up.
  */
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The audience jsonb, narrowed to what the detail view renders. */
 export interface CreatorAudience {
@@ -172,7 +171,7 @@ export async function readCreatorDetail(
 ): Promise<CreatorDetail | null> {
   await deps.requireBrand();
 
-  if (!UUID_PATTERN.test(id)) return null;
+  if (!UUID_REGEX.test(id)) return null;
 
   return deps.select(buildCreatorDetailWhere(id));
 }
