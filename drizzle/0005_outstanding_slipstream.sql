@@ -1,0 +1,1 @@
+ALTER TABLE "campaign_item" ADD CONSTRAINT "campaign_item_total_price_valid" CHECK ("campaign_item"."total_price" = "campaign_item"."unit_price" * "campaign_item"."video_count");

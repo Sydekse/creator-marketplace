@@ -191,6 +191,10 @@ export const campaignItem = pgTable(
       t.campaignId,
       t.creatorId
     ),
+    check(
+      'campaign_item_total_price_valid',
+      sql`${t.totalPrice} = ${t.unitPrice} * ${t.videoCount}`
+    ),
   ]
 );
 
