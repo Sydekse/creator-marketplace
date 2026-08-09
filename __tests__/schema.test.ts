@@ -31,6 +31,7 @@ const TABLES = {
   ledger_entry: schema.ledgerEntry,
   audit_log: schema.auditLog,
   notification: schema.notification,
+  campaign_item: schema.campaignItem,
 } as const;
 
 /**
@@ -59,6 +60,8 @@ const MONEY_COLUMNS: ReadonlyArray<[keyof typeof TABLES, string]> = [
   ['campaign', 'budget'],
   ['deal', 'unit_price'],
   ['deal', 'total_price'],
+  ['campaign_item', 'unit_price'],
+  ['campaign_item', 'total_price'],
   ['ledger_entry', 'amount'],
   ['ledger_entry', 'balance_after'],
 ];
@@ -73,8 +76,8 @@ const migrationSql = (() => {
 })();
 
 describe('schema tables', () => {
-  it('declares all 13 MVP entities', () => {
-    expect(Object.keys(TABLES)).toHaveLength(13);
+  it('declares all marketplace entities', () => {
+    expect(Object.keys(TABLES)).toHaveLength(14);
   });
 
   it.each(Object.entries(TABLES))(
@@ -138,8 +141,8 @@ describe('generated migration', () => {
     const pkLines = migrationSql
       .split('\n')
       .filter((l) => l.includes('PRIMARY KEY'));
-    // The 13 MVP entities plus session, account and verification.
-    expect(pkLines).toHaveLength(16);
+    // The 14 entities plus session, account and verification.
+    expect(pkLines).toHaveLength(17);
     for (const line of pkLines) {
       expect(line).toContain('"id" uuid PRIMARY KEY');
     }
@@ -169,6 +172,10 @@ describe('generated migration', () => {
     ['campaign_budget_positive', '"campaign"."budget" > 0'],
     ['campaign_desired_videos_positive', '"campaign"."desired_videos" > 0'],
     ['deal_video_count_positive', '"deal"."video_count" > 0'],
+    [
+      'deal_total_price_valid',
+      '"deal"."total_price" = "deal"."unit_price" * "deal"."video_count"',
+    ],
   ])('enforces %s at the database level', (name, predicate) => {
     expect(migrationSql).toContain(`CONSTRAINT "${name}" CHECK (${predicate})`);
   });
@@ -178,6 +185,10 @@ describe('generated migration', () => {
     ['deliverable_deal_id_unique', 'UNIQUE("deal_id")'],
     ['video_metric_deliverable_id_unique', 'UNIQUE("deliverable_id")'],
     ['deal_campaign_creator_unique', 'UNIQUE("campaign_id","creator_id")'],
+    [
+      'campaign_item_campaign_creator_unique',
+      'UNIQUE("campaign_id","creator_id")',
+    ],
   ])('enforces unique constraint %s', (name, columns) => {
     expect(migrationSql).toContain(`CONSTRAINT "${name}" ${columns}`);
   });

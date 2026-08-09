@@ -657,24 +657,28 @@ describe('isBookable', () => {
       case: 'pending, untiered',
       status: 'pending_verification',
       tierId: null,
+      tierActive: null,
       expected: false,
     },
     {
       case: 'pending but tiered',
       status: 'pending_verification',
       tierId: 'tier-1',
+      tierActive: true,
       expected: false,
     },
     {
       case: 'rejected but tiered',
       status: 'rejected',
       tierId: 'tier-1',
+      tierActive: true,
       expected: false,
     },
     {
       case: 'rejected, untiered',
       status: 'rejected',
       tierId: null,
+      tierActive: null,
       expected: false,
     },
     // The half of AC-006 that is easy to forget: verified is not enough. An
@@ -683,17 +687,22 @@ describe('isBookable', () => {
       case: 'verified but untiered',
       status: 'verified',
       tierId: null,
+      tierActive: null,
       expected: false,
     },
     {
       case: 'verified and tiered',
       status: 'verified',
       tierId: 'tier-1',
+      tierActive: true,
       expected: true,
     },
-  ] as const)('$case → $expected', ({ status, tierId, expected }) => {
-    expect(isBookable({ status, tierId })).toBe(expected);
-  });
+  ] as const)(
+    '$case → $expected',
+    ({ status, tierId, tierActive, expected }) => {
+      expect(isBookable({ status, tierId, tierActive })).toBe(expected);
+    }
+  );
 
   it('excludes a pending creator from brand-facing discovery', () => {
     // The acceptance criterion is that a pending_verification creator "does not
@@ -701,11 +710,15 @@ describe('isBookable', () => {
     // not exist yet, so the rule is asserted here against the predicate that
     // discovery is required to import.
     const rows = [
-      { status: 'pending_verification' as const, tierId: 'tier-1' },
-      { status: 'verified' as const, tierId: 'tier-1' },
+      {
+        status: 'pending_verification' as const,
+        tierId: 'tier-1',
+        tierActive: true,
+      },
+      { status: 'verified' as const, tierId: 'tier-1', tierActive: true },
     ];
     expect(rows.filter(isBookable)).toEqual([
-      { status: 'verified', tierId: 'tier-1' },
+      { status: 'verified', tierId: 'tier-1', tierActive: true },
     ]);
   });
 });

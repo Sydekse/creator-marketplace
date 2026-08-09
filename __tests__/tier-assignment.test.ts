@@ -903,27 +903,35 @@ describe('a verified creator with no tier is not bookable (AC-006, AC-7)', () =>
   it.each([
     [
       'verified, untiered',
-      { status: 'verified' as const, tierId: null },
+      { status: 'verified' as const, tierId: null, tierActive: null },
       false,
     ],
     [
       'verified, tiered',
-      { status: 'verified' as const, tierId: 'tier-mid' },
+      { status: 'verified' as const, tierId: 'tier-mid', tierActive: true },
       true,
     ],
     [
       'pending, tiered',
-      { status: 'pending_verification' as const, tierId: 'tier-mid' },
+      {
+        status: 'pending_verification' as const,
+        tierId: 'tier-mid',
+        tierActive: true,
+      },
       false,
     ],
     [
       'pending, untiered',
-      { status: 'pending_verification' as const, tierId: null },
+      {
+        status: 'pending_verification' as const,
+        tierId: null,
+        tierActive: null,
+      },
       false,
     ],
     [
       'rejected, tiered',
-      { status: 'rejected' as const, tierId: 'tier-mid' },
+      { status: 'rejected' as const, tierId: 'tier-mid', tierActive: true },
       false,
     ],
   ])('%s → %s', (_label, row, expected) => {
@@ -932,7 +940,11 @@ describe('a verified creator with no tier is not bookable (AC-006, AC-7)', () =>
 
   it('becomes bookable only once assignment writes a tier', async () => {
     // The end-to-end shape of the ticket, on one row: verified is half of it.
-    const row = { status: 'verified' as const, tierId: null as string | null };
+    const row = {
+      status: 'verified' as const,
+      tierId: null as string | null,
+      tierActive: true as boolean | null,
+    };
     expect(isBookable(row)).toBe(false);
 
     const tx = {

@@ -160,19 +160,3 @@ export async function readCreatorDetail(
 
   return deps.select(buildCreatorDetailWhere(id));
 }
-
-/**
- * The shortlist action's copy, held beside the query for the reason
- * `NO_MATCHES_TITLE` is: a string that exists in exactly one place cannot be
- * paraphrased apart from itself by a later edit to a page.
- *
- * The control is disabled and stays disabled for now. Adding a creator to a
- * campaign needs a draft campaign to add them to, and nothing creates one yet —
- * the first route that does is a later ticket, and the endpoint behind the action
- * is the ticket after that. So the explanation below is not a placeholder for a
- * state the brand can currently escape; it is the only state there is. When the
- * campaign routes land, this becomes a real branch on whether a draft exists.
- */
-export const ADD_TO_CAMPAIGN_LABEL = 'Add to campaign';
-export const NO_DRAFT_CAMPAIGN_MESSAGE =
-  'You need a draft campaign before you can shortlist a creator.';

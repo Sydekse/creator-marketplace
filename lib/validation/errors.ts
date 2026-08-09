@@ -42,9 +42,21 @@ export enum ErrorCode {
    */
   CREATOR_NOT_VERIFIED = 'CREATOR_NOT_VERIFIED',
   /**
-   * An edit or confirm attempt was made on a campaign that is no longer in
-   * `draft` status (KAN-26, Tech Spec §4.3). Once confirmed/funded, campaign
-   * parameters are locked.
+   * A creator was targeted for campaign booking but is either not verified or
+   * has no active pricing tier (AC-006).
+   *
+   * Use this when a brand tries to book or cart a creator.
+   * Contrast with CREATOR_NOT_VERIFIED, which guards the admin tier-assignment
+   * action against creators who have not yet passed verification.
+   */
+  CREATOR_NOT_BOOKABLE = 'CREATOR_NOT_BOOKABLE',
+  /**
+   * A creator has already been added to this campaign (KAN-30 AC item 4).
+   */
+  CREATOR_ALREADY_IN_CART = 'CREATOR_ALREADY_IN_CART',
+  /**
+   * An edit or item modification was attempted on a campaign that is no longer
+   * in `draft` status (KAN-26, KAN-30, Tech Spec §4.3).
    */
   CAMPAIGN_NOT_DRAFT = 'CAMPAIGN_NOT_DRAFT',
   OFFER_EXPIRED = 'OFFER_EXPIRED',
@@ -74,6 +86,10 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.OFFER_NOT_PENDING]: 'This offer is no longer pending.',
   [ErrorCode.CREATOR_NOT_PENDING]: 'This creator has already been reviewed.',
   [ErrorCode.CREATOR_NOT_VERIFIED]: 'This creator is not verified yet.',
+  [ErrorCode.CREATOR_NOT_BOOKABLE]:
+    'This creator is not available for booking.',
+  [ErrorCode.CREATOR_ALREADY_IN_CART]:
+    'This creator is already in this campaign.',
   [ErrorCode.CAMPAIGN_NOT_DRAFT]: 'This campaign can no longer be edited.',
   [ErrorCode.OFFER_EXPIRED]: 'This offer has expired.',
   [ErrorCode.PAYMENT_FAILED]: 'Payment failed — please try again.',
@@ -94,6 +110,8 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.OFFER_NOT_PENDING]: 409,
   [ErrorCode.CREATOR_NOT_PENDING]: 409,
   [ErrorCode.CREATOR_NOT_VERIFIED]: 409,
+  [ErrorCode.CREATOR_NOT_BOOKABLE]: 422,
+  [ErrorCode.CREATOR_ALREADY_IN_CART]: 409,
   [ErrorCode.CAMPAIGN_NOT_DRAFT]: 409,
   [ErrorCode.OFFER_EXPIRED]: 409,
   [ErrorCode.PAYMENT_FAILED]: 402,

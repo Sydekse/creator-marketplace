@@ -29,7 +29,8 @@ import type { CreatorStatus } from '@/db/schema';
  */
 export const BOOKABLE_CREATOR = and(
   eq(creatorProfile.status, 'verified'),
-  isNotNull(creatorProfile.tierId)
+  isNotNull(creatorProfile.tierId),
+  eq(pricingTier.active, true)
 );
 
 /**
@@ -40,8 +41,11 @@ export const BOOKABLE_CREATOR = and(
 export function isBookable(row: {
   status: CreatorStatus;
   tierId: string | null;
+  tierActive: boolean | null;
 }): boolean {
-  return row.status === 'verified' && row.tierId !== null;
+  return (
+    row.status === 'verified' && row.tierId !== null && row.tierActive === true
+  );
 }
 
 /**
@@ -72,6 +76,7 @@ export interface CreatorTier {
   name: string;
   /** Integer ETB santim — the gross a brand pays per video (invariant 4). */
   pricePerVideo: number;
+  active: boolean;
 }
 
 export interface CreatorProfileWithTier {
@@ -108,6 +113,7 @@ export async function getCreatorProfileWithTier(
       tierId: pricingTier.id,
       tierName: pricingTier.name,
       tierPricePerVideo: pricingTier.pricePerVideo,
+      tierActive: pricingTier.active,
     })
     .from(creatorProfile)
     .leftJoin(pricingTier, eq(creatorProfile.tierId, pricingTier.id))
@@ -124,12 +130,14 @@ export async function getCreatorProfileWithTier(
   const tier =
     row.tierId === null ||
     row.tierName === null ||
-    row.tierPricePerVideo === null
+    row.tierPricePerVideo === null ||
+    row.tierActive === null
       ? null
       : {
           id: row.tierId,
           name: row.tierName,
           pricePerVideo: row.tierPricePerVideo,
+          active: row.tierActive,
         };
 
   return { profile: row.profile, tier };

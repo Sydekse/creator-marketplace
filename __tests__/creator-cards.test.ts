@@ -7,6 +7,8 @@ import { AUDIENCE_MARKET_LABELS } from '../lib/config/creator-profile';
 import {
   ADD_TO_CAMPAIGN_LABEL,
   NO_DRAFT_CAMPAIGN_MESSAGE,
+} from '../lib/campaigns/constants';
+import {
   buildCreatorDetailWhere,
   creatorDetailQuery,
   readAudience,
@@ -377,29 +379,10 @@ describe('the detail page', () => {
 describe('the add-to-campaign action', () => {
   const source = src(DETAIL_PAGE);
 
-  it('is disabled, and says why beside itself', () => {
-    expect(source).toMatch(/<button[\s\S]*?disabled/);
-    expect(source).toContain('ADD_TO_CAMPAIGN_LABEL');
-    expect(source).toContain('NO_DRAFT_CAMPAIGN_MESSAGE');
-  });
-
-  it('explains without a tooltip', () => {
-    // A disabled control whose explanation only appears on hover tells a touch
-    // user nothing at all.
-    expect(source).not.toContain('title=');
-    expect(source).not.toContain('Tooltip');
-  });
-
-  it('styles a native button rather than importing Base UI’s', () => {
-    // Base UI's Button is a client component. Importing it would pull a bundle
-    // onto an otherwise static page for a control that does nothing.
-    expect(source).toContain('buttonVariants');
-    expect(source).not.toMatch(/<Button\b/);
-  });
-
-  it('is not retyped on the page', () => {
-    expect(source).not.toContain('Add to campaign');
-    expect(source).not.toContain('You need a draft campaign');
+  it('renders the AddToCartForm client component', () => {
+    expect(source).toContain('<AddToCartForm');
+    expect(source).toContain('creatorId={creator.id}');
+    expect(source).toContain('campaigns={campaigns');
   });
 
   it('names no ticket in copy a brand reads', () => {
@@ -409,5 +392,11 @@ describe('the add-to-campaign action', () => {
     expect(NO_DRAFT_CAMPAIGN_MESSAGE).toBe(
       'You need a draft campaign before you can shortlist a creator.'
     );
+  });
+
+  it('is not retyped on the form', () => {
+    const formSource = src('components/campaign/add-to-cart-form.tsx');
+    // If the form retypes the literal instead of using the constant, it will contain the text in quotes
+    expect(formSource).not.toMatch(/['"]Add to campaign['"]/);
   });
 });

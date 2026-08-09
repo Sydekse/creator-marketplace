@@ -165,6 +165,39 @@ export const campaign = pgTable(
   ]
 );
 
+export const campaignItem = pgTable(
+  'campaign_item',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    campaignId: uuid('campaign_id')
+      .notNull()
+      .references(() => campaign.id),
+    creatorId: uuid('creator_id')
+      .notNull()
+      .references(() => creatorProfile.id),
+    videoCount: integer('video_count').notNull(),
+    unitPrice: integer('unit_price').notNull(),
+    totalPrice: integer('total_price').notNull(),
+    commissionRate: numeric('commission_rate', {
+      precision: 5,
+      scale: 2,
+    }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique('campaign_item_campaign_creator_unique').on(
+      t.campaignId,
+      t.creatorId
+    ),
+    check(
+      'campaign_item_total_price_valid',
+      sql`${t.totalPrice} = ${t.unitPrice} * ${t.videoCount}`
+    ),
+  ]
+);
+
 /**
  * Versioned usage-rights text (Q5). The body is placeholder-friendly, but the
  * version string is not optional — a deal records *which* version was accepted.
@@ -216,6 +249,10 @@ export const deal = pgTable(
     // One deal per creator per campaign.
     unique('deal_campaign_creator_unique').on(t.campaignId, t.creatorId),
     check('deal_video_count_positive', sql`${t.videoCount} > 0`),
+    check(
+      'deal_total_price_valid',
+      sql`${t.totalPrice} = ${t.unitPrice} * ${t.videoCount}`
+    ),
   ]
 );
 

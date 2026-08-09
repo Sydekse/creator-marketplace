@@ -1,13 +1,14 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { buttonVariants } from '@/components/ui/button';
+import { AddToCartForm } from '@/components/campaign/add-to-cart-form';
+import { requireRole } from '@/lib/auth';
+import { getBrandProfileByUserId } from '@/lib/brands/queries';
+import { listDraftCampaignsByBrand } from '@/lib/campaigns/queries';
+
 import { NICHE_LABELS } from '@/lib/config/creator-profile';
 import type { Niche } from '@/lib/config/creator-profile';
-import {
-  ADD_TO_CAMPAIGN_LABEL,
-  NO_DRAFT_CAMPAIGN_MESSAGE,
-  readCreatorDetail,
-} from '@/lib/creators/detail';
+
+import { readCreatorDetail } from '@/lib/creators/detail';
 import type { CreatorAudience } from '@/lib/creators/detail';
 import {
   NOT_PROVIDED,
@@ -83,41 +84,6 @@ function Audience({ audience }: { audience: CreatorAudience }) {
   );
 }
 
-/**
- * The shortlist action, disabled.
- *
- * It is disabled unconditionally because there is nothing yet to add a creator
- * to: no route creates a draft campaign, and the endpoint behind this control
- * does not exist. So this is the only reachable state rather than a branch with
- * one side stubbed — when campaign creation lands, this grows a real check and
- * the enabled path beside it.
- *
- * `disabled` on the element plus the sentence beneath it, not a tooltip: a
- * disabled control whose explanation only appears on hover tells a touch user
- * nothing at all.
- *
- * A native `<button>` styled with `buttonVariants`, not `<Button>`. Base UI's
- * button is a client component, and importing it would pull a bundle onto an
- * otherwise fully static page for a control that does nothing — the same
- * argument `app/(brand)/(onboarded)/brand/page.tsx` records about links.
- */
-function AddToCampaign() {
-  return (
-    <section className="flex flex-col items-start gap-2 border-t border-border pt-8">
-      <button
-        type="button"
-        disabled
-        className={buttonVariants({ variant: 'default', size: 'sm' })}
-      >
-        {ADD_TO_CAMPAIGN_LABEL}
-      </button>
-      <p className="text-sm text-muted-foreground">
-        {NO_DRAFT_CAMPAIGN_MESSAGE}
-      </p>
-    </section>
-  );
-}
-
 export default async function CreatorDetailPage({
   params,
 }: {
@@ -127,6 +93,10 @@ export default async function CreatorDetailPage({
 
   const creator = await readCreatorDetail(id);
   if (!creator) notFound();
+
+  const user = await requireRole('brand');
+  const profile = await getBrandProfileByUserId(user.id);
+  const campaigns = profile ? await listDraftCampaignsByBrand(profile.id) : [];
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
@@ -170,7 +140,10 @@ export default async function CreatorDetailPage({
 
       <Audience audience={creator.audience} />
 
-      <AddToCampaign />
+      <AddToCartForm
+        creatorId={creator.id}
+        campaigns={campaigns.map((c) => ({ id: c.id, name: c.name }))}
+      />
     </div>
   );
 }

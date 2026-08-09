@@ -13,7 +13,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx db/seed.ts",
-    "vercel-build": "if [ -n \"$DATABASE_URL\" ]; then npm run db:migrate || exit 1; fi && next build"
+    "db:push": "drizzle-kit push",
+    "vercel-build": "if [ -n \"$DATABASE_URL\" ]; then if [ \"$USE_DRIZZLE_PUSH\" = \"true\" ]; then npx drizzle-kit push --force || exit 1; else npm run db:migrate || exit 1; fi; fi && next build"
   },
   "overrides": {
     "brace-expansion@<1.1.17": "^1.1.18",

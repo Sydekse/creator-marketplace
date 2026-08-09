@@ -119,9 +119,13 @@ export default async function CreatorDashboardPage() {
             whether this creator is visible to brands. */}
         {dashboard.isEmpty ? (
           <EmptyState
-            title={isBookable(profile) ? NO_DEALS_TITLE : NOT_BOOKABLE_TITLE}
+            title={
+              isBookable({ ...profile, tierActive: tier?.active ?? null })
+                ? NO_DEALS_TITLE
+                : NOT_BOOKABLE_TITLE
+            }
             description={
-              isBookable(profile)
+              isBookable({ ...profile, tierActive: tier?.active ?? null })
                 ? NO_DEALS_DESCRIPTION
                 : NOT_BOOKABLE_DESCRIPTION
             }

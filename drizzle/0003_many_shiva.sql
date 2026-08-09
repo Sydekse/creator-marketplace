@@ -1,0 +1,1 @@
+ALTER TABLE "deal" ADD CONSTRAINT "deal_total_price_valid" CHECK ("deal"."total_price" = "deal"."unit_price" * "deal"."video_count");
