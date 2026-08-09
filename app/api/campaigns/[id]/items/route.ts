@@ -5,6 +5,7 @@ import type { AuthzContext, GuardOptions } from '@/lib/authz';
 import {
   ErrorCode,
   ErrorHttpStatus,
+  UUID_REGEX,
   addCampaignItemSchema,
   errorResponse,
   fromZodError,
@@ -13,12 +14,6 @@ import {
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
-
-/**
- * Canonical uuid shape, checked before the id reaches a query.
- */
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface RouteDeps {
   addToCartDeps?: AddToCartDeps;
@@ -35,7 +30,7 @@ export async function handleAddCampaignItem(
 ): Promise<Response> {
   let brandProfileId: string;
   try {
-    if (!UUID_PATTERN.test(id)) {
+    if (!UUID_REGEX.test(id)) {
       throw new ForbiddenError('malformed id');
     }
 

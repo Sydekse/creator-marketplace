@@ -44,7 +44,7 @@ export function isBookable(row: {
   tierActive: boolean | null;
 }): boolean {
   return (
-    row.status === 'verified' && row.tierId !== null && row.tierActive !== false
+    row.status === 'verified' && row.tierId !== null && row.tierActive === true
   );
 }
 

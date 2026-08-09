@@ -300,6 +300,7 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
     status: 'verified' as const,
     tierId: TIER_ID,
     pricePerVideo: 100000,
+    tierActive: true,
   };
 
   function createMockAddToCartDeps(
@@ -314,7 +315,7 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
     };
   }
 
-  it('returns 201 with item and totals on successful addition', async () => {
+  it('returns 200 with item and totals on successful addition', async () => {
     const deps = createMockAddToCartDeps();
     const response = await handleAddCampaignItem(
       postRequest({ creatorId: CREATOR_ID, videoCount: 2 }),

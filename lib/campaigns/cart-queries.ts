@@ -3,14 +3,29 @@ import { db } from '@/db';
 import { campaignItem, creatorProfile, pricingTier } from '@/db/schema';
 
 /**
- * Read paths for cart items (deals in a draft campaign).
+ * Read paths for campaign cart items (campaign_item table).
+ * Cart items are stored separately from deals to preserve the deal state
+ * machine invariant — deals only enter 'pending' upon campaign confirmation
+ * (PRD AC-016).
  */
+
+import { guard } from '@/lib/authz';
 
 /**
  * Calculates the current running total (sum of total_price in santim) of all
  * items in a campaign cart.
  */
-export async function getCartRunningTotal(campaignId: string): Promise<number> {
+export async function getCartRunningTotal(
+  campaignId: string,
+  deps = {
+    requireOwnership: () =>
+      guard({
+        roles: ['brand'],
+        resource: { kind: 'campaign', id: campaignId },
+      }),
+  }
+): Promise<number> {
+  await deps.requireOwnership();
   const [result] = await db
     .select({
       total: sql<number>`coalesce(sum(${campaignItem.totalPrice}), 0)::int`,
@@ -24,7 +39,17 @@ export async function getCartRunningTotal(campaignId: string): Promise<number> {
 /**
  * Lists all items in a campaign cart, joined with creator profile and tier details.
  */
-export async function listCartItems(campaignId: string) {
+export async function listCartItems(
+  campaignId: string,
+  deps = {
+    requireOwnership: () =>
+      guard({
+        roles: ['brand'],
+        resource: { kind: 'campaign', id: campaignId },
+      }),
+  }
+) {
+  await deps.requireOwnership();
   const rows = await db
     .select({
       id: campaignItem.id,
@@ -59,7 +84,18 @@ export type CartItemRow = Awaited<ReturnType<typeof listCartItems>>[number];
 /**
  * Gets a single cart item by campaign ID and creator ID.
  */
-export async function getCartItem(campaignId: string, creatorId: string) {
+export async function getCartItem(
+  campaignId: string,
+  creatorId: string,
+  deps = {
+    requireOwnership: () =>
+      guard({
+        roles: ['brand'],
+        resource: { kind: 'campaign', id: campaignId },
+      }),
+  }
+) {
+  await deps.requireOwnership();
   const [row] = await db
     .select()
     .from(campaignItem)
