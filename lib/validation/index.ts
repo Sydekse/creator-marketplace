@@ -16,12 +16,16 @@ export type {
   CreateCreatorInput,
   CreateBrandInput,
   UpdateBrandInput,
+  CreateCampaignInput,
+  UpdateCampaignInput,
   DiscoverCreatorsInput,
   AuditLogQueryInput,
 } from './schemas';
 
 export {
   MAX_COMPANY_NAME_LENGTH,
+  MAX_CAMPAIGN_NAME_LENGTH,
+  MAX_CAMPAIGN_GOAL_LENGTH,
   MAX_VERIFICATION_NOTE_LENGTH,
   signUpSchema,
   signInSchema,
@@ -30,6 +34,7 @@ export {
   updateBrandSchema,
   discoverCreatorsSchema,
   createCampaignSchema,
+  updateCampaignSchema,
   addCampaignItemSchema,
   acceptDealSchema,
   submitDeliverableSchema,

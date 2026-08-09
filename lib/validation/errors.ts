@@ -41,6 +41,12 @@ export enum ErrorCode {
    * problem is that they have not been.
    */
   CREATOR_NOT_VERIFIED = 'CREATOR_NOT_VERIFIED',
+  /**
+   * An edit or confirm attempt was made on a campaign that is no longer in
+   * `draft` status (KAN-26, Tech Spec §4.3). Once confirmed/funded, campaign
+   * parameters are locked.
+   */
+  CAMPAIGN_NOT_DRAFT = 'CAMPAIGN_NOT_DRAFT',
   OFFER_EXPIRED = 'OFFER_EXPIRED',
   PAYMENT_FAILED = 'PAYMENT_FAILED',
   NO_ACCEPTED_DEALS = 'NO_ACCEPTED_DEALS',
@@ -68,6 +74,7 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.OFFER_NOT_PENDING]: 'This offer is no longer pending.',
   [ErrorCode.CREATOR_NOT_PENDING]: 'This creator has already been reviewed.',
   [ErrorCode.CREATOR_NOT_VERIFIED]: 'This creator is not verified yet.',
+  [ErrorCode.CAMPAIGN_NOT_DRAFT]: 'This campaign can no longer be edited.',
   [ErrorCode.OFFER_EXPIRED]: 'This offer has expired.',
   [ErrorCode.PAYMENT_FAILED]: 'Payment failed — please try again.',
   [ErrorCode.NO_ACCEPTED_DEALS]: 'No accepted deals to fund.',
@@ -87,6 +94,7 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.OFFER_NOT_PENDING]: 409,
   [ErrorCode.CREATOR_NOT_PENDING]: 409,
   [ErrorCode.CREATOR_NOT_VERIFIED]: 409,
+  [ErrorCode.CAMPAIGN_NOT_DRAFT]: 409,
   [ErrorCode.OFFER_EXPIRED]: 409,
   [ErrorCode.PAYMENT_FAILED]: 402,
   [ErrorCode.NO_ACCEPTED_DEALS]: 409,
