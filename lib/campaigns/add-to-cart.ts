@@ -11,7 +11,7 @@ import { COMMISSION_RATE } from '@/lib/config/pricing';
 import { isBookable } from '@/lib/creators/queries';
 import type { AddCampaignItemInput } from '@/lib/validation';
 import type { Tx } from '@/lib/authz';
-import { getCartRunningTotal } from './cart-queries';
+import { sumCartTotal } from './cart-queries';
 
 /** Postgres error codes */
 const UNIQUE_VIOLATION = '23505';
@@ -123,7 +123,7 @@ const defaultDeps: AddToCartDeps = {
 
     return row;
   },
-  getRunningTotal: (tx, campaignId) => getCartRunningTotal(campaignId, tx),
+  getRunningTotal: (tx, campaignId) => sumCartTotal(campaignId, tx),
   transaction: (fn) => db.transaction(fn),
 };
 

@@ -142,6 +142,11 @@ describe('addToCart service', () => {
     };
   }
 
+  it('locks the campaign row for update', () => {
+    const source = require('fs').readFileSync('lib/campaigns/add-to-cart.ts', 'utf8');
+    expect(source).toMatch(/\.for\(['"]update['"]\)/);
+  });
+
   it('adds item to cart, computing snapshot prices and running total', async () => {
     const deps = createMockDeps();
     const result = await addToCart(
@@ -512,6 +517,6 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
     expect(response.status).toBe(409); // From ErrorHttpStatus mapping
     const body = await response.json();
     expect(body.error.code).toBe(ErrorCode.BUDGET_EXCEEDED);
-    expect(body.error.details.budget[0]).toContain('0.01 ETB');
+    expect(body.error.details.excess[0]).toContain('0.01 ETB');
   });
 });
