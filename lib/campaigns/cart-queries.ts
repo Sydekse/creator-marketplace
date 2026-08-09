@@ -10,6 +10,7 @@ import { campaignItem, creatorProfile, pricingTier } from '@/db/schema';
  */
 
 import { guard } from '@/lib/authz';
+import type { Tx } from '@/lib/authz';
 
 /**
  * Calculates the current running total (sum of total_price in santim) of all
@@ -17,6 +18,7 @@ import { guard } from '@/lib/authz';
  */
 export async function getCartRunningTotal(
   campaignId: string,
+  client: typeof db | Tx = db,
   deps = {
     requireOwnership: () =>
       guard({
@@ -26,7 +28,7 @@ export async function getCartRunningTotal(
   }
 ): Promise<number> {
   await deps.requireOwnership();
-  const [result] = await db
+  const [result] = await client
     .select({
       total: sql<number>`coalesce(sum(${campaignItem.totalPrice}), 0)::int`,
     })

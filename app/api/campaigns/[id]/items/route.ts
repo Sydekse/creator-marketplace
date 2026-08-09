@@ -92,6 +92,16 @@ export async function handleAddCampaignItem(
         return Response.json(errorResponse(ErrorCode.CREATOR_ALREADY_IN_CART), {
           status: ErrorHttpStatus[ErrorCode.CREATOR_ALREADY_IN_CART],
         });
+      case 'budget_exceeded': {
+        const excess = result.excess;
+        const formatted = (excess / 100).toFixed(2);
+        return Response.json(
+          errorResponse(ErrorCode.BUDGET_EXCEEDED, {
+            budget: [`This exceeds your remaining budget by ${formatted} ETB.`],
+          }),
+          { status: ErrorHttpStatus[ErrorCode.BUDGET_EXCEEDED] }
+        );
+      }
     }
   }
 
