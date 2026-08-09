@@ -78,6 +78,10 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
     setErrors({});
 
     const etbNum = budget.trim() === '' ? undefined : Number(budget);
+    // Note on float math: `etbNum * 100` is float multiplication on a money
+    // value, which is generally unsafe. It is defensible here because it is
+    // client-side, immediately rounded, and strictly re-validated by `.int()`
+    // on the server-side schema.
     const santim =
       etbNum === undefined || isNaN(etbNum) ? etbNum : Math.round(etbNum * 100);
     const videosNum =

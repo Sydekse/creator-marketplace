@@ -1,8 +1,5 @@
 import { z } from 'zod';
 
-export const UUID_REGEX =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 // Both are leaf modules — importing the query module instead would close a
 // cycle back through `lib/authz` into this file. See `lib/audit/limits.ts`.
 import { AUDIT_ACTIONS, AUDIT_TARGET_TYPES } from '@/lib/audit/actions';
@@ -23,6 +20,22 @@ import {
 // Another leaf module — it imports nothing, so the discovery filters can share
 // the page ceiling the query clamps to rather than declaring a second one.
 import { MAX_PAGE_SIZE } from '@/lib/paging';
+
+/**
+ * Validates standard UUID formats.
+ * 
+ * Many of our tables (e.g. `creator_profile`, `campaign`) use UUID primary keys.
+ * Postgres answers a non-uuid comparison with a `22P02` exception, which turns
+ * a mistyped link into a 500 error instead of a handled not-found.
+ * 
+ * Call sites share this pattern to prevent the 500, but deliberately do NOT
+ * share the response:
+ * - Admin routes return `404 NOT_FOUND` for an invalid UUID.
+ * - Owner-scoped routes return `403 FORBIDDEN` so as to not become an existence
+ *   oracle for IDs the caller has no right to (Tech Spec §6.3).
+ */
+export const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export const signUpSchema = z.object({
   name: z.string().min(1, { message: 'Name is required.' }),

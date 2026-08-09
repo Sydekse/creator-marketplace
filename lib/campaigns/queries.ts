@@ -1,6 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { campaign } from '@/db/schema';
+import { UUID_REGEX } from '@/lib/validation';
 
 /**
  * Read paths for `campaign`.
@@ -26,6 +27,10 @@ export async function getCampaignForBrand(
   campaignId: string,
   brandProfileId: string
 ) {
+  if (!UUID_REGEX.test(campaignId)) {
+    return null;
+  }
+
   const [row] = await db
     .select()
     .from(campaign)
