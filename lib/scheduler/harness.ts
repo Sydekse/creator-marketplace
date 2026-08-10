@@ -52,7 +52,8 @@ export function extractSafeErrorDetails(err: unknown) {
 }
 
 /**
- * Serializes a log payload into a single JSON line that can never throw.
+ * Serializes a log payload into a single JSON line that cannot throw on the
+ * values error handling produces.
  *
  * One JSON object per console call is what Vercel's Log Drain can field-parse
  * (searchable `event`/`job`/`durationMs` instead of prose), and JSON escaping
@@ -62,10 +63,17 @@ export function extractSafeErrorDetails(err: unknown) {
  * a hostile error property (a circular `dealId`, a BigInt `campaignId`)
  * cannot destroy the failure log it lives in — the failure mode where the
  * catch itself becomes the 500.
+ *
+ * Not a silver bullet: a value with a throwing getter or `toJSON` can still
+ * make `JSON.stringify` throw. That is contained two layers out — the
+ * harness's defensive per-job catch and the route catch — so the run and the
+ * response survive; only the detail line degrades.
  */
 export function toLogString(fields: Record<string, unknown>): string {
-  // Tracks ancestors of the current position only, so each serialization is
-  // independent and repeated references between siblings stay intact.
+  // The set is never pruned, so a reference repeated between siblings is
+  // marked `[Circular]` as well. Scheduler payloads are flat, so the false
+  // positive cannot fire today; a stack-based ancestor set would be the fix
+  // if that ever changes.
   const seen = new WeakSet<object>();
   const replacer = (_key: string, value: unknown): unknown => {
     if (typeof value === 'bigint') {

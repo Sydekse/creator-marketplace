@@ -4,6 +4,10 @@
 **Method:** 5 senior-engineer standards reviews (web-verified: RFC 6750/9110, OWASP, CWE-117, Vercel docs, MDN, TS handbook) + 5 senior-engineer scope reviews (AC-by-AC) + 2 report passes. Suite re-run at HEAD: 224/224 in the four audited files, 1329/1329 full branch.
 **Verdict: APPROVE WITH CONDITIONS** — six small must-fixes (~1 day), none touching the security posture.
 
+> **Post-review addendum (`2cc59663`, `ef85e92e`):** the six must-fixes landed (H1 watchdog, H2 structured logs, H3 catch→504 test, M3 hardened serialization, M1 `realm="cron"`, M6 `restoreMocks`), plus M4 (sub-ceiling test, `CRON_TIMEOUT_MS` exported), M5 (duplicate mock deleted), M7 (redaction divergence documented), L2 (empty `CRON_SECRET` placeholder), L4 (`JobFailureReason` union), and the KAN-38 reconciliation contract on the `Job` interface.
+>
+> **Provenance correction:** the §2 table below counts KAN-56 commits only, because the branch was cut from `feat/KAN-33-campaign-confirmation`; the branch therefore _inherits_ `b2d331fa` (KAN-33, 12 files) relative to `main`. The KAN-56 commits themselves touch only the 11 in-ticket files. Merge KAN-33 first (or rebase) so the KAN-56 PR diff shows the one feature.
+
 ---
 
 ## 1. Executive summary
