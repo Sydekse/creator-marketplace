@@ -281,6 +281,33 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
     expect(summary.results[0].success).toBe(false);
   });
 
+  it('never records a success for a job that settles while the abort is in flight', async () => {
+    const logger = createMockLogger();
+    const controller = new AbortController();
+
+    // The abort is queued mid-settle: the job's own microtask fires the
+    // signal just before the harness's result handler runs. Whichever branch
+    // of the harness absorbs the outcome (watchdog or the post-race relabel),
+    // the observable contract is the same — a run that was aborted cannot
+    // claim successes — and that is what this test pins.
+    const job: Job = {
+      name: 'settles-mid-abort',
+      run: async () => {
+        await null;
+        queueMicrotask(() => controller.abort());
+        return { examined: 1, acted: 1 };
+      },
+    };
+
+    const summary = await runSchedulerJobs([job], logger, controller.signal);
+
+    expect(summary.success).toBe(false);
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0].jobName).toBe('settles-mid-abort');
+    expect(summary.results[0].success).toBe(false);
+    expect(summary.results[0].error).toBe('ABORTED');
+  });
+
   it('marks a job that fails while aborted as ABORTED, not a generic failure', async () => {
     const logger = createMockLogger();
     const controller = new AbortController();
@@ -552,6 +579,15 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     expect(cron.schedule).toBe('0 0 * * *');
   });
 
+  it('keeps the internal timeout below the platform maxDuration ceiling', () => {
+    // The 290s budget only buys anything if the platform ceiling it sits
+    // under is at least 300s. Pinned structurally so a one-line config change
+    // (or a stale Vercel duration table) cannot silently invert the margin.
+    const routeSource = readFileSync('app/api/cron/route.ts', 'utf8');
+    expect(routeSource).toContain('export const maxDuration = 300');
+    expect(CRON_TIMEOUT_MS).toBeLessThan(300000);
+  });
+
   it('rejects every run when CRON_SECRET is unconfigured, with no config oracle (401, not 500)', async () => {
     vi.stubEnv('CRON_SECRET', '');
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -685,7 +721,29 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
   });
 
   it('propagates the request signal down into runSchedulerJobs', async () => {
-    const runJobs = vi.fn<typeof runSchedulerJobs>();
+    // The mock must return a real summary: runSchedulerJobs never resolves
+    // undefined, so a body-less mock would make the route throw and this test
+    // would pass through the catch→504 branch instead of the post-run abort
+    // path it is meant to pin.
+    const runJobs = vi.fn<typeof runSchedulerJobs>(async () => ({
+      success: false,
+      runId: 'mock-run-1',
+      timestamp: new Date().toISOString(),
+      totalJobs: 1,
+      successfulJobs: 0,
+      failedJobs: 1,
+      results: [
+        {
+          jobName: 'in-flight-job',
+          success: false,
+          examined: 0,
+          acted: 0,
+          durationMs: 0,
+          error: 'ABORTED',
+        },
+      ],
+    }));
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const reqAbort = new AbortController();
     reqAbort.abort();
     const req = new Request('http://localhost/api/cron', {
@@ -701,10 +759,20 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     expect(signalArg).toBeInstanceOf(AbortSignal);
     expect(signalArg?.aborted).toBe(true);
 
-    // A run ended by an abort is a timeout, not an internal failure.
+    // The abort path, not the catch: the log is the post-run timeout summary,
+    // not an "unexpected rejection".
     expect(res.status).toBe(504);
     const body = await res.json();
     expect(body.error.code).toBe(ErrorCode.CRON_TIMEOUT);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const [logArg] = errorSpy.mock.calls[0];
+    const entry = parseLogLine(String(logArg));
+    expect(entry.event).toBe('cron.timeout');
+    // The post-run message, not the catch's "unexpected rejection" wording —
+    // this is what distinguishes the intended path from the catch path.
+    expect(entry.message).toBe('[Cron Route] Run aborted after timeout');
+    expect(entry.runId).toBe('mock-run-1');
+    errorSpy.mockRestore();
   });
 
   it('maps an unexpected runJobs rejection while aborted to 504, never 500', async () => {
