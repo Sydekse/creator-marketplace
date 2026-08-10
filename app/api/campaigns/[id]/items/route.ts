@@ -11,6 +11,7 @@ import {
   fromZodError,
   validationError,
 } from '@/lib/validation';
+import { formatEtb } from '@/lib/money';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -92,6 +93,17 @@ export async function handleAddCampaignItem(
         return Response.json(errorResponse(ErrorCode.CREATOR_ALREADY_IN_CART), {
           status: ErrorHttpStatus[ErrorCode.CREATOR_ALREADY_IN_CART],
         });
+      case 'budget_exceeded': {
+        const excess = result.excess;
+        return Response.json(
+          errorResponse(ErrorCode.BUDGET_EXCEEDED, {
+            excess: [
+              `This exceeds your remaining budget by ${formatEtb(excess)} ETB.`,
+            ],
+          }),
+          { status: ErrorHttpStatus[ErrorCode.BUDGET_EXCEEDED] }
+        );
+      }
     }
   }
 

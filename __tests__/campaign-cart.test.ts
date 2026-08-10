@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   CAMPAIGN_CREATOR_UNIQUE_CONSTRAINT,
@@ -5,6 +6,7 @@ import {
 } from '../lib/campaigns/add-to-cart';
 import type { AddToCartDeps } from '../lib/campaigns/add-to-cart';
 import { ForbiddenError } from '../lib/authz';
+import type { Tx } from '../lib/authz';
 import {
   ErrorCode,
   ErrorMessage,
@@ -135,10 +137,16 @@ describe('addToCart service', () => {
       getCampaign: vi.fn().mockResolvedValue(mockCampaign),
       getCreatorWithTier: vi.fn().mockResolvedValue(mockCreator),
       insertItem: vi.fn().mockResolvedValue({ id: 'item-uuid-1' }),
-      getRunningTotal: vi.fn().mockResolvedValue(200000), // 2 videos * 1,000 ETB
+      getRunningTotal: vi.fn().mockResolvedValue(0), // initial total 0
+      transaction: async (fn) => fn({} as Tx),
       ...overrides,
     };
   }
+
+  it('locks the campaign row for update', () => {
+    const source = readFileSync('lib/campaigns/add-to-cart.ts', 'utf8');
+    expect(source).toMatch(/\.for\(['"]update['"]\)/);
+  });
 
   it('adds item to cart, computing snapshot prices and running total', async () => {
     const deps = createMockDeps();
@@ -156,7 +164,7 @@ describe('addToCart service', () => {
       expect(result.remainingBudget).toBe(300000); // 500,000 - 200,000
     }
 
-    expect(deps.insertItem).toHaveBeenCalledWith({
+    expect(deps.insertItem).toHaveBeenCalledWith(expect.anything(), {
       campaignId: CAMPAIGN_ID,
       creatorId: CREATOR_ID,
       videoCount: 2,
@@ -164,6 +172,58 @@ describe('addToCart service', () => {
       totalPrice: 200000,
       commissionRate: COMMISSION_RATE,
     });
+  });
+
+  it('exact budget boundary (total === budget) is allowed', async () => {
+    const deps = createMockDeps({
+      getCampaign: vi
+        .fn()
+        .mockResolvedValue({ ...mockCampaign, budget: 300000 }), // 200000 existing + 100000 new
+      getRunningTotal: vi.fn().mockResolvedValue(200000),
+    });
+    const result = await addToCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      { creatorId: CREATOR_ID, videoCount: 1 },
+      deps
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it('1-santim excess is rejected', async () => {
+    const deps = createMockDeps({
+      getCampaign: vi
+        .fn()
+        .mockResolvedValue({ ...mockCampaign, budget: 299999 }), // 200000 existing + 100000 new
+      getRunningTotal: vi.fn().mockResolvedValue(200000),
+      insertItem: vi.fn(),
+    });
+    const result = await addToCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      { creatorId: CREATOR_ID, videoCount: 1 },
+      deps
+    );
+    expect(result).toEqual({ ok: false, reason: 'budget_exceeded', excess: 1 });
+    expect(deps.insertItem).not.toHaveBeenCalled();
+  });
+
+  it('accumulation across items', async () => {
+    const deps = createMockDeps({
+      getCampaign: vi
+        .fn()
+        .mockResolvedValue({ ...mockCampaign, budget: 500000 }),
+      getRunningTotal: vi.fn().mockResolvedValue(400001), // 400001 + 100000 = 500001 > 500000
+      insertItem: vi.fn(),
+    });
+    const result = await addToCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      { creatorId: CREATOR_ID, videoCount: 1 },
+      deps
+    );
+    expect(result).toEqual({ ok: false, reason: 'budget_exceeded', excess: 1 });
+    expect(deps.insertItem).not.toHaveBeenCalled();
   });
 
   it('rejects if campaign does not exist or does not belong to brand', async () => {
@@ -310,7 +370,8 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
       getCampaign: vi.fn().mockResolvedValue(mockCampaign),
       getCreatorWithTier: vi.fn().mockResolvedValue(mockCreator),
       insertItem: vi.fn().mockResolvedValue({ id: 'item-1' }),
-      getRunningTotal: vi.fn().mockResolvedValue(200000),
+      getRunningTotal: vi.fn().mockResolvedValue(0), // initial total 0
+      transaction: async (fn) => fn({} as Tx),
       ...overrides,
     };
   }
@@ -438,5 +499,25 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
     expect(response.status).toBe(409);
     const body = await response.json();
     expect(body.error.code).toBe(ErrorCode.CREATOR_ALREADY_IN_CART);
+  });
+
+  it('API route returns 409 for budget_exceeded', async () => {
+    const deps = createMockAddToCartDeps({
+      getCampaign: vi
+        .fn()
+        .mockResolvedValue({ ...mockCampaign, budget: 299999 }),
+      getRunningTotal: vi.fn().mockResolvedValue(200000),
+    });
+
+    const response = await handleAddCampaignItem(
+      postRequest({ creatorId: CREATOR_ID, videoCount: 1 }),
+      CAMPAIGN_ID,
+      { addToCartDeps: deps }
+    );
+
+    expect(response.status).toBe(409); // From ErrorHttpStatus mapping
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.BUDGET_EXCEEDED);
+    expect(body.error.details.excess[0]).toContain('0.01 ETB');
   });
 });

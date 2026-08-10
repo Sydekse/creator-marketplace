@@ -10,13 +10,33 @@ import { campaignItem, creatorProfile, pricingTier } from '@/db/schema';
  */
 
 import { guard } from '@/lib/authz';
+import type { Tx } from '@/lib/authz';
+
+/**
+ * Calculates the total price from campaign items, decoupled from authz
+ * to allow safe use inside transactions without deadlocks.
+ */
+export async function sumCartTotal(
+  campaignId: string,
+  client: typeof db | Tx = db
+): Promise<number> {
+  const [result] = await client
+    .select({
+      total: sql<number>`coalesce(sum(${campaignItem.totalPrice}), 0)::int`,
+    })
+    .from(campaignItem)
+    .where(eq(campaignItem.campaignId, campaignId));
+
+  return result?.total ?? 0;
+}
 
 /**
  * Calculates the current running total (sum of total_price in santim) of all
- * items in a campaign cart.
+ * items in a campaign cart. Includes authz check.
  */
 export async function getCartRunningTotal(
   campaignId: string,
+  client: typeof db | Tx = db,
   deps = {
     requireOwnership: () =>
       guard({
@@ -26,14 +46,7 @@ export async function getCartRunningTotal(
   }
 ): Promise<number> {
   await deps.requireOwnership();
-  const [result] = await db
-    .select({
-      total: sql<number>`coalesce(sum(${campaignItem.totalPrice}), 0)::int`,
-    })
-    .from(campaignItem)
-    .where(eq(campaignItem.campaignId, campaignId));
-
-  return result?.total ?? 0;
+  return sumCartTotal(campaignId, client);
 }
 
 /**

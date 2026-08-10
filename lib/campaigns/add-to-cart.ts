@@ -10,7 +10,8 @@ import type { CampaignStatus, CreatorStatus } from '@/db/schema';
 import { COMMISSION_RATE } from '@/lib/config/pricing';
 import { isBookable } from '@/lib/creators/queries';
 import type { AddCampaignItemInput } from '@/lib/validation';
-import { getCartRunningTotal } from './cart-queries';
+import type { Tx } from '@/lib/authz';
+import { sumCartTotal } from './cart-queries';
 
 /** Postgres error codes */
 const UNIQUE_VIOLATION = '23505';
@@ -26,6 +27,7 @@ export type AddToCartResult =
       runningTotal: number;
       remainingBudget: number;
     }
+  | { ok: false; reason: 'budget_exceeded'; excess: number }
   | {
       ok: false;
       reason:
@@ -38,6 +40,7 @@ export type AddToCartResult =
 
 export interface AddToCartDeps {
   getCampaign: (
+    tx: Tx,
     campaignId: string,
     brandProfileId: string
   ) => Promise<{
@@ -46,27 +49,34 @@ export interface AddToCartDeps {
     budget: number;
     status: CampaignStatus;
   } | null>;
-  getCreatorWithTier: (creatorId: string) => Promise<{
+  getCreatorWithTier: (
+    tx: Tx,
+    creatorId: string
+  ) => Promise<{
     id: string;
     status: CreatorStatus;
     tierId: string | null;
     pricePerVideo: number | null;
     tierActive: boolean | null;
   } | null>;
-  insertItem: (values: {
-    campaignId: string;
-    creatorId: string;
-    videoCount: number;
-    unitPrice: number;
-    totalPrice: number;
-    commissionRate: string;
-  }) => Promise<{ id: string }>;
-  getRunningTotal: (campaignId: string) => Promise<number>;
+  insertItem: (
+    tx: Tx,
+    values: {
+      campaignId: string;
+      creatorId: string;
+      videoCount: number;
+      unitPrice: number;
+      totalPrice: number;
+      commissionRate: string;
+    }
+  ) => Promise<{ id: string }>;
+  getRunningTotal: (tx: Tx, campaignId: string) => Promise<number>;
+  transaction: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
 }
 
 const defaultDeps: AddToCartDeps = {
-  getCampaign: async (campaignId, brandProfileId) => {
-    const [row] = await db
+  getCampaign: async (tx, campaignId, brandProfileId) => {
+    const [row] = await tx
       .select({
         id: campaign.id,
         brandId: campaign.brandId,
@@ -77,12 +87,13 @@ const defaultDeps: AddToCartDeps = {
       .where(
         and(eq(campaign.id, campaignId), eq(campaign.brandId, brandProfileId))
       )
+      .for('update')
       .limit(1);
 
     return row ?? null;
   },
-  getCreatorWithTier: async (creatorId) => {
-    const [row] = await db
+  getCreatorWithTier: async (tx, creatorId) => {
+    const [row] = await tx
       .select({
         id: creatorProfile.id,
         status: creatorProfile.status,
@@ -97,8 +108,8 @@ const defaultDeps: AddToCartDeps = {
 
     return row ?? null;
   },
-  insertItem: async (values) => {
-    const [row] = await db
+  insertItem: async (tx, values) => {
+    const [row] = await tx
       .insert(campaignItem)
       .values({
         campaignId: values.campaignId,
@@ -112,7 +123,8 @@ const defaultDeps: AddToCartDeps = {
 
     return row;
   },
-  getRunningTotal: getCartRunningTotal,
+  getRunningTotal: (tx, campaignId) => sumCartTotal(campaignId, tx),
+  transaction: (fn) => db.transaction(fn),
 };
 
 function isUniqueViolation(error: unknown): boolean {
@@ -129,6 +141,7 @@ function isUniqueViolation(error: unknown): boolean {
 
 /**
  * Adds a creator to a brand's draft campaign cart (KAN-30, AC-009, AC-013).
+ * Enforces the campaign budget ceiling server-side (KAN-31, AC-014).
  *
  * `brandProfileId` comes from `guard()` via authz resolution, never from
  * the client payload.
@@ -139,54 +152,64 @@ export async function addToCart(
   input: AddCampaignItemInput,
   deps: AddToCartDeps = defaultDeps
 ): Promise<AddToCartResult> {
-  const camp = await deps.getCampaign(campaignId, brandProfileId);
-  if (!camp) {
-    return { ok: false, reason: 'not_found' };
-  }
-
-  if (camp.status !== 'draft') {
-    return { ok: false, reason: 'not_draft' };
-  }
-
-  const creator = await deps.getCreatorWithTier(input.creatorId);
-  if (!creator) {
-    return { ok: false, reason: 'creator_not_found' };
-  }
-
-  if (!isBookable(creator) || creator.pricePerVideo === null) {
-    return { ok: false, reason: 'creator_not_bookable' };
-  }
-
-  const unitPrice = creator.pricePerVideo;
-  const totalPrice = unitPrice * input.videoCount;
-
-  // We insert into `campaignItem` instead of `deal` to prevent leaking `pending` offers
-  // before campaign confirmation (PRD AC-013, AC-009, AC-016) and to respect Tech Spec
-  // NFR-012 (audit logging). Cart items have not transitioned into the deal state machine yet.
-  let inserted: { id: string };
-  try {
-    inserted = await deps.insertItem({
-      campaignId,
-      creatorId: input.creatorId,
-      videoCount: input.videoCount,
-      unitPrice,
-      totalPrice,
-      commissionRate: COMMISSION_RATE,
-    });
-  } catch (error) {
-    if (isUniqueViolation(error)) {
-      return { ok: false, reason: 'creator_already_in_cart' };
+  return deps.transaction(async (tx) => {
+    const camp = await deps.getCampaign(tx, campaignId, brandProfileId);
+    if (!camp) {
+      return { ok: false, reason: 'not_found' };
     }
-    throw error;
-  }
 
-  const runningTotal = await deps.getRunningTotal(campaignId);
-  const remainingBudget = camp.budget - runningTotal;
+    if (camp.status !== 'draft') {
+      return { ok: false, reason: 'not_draft' };
+    }
 
-  return {
-    ok: true,
-    item: inserted,
-    runningTotal,
-    remainingBudget,
-  };
+    const creator = await deps.getCreatorWithTier(tx, input.creatorId);
+    if (!creator) {
+      return { ok: false, reason: 'creator_not_found' };
+    }
+
+    if (!isBookable(creator) || creator.pricePerVideo === null) {
+      return { ok: false, reason: 'creator_not_bookable' };
+    }
+
+    const unitPrice = creator.pricePerVideo;
+    const totalPrice = unitPrice * input.videoCount;
+
+    const currentTotal = await deps.getRunningTotal(tx, campaignId);
+    const newTotal = currentTotal + totalPrice;
+    // AC-014: Enforce budget ceiling server-side. Total cannot exceed budget.
+    if (newTotal > camp.budget) {
+      return {
+        ok: false,
+        reason: 'budget_exceeded',
+        excess: newTotal - camp.budget,
+      };
+    }
+
+    // We insert into `campaignItem` instead of `deal` to prevent leaking `pending` offers
+    // before campaign confirmation (PRD AC-013, AC-009, AC-016) and to respect Tech Spec
+    // NFR-012 (audit logging). Cart items have not transitioned into the deal state machine yet.
+    let inserted: { id: string };
+    try {
+      inserted = await deps.insertItem(tx, {
+        campaignId,
+        creatorId: input.creatorId,
+        videoCount: input.videoCount,
+        unitPrice,
+        totalPrice,
+        commissionRate: COMMISSION_RATE,
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        return { ok: false, reason: 'creator_already_in_cart' };
+      }
+      throw error;
+    }
+
+    return {
+      ok: true,
+      item: inserted,
+      runningTotal: newTotal,
+      remainingBudget: camp.budget - newTotal,
+    };
+  });
 }
