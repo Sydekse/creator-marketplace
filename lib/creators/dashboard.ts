@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { campaign, deal, ledgerEntry } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
-import { DEAL_GROUPS, groupForStatus } from '@/lib/deals/groups';
+import { groupDeals } from '@/lib/deals/groups';
 import type { DealGroup } from '@/lib/deals/groups';
 
 /**
@@ -138,16 +138,13 @@ export function dealsQuery(creatorProfileId: string) {
 /**
  * Partitions rows into all five groups, in `DEAL_GROUPS` order.
  *
- * Every group is present even when empty, so the dashboard renders a stable
- * set of headings rather than a layout that reshuffles as deals move through
- * the machine. Pure, so the mapping is testable without a database.
+ * Re-exported rather than defined here since KAN-39: the deal inbox partitions
+ * the same nine statuses, so this arrived at its second caller and moved to
+ * `lib/deals/groups.ts` beside the mapping it is built on. Kept exported from
+ * this module because it is part of the dashboard's surface and its callers
+ * have no reason to learn where the implementation went.
  */
-export function groupDeals(rows: CreatorDealRow[]): CreatorDealGroup[] {
-  return DEAL_GROUPS.map((group) => {
-    const deals = rows.filter((row) => groupForStatus(row.status) === group);
-    return { group, deals, count: deals.length };
-  });
-}
+export { groupDeals };
 
 /** Seam for tests, matching the shape the rest of `lib/` uses. */
 export interface CreatorDashboardDeps {

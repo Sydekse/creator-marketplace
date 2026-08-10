@@ -1,0 +1,172 @@
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { DealHistory } from '@/components/deals/deal-history';
+import { OfferActions } from '@/components/deals/offer-actions';
+import { UsageRightsCard } from '@/components/deals/usage-rights';
+import { buttonVariants } from '@/components/ui/button';
+import { NO_EXPIRY_LABEL, expiryLabel, formatDeadlineUtc } from '@/lib/dates';
+import { canAct, canDeliver } from '@/lib/deals';
+import {
+  COMMISSION_LABEL,
+  DEAL_TERMS_TITLE,
+  EXPECTED_PAYOUT_LABEL,
+  NO_RIGHTS_TERMS_MESSAGE,
+  OFFER_EXPIRY_LABEL,
+  PAYOUT_ESTIMATE_NOTE,
+  SUBMIT_DELIVERABLE_LABEL,
+  SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE,
+  TOTAL_PRICE_LABEL,
+  UNIT_PRICE_LABEL,
+  VIDEO_COUNT_LABEL,
+  readCreatorDeal,
+} from '@/lib/deals/detail';
+import { getDealHistory } from '@/lib/deals/queries';
+import { formatEtb } from '@/lib/money';
+
+// `pg` needs Node APIs; it cannot run on the edge runtime.
+export const runtime = 'nodejs';
+
+/**
+ * One deal, in full, for the creator deciding on it (KAN-39, US-006, AC-2).
+ *
+ * `params` is a Promise and has to be awaited — the Next 16 shape, per
+ * `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/dynamic-routes.md`.
+ *
+ * **The two reads are sequential on purpose.** `readCreatorDeal` returns `null`
+ * for every kind of miss and `getDealHistory` *throws* `ForbiddenError`, and this
+ * app has no error boundary anywhere — running them together would turn a stale
+ * link into an unstyled 500 instead of the not-found page beside this file. The
+ * ownership check has to pass before the history is asked for, which is also the
+ * order that makes the second call's guard a formality rather than the thing
+ * standing between a stranger and this deal's audit trail.
+ *
+ * Nothing on this page computes money. `readCreatorDeal` already applied the
+ * split using the deal's own snapshotted `commission_rate` (invariant 8), so the
+ * only arithmetic-shaped call below is `formatEtb`.
+ */
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd className="font-mono text-sm">{value}</dd>
+    </div>
+  );
+}
+
+export default async function CreatorDealDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  const deal = await readCreatorDeal(id);
+  if (!deal) notFound();
+
+  const history = await getDealHistory(id);
+
+  const isPending = canAct(deal.status);
+
+  /*
+   * The verb is only correct while the offer is still open. On an accepted or
+   * completed deal the deadline is in the past by definition and was answered,
+   * not missed — "Expired 3 Aug" would tell a creator their finished deal
+   * lapsed. So the tense is spent on the one status where it means something,
+   * and every other status shows the bare instant.
+   */
+  const deadline =
+    deal.offerExpiresAt === null
+      ? NO_EXPIRY_LABEL
+      : isPending
+        ? expiryLabel(deal.offerExpiresAt, new Date())
+        : formatDeadlineUtc(deal.offerExpiresAt);
+
+  return (
+    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
+      <Link
+        href="/creator/deals"
+        className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+      >
+        ← Back to your deals
+      </Link>
+
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight">
+          {deal.campaignName}
+        </h1>
+        {/* AC-2's brand name: the trading name the brand publishes, never a
+            contact (NFR-010). */}
+        <p className="text-sm text-muted-foreground">{deal.companyName}</p>
+      </div>
+
+      <section className="flex flex-col gap-4">
+        <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
+          {DEAL_TERMS_TITLE}
+        </h2>
+        {/* Two columns on a phone, three from `sm:` up (NFR-007). */}
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3">
+          <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
+          <Fact label={UNIT_PRICE_LABEL} value={formatEtb(deal.unitPrice)} />
+          <Fact label={TOTAL_PRICE_LABEL} value={formatEtb(deal.totalPrice)} />
+          <Fact label={COMMISSION_LABEL} value={formatEtb(deal.commission)} />
+          <Fact
+            label={EXPECTED_PAYOUT_LABEL}
+            value={formatEtb(deal.expectedPayout)}
+          />
+          <Fact label={OFFER_EXPIRY_LABEL} value={deadline} />
+        </dl>
+        {/* Labelled as an estimate, not decoration: a pending deal has no ledger
+            rows, so this figure describes money that has not moved. KAN-25's
+            AC-4 is why the dashboard's numbers are ledger sums instead. */}
+        <p className="text-sm text-muted-foreground">{PAYOUT_ESTIMATE_NOTE}</p>
+      </section>
+
+      {/* AC-2's "full usage-rights terms", inline rather than behind a link.
+          Rendered by the page, not by `OfferActions`, so this static body stays
+          server-rendered instead of riding into the client bundle with the one
+          control that needs an event handler. */}
+      {deal.rightsTerms ? (
+        <UsageRightsCard terms={deal.rightsTerms} />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          {NO_RIGHTS_TERMS_MESSAGE}
+        </p>
+      )}
+
+      {/* AC-3. `canAct` reads `LEGAL_TRANSITIONS`, so these controls cannot
+          outlive the rule that permits them — a status the machine stops
+          accepting from stops rendering them here with no edit to this file. */}
+      {isPending ? <OfferActions terms={deal.rightsTerms} /> : null}
+
+      {/* AC-4. `canDeliver` is `{funded, revision_requested}`, read off the same
+          table: a funded deal is what the creator may deliver against, and a
+          rejected one is what they may re-deliver against. */}
+      {canDeliver(deal.status) ? (
+        <section className="flex flex-col gap-3">
+          <div>
+            <button
+              type="button"
+              disabled
+              aria-describedby="deliverable-note"
+              className={buttonVariants({ size: 'sm' })}
+            >
+              {SUBMIT_DELIVERABLE_LABEL}
+            </button>
+          </div>
+          <p id="deliverable-note" className="text-sm text-muted-foreground">
+            {SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE}
+          </p>
+        </section>
+      ) : null}
+
+      {/* AC-5. Last on the page: it is the reference a creator scrolls to, not
+          the thing they came for. */}
+      <div className="border-t border-border pt-8">
+        <DealHistory events={history} />
+      </div>
+    </div>
+  );
+}

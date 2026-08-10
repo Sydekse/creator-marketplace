@@ -12,7 +12,11 @@ const NAV_LINKS: Record<UserRole, NavLink[]> = {
     { label: 'Dashboard', href: '/brand' },
   ],
   creator: [
-    { label: 'My Deals', href: '/deals' },
+    // `/creator/deals`, not `/deals`. The route this points at is real as of
+    // KAN-39, and it is the one the four email CTAs in
+    // `lib/notifications/templates.tsx` already named — a nav item and an email
+    // disagreeing about the same screen is how one of them stays broken.
+    { label: 'My Deals', href: '/creator/deals' },
     { label: 'Dashboard', href: '/creator' },
   ],
   admin: [

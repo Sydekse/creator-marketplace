@@ -11,6 +11,7 @@ import {
   Text,
 } from '@react-email/components';
 import { render } from '@react-email/render';
+import { formatDeadline } from '@/lib/dates';
 import { formatEtb } from '@/lib/money';
 import type {
   EmailMessage,
@@ -46,10 +47,11 @@ function appUrl(path: string): string {
 
 /**
  * Re-exported so `lib/notifications/index.ts` keeps its surface and the KAN-54
- * tests that import it from there keep working. The implementation moved to
- * `lib/money.ts` on KAN-24 — see the note in that module for why.
+ * tests that import it from there keep working. Both implementations moved out
+ * for the same bundling reason — `formatEtb` to `lib/money.ts` on KAN-24,
+ * `formatDeadline` to `lib/dates.ts` on KAN-39. See those modules for why.
  */
-export { formatEtb };
+export { formatEtb, formatDeadline };
 
 const styles = {
   body: {
@@ -310,17 +312,13 @@ function resolutionPhrase(
 /**
  * `timestamptz` UTC (invariant 11) rendered for a human.
  *
- * Explicitly UTC rather than the server's zone: a server-local render would
- * quietly change meaning when the deployment region does, and an offer deadline
- * that shifts by hours is worse than one that names its zone.
+ * Promoted to `lib/dates.ts` on KAN-39 at its second caller — the deal inbox
+ * needs the same string, and importing it from here would drag
+ * `@react-email/components` into the app bundle. Exactly why `formatEtb` moved
+ * to `lib/money.ts` on KAN-24. Re-exported below, so anything importing it from
+ * this module keeps working.
  */
-function formatDate(iso: string): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: 'UTC',
-  }).format(new Date(iso));
-}
+const formatDate = formatDeadline;
 
 /**
  * Render one notification to subject + html + text.
