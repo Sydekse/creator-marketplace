@@ -1,4 +1,4 @@
-import { timingSafeEqual, createHash } from 'node:crypto';
+import { timingSafeEqual, createHash, randomUUID } from 'node:crypto';
 
 export interface JobRunOutput {
   examined: number;
@@ -44,6 +44,38 @@ export function extractSafeErrorDetails(err: unknown) {
   return { name, code, message: safeMessage, context };
 }
 
+/**
+ * Serializes a log payload into a single JSON line that can never throw.
+ *
+ * One JSON object per console call is what Vercel's Log Drain can field-parse
+ * (searchable `event`/`job`/`durationMs` instead of prose), and JSON escaping
+ * neutralizes CR/LF log injection (CWE-117) by construction.
+ *
+ * BigInts become strings and cyclic references are replaced with a marker, so
+ * a hostile error property (a circular `dealId`, a BigInt `campaignId`)
+ * cannot destroy the failure log it lives in — the failure mode where the
+ * catch itself becomes the 500.
+ */
+export function toLogString(fields: Record<string, unknown>): string {
+  // Tracks ancestors of the current position only, so each serialization is
+  // independent and repeated references between siblings stay intact.
+  const seen = new WeakSet<object>();
+  const replacer = (_key: string, value: unknown): unknown => {
+    if (typeof value === 'bigint') {
+      return value.toString();
+    }
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value)) {
+        return '[Circular]';
+      }
+      seen.add(value);
+    }
+    return value;
+  };
+
+  return JSON.stringify(fields, replacer);
+}
+
 export interface Job {
   name: string;
   run: (signal?: AbortSignal) => Promise<JobRunOutput>;
@@ -60,6 +92,7 @@ export interface JobResult {
 
 export interface SchedulerRunResult {
   success: boolean;
+  runId: string;
   timestamp: string;
   totalJobs: number;
   successfulJobs: number;
@@ -106,13 +139,34 @@ export async function runSchedulerJobs(
   logger: Logger = console,
   signal?: AbortSignal
 ): Promise<SchedulerRunResult> {
+  const runId = randomUUID();
+  const runStart = Date.now();
   const timestamp = new Date().toISOString();
   const results: JobResult[] = [];
+
+  // Watchdog for the timeout: resolves once the signal fires, so a job that
+  // ignores the signal and never settles cannot hold the run hostage. The run
+  // aborts with an ABORTED marker and the route answers 504 while the platform
+  // is still within its duration budget. Never rejects, so a late abort after
+  // the race has settled cannot become an unhandled rejection.
+  const watchdog = new Promise<'aborted'>((resolve) => {
+    if (signal?.aborted) resolve('aborted');
+    else
+      signal?.addEventListener('abort', () => resolve('aborted'), {
+        once: true,
+      });
+  });
 
   for (const job of jobs) {
     if (signal?.aborted) {
       logger.warn?.(
-        `[Scheduler] Aborting execution loop before job "${job.name}" due to timeout signal.`
+        toLogString({
+          level: 'warn',
+          event: 'job.aborted',
+          message: `[Scheduler] Aborting execution loop before job "${job.name}" due to timeout signal.`,
+          job: job.name,
+          runId,
+        })
       );
       results.push({
         jobName: job.name,
@@ -127,11 +181,99 @@ export async function runSchedulerJobs(
 
     const start = Date.now();
     try {
-      const { examined, acted } = await job.run(signal);
+      // `then` with both handlers means the outcome promise can never reject:
+      // a job that settles after the watchdog has already won is consumed
+      // silently, so its late rejection cannot crash the process.
+      const outcome = await Promise.race([
+        job.run(signal).then(
+          (output) => ({ status: 'done' as const, output }),
+          (error) => ({ status: 'failed' as const, error })
+        ),
+        watchdog,
+      ]);
+
+      if (outcome === 'aborted') {
+        results.push({
+          jobName: job.name,
+          success: false,
+          examined: 0,
+          acted: 0,
+          durationMs: Date.now() - start,
+          error: 'ABORTED',
+        });
+        continue;
+      }
+
+      if (outcome.status === 'failed') {
+        const durationMs = Date.now() - start;
+        const { name, code, message, context } = extractSafeErrorDetails(
+          outcome.error
+        );
+
+        logger.error(
+          toLogString({
+            level: 'error',
+            event: 'job.failed',
+            message: `[Scheduler] Job "${job.name}" failed after ${durationMs}ms: [${name}] ${code} - ${message}`,
+            job: job.name,
+            name,
+            code,
+            durationMs,
+            context,
+            runId,
+          })
+        );
+
+        results.push({
+          jobName: job.name,
+          success: false,
+          examined: 0,
+          acted: 0,
+          durationMs,
+          error: signal?.aborted ? 'ABORTED' : 'JOB_EXECUTION_FAILED',
+        });
+        continue;
+      }
+
+      const { examined, acted } = outcome.output;
       const durationMs = Date.now() - start;
 
+      // The job finished its work but the run was already aborted while it
+      // settled. The work happened, but a run that was interrupted cannot
+      // claim successes — the summary is what an operator reads, and it must
+      // not say "1/2 succeeded" for a run that timed out.
+      if (signal?.aborted) {
+        logger.warn?.(
+          toLogString({
+            level: 'warn',
+            event: 'job.completed_after_abort',
+            message: `[Scheduler] Job "${job.name}" completed after the run was aborted; recorded as ABORTED.`,
+            job: job.name,
+            runId,
+          })
+        );
+        results.push({
+          jobName: job.name,
+          success: false,
+          examined: 0,
+          acted: 0,
+          durationMs,
+          error: 'ABORTED',
+        });
+        continue;
+      }
+
       logger.log(
-        `[Scheduler] Job "${job.name}" completed: examined ${examined} rows, acted on ${acted} rows in ${durationMs}ms`
+        toLogString({
+          level: 'info',
+          event: 'job.completed',
+          message: `[Scheduler] Job "${job.name}" completed: examined ${examined} rows, acted on ${acted} rows in ${durationMs}ms`,
+          job: job.name,
+          examined,
+          acted,
+          durationMs,
+          runId,
+        })
       );
 
       results.push({
@@ -142,16 +284,19 @@ export async function runSchedulerJobs(
         durationMs,
       });
     } catch (err: unknown) {
+      // Defensive: a logging/extraction failure must not escape the loop and
+      // kill the remaining jobs — isolation is the point (AC-003).
       const durationMs = Date.now() - start;
-      const { name, code, message, context } = extractSafeErrorDetails(err);
-
-      const contextStr =
-        Object.keys(context).length > 0
-          ? ` Context: ${JSON.stringify(context)}`
-          : '';
+      const { name, code, message } = extractSafeErrorDetails(err);
 
       logger.error(
-        `[Scheduler] Job "${job.name}" failed after ${durationMs}ms: [${name}] ${code} - ${message}${contextStr}`
+        toLogString({
+          level: 'error',
+          event: 'job.failed',
+          message: `[Scheduler] Job "${job.name}" failed after ${durationMs}ms: [${name}] ${code} - ${message}`,
+          job: job.name,
+          runId,
+        })
       );
 
       results.push({
@@ -160,7 +305,7 @@ export async function runSchedulerJobs(
         examined: 0,
         acted: 0,
         durationMs,
-        error: signal?.aborted ? 'ABORTED' : 'JOB_EXECUTION_FAILED',
+        error: 'JOB_EXECUTION_FAILED',
       });
     }
   }
@@ -170,11 +315,22 @@ export async function runSchedulerJobs(
   const success = failedJobs === 0 && results.length === jobs.length;
 
   logger.log(
-    `[Scheduler] Completed run at ${timestamp}: ${successfulJobs}/${jobs.length} jobs succeeded`
+    toLogString({
+      level: 'info',
+      event: 'run.completed',
+      message: `[Scheduler] Completed run at ${timestamp}: ${successfulJobs}/${jobs.length} jobs succeeded`,
+      runId,
+      durationMs: Date.now() - runStart,
+      totalJobs: jobs.length,
+      successfulJobs,
+      failedJobs,
+      success,
+    })
   );
 
   return {
     success,
+    runId,
     timestamp,
     totalJobs: jobs.length,
     successfulJobs,

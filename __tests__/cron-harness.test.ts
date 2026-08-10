@@ -1,13 +1,40 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { runSchedulerJobs, verifyCronSecret } from '../lib/scheduler/harness';
-import type { Job, Logger } from '../lib/scheduler/harness';
+import type { Job, JobRunOutput, Logger } from '../lib/scheduler/harness';
+import { toLogString } from '../lib/scheduler/harness';
 import type { NextRequest } from 'next/server';
 import { GET, handleCronRequest } from '../app/api/cron/route';
 import { transitionDeal } from '../lib/deals/state-machine';
 import { ErrorCode } from '../lib/validation';
 import type { Tx } from '../lib/authz';
 import type { DealStatus } from '../db/schema';
+
+/**
+ * The harness and the route log one JSON object per line (the Log Drain
+ * contract), so tests parse rather than substring-match prose.
+ */
+interface LogLine {
+  event: string;
+  message: string;
+  job?: string;
+  name?: string;
+  code?: string;
+  examined?: number;
+  acted?: number;
+  durationMs?: number;
+  runId?: string;
+  success?: boolean;
+  totalJobs?: number;
+  successfulJobs?: number;
+  failedJobs?: number;
+  context?: Record<string, unknown>;
+  summary?: unknown;
+}
+
+function parseLogLine(line: string): LogLine {
+  return JSON.parse(line) as LogLine;
+}
 
 describe('verifyCronSecret (KAN-56 AC-002)', () => {
   const env = { CRON_SECRET: 'test-secret-12345' };
@@ -112,6 +139,9 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
       log: (...args: unknown[]) => {
         logs.push(args.map((a) => String(a)).join(' '));
       },
+      warn: (...args: unknown[]) => {
+        logs.push(args.map((a) => String(a)).join(' '));
+      },
       error: (msg: unknown, extra?: unknown) => {
         errors.push({ message: String(msg), extra });
       },
@@ -167,6 +197,10 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
     expect(summary.success).toBe(false);
     expect(summary.failedJobs).toBe(1);
     expect(summary.totalJobs).toBe(1);
+    expect(summary.runId).toBeTypeOf('string');
+    // The pre-dispatch warning names the job that never ran.
+    expect(parseLogLine(logger.logs[0]).event).toBe('job.aborted');
+    expect(parseLogLine(logger.logs[0]).job).toBe('should-not-run');
   });
 
   it('returns success: false if loop aborts mid-flight', async () => {
@@ -191,14 +225,63 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
       controller.signal
     );
 
-    // job1 ran successfully, then aborted before job2
+    // job1 finished its work while the run was aborted, so the summary must
+    // not claim a success — an interrupted run cannot be partially green. The
+    // loop then keeps dispatching nothing (job2 never runs) but still records
+    // an ABORTED marker per remaining job so the accounting stays complete.
     expect(job2.run).not.toHaveBeenCalled();
     expect(summary.success).toBe(false);
-    expect(summary.failedJobs).toBe(1);
-    expect(summary.successfulJobs).toBe(1);
+    expect(summary.failedJobs).toBe(2);
+    expect(summary.successfulJobs).toBe(0);
     expect(summary.totalJobs).toBe(2);
-    // The loop breaks on abort — it must not keep walking the remaining jobs.
     expect(summary.results).toHaveLength(2);
+    expect(summary.results[0].error).toBe('ABORTED');
+    expect(summary.results[1].error).toBe('ABORTED');
+  });
+
+  it('does not wait for a job that never settles after the signal fires', async () => {
+    const logger = createMockLogger();
+    const controller = new AbortController();
+
+    const hangingJob: Job = {
+      name: 'hanging-job',
+      run: () => new Promise<JobRunOutput>(() => {}),
+    };
+
+    const pending = runSchedulerJobs([hangingJob], logger, controller.signal);
+    controller.abort();
+
+    const summary = await pending;
+
+    expect(summary.success).toBe(false);
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0].jobName).toBe('hanging-job');
+    expect(summary.results[0].error).toBe('ABORTED');
+  });
+
+  it('records a job that settles after the abort as ABORTED, not success', async () => {
+    const logger = createMockLogger();
+    const controller = new AbortController();
+
+    let settle: (() => void) | undefined;
+    const job: Job = {
+      name: 'late-settler',
+      run: () =>
+        new Promise((resolve) => {
+          settle = () => resolve({ examined: 1, acted: 1 });
+        }),
+    };
+
+    const pending = runSchedulerJobs([job], logger, controller.signal);
+    controller.abort();
+    settle?.();
+
+    const summary = await pending;
+
+    expect(summary.success).toBe(false);
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0].error).toBe('ABORTED');
+    expect(summary.results[0].success).toBe(false);
   });
 
   it('marks a job that fails while aborted as ABORTED, not a generic failure', async () => {
@@ -283,20 +366,67 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
 
     await runSchedulerJobs([job], logger);
 
-    // Exact log lines, not a blanket "no sensitive words" regex: a future log
-    // that legitimately contains "user" or "email" is not a PII leak, and the
-    // broad pattern would start failing for the wrong reason.
-    const logText = logger.logs.join('\n');
-    expect(logText).toContain(
+    const events = logger.logs.map(parseLogLine);
+    const completed = events.find((l) => l.event === 'job.completed');
+    expect(completed).toBeDefined();
+    expect(completed?.message).toContain(
       '[Scheduler] Job "test-job" completed: examined 10 rows, acted on 2 rows'
     );
-    expect(logText).toContain('[Scheduler] Completed run at ');
-    expect(logText).toMatch(/[0-9]+\/[0-9]+ jobs succeeded/);
+    expect(completed?.examined).toBe(10);
+    expect(completed?.acted).toBe(2);
+
+    const runCompleted = events.find((l) => l.event === 'run.completed');
+    expect(runCompleted).toBeDefined();
+    expect(runCompleted?.message).toMatch(/[0-9]+\/[0-9]+ jobs succeeded/);
+    expect(runCompleted?.success).toBe(true);
+    expect(runCompleted?.totalJobs).toBe(1);
+    expect(runCompleted?.successfulJobs).toBe(1);
+    expect(runCompleted?.failedJobs).toBe(0);
+    expect(runCompleted?.durationMs).toBeTypeOf('number');
+    expect(runCompleted?.runId).toBeTypeOf('string');
 
     // The only thing that must never reach a log is a bare email address.
+    const logText = logger.logs.join('\n');
     expect(logText).not.toMatch(
       /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
     );
+  });
+
+  it('serializes job counters without hitting BigInt or circular-reference JSON failures', async () => {
+    const logger = createMockLogger();
+    const job: Job = {
+      name: 'big-job',
+      run: async () => ({
+        // `BigInt(10)` rather than the `10n` literal: the tsconfig target
+        // predates ES2020, and the call form compiles everywhere.
+        examined: BigInt(10) as unknown as number,
+        acted: 0,
+      }),
+    };
+
+    await runSchedulerJobs([job], logger);
+
+    const events = logger.logs.map(parseLogLine);
+    const completed = events.find((l) => l.event === 'job.completed');
+    expect(completed).toBeDefined();
+    // BigInt is coerced to its decimal string form by the safe replacer; a
+    // JSON.stringify TypeError would have made the line unparseable.
+    expect(completed?.examined).toBe('10');
+  });
+
+  it('degrades circular job results to a marker string instead of throwing', async () => {
+    // The serializer is the seam that must survive hostile error data (M3):
+    // a circular reference in a log payload would otherwise turn the failure
+    // log itself into the throw, defeating the catch that raised it.
+    const result: Record<string, unknown> = { examined: 4, acted: 1 };
+    result.self = result;
+
+    const line = JSON.parse(toLogString({ summary: result })) as {
+      summary: { examined: number; acted: number; self: string };
+    };
+
+    expect(line.summary.examined).toBe(4);
+    expect(line.summary.self).toBe('[Circular]');
   });
 
   it('surfaces job failure errors in logs with context safely (AC-007)', async () => {
@@ -318,14 +448,15 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
     await runSchedulerJobs([job], logger);
 
     expect(logger.errors).toHaveLength(1);
-    expect(logger.errors[0].message).toContain(
-      '[Scheduler] Job "failing-expiry" failed'
-    );
-    expect(logger.errors[0].message).toContain('[LeakError] LEAK_CODE');
-    expect(logger.errors[0].message).not.toContain('user@example.com');
-    expect(logger.errors[0].message).toContain('***@***.***');
-    // The dealId survives into the log for investigation (AC-007 context).
-    expect(logger.errors[0].message).toContain('Context: {"dealId":"d-123"}');
+    const entry = parseLogLine(logger.errors[0].message);
+    expect(entry.event).toBe('job.failed');
+    expect(entry.message).toContain('[Scheduler] Job "failing-expiry" failed');
+    expect(entry.message).toContain('[LeakError] LEAK_CODE');
+    expect(entry.message).not.toContain('user@example.com');
+    expect(entry.message).toContain('***@***.***');
+    // The dealId survives into the log as its own structured field, so it can
+    // be searched and filtered without a regex over prose (AC-007 context).
+    expect(entry.context).toEqual({ dealId: 'd-123' });
   });
 
   it('scrubs emails with international characters and single-letter TLDs (AC-007)', async () => {
@@ -358,7 +489,10 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
 
     await runSchedulerJobs([job], logger);
     expect(logger.errors).toHaveLength(1);
-    expect(logger.errors[0].message).toContain('[Error] UNKNOWN_ERROR');
+    const entry = parseLogLine(logger.errors[0].message);
+    expect(entry.event).toBe('job.failed');
+    expect(entry.message).toContain('[Error] UNKNOWN_ERROR');
+    expect(entry.message).toContain('String rejection');
   });
 });
 
@@ -399,9 +533,11 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     const body = await res.json();
     expect(body.error.code).toBe(ErrorCode.UNAUTHORIZED);
     expect(body.error.details).toEqual({});
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('CRON_SECRET is not configured')
-    );
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const [logArg] = errorSpy.mock.calls[0];
+    const entry = parseLogLine(String(logArg));
+    expect(entry.event).toBe('cron.secret_unconfigured');
+    expect(entry.message).toContain('CRON_SECRET is not configured');
     errorSpy.mockRestore();
   });
 
@@ -410,7 +546,9 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     const res = await GET(req as unknown as NextRequest);
 
     expect(res.status).toBe(401);
-    expect(res.headers.get('WWW-Authenticate')).toBe('Bearer');
+    // The realm advertises where the token applies (RFC 6750); a 401 without
+    // it would still be correct, but the header guides the retry.
+    expect(res.headers.get('WWW-Authenticate')).toBe('Bearer realm="cron"');
     const body = await res.json();
     expect(body).toEqual({
       error: {
@@ -436,6 +574,7 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
   it('maps a run with failed jobs to 500 CRON_PARTIAL_FAILURE, summary kept out of the envelope', async () => {
     const runJobs = vi.fn<typeof runSchedulerJobs>(async () => ({
       success: false,
+      runId: 'mock-run-1',
       timestamp: new Date().toISOString(),
       totalJobs: 2,
       successfulJobs: 1,
@@ -472,10 +611,13 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     // The summary is a scheduler structure, not a Record<string, string[]>;
     // the envelope stays type-clean and the summary lives in the logs.
     expect(body.error.details).toEqual({});
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Run completed with failed jobs'),
-      expect.stringContaining('bad-job')
-    );
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const [logArg] = errorSpy.mock.calls[0];
+    const entry = parseLogLine(String(logArg));
+    expect(entry.event).toBe('cron.partial_failure');
+    expect(entry.message).toContain('Run completed with failed jobs');
+    expect(entry.runId).toBe('mock-run-1');
+    expect(JSON.stringify(entry.summary)).toContain('bad-job');
     errorSpy.mockRestore();
   });
 
@@ -495,9 +637,14 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     const body = await res.json();
     expect(body.error.code).toBe(ErrorCode.INTERNAL_SERVER_ERROR);
     expect(body.error.details).toEqual({});
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Connection pool exhausted')
-    );
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const [logArg] = errorSpy.mock.calls[0];
+    const entry = parseLogLine(String(logArg));
+    expect(entry.event).toBe('cron.internal_error');
+    expect(entry.message).toContain('Connection pool exhausted');
+    // The log carries the extracted error code, not the mapped HTTP status —
+    // the status is the envelope's business (INTERNAL_SERVER_ERROR above).
+    expect(entry.code).toBe('UNKNOWN_ERROR');
     errorSpy.mockRestore();
   });
 
@@ -524,8 +671,40 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     expect(body.error.code).toBe(ErrorCode.CRON_TIMEOUT);
   });
 
+  it('maps an unexpected runJobs rejection while aborted to 504, never 500', async () => {
+    const runJobs = vi.fn<typeof runSchedulerJobs>(async () => {
+      throw new Error('Connection pool exhausted');
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const reqAbort = new AbortController();
+    reqAbort.abort();
+    const req = new Request('http://localhost/api/cron', {
+      method: 'GET',
+      headers: { authorization: 'Bearer route-test-secret' },
+      signal: reqAbort.signal,
+    });
+
+    const res = await handleCronRequest(req, { runJobs });
+
+    // The rejection escaped while the run was already aborted, so it is a
+    // timeout, not an internal failure — a 500 would blame the code for what
+    // the timeout did.
+    expect(res.status).toBe(504);
+    const body = await res.json();
+    expect(body.error.code).toBe(ErrorCode.CRON_TIMEOUT);
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const [logArg] = errorSpy.mock.calls[0];
+    const entry = parseLogLine(String(logArg));
+    expect(entry.event).toBe('cron.timeout');
+    expect(entry.message).toContain('Connection pool exhausted');
+    errorSpy.mockRestore();
+  });
+
   it('returns 504 CRON_TIMEOUT when the internal 290s ceiling fires mid-run', async () => {
-    // Just past the route's CRON_TIMEOUT_MS ceiling.
+    // The route's own budget sits 10s under the platform's 300s maxDuration
+    // ceiling, so the abort below comes from the route's timer — the request
+    // signal never fires in this test — and the platform is never the one
+    // answering 504.
     const timeoutMs = 291000;
     vi.useFakeTimers();
 
@@ -535,6 +714,7 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
           signal?.addEventListener('abort', () =>
             resolve({
               success: false,
+              runId: 'mock-run-1',
               timestamp: new Date().toISOString(),
               totalJobs: 1,
               successfulJobs: 0,
@@ -568,16 +748,19 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     const body = await res.json();
     expect(body.error.code).toBe(ErrorCode.CRON_TIMEOUT);
     expect(body.error.details).toEqual({});
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Run aborted after timeout'),
-      expect.stringContaining('stalled-job')
-    );
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const [logArg] = errorSpy.mock.calls[0];
+    const entry = parseLogLine(String(logArg));
+    expect(entry.event).toBe('cron.timeout');
+    expect(entry.message).toContain('Run aborted after timeout');
+    expect(entry.runId).toBe('mock-run-1');
     errorSpy.mockRestore();
   });
 
   it('hands runSchedulerJobs a live, un-aborted signal for a normal request', async () => {
     const runJobs = vi.fn<typeof runSchedulerJobs>(async () => ({
       success: true,
+      runId: 'mock-run-1',
       timestamp: new Date().toISOString(),
       totalJobs: 0,
       successfulJobs: 0,

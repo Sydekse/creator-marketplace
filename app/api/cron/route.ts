@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server';
 import {
   extractSafeErrorDetails,
   runSchedulerJobs,
+  toLogString,
   verifyCronSecret,
 } from '@/lib/scheduler/harness';
 import type { Job, SchedulerRunResult } from '@/lib/scheduler/harness';
@@ -55,14 +56,19 @@ export async function handleCronRequest(
     // logs instead, and the request still gets the AC-002 401.
     if (!process.env.CRON_SECRET || process.env.CRON_SECRET.trim() === '') {
       console.error(
-        '[Cron Route] CRON_SECRET is not configured; every run is being rejected.'
+        toLogString({
+          level: 'error',
+          event: 'cron.secret_unconfigured',
+          message:
+            '[Cron Route] CRON_SECRET is not configured; every run is being rejected.',
+        })
       );
     }
 
     if (!verifyCronSecret(request)) {
       return NextResponse.json(errorResponse(ErrorCode.UNAUTHORIZED, {}), {
         status: ErrorHttpStatus[ErrorCode.UNAUTHORIZED],
-        headers: { 'WWW-Authenticate': 'Bearer' },
+        headers: { 'WWW-Authenticate': 'Bearer realm="cron"' },
       });
     }
 
@@ -76,8 +82,13 @@ export async function handleCronRequest(
 
     if (signal.aborted) {
       console.error(
-        '[Cron Route] Run aborted after timeout; partial summary:',
-        JSON.stringify(summary ?? {})
+        toLogString({
+          level: 'error',
+          event: 'cron.timeout',
+          message: '[Cron Route] Run aborted after timeout',
+          runId: summary?.runId,
+          summary: summary ?? {},
+        })
       );
       return NextResponse.json(errorResponse(ErrorCode.CRON_TIMEOUT, {}), {
         status: ErrorHttpStatus[ErrorCode.CRON_TIMEOUT],
@@ -86,8 +97,13 @@ export async function handleCronRequest(
 
     if (!summary.success) {
       console.error(
-        '[Cron Route] Run completed with failed jobs:',
-        JSON.stringify(summary)
+        toLogString({
+          level: 'error',
+          event: 'cron.partial_failure',
+          message: '[Cron Route] Run completed with failed jobs',
+          runId: summary.runId,
+          summary,
+        })
       );
       return NextResponse.json(
         errorResponse(ErrorCode.CRON_PARTIAL_FAILURE, {}),
@@ -105,18 +121,33 @@ export async function handleCronRequest(
     // the signal rather than the error message: the timer aborts with a plain
     // `Error`, not a `DOMException`.
     if (name === 'AbortError' || signal.aborted) {
+      // The harness is not supposed to reject, so when one escapes while the
+      // run is aborted it is worth keeping — but the status is decided by the
+      // signal: a timeout answers 504, never 500.
+      console.error(
+        toLogString({
+          level: 'error',
+          event: 'cron.timeout',
+          message: `[Cron Route] Run aborted after timeout; unexpected rejection: [${name}] ${code} - ${message}`,
+          name,
+          code,
+        })
+      );
+
       return NextResponse.json(errorResponse(ErrorCode.CRON_TIMEOUT, {}), {
         status: ErrorHttpStatus[ErrorCode.CRON_TIMEOUT],
       });
     }
 
-    const contextStr =
-      Object.keys(context).length > 0
-        ? ` Context: ${JSON.stringify(context)}`
-        : '';
-
     console.error(
-      `[Cron Route Error] Unhandled infrastructure failure: [${name}] ${code} - ${message}${contextStr}`
+      toLogString({
+        level: 'error',
+        event: 'cron.internal_error',
+        message: `[Cron Route Error] Unhandled infrastructure failure: [${name}] ${code} - ${message}`,
+        name,
+        code,
+        context,
+      })
     );
 
     return NextResponse.json(
