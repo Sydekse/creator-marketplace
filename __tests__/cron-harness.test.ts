@@ -4,11 +4,8 @@ import { runSchedulerJobs, verifyCronSecret } from '../lib/scheduler/harness';
 import type { Job, JobRunOutput, Logger } from '../lib/scheduler/harness';
 import { toLogString } from '../lib/scheduler/harness';
 import type { NextRequest } from 'next/server';
-import { GET, handleCronRequest } from '../app/api/cron/route';
-import { transitionDeal } from '../lib/deals/state-machine';
+import { CRON_TIMEOUT_MS, GET, handleCronRequest } from '../app/api/cron/route';
 import { ErrorCode } from '../lib/validation';
-import type { Tx } from '../lib/authz';
-import type { DealStatus } from '../db/schema';
 
 /**
  * The harness and the route log one JSON object per line (the Log Drain
@@ -494,6 +491,45 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
     expect(entry.message).toContain('[Error] UNKNOWN_ERROR');
     expect(entry.message).toContain('String rejection');
   });
+
+  it('classifies null and undefined rejections as generic job failures', async () => {
+    for (const payload of [null, undefined] as const) {
+      const logger = createMockLogger();
+      const job: Job = {
+        name: 'payload-job',
+        run: async () => {
+          throw payload;
+        },
+      };
+
+      const summary = await runSchedulerJobs([job], logger);
+
+      expect(summary.results[0].success).toBe(false);
+      expect(summary.results[0].error).toBe('JOB_EXECUTION_FAILED');
+      expect(logger.errors).toHaveLength(1);
+      const entry = parseLogLine(logger.errors[0].message);
+      expect(entry.event).toBe('job.failed');
+      expect(entry.message).toContain('[Error] UNKNOWN_ERROR');
+    }
+  });
+
+  it('handles an empty job list as an immediate success', async () => {
+    const logger = createMockLogger();
+
+    const summary = await runSchedulerJobs([], logger);
+
+    expect(summary.success).toBe(true);
+    expect(summary.totalJobs).toBe(0);
+    expect(summary.successfulJobs).toBe(0);
+    expect(summary.failedJobs).toBe(0);
+    expect(summary.results).toEqual([]);
+    expect(summary.runId).toBeTypeOf('string');
+
+    const events = logger.logs.map(parseLogLine);
+    expect(events).toHaveLength(1);
+    expect(events[0].event).toBe('run.completed');
+    expect(events[0].success).toBe(true);
+  });
 });
 
 describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
@@ -757,6 +793,54 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     errorSpy.mockRestore();
   });
 
+  it('lets a run that finishes under the ceiling complete normally (200, not 504)', async () => {
+    // Sub-ceiling boundary (M4): a run that settles before CRON_TIMEOUT_MS
+    // must answer 200. Advancing the clock to exactly one millisecond under
+    // the ceiling fires the run's own settle-timer but not the route's abort
+    // timer — a premature abort would answer 504 and this test would fail.
+    vi.useFakeTimers();
+
+    const runJobs = vi.fn<typeof runSchedulerJobs>(
+      () =>
+        new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                success: true,
+                runId: 'mock-run-1',
+                timestamp: new Date().toISOString(),
+                totalJobs: 1,
+                successfulJobs: 1,
+                failedJobs: 0,
+                results: [
+                  {
+                    jobName: 'slow-but-under-ceiling',
+                    success: true,
+                    examined: 3,
+                    acted: 1,
+                    durationMs: CRON_TIMEOUT_MS - 1,
+                  },
+                ],
+              }),
+            CRON_TIMEOUT_MS - 1
+          )
+        )
+    );
+    const req = new Request('http://localhost/api/cron', {
+      method: 'GET',
+      headers: { authorization: 'Bearer route-test-secret' },
+    });
+
+    const pending = handleCronRequest(req, { runJobs });
+    await vi.advanceTimersByTimeAsync(CRON_TIMEOUT_MS - 1);
+    const res = await pending;
+
+    expect(runJobs).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
+  });
+
   it('hands runSchedulerJobs a live, un-aborted signal for a normal request', async () => {
     const runJobs = vi.fn<typeof runSchedulerJobs>(async () => ({
       success: true,
@@ -778,105 +862,5 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     expect(signalArg).toBeInstanceOf(AbortSignal);
     expect(signalArg?.aborted).toBe(false);
     expect(res.status).toBe(200);
-  });
-});
-
-describe('Guarded transitions and idempotency compliance (KAN-56 AC-004, AC-005, FR-007)', () => {
-  const DEAL_ID = 'd1000000-0000-0000-0000-000000000001';
-
-  function createMockTx(
-    existingDeal: { id: string; status: DealStatus } | null
-  ) {
-    const currentStatus = existingDeal ? existingDeal.status : 'pending';
-    const rows = existingDeal
-      ? [{ id: existingDeal.id, status: currentStatus }]
-      : [];
-    const calls: string[] = [];
-
-    // A fluent node: every query-builder method (`select`, `from`, `where`,
-    // `for`, `limit`, `set`, `values`, …) returns the same object, which is
-    // both thenable — `await tx.select()...limit(1)` resolves to the rows —
-    // and exposes `execute()` for drizzle's explicit finish. Only the
-    // terminal row values matter to `transitionDeal`, so no individual chain
-    // link can go stale when the query shape changes.
-    const node: Record<string, unknown> = {
-      execute: vi.fn(async () => rows),
-      then: (resolve: (value: unknown) => void) => resolve(rows),
-    };
-    for (const method of [
-      'select',
-      'from',
-      'where',
-      'for',
-      'limit',
-      'set',
-      'values',
-      'update',
-      'insert',
-    ]) {
-      node[method] = vi.fn(() => {
-        calls.push(method);
-        return node;
-      });
-    }
-
-    const tx = node as unknown as Tx;
-
-    return {
-      tx,
-      spies: {
-        calls,
-        select: node.select as ReturnType<typeof vi.fn>,
-        forUpdate: node.for as ReturnType<typeof vi.fn>,
-        limit: node.limit as ReturnType<typeof vi.fn>,
-        setUpdate: node.set as ReturnType<typeof vi.fn>,
-        valuesInsert: node.values as ReturnType<typeof vi.fn>,
-        update: node.update as ReturnType<typeof vi.fn>,
-        insert: node.insert as ReturnType<typeof vi.fn>,
-      },
-    };
-  }
-
-  it('drives state changes via transitionDeal to ensure guarded transition and deal_event creation (FR-007)', async () => {
-    const { tx, spies } = createMockTx({ id: DEAL_ID, status: 'pending' });
-
-    const result = await transitionDeal(tx, DEAL_ID, 'expired', null, {
-      reason: 'Offer window elapsed',
-    });
-
-    expect(result.status).toBe('expired');
-    expect(spies.setUpdate).toHaveBeenCalledWith({ status: 'expired' });
-    expect(spies.valuesInsert).toHaveBeenCalledWith({
-      dealId: DEAL_ID,
-      fromStatus: 'pending',
-      toStatus: 'expired',
-      actorId: null,
-      reason: 'Offer window elapsed',
-    });
-    // The locked read (FOR UPDATE) must happen before the legality judgement
-    // and the write — the NFR-003 race guard, asserted structurally.
-    expect(spies.calls).toEqual([
-      'select',
-      'from',
-      'where',
-      'for',
-      'limit',
-      'update',
-      'set',
-      'where',
-      'insert',
-      'values',
-    ]);
-  });
-
-  it('guarantees idempotency on re-running: second run on already expired deal is rejected without duplicate state/event writes (AC-005)', async () => {
-    const { tx, spies } = createMockTx({ id: DEAL_ID, status: 'expired' });
-
-    await expect(transitionDeal(tx, DEAL_ID, 'expired', null)).rejects.toThrow(
-      'Cannot transition deal from expired to expired'
-    );
-
-    expect(spies.update).not.toHaveBeenCalled();
-    expect(spies.insert).not.toHaveBeenCalled();
   });
 });

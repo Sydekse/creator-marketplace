@@ -37,6 +37,13 @@ export function extractSafeErrorDetails(err: unknown) {
   // (user@bücher.de, user@a.b) were invisible to the ASCII-only pattern. The
   // accepted limit is emails only: scrubbing TikTok handles would also mangle
   // @-prefixed context in legitimately useful error text.
+  //
+  // Accepted, documented divergence from lib/audit/redact.ts (M7): that module
+  // also redacts phone/SSN/birth/address, but it guards audit rows built from
+  // request bodies. Scheduler logs never contain row content — jobs report
+  // counts and whitelisted ids — so no such field can reach this log today. If
+  // a future job ever logs row-derived context, it must reuse that redactor
+  // rather than widen this regex.
   const safeMessage = message.replace(
     /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu,
     '***@***.***'
@@ -76,10 +83,30 @@ export function toLogString(fields: Record<string, unknown>): string {
   return JSON.stringify(fields, replacer);
 }
 
+/**
+ * A scheduled unit of work.
+ *
+ * KAN-38 contract (branch review finding M2): jobs must be reconciliation-
+ * based — they sweep rows whose state has lapsed and apply the transition
+ * only to rows that still need it. Vercel never retries failed crons and can
+ * deliver duplicate runs, so a duplicate must observe an already-terminal row
+ * and skip it (a TransitionError on it is a no-op, not a run failure), and
+ * all comparisons must be run-time-relative (`expires_at <= now()`, never
+ * midnight math) because Hobby schedules fire up to ±59 minutes inside the
+ * scheduled hour.
+ */
 export interface Job {
   name: string;
   run: (signal?: AbortSignal) => Promise<JobRunOutput>;
 }
+
+/**
+ * Why a job's result row carries no success. `ABORTED` means the run was
+ * interrupted before the job's work could be trusted; `JOB_EXECUTION_FAILED`
+ * means the job itself rejected. The union keeps callers from inventing
+ * labels the scheduler never produces.
+ */
+export type JobFailureReason = 'ABORTED' | 'JOB_EXECUTION_FAILED';
 
 export interface JobResult {
   jobName: string;
@@ -87,7 +114,7 @@ export interface JobResult {
   examined: number;
   acted: number;
   durationMs: number;
-  error?: string;
+  error?: JobFailureReason;
 }
 
 export interface SchedulerRunResult {
