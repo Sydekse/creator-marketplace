@@ -1,0 +1,5 @@
+mutation ($id: ID!) {
+  deletePullRequestReview(input: { pullRequestReviewId: $id }) {
+    clientMutationId
+  }
+}
