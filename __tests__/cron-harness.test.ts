@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'fs';
 import { runSchedulerJobs, verifyCronSecret } from '../lib/scheduler/harness';
 import type { Job, Logger } from '../lib/scheduler/harness';
 import type { NextRequest } from 'next/server';
 import { GET, handleCronRequest } from '../app/api/cron/route';
 import { transitionDeal } from '../lib/deals/state-machine';
+import { ErrorCode } from '../lib/validation';
 import type { Tx } from '../lib/authz';
 import type { DealStatus } from '../db/schema';
 
@@ -195,6 +197,27 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
     expect(summary.failedJobs).toBe(1);
     expect(summary.successfulJobs).toBe(1);
     expect(summary.totalJobs).toBe(2);
+    // The loop breaks on abort — it must not keep walking the remaining jobs.
+    expect(summary.results).toHaveLength(2);
+  });
+
+  it('marks a job that fails while aborted as ABORTED, not a generic failure', async () => {
+    const logger = createMockLogger();
+    const controller = new AbortController();
+
+    const job: Job = {
+      name: 'in-flight-abort',
+      run: async () => {
+        controller.abort();
+        throw new Error('killed mid-run');
+      },
+    };
+
+    const summary = await runSchedulerJobs([job], logger, controller.signal);
+
+    expect(summary.results).toHaveLength(1);
+    expect(summary.results[0].success).toBe(false);
+    expect(summary.results[0].error).toBe('ABORTED');
   });
 
   it('passes AbortSignal to job.run so jobs can cancel long-running operations', async () => {
@@ -301,6 +324,27 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
     expect(logger.errors[0].message).toContain('[LeakError] LEAK_CODE');
     expect(logger.errors[0].message).not.toContain('user@example.com');
     expect(logger.errors[0].message).toContain('***@***.***');
+    // The dealId survives into the log for investigation (AC-007 context).
+    expect(logger.errors[0].message).toContain('Context: {"dealId":"d-123"}');
+  });
+
+  it('scrubs emails with international characters and single-letter TLDs (AC-007)', async () => {
+    const logger = createMockLogger();
+    const err = new Error('reach the team at user@bücher.de or ops@a.b');
+
+    const job: Job = {
+      name: 'i18n-leak',
+      run: async () => {
+        throw err;
+      },
+    };
+
+    await runSchedulerJobs([job], logger);
+
+    expect(logger.errors).toHaveLength(1);
+    expect(logger.errors[0].message).toContain('***@***.***');
+    expect(logger.errors[0].message).not.toContain('user@bücher.de');
+    expect(logger.errors[0].message).not.toContain('ops@a.b');
   });
 
   it('handles non-Error payload rejections gracefully', async () => {
@@ -325,17 +369,40 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.useRealTimers();
   });
 
-  it('returns 500 Internal Server Error when CRON_SECRET is unconfigured on server', async () => {
+  it('registers the cron route on a fixed schedule in vercel.json (AC-001)', () => {
+    const vercelJson = JSON.parse(readFileSync('vercel.json', 'utf8'));
+    const cron = vercelJson.crons.find(
+      (entry: { path: string }) => entry.path === '/api/cron'
+    );
+
+    expect(cron).toBeDefined();
+    expect(cron.schedule).toBe('0 0 * * *');
+  });
+
+  it('rejects every run when CRON_SECRET is unconfigured, with no config oracle (401, not 500)', async () => {
     vi.stubEnv('CRON_SECRET', '');
-    const req = new Request('http://localhost/api/cron', { method: 'GET' });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const req = new Request('http://localhost/api/cron', {
+      method: 'GET',
+      headers: { authorization: 'Bearer route-test-secret' },
+    });
+
     const res = await GET(req as unknown as NextRequest);
 
-    expect(res.status).toBe(500);
+    // A 500 would let an unauthenticated probe distinguish "secret not set"
+    // from "wrong secret" — an existence oracle for the config. The failure
+    // is loud in the logs instead, and the probe gets the AC-002 401.
+    expect(res.status).toBe(401);
     const body = await res.json();
-    expect(body.error.code).toBe('INTERNAL_SERVER_ERROR');
-    expect(body.error.details).toBeDefined();
+    expect(body.error.code).toBe(ErrorCode.UNAUTHORIZED);
+    expect(body.error.details).toEqual({});
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('CRON_SECRET is not configured')
+    );
+    errorSpy.mockRestore();
   });
 
   it('rejects GET requests without auth header with 401 Unauthorized and WWW-Authenticate header', async () => {
@@ -347,14 +414,14 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     const body = await res.json();
     expect(body).toEqual({
       error: {
-        code: 'UNAUTHORIZED',
-        message: 'Invalid or missing cron secret authorization header',
+        code: ErrorCode.UNAUTHORIZED,
+        message: 'Invalid or missing cron secret authorization header.',
         details: {},
       },
     });
   });
 
-  it('executes jobs and returns 200 OK for valid authenticated GET', async () => {
+  it('returns 200 OK for a valid authenticated GET with no jobs registered', async () => {
     const req = new Request('http://localhost/api/cron', {
       method: 'GET',
       headers: { authorization: 'Bearer route-test-secret' },
@@ -364,6 +431,74 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+  });
+
+  it('maps a run with failed jobs to 500 CRON_PARTIAL_FAILURE, summary kept out of the envelope', async () => {
+    const runJobs = vi.fn<typeof runSchedulerJobs>(async () => ({
+      success: false,
+      timestamp: new Date().toISOString(),
+      totalJobs: 2,
+      successfulJobs: 1,
+      failedJobs: 1,
+      results: [
+        {
+          jobName: 'ok-job',
+          success: true,
+          examined: 1,
+          acted: 1,
+          durationMs: 5,
+        },
+        {
+          jobName: 'bad-job',
+          success: false,
+          examined: 0,
+          acted: 0,
+          durationMs: 5,
+          error: 'JOB_EXECUTION_FAILED',
+        },
+      ],
+    }));
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const req = new Request('http://localhost/api/cron', {
+      method: 'GET',
+      headers: { authorization: 'Bearer route-test-secret' },
+    });
+
+    const res = await handleCronRequest(req, { runJobs });
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error.code).toBe(ErrorCode.CRON_PARTIAL_FAILURE);
+    // The summary is a scheduler structure, not a Record<string, string[]>;
+    // the envelope stays type-clean and the summary lives in the logs.
+    expect(body.error.details).toEqual({});
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Run completed with failed jobs'),
+      expect.stringContaining('bad-job')
+    );
+    errorSpy.mockRestore();
+  });
+
+  it('maps an unexpected runJobs rejection to 500 INTERNAL_SERVER_ERROR', async () => {
+    const runJobs = vi.fn<typeof runSchedulerJobs>(async () => {
+      throw new Error('Connection pool exhausted');
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const req = new Request('http://localhost/api/cron', {
+      method: 'GET',
+      headers: { authorization: 'Bearer route-test-secret' },
+    });
+
+    const res = await handleCronRequest(req, { runJobs });
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error.code).toBe(ErrorCode.INTERNAL_SERVER_ERROR);
+    expect(body.error.details).toEqual({});
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Connection pool exhausted')
+    );
+    errorSpy.mockRestore();
   });
 
   it('propagates the request signal down into runSchedulerJobs', async () => {
@@ -386,7 +521,58 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     // A run ended by an abort is a timeout, not an internal failure.
     expect(res.status).toBe(504);
     const body = await res.json();
-    expect(body.error.code).toBe('CRON_TIMEOUT');
+    expect(body.error.code).toBe(ErrorCode.CRON_TIMEOUT);
+  });
+
+  it('returns 504 CRON_TIMEOUT when the internal 290s ceiling fires mid-run', async () => {
+    // Just past the route's CRON_TIMEOUT_MS ceiling.
+    const timeoutMs = 291000;
+    vi.useFakeTimers();
+
+    const runJobs = vi.fn<typeof runSchedulerJobs>(
+      async (_jobs, _logger, signal) =>
+        new Promise((resolve) => {
+          signal?.addEventListener('abort', () =>
+            resolve({
+              success: false,
+              timestamp: new Date().toISOString(),
+              totalJobs: 1,
+              successfulJobs: 0,
+              failedJobs: 1,
+              results: [
+                {
+                  jobName: 'stalled-job',
+                  success: false,
+                  examined: 0,
+                  acted: 0,
+                  durationMs: timeoutMs,
+                  error: 'ABORTED',
+                },
+              ],
+            })
+          );
+        })
+    );
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const req = new Request('http://localhost/api/cron', {
+      method: 'GET',
+      headers: { authorization: 'Bearer route-test-secret' },
+    });
+
+    const pending = handleCronRequest(req, { runJobs });
+    await vi.advanceTimersByTimeAsync(timeoutMs);
+    const res = await pending;
+
+    expect(runJobs).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(504);
+    const body = await res.json();
+    expect(body.error.code).toBe(ErrorCode.CRON_TIMEOUT);
+    expect(body.error.details).toEqual({});
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Run aborted after timeout'),
+      expect.stringContaining('stalled-job')
+    );
+    errorSpy.mockRestore();
   });
 
   it('hands runSchedulerJobs a live, un-aborted signal for a normal request', async () => {
@@ -484,6 +670,20 @@ describe('Guarded transitions and idempotency compliance (KAN-56 AC-004, AC-005,
       actorId: null,
       reason: 'Offer window elapsed',
     });
+    // The locked read (FOR UPDATE) must happen before the legality judgement
+    // and the write — the NFR-003 race guard, asserted structurally.
+    expect(spies.calls).toEqual([
+      'select',
+      'from',
+      'where',
+      'for',
+      'limit',
+      'update',
+      'set',
+      'where',
+      'insert',
+      'values',
+    ]);
   });
 
   it('guarantees idempotency on re-running: second run on already expired deal is rejected without duplicate state/event writes (AC-005)', async () => {

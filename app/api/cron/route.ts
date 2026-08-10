@@ -6,11 +6,20 @@ import {
   verifyCronSecret,
 } from '@/lib/scheduler/harness';
 import type { Job, SchedulerRunResult } from '@/lib/scheduler/harness';
+import { ErrorCode, ErrorHttpStatus, errorResponse } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const runtime = 'nodejs';
 export const maxDuration = 300;
+
+/**
+ * Ten seconds of margin under the 300s platform ceiling (`maxDuration`): a run
+ * that outlives its budget is aborted by us and answered with a proper 504
+ * before the platform kills it.
+ */
+const CRON_TIMEOUT_MS = 290000;
+const CRON_TIMEOUT_ABORT_REASON = 'Internal execution timeout';
 
 // Jobs will be imported and registered here in future tickets (e.g. KAN-38)
 const jobsToRun: Job[] = [];
@@ -35,39 +44,26 @@ export async function handleCronRequest(
       ? AbortSignal.any([request.signal, controller.signal])
       : controller.signal;
 
-  const timeoutMs = 290000;
   const timerId = setTimeout(() => {
-    controller.abort(new Error('Internal execution timeout'));
-  }, timeoutMs);
+    controller.abort(new Error(CRON_TIMEOUT_ABORT_REASON));
+  }, CRON_TIMEOUT_MS);
 
   try {
+    // Fails closed, and deliberately no distinct response when the secret is
+    // unconfigured: a 500 here would answer an unauthenticated probe with the
+    // server's config state (an oracle). The misconfiguration is loud in the
+    // logs instead, and the request still gets the AC-002 401.
     if (!process.env.CRON_SECRET || process.env.CRON_SECRET.trim() === '') {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'INTERNAL_SERVER_ERROR',
-            message: 'Cron authorization secret is not configured on server',
-            details: {},
-          },
-        },
-        { status: 500 }
+      console.error(
+        '[Cron Route] CRON_SECRET is not configured; every run is being rejected.'
       );
     }
 
     if (!verifyCronSecret(request)) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'UNAUTHORIZED',
-            message: 'Invalid or missing cron secret authorization header',
-            details: {},
-          },
-        },
-        {
-          status: 401,
-          headers: { 'WWW-Authenticate': 'Bearer' },
-        }
-      );
+      return NextResponse.json(errorResponse(ErrorCode.UNAUTHORIZED, {}), {
+        status: ErrorHttpStatus[ErrorCode.UNAUTHORIZED],
+        headers: { 'WWW-Authenticate': 'Bearer' },
+      });
     }
 
     let summary: SchedulerRunResult;
@@ -75,32 +71,27 @@ export async function handleCronRequest(
     try {
       summary = await runJobs(jobsToRun, console, signal);
     } finally {
-      if (timerId) clearTimeout(timerId);
+      clearTimeout(timerId);
     }
 
     if (signal.aborted) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'CRON_TIMEOUT',
-            message: 'Execution timed out after 290s',
-            details: summary ?? {},
-          },
-        },
-        { status: 504 }
+      console.error(
+        '[Cron Route] Run aborted after timeout; partial summary:',
+        JSON.stringify(summary ?? {})
       );
+      return NextResponse.json(errorResponse(ErrorCode.CRON_TIMEOUT, {}), {
+        status: ErrorHttpStatus[ErrorCode.CRON_TIMEOUT],
+      });
     }
 
     if (!summary.success) {
+      console.error(
+        '[Cron Route] Run completed with failed jobs:',
+        JSON.stringify(summary)
+      );
       return NextResponse.json(
-        {
-          error: {
-            code: 'CRON_PARTIAL_FAILURE',
-            message: 'One or more jobs failed during execution',
-            details: summary,
-          },
-        },
-        { status: 500 }
+        errorResponse(ErrorCode.CRON_PARTIAL_FAILURE, {}),
+        { status: ErrorHttpStatus[ErrorCode.CRON_PARTIAL_FAILURE] }
       );
     }
 
@@ -114,16 +105,9 @@ export async function handleCronRequest(
     // the signal rather than the error message: the timer aborts with a plain
     // `Error`, not a `DOMException`.
     if (name === 'AbortError' || signal.aborted) {
-      return NextResponse.json(
-        {
-          error: {
-            code: 'CRON_TIMEOUT',
-            message: 'Execution timed out after 290s',
-            details: {},
-          },
-        },
-        { status: 504 }
-      );
+      return NextResponse.json(errorResponse(ErrorCode.CRON_TIMEOUT, {}), {
+        status: ErrorHttpStatus[ErrorCode.CRON_TIMEOUT],
+      });
     }
 
     const contextStr =
@@ -136,17 +120,11 @@ export async function handleCronRequest(
     );
 
     return NextResponse.json(
-      {
-        error: {
-          code: 'INTERNAL_SERVER_ERROR',
-          message: 'Unhandled infrastructure failure',
-          details: {},
-        },
-      },
-      { status: 500 }
+      errorResponse(ErrorCode.INTERNAL_SERVER_ERROR, {}),
+      { status: ErrorHttpStatus[ErrorCode.INTERNAL_SERVER_ERROR] }
     );
   } finally {
-    if (timerId) clearTimeout(timerId);
+    clearTimeout(timerId);
   }
 }
 
