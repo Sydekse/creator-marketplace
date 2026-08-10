@@ -6,7 +6,7 @@
 
 > **Post-review addendum (`2cc59663`, `ef85e92e`):** the six must-fixes landed (H1 watchdog, H2 structured logs, H3 catch→504 test, M3 hardened serialization, M1 `realm="cron"`, M6 `restoreMocks`), plus M4 (sub-ceiling test, `CRON_TIMEOUT_MS` exported), M5 (duplicate mock deleted), M7 (redaction divergence documented), L2 (empty `CRON_SECRET` placeholder), L4 (`JobFailureReason` union), and the KAN-38 reconciliation contract on the `Job` interface.
 >
-> **Provenance correction:** the §2 table below counts KAN-56 commits only, because the branch was cut from `feat/KAN-33-campaign-confirmation`; the branch therefore _inherits_ `b2d331fa` (KAN-33, 12 files) relative to `main`. The KAN-56 commits themselves touch only the 11 in-ticket files. Merge KAN-33 first (or rebase) so the KAN-56 PR diff shows the one feature.
+> **Provenance correction:** the §2 table below counts KAN-56 commits only. The branch was originally cut from `feat/KAN-33-campaign-confirmation` and therefore inherited `b2d331fa` (KAN-33, 12 files) relative to `main`; it has since been **rebased onto `main`** (`git rebase --onto main b2d331fa`), so the current branch carries exactly the 6 KAN-56 commits over the 11 in-ticket files, with `b2d331fa` living on its own KAN-33 branch. The pre-rebase findings in this document are unaffected.
 
 ---
 
