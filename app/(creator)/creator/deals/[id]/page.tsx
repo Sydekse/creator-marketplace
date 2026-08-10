@@ -127,7 +127,12 @@ export default async function CreatorDealDetailPage({
       {/* AC-2's "full usage-rights terms", inline rather than behind a link.
           Rendered by the page, not by `OfferActions`, so this static body stays
           server-rendered instead of riding into the client bundle with the one
-          control that needs an event handler. */}
+          control that needs an event handler.
+
+          While the offer is open this is the version *currently* in effect, not
+          the one stamped at offer time — `readCreatorDeal` swaps it, because
+          acceptance must match the current version and agreeing to superseded
+          text would be refused with a 409 no reload could clear. */}
       {deal.rightsTerms ? (
         <UsageRightsCard terms={deal.rightsTerms} />
       ) : (
@@ -139,7 +144,9 @@ export default async function CreatorDealDetailPage({
       {/* AC-3. `canAct` reads `LEGAL_TRANSITIONS`, so these controls cannot
           outlive the rule that permits them — a status the machine stops
           accepting from stops rendering them here with no edit to this file. */}
-      {isPending ? <OfferActions terms={deal.rightsTerms} /> : null}
+      {isPending ? (
+        <OfferActions dealId={deal.id} terms={deal.rightsTerms} />
+      ) : null}
 
       {/* AC-4. `canDeliver` is `{funded, revision_requested}`, read off the same
           table: a funded deal is what the creator may deliver against, and a

@@ -60,6 +60,21 @@ export enum ErrorCode {
    */
   CAMPAIGN_NOT_DRAFT = 'CAMPAIGN_NOT_DRAFT',
   OFFER_EXPIRED = 'OFFER_EXPIRED',
+  /**
+   * An accept named a usage-rights version that is no longer the current one
+   * (KAN-36, AC-017). The terms were republished while the offer sat open, so
+   * the creator is looking at text the deal can no longer be governed by.
+   *
+   * Not OFFER_NOT_PENDING, whose message — "This offer is no longer pending." —
+   * would be plainly false here: the offer still is, and refusing it with that
+   * sentence would send a creator looking for a status change that never
+   * happened. The only correct instruction is to reload and read the version
+   * now in effect, so the message says exactly that. Reloading works because
+   * the offer screen renders the *current* terms for a pending deal rather than
+   * the version stamped at offer time; without that, this error would repeat
+   * forever.
+   */
+  RIGHTS_TERMS_STALE = 'RIGHTS_TERMS_STALE',
   PAYMENT_FAILED = 'PAYMENT_FAILED',
   NO_ACCEPTED_DEALS = 'NO_ACCEPTED_DEALS',
   INVALID_TIKTOK_URL = 'INVALID_TIKTOK_URL',
@@ -92,6 +107,8 @@ export const ErrorMessage: Record<ErrorCode, string> = {
     'This creator is already in this campaign.',
   [ErrorCode.CAMPAIGN_NOT_DRAFT]: 'This campaign can no longer be edited.',
   [ErrorCode.OFFER_EXPIRED]: 'This offer has expired.',
+  [ErrorCode.RIGHTS_TERMS_STALE]:
+    'The usage-rights terms were updated. Reload the page and read the current terms before accepting.',
   [ErrorCode.PAYMENT_FAILED]: 'Payment failed — please try again.',
   [ErrorCode.NO_ACCEPTED_DEALS]: 'No accepted deals to fund.',
   [ErrorCode.INVALID_TIKTOK_URL]: 'Enter a valid public TikTok video link.',
@@ -114,6 +131,7 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.CREATOR_ALREADY_IN_CART]: 409,
   [ErrorCode.CAMPAIGN_NOT_DRAFT]: 409,
   [ErrorCode.OFFER_EXPIRED]: 409,
+  [ErrorCode.RIGHTS_TERMS_STALE]: 409,
   [ErrorCode.PAYMENT_FAILED]: 402,
   [ErrorCode.NO_ACCEPTED_DEALS]: 409,
   [ErrorCode.INVALID_TIKTOK_URL]: 422,

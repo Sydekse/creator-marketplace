@@ -646,8 +646,15 @@ async function seedDemoDeals(
 /**
  * A status update plus its `deal_event`, in that order and never one without
  * the other (invariant 6, FR-007). Stands in for transitions whose real
- * handlers are later tickets — accept (KAN-35), decline (KAN-37), deliver
- * (KAN-46) — and does not touch money.
+ * handlers are later tickets — decline (KAN-37), deliver (KAN-46) — and does
+ * not touch money.
+ *
+ * `also` carries any column that must land in the *same* UPDATE as the status.
+ * That is not a convenience: `deal_rights_accepted_when_accepted` rejects a row
+ * at `accepted` with null rights columns, so stamping them in a second
+ * statement fails at the first one. The real action (`lib/deals/accept-offer.ts`)
+ * writes both inside one transaction for the same reason, and the seed should
+ * not model a sequence the database forbids.
  */
 async function transitionDemoDeal(
   db: (typeof import('./index'))['db'],
@@ -655,9 +662,13 @@ async function transitionDemoDeal(
   from: DealStatus,
   to: DealStatus,
   actorId: string,
-  reason: string
+  reason: string,
+  also?: Partial<typeof deal.$inferInsert>
 ) {
-  await db.update(deal).set({ status: to }).where(eq(deal.id, dealId));
+  await db
+    .update(deal)
+    .set({ status: to, ...also })
+    .where(eq(deal.id, dealId));
   await db.insert(dealEvent).values({
     dealId,
     fromStatus: from,
@@ -703,19 +714,22 @@ async function walkDealTo(
   }
 
   // Everything below is accepted first — rights are accepted with the offer
-  // (AC-016), so the timestamp is set in the same write as the status.
+  // (AC-016, AC-017), so the timestamp lands in the same write as the status.
+  // One statement, not two: the CHECK constraint refuses the intermediate row
+  // where the status has moved and the rights columns have not.
+  //
+  // `rights_terms_id` is already on the row from the insert above, so only the
+  // timestamp is added here. The real action re-derives the id from the server's
+  // own current-terms read instead of trusting either.
   await transitionDemoDeal(
     db,
     dealId,
     'pending',
     'accepted',
     creatorUserId,
-    'Creator accepted the offer'
+    'Creator accepted the offer',
+    { rightsAcceptedAt: new Date() }
   );
-  await db
-    .update(deal)
-    .set({ rightsAcceptedAt: new Date() })
-    .where(eq(deal.id, dealId));
 
   if (target === 'accepted') return;
 

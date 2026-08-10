@@ -4,7 +4,9 @@ import { db } from '@/db';
 import { brandProfile, campaign, deal, rightsTerms } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
+import { canAct } from '@/lib/deals/state-machine';
 import { computeSplit } from '@/lib/payment/ledger';
+import { getCurrentRightsTerms } from '@/lib/rights-terms/current';
 import { UUID_REGEX } from '@/lib/validation';
 
 /**
@@ -75,14 +77,35 @@ export interface CreatorDealDetail {
   expectedPayout: number;
   offerExpiresAt: Date | null;
   /**
-   * The version of the terms this deal is governed by, or null.
+   * The terms the creator is being asked to agree to, or is governed by.
    *
-   * Nullable because the column is. Every deal KAN-33 creates carries one — the
-   * confirmation refuses to issue offers without terms in effect — so a null
-   * here is an older row, and the view says so rather than rendering an empty
+   * **Which of the two depends on the status**, and that is the point.
+   *
+   *   - While the offer is still `pending`, this is the version *currently* in
+   *     effect — not the one stamped on the deal at offer time. Terms can be
+   *     republished while an offer sits open, and acceptance must match the
+   *     current version (AC-017). Showing the stamped version would ask the
+   *     creator to agree to text the server will refuse, and the 409 telling
+   *     them to reload would be a dead end: the reload would show the same
+   *     stale text, forever.
+   *   - From `accepted` onward this is the deal's own `rights_terms_id` — the
+   *     version they actually agreed to, which is what governs the deal and
+   *     what a dispute turns on. A later republication must not retroactively
+   *     change what a signed deal says (the same reasoning that snapshots
+   *     `commission_rate`).
+   *
+   * `rightsTermsAreCurrent` says which one this is, so the accept surface and
+   * the tests can tell them apart rather than inferring it from the status a
+   * second time.
+   *
+   * Nullable because the column is, and because an unseeded environment has no
+   * current version either. Every deal KAN-33 creates carries one, so a null
+   * here is an older row and the view says so rather than rendering an empty
    * card.
    */
   rightsTerms: DealRightsTerms | null;
+  /** True when `rightsTerms` is the version in effect now, not the stamped one. */
+  rightsTermsAreCurrent: boolean;
 }
 
 /**
@@ -165,13 +188,48 @@ export function toDealDetail(row: CreatorDealJoinRow): CreatorDealDetail {
     row.commissionRate
   );
 
-  return { ...row, commission, expectedPayout: payout };
+  return {
+    ...row,
+    commission,
+    expectedPayout: payout,
+    rightsTermsAreCurrent: false,
+  };
+}
+
+/**
+ * Swaps in the terms currently in effect, for a deal that can still be acted on.
+ *
+ * Pure and separate from the query so the substitution rule is testable on its
+ * own — it is the half of AC-3 that lives on the read side, and getting it wrong
+ * is invisible until a creator is stuck in a 409 loop they cannot escape.
+ *
+ * A null `current` leaves the deal's own terms in place rather than blanking the
+ * card: an unseeded environment is not a reason to hide the text the offer was
+ * issued under. Acceptance would fail in that state anyway, and it fails with a
+ * thrown `MissingRightsTermsError` rather than something the creator is asked to
+ * act on.
+ */
+export function withCurrentTerms(
+  detail: CreatorDealDetail,
+  current: DealRightsTerms | null
+): CreatorDealDetail {
+  if (!canAct(detail.status) || !current) return detail;
+
+  return { ...detail, rightsTerms: current, rightsTermsAreCurrent: true };
 }
 
 /** Seam for tests, matching the shape the rest of `lib/` uses. */
 export interface CreatorDealDeps {
   requireCreator: () => Promise<{ creatorProfileId: string | null }>;
   select: (where: SQL) => Promise<CreatorDealDetail | null>;
+  /**
+   * The version in effect now, read only when the deal can still be acted on.
+   *
+   * A second query, and deliberately behind `canAct` so a settled deal does not
+   * pay for it. The seam exists so a test can prove both that a pending deal
+   * asks for it and that an accepted one does not.
+   */
+  currentTerms: () => Promise<DealRightsTerms | null>;
 }
 
 async function selectCreatorDeal(
@@ -185,6 +243,10 @@ async function selectCreatorDeal(
 const defaultDeps: CreatorDealDeps = {
   requireCreator: () => guard({ roles: ['creator'] }),
   select: selectCreatorDeal,
+  // `CurrentRightsTerms` and the joined `DealRightsTerms` are both
+  // `typeof rightsTerms.$inferSelect`, so the two sources are interchangeable
+  // and the card cannot tell which one it was handed.
+  currentTerms: () => getCurrentRightsTerms(),
 };
 
 /**
@@ -197,6 +259,10 @@ const defaultDeps: CreatorDealDeps = {
  * shape check comes second and short-circuits the query entirely: Postgres
  * answers a non-uuid compared against a `uuid` column with `22P02`, which turns
  * a mistyped link into a 500 rather than a 404.
+ *
+ * A still-open offer comes back carrying the terms **currently** in effect
+ * rather than the version stamped on it — see `rightsTerms` on the result type
+ * for why, and `withCurrentTerms` for the rule.
  */
 export async function readCreatorDeal(
   dealId: string,
@@ -207,7 +273,15 @@ export async function readCreatorDeal(
 
   if (!UUID_REGEX.test(dealId)) return null;
 
-  return deps.select(buildCreatorDealWhere(dealId, creatorProfileId));
+  const detail = await deps.select(
+    buildCreatorDealWhere(dealId, creatorProfileId)
+  );
+  if (!detail) return null;
+
+  // Only the deals that can still be accepted pay for the second query.
+  if (!canAct(detail.status)) return detail;
+
+  return withCurrentTerms(detail, await deps.currentTerms());
 }
 
 /**
@@ -236,8 +310,8 @@ export const NO_RIGHTS_TERMS_MESSAGE =
   'No usage-rights terms are recorded for this deal. Ask the brand to reissue the offer before accepting.';
 
 /**
- * The three strings the accept surface renders, re-exported so this module stays
- * the one place a server-side caller looks for deal copy.
+ * The strings the accept surface renders, re-exported so this module stays the
+ * one place a server-side caller looks for deal copy.
  *
  * They are *defined* in `lib/deals/copy.ts` because `components/deals/offer-
  * actions.tsx` is a client component and importing them from here would pull
@@ -248,8 +322,13 @@ export const NO_RIGHTS_TERMS_MESSAGE =
  */
 export {
   ACCEPT_DEAL_LABEL,
+  ACCEPT_FAILED_MESSAGE,
+  ACCEPT_NEEDS_AGREEMENT_MESSAGE,
+  ACCEPT_NETWORK_ERROR_MESSAGE,
+  ACCEPT_SUCCESS_MESSAGE,
+  ACCEPTING_LABEL,
   DECLINE_DEAL_LABEL,
-  OFFER_ACTIONS_UNAVAILABLE_MESSAGE,
+  DECLINE_UNAVAILABLE_MESSAGE,
 } from './copy';
 
 export const SUBMIT_DELIVERABLE_LABEL = 'Submit your video';

@@ -131,8 +131,14 @@ describe('notification types', () => {
    * only way "covers every lifecycle point" stays checkable — a type quietly
    * dropped during a refactor is otherwise invisible until the email that
    * should have been sent is not.
+   *
+   * The tenth, `offer_accepted`, is **not** one of AC-2's. It was added on
+   * KAN-36, whose AC-8 requires the brand to be told when a creator accepts —
+   * a point the PRD's list skips. Kept at the end so the nine above stay in
+   * the order the AC gives them, and named here so the next person reads the
+   * change as a deliberate addition rather than drift.
    */
-  it('covers exactly the nine points AC-2 names', () => {
+  it('covers the nine points AC-2 names, plus the one KAN-36 adds', () => {
     expect([...NOTIFICATION_TYPES]).toEqual([
       'offer_received',
       'verification_result',
@@ -143,6 +149,7 @@ describe('notification types', () => {
       'payout_sent',
       'dispute_resolved',
       'offer_expired',
+      'offer_accepted',
     ]);
   });
 
@@ -226,6 +233,16 @@ const SAMPLES: {
       dealId: 'd1',
       campaignTitle: 'Spring Coffee Push',
       releasedAmount: 150_000,
+    },
+  },
+  offer_accepted: {
+    type: 'offer_accepted',
+    payload: {
+      dealId: 'd1',
+      campaignId: 'ca1',
+      campaignTitle: 'Spring Coffee Push',
+      creatorHandle: '@selam',
+      totalPrice: 450_000,
     },
   },
 };

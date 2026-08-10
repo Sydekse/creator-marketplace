@@ -19,6 +19,12 @@
  * splitting into approved/rejected types, because AC-2 names one lifecycle
  * point and AC-029 speaks of "the outcome". One point, one row, one email whose
  * body branches.
+ *
+ * `offer_accepted` is the one entry AC-2 does not name. It was added on KAN-36,
+ * whose AC-8 requires the brand to be told when a creator accepts — a lifecycle
+ * point the PRD's list skips, and one the brand has to know about because
+ * funding is their next move. Added at the end rather than beside
+ * `offer_received`, so the nine above stay in the order the AC gives them.
  */
 export const NOTIFICATION_TYPES = [
   'offer_received',
@@ -30,6 +36,7 @@ export const NOTIFICATION_TYPES = [
   'payout_sent',
   'dispute_resolved',
   'offer_expired',
+  'offer_accepted',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -98,6 +105,18 @@ export interface NotificationPayloadMap {
     campaignTitle: string;
     /** Released back to the brand's available budget (AC-018). */
     releasedAmount: number;
+  };
+  offer_accepted: {
+    dealId: string;
+    campaignId: string;
+    campaignTitle: string;
+    /**
+     * The creator's TikTok handle — already public, and the one name the brand
+     * recognises them by. Never their legal name or email (NFR-010).
+     */
+    creatorHandle: string;
+    /** What the brand will owe on this deal, in santim (invariant 4). */
+    totalPrice: number;
   };
 }
 

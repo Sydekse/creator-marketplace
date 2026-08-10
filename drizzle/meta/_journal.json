@@ -36,6 +36,13 @@
       "when": 1786288346483,
       "tag": "0004_blushing_swordsman",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786379380069,
+      "tag": "0005_slow_winter_soldier",
+      "breakpoints": true
     }
   ]
 }

@@ -253,6 +253,19 @@ export const deal = pgTable(
       'deal_total_price_valid',
       sql`${t.totalPrice} = ${t.unitPrice} * ${t.videoCount}`
     ),
+    // AC-017: a deal can never be accepted without recording *which* terms were
+    // agreed to and *when*. Both columns or neither — a row carrying only one
+    // of them is a half-recorded agreement, and the half that is missing is
+    // always the half a dispute turns on.
+    //
+    // The three exempt statuses are the ones an offer can reach without ever
+    // being accepted. Everything from `accepted` onward is downstream of an
+    // acceptance, so the pair is required there — which makes this structural
+    // rather than a property of whichever code path happened to do the write.
+    check(
+      'deal_rights_accepted_when_accepted',
+      sql`${t.status} in ('pending', 'declined', 'expired') or (${t.rightsTermsId} is not null and ${t.rightsAcceptedAt} is not null)`
+    ),
   ]
 );
 
