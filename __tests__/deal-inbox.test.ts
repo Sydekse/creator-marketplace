@@ -8,11 +8,16 @@ import {
   DEAL_HISTORY_TITLE,
   SYSTEM_ACTOR_LABEL,
   ACCEPT_DEAL_LABEL,
+  ACCEPT_FAILED_MESSAGE,
+  ACCEPT_NEEDS_AGREEMENT_MESSAGE,
+  ACCEPT_NETWORK_ERROR_MESSAGE,
+  ACCEPT_SUCCESS_MESSAGE,
+  ACCEPTING_LABEL,
   COMMISSION_LABEL,
   DECLINE_DEAL_LABEL,
+  DECLINE_UNAVAILABLE_MESSAGE,
   EXPECTED_PAYOUT_LABEL,
   NO_RIGHTS_TERMS_MESSAGE,
-  OFFER_ACTIONS_UNAVAILABLE_MESSAGE,
   OFFER_EXPIRY_LABEL,
   PAYOUT_ESTIMATE_NOTE,
   SUBMIT_DELIVERABLE_LABEL,
@@ -24,6 +29,7 @@ import {
   creatorDealQuery,
   readCreatorDeal,
   toDealDetail,
+  withCurrentTerms,
 } from '../lib/deals/detail';
 import type { CreatorDealDeps, CreatorDealJoinRow } from '../lib/deals/detail';
 import { canAct, canDeliver } from '../lib/deals/state-machine';
@@ -123,6 +129,25 @@ const src = (file: string) =>
   readFileSync(join(process.cwd(), file), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '');
+
+/**
+ * The one `<button>` element that renders a given label constant.
+ *
+ * Slicing a fixed number of characters back from `indexOf(LABEL)` stood in for
+ * this and was quietly vacuous: the first occurrence of a label constant is its
+ * own `import`, so the window sat at the top of the file and, while the import
+ * list was short enough, `indexOf - 300` went negative and `slice` returned the
+ * file's tail instead. Asserting `not.toMatch` against the wrong region passes
+ * for the wrong reason. The length check is what keeps this one honest.
+ */
+const buttonRendering = (source: string, label: string): string => {
+  const found = (source.match(/<button[\s\S]*?<\/button>/g) ?? []).filter((b) =>
+    b.includes(label)
+  );
+
+  expect(found).toHaveLength(1);
+  return found[0];
+};
 
 const INBOX_MODULE = 'lib/deals/inbox.ts';
 const DETAIL_MODULE = 'lib/deals/detail.ts';
@@ -399,7 +424,7 @@ describe('the offer actions are gated by the agreement (F31)', () => {
   const page = src(DETAIL_PAGE);
 
   it('renders only under canAct', () => {
-    expect(page).toMatch(/isPending \? <OfferActions/);
+    expect(page).toMatch(/isPending \? \(?\s*<OfferActions/);
     expect(page).toContain('canAct(deal.status)');
   });
 
@@ -430,10 +455,9 @@ describe('the offer actions are gated by the agreement (F31)', () => {
 
   it('leaves declining ungated by the agreement', () => {
     // A creator refusing terms should not have to tick that they accept them.
-    const declineButton = source.slice(
-      source.indexOf('DECLINE_DEAL_LABEL') - 300
-    );
-    expect(declineButton).not.toMatch(/disabled=\{[^}]*canAccept/);
+    const declineButton = buttonRendering(source, 'DECLINE_DEAL_LABEL');
+
+    expect(declineButton).not.toMatch(/canAccept/);
   });
 
   it('renders both labels from their constants', () => {
@@ -442,9 +466,104 @@ describe('the offer actions are gated by the agreement (F31)', () => {
     expect(ACCEPT_DEAL_LABEL).not.toBe(DECLINE_DEAL_LABEL);
   });
 
-  it('explains the disabled state in a sentence, not a tooltip', () => {
-    expect(source).toContain('OFFER_ACTIONS_UNAVAILABLE_MESSAGE');
-    expect(OFFER_ACTIONS_UNAVAILABLE_MESSAGE.length).toBeGreaterThan(20);
+  it('explains each disabled state in a sentence, not a tooltip', () => {
+    // One sentence per control, not the single sentence that covered both on
+    // KAN-39. Accepting works now, so a message about "these actions" would be
+    // false about the button beside it.
+    expect(source).toContain('ACCEPT_NEEDS_AGREEMENT_MESSAGE');
+    expect(source).toContain('DECLINE_UNAVAILABLE_MESSAGE');
+    expect(ACCEPT_NEEDS_AGREEMENT_MESSAGE.length).toBeGreaterThan(20);
+    expect(DECLINE_UNAVAILABLE_MESSAGE.length).toBeGreaterThan(20);
+  });
+
+  it('reaches each note from the control it explains', () => {
+    // `aria-describedby` rather than mere adjacency, so a screen reader gets the
+    // reason from the disabled control itself.
+    expect(source).toMatch(
+      /aria-describedby=\{terms && !agreed \? 'accept-note'/
+    );
+    expect(source).toContain(`id="accept-note"`);
+    expect(source).toContain(`aria-describedby="decline-note"`);
+    expect(source).toContain(`id="decline-note"`);
+  });
+
+  it('withholds the tick-the-box note when there is no box to tick', () => {
+    // The page renders `NO_RIGHTS_TERMS_MESSAGE` for a deal with no terms;
+    // "tick the box above" would be nonsense beside it.
+    expect(source).toMatch(/\{terms && !agreed \? \(/);
+  });
+});
+
+// -- AC-017: accepting actually calls the endpoint ---------------------------
+
+describe('the accept control calls the endpoint', () => {
+  const source = src(ACTIONS_COMPONENT);
+
+  it('posts to the accept route for this deal', () => {
+    expect(source).toMatch(
+      /fetch\(\s*`\/api\/deals\/\$\{encodeURIComponent\(dealId\)\}\/accept`/
+    );
+    expect(source).toContain("method: 'POST'");
+  });
+
+  it('sends the id of the version it displayed', () => {
+    // Compared by the server against its own read — that mismatch is the 409.
+    // The server stamps its read, never this value (NFR-005).
+    expect(source).toContain('rightsTermsId: terms.id');
+  });
+
+  it('shows the server’s own sentence rather than a second copy', () => {
+    // Every code this endpoint returns has a message in `ErrorMessage`, and
+    // those strings are acceptance criteria. A local paraphrase would be free to
+    // drift from the one the API sends.
+    expect(source).toMatch(
+      /body\?\.error\?\.message \?\? ACCEPT_FAILED_MESSAGE/
+    );
+  });
+
+  it('treats an unreachable server differently from a rejection', () => {
+    // No response means no envelope and no code to branch on, and the remedy is
+    // different: a 409 means read something, this means try again.
+    expect(source).toContain('ACCEPT_NETWORK_ERROR_MESSAGE');
+    expect(ACCEPT_NETWORK_ERROR_MESSAGE).not.toBe(ACCEPT_FAILED_MESSAGE);
+  });
+
+  it('unticks the box and re-reads the page when the terms went stale', () => {
+    // AC-4's reload. `readCreatorDeal` returns the *current* terms for a pending
+    // deal, so refreshing shows the new body — without the untick the creator
+    // would be agreeing to text they never saw.
+    const stale = source.slice(source.indexOf("'RIGHTS_TERMS_STALE'"));
+    expect(stale).toMatch(/setAgreed\(false\)/);
+    expect(stale).toMatch(/router\.refresh\(\)/);
+  });
+
+  it('re-reads the server’s view after every outcome', () => {
+    // Whether the controls render at all is server-rendered from `deal.status`.
+    // Patching a client copy would let the screen disagree with the database.
+    expect(source).toContain('ACCEPT_SUCCESS_MESSAGE');
+    expect(source.match(/router\.refresh\(\)/g)?.length).toBeGreaterThanOrEqual(
+      3
+    );
+  });
+
+  it('never lies about being idle while a request is in flight', () => {
+    expect(source).toMatch(/accepting \? ACCEPTING_LABEL : ACCEPT_DEAL_LABEL/);
+    expect(source).toMatch(/disabled=\{accepting \|\| !canAccept\}/);
+  });
+
+  it('leaves declining to KAN-37 rather than half-wiring it', () => {
+    // The decline button is disabled outright — no handler, no endpoint.
+    const declineButton = buttonRendering(source, 'DECLINE_DEAL_LABEL');
+
+    expect(declineButton).not.toMatch(/onClick=/);
+    expect(declineButton).toMatch(/\sdisabled\s/);
+    expect(source).not.toMatch(/\/decline/);
+  });
+
+  it('wires the handler onto the accept button and nothing else', () => {
+    const acceptButton = buttonRendering(source, 'ACCEPT_DEAL_LABEL');
+
+    expect(acceptButton).toMatch(/onClick=\{handleAccept\}/);
   });
 });
 
@@ -454,8 +573,8 @@ describe('the client component stays on the browser side of the bundle', () => {
   // for its query, and importing the copy from there pulled `pg` toward the
   // browser — `Can't resolve 'util/types'`, import trace
   // `offer-actions.tsx → detail.ts → db/index.ts → pg`. `lib/deals/copy.ts`
-  // exists to hold the three strings on the pure side. Nothing about that is
-  // visible in the source once it works, so it is worth a guard.
+  // exists to hold the accept surface's strings on the pure side. Nothing about
+  // that is visible in the source once it works, so it is worth a guard.
   const source = src(ACTIONS_COMPONENT);
 
   it('reads its copy from the pure module, never from the query module', () => {
@@ -472,11 +591,14 @@ describe('the client component stays on the browser side of the bundle', () => {
   });
 
   it('leaves the server-side surface where callers already look for it', () => {
-    // `detail.ts` re-exports all three, so "copy beside the query" still holds
-    // and the split is invisible to every server-side caller.
+    // `detail.ts` re-exports every one of them, so "copy beside the query" still
+    // holds and the split is invisible to every server-side caller.
     const detail = src(DETAIL_MODULE);
     expect(detail).toMatch(
       /export \{[^}]*ACCEPT_DEAL_LABEL[^}]*\} from '\.\/copy'/
+    );
+    expect(detail).toMatch(
+      /export \{[^}]*ACCEPT_SUCCESS_MESSAGE[^}]*\} from '\.\/copy'/
     );
   });
 });
@@ -636,6 +758,7 @@ describe('ownership is in the where clause on the detail read', () => {
           throw new ForbiddenError('not a creator');
         },
         select,
+        currentTerms: async () => null,
       })
     ).rejects.toBeInstanceOf(ForbiddenError);
 
@@ -650,6 +773,7 @@ describe('ownership is in the where clause on the detail read', () => {
     const deal = await readCreatorDeal('../../etc/passwd', {
       requireCreator: async () => ({ creatorProfileId: CREATOR_PROFILE_ID }),
       select,
+      currentTerms: async () => null,
     });
 
     expect(deal).toBeNull();
@@ -665,6 +789,7 @@ describe('ownership is in the where clause on the detail read', () => {
       // A real deal belonging to another creator misses the same way: the
       // creator id is ANDed into the where, so the row is simply not returned.
       select: async () => null,
+      currentTerms: async () => null,
     };
 
     expect(await readCreatorDeal(id, deps)).toBeNull();
@@ -677,6 +802,86 @@ describe('ownership is in the where clause on the detail read', () => {
 
     expect(source).not.toMatch(/resource:\s*\{\s*kind:\s*'deal'/);
     expect(src(DETAIL_PAGE)).toContain('notFound()');
+  });
+});
+
+describe('a still-open offer shows the terms currently in effect', () => {
+  // KAN-36 AC-4. The 409 that tells a creator to reload is only escapable if the
+  // reload shows *different* text — otherwise they agree to the same stale body
+  // and get the same 409, forever. So a `pending` deal is read with the version
+  // in effect now, and everything from `accepted` onward keeps the version that
+  // was actually signed (the same reasoning that snapshots `commission_rate`).
+  const STAMPED = {
+    id: '11111111-1111-4111-8111-111111111111',
+    version: 'v1',
+    body: 'The version this offer was issued under.',
+    effectiveAt: new Date('2026-01-01T00:00:00Z'),
+  };
+  const CURRENT = {
+    id: '22222222-2222-4222-8222-222222222222',
+    version: 'v2',
+    body: 'The version in effect now.',
+    effectiveAt: new Date('2026-06-01T00:00:00Z'),
+  };
+
+  const depsFor = (
+    status: DealStatus,
+    currentTerms = vi.fn(async () => CURRENT)
+  ) => ({
+    deps: {
+      requireCreator: async () => ({ creatorProfileId: CREATOR_PROFILE_ID }),
+      select: async () =>
+        toDealDetail(joinRow({ status, rightsTerms: STAMPED })),
+      currentTerms,
+    } satisfies CreatorDealDeps,
+    currentTerms,
+  });
+
+  it('swaps the stamped version out while the offer can still be accepted', async () => {
+    const { deps } = depsFor('pending');
+
+    const detail = await readCreatorDeal(DEAL_ID, deps);
+
+    expect(detail?.rightsTerms).toEqual(CURRENT);
+    expect(detail?.rightsTermsAreCurrent).toBe(true);
+  });
+
+  it.each(ALL_STATUSES.filter((s) => s !== 'pending'))(
+    'leaves %s showing the version that was agreed to',
+    async (status) => {
+      const { deps, currentTerms } = depsFor(status);
+
+      const detail = await readCreatorDeal(DEAL_ID, deps);
+
+      expect(detail?.rightsTerms).toEqual(STAMPED);
+      expect(detail?.rightsTermsAreCurrent).toBe(false);
+      // And it does not pay for the second query to find that out.
+      expect(currentTerms).not.toHaveBeenCalled();
+    }
+  );
+
+  it('says which of the two it handed back', () => {
+    // Inferring it from the status a second time is how the two rules drift.
+    expect(toDealDetail(joinRow()).rightsTermsAreCurrent).toBe(false);
+  });
+
+  it('keeps the offer’s own terms when there is no current version', () => {
+    // An unseeded environment is not a reason to blank the card. Acceptance
+    // fails in that state anyway, and it fails with a thrown
+    // `MissingRightsTermsError` rather than something the creator is asked to
+    // act on.
+    const pending = toDealDetail(joinRow({ rightsTerms: STAMPED }));
+
+    expect(withCurrentTerms(pending, null).rightsTerms).toEqual(STAMPED);
+    expect(withCurrentTerms(pending, null).rightsTermsAreCurrent).toBe(false);
+  });
+
+  it('is derived from the same predicate that renders the controls', () => {
+    // If the swap and the buttons disagreed, one of the two would be wrong for a
+    // status nobody thought about.
+    const source = src(DETAIL_MODULE);
+    expect(source).toMatch(/canAct\(detail\.status\)/);
+    expect(source).toMatch(/canAct\(/);
   });
 });
 
@@ -734,7 +939,12 @@ describe('user-facing copy', () => {
     ['VIEW_DEAL_LABEL', VIEW_DEAL_LABEL],
     ['ACCEPT_DEAL_LABEL', ACCEPT_DEAL_LABEL],
     ['DECLINE_DEAL_LABEL', DECLINE_DEAL_LABEL],
-    ['OFFER_ACTIONS_UNAVAILABLE_MESSAGE', OFFER_ACTIONS_UNAVAILABLE_MESSAGE],
+    ['DECLINE_UNAVAILABLE_MESSAGE', DECLINE_UNAVAILABLE_MESSAGE],
+    ['ACCEPT_NEEDS_AGREEMENT_MESSAGE', ACCEPT_NEEDS_AGREEMENT_MESSAGE],
+    ['ACCEPTING_LABEL', ACCEPTING_LABEL],
+    ['ACCEPT_SUCCESS_MESSAGE', ACCEPT_SUCCESS_MESSAGE],
+    ['ACCEPT_NETWORK_ERROR_MESSAGE', ACCEPT_NETWORK_ERROR_MESSAGE],
+    ['ACCEPT_FAILED_MESSAGE', ACCEPT_FAILED_MESSAGE],
     ['SUBMIT_DELIVERABLE_LABEL', SUBMIT_DELIVERABLE_LABEL],
     [
       'SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE',

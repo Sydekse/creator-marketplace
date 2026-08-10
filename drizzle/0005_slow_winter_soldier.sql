@@ -1,0 +1,1 @@
+ALTER TABLE "deal" ADD CONSTRAINT "deal_rights_accepted_when_accepted" CHECK ("deal"."status" in ('pending', 'declined', 'expired') or ("deal"."rights_terms_id" is not null and "deal"."rights_accepted_at" is not null));

@@ -134,6 +134,7 @@ const subjects: {
   payout_sent: (p) => `You have been paid for ${p.campaignTitle}`,
   dispute_resolved: (p) => `A decision was made on ${p.campaignTitle}`,
   offer_expired: (p) => `An offer for ${p.campaignTitle} expired`,
+  offer_accepted: (p) => `${p.creatorHandle} accepted your offer`,
 };
 
 function Content({ type, payload }: NotificationInput): React.ReactElement {
@@ -289,6 +290,25 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
           <Text style={styles.text}>
             <strong>{formatEtb(payload.releasedAmount)}</strong> is back in your
             available budget and can be offered to another creator.
+          </Text>
+          <Cta href={appUrl('/brand/campaigns')} label="Open the campaign →" />
+        </Layout>
+      );
+
+    case 'offer_accepted':
+      return (
+        <Layout
+          preview={`${payload.creatorHandle} is in for ${payload.campaignTitle}`}
+          heading="A creator accepted your offer"
+        >
+          <Text style={styles.text}>
+            <strong>{payload.creatorHandle}</strong> accepted your offer for{' '}
+            {payload.campaignTitle} and agreed to the usage-rights terms.
+          </Text>
+          <Text style={styles.text}>
+            <strong>{formatEtb(payload.totalPrice)}</strong> is what this deal
+            comes to. Fund the campaign to move it into escrow — the creator
+            starts once the money is held.
           </Text>
           <Cta href={appUrl('/brand/campaigns')} label="Open the campaign →" />
         </Layout>
