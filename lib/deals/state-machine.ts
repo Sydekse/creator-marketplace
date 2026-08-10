@@ -95,6 +95,30 @@ export function getErrorCodeForInvalidTransition(
 }
 
 /**
+ * Can a creator still accept or decline this offer? (KAN-39, AC-3.)
+ *
+ * Read off `LEGAL_TRANSITIONS` rather than restated as `status === 'pending'`,
+ * so the buttons cannot outlive the rule that permits them: an edge removed
+ * from the table above removes the control from the screen in the same edit.
+ * The suite asserts this is exactly `{pending}` over all nine statuses, which
+ * is what keeps the derivation honest rather than merely indirect.
+ */
+export function canAct(status: DealStatus): boolean {
+  return LEGAL_TRANSITIONS[status].includes('accepted');
+}
+
+/**
+ * Can a creator submit (or re-submit) a video for this deal? (KAN-39, AC-4.)
+ *
+ * Exactly `{funded, revision_requested}` — a rejected deliverable puts the
+ * creator back on the hook, and the state machine already says so. Derived for
+ * the same reason as `canAct`.
+ */
+export function canDeliver(status: DealStatus): boolean {
+  return LEGAL_TRANSITIONS[status].includes('delivered');
+}
+
+/**
  * The single, guarded transition function for all deal status changes (KAN-34).
  *
  * It enforces FR-007, re-reads the row under a `FOR UPDATE` lock before judging

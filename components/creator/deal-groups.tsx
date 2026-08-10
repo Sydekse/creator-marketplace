@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type {
   CreatorDealGroup,
   CreatorDealRow,
@@ -8,12 +9,12 @@ import { formatEtb } from '@/lib/money';
 /**
  * A creator's deals, grouped by state (KAN-25, AC-2).
  *
- * A compact row per deal, not a card and not a link. The dedicated deal route,
- * the detail view and the accept/decline actions are the deal inbox ticket —
- * building a link here would either point at a route that does not exist or
- * pull that ticket's scope onto this branch. So each row says what a creator
- * needs to recognise the deal and find it later: which campaign, how many
- * videos, what it is worth.
+ * A compact row per deal, and since KAN-39 each row links into
+ * `/creator/deals/[id]` — the detail view that ticket built. The row itself is
+ * unchanged: which campaign, how many videos, what it is worth, which is what a
+ * creator needs to recognise a deal. Everything about deciding on it is one tap
+ * away rather than duplicated here, so this stays a summary and the inbox stays
+ * the screen for working through offers.
  *
  * The amount is `total_price` — the deal's gross value, snapshotted at offer
  * time — and it is labelled as such. It is deliberately not a payout estimate:
@@ -28,21 +29,28 @@ import { formatEtb } from '@/lib/money';
 
 function DealRow({ deal }: { deal: CreatorDealRow }) {
   return (
-    <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-3">
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="truncate text-sm font-medium">
-          {deal.campaignName}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          {deal.videoCount} {deal.videoCount === 1 ? 'video' : 'videos'}
-        </span>
-      </div>
-      <div className="flex flex-col items-end gap-0.5">
-        <span className="font-mono text-sm tabular-nums">
-          {formatEtb(deal.totalPrice)}
-        </span>
-        <span className="text-xs text-muted-foreground">Deal value</span>
-      </div>
+    <li>
+      {/* The whole row is the target rather than a button at its end: on a phone
+          that is a full-width tap target instead of a 40px one (NFR-007). */}
+      <Link
+        href={`/creator/deals/${deal.id}`}
+        className="-mx-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-md px-2 py-3 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      >
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="truncate text-sm font-medium">
+            {deal.campaignName}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            {deal.videoCount} {deal.videoCount === 1 ? 'video' : 'videos'}
+          </span>
+        </div>
+        <div className="flex flex-col items-end gap-0.5">
+          <span className="font-mono text-sm tabular-nums">
+            {formatEtb(deal.totalPrice)}
+          </span>
+          <span className="text-xs text-muted-foreground">Deal value</span>
+        </div>
+      </Link>
     </li>
   );
 }

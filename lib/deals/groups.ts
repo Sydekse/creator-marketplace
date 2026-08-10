@@ -1,7 +1,7 @@
 import type { DealStatus } from '@/db/schema';
 
 /**
- * How a creator's dashboard groups deals (KAN-25, AC-2).
+ * How a creator's deals are grouped by state (KAN-25 AC-2, KAN-39 AC-1).
  *
  * AC-2 names four groups — pending offers, accepted/in-progress, awaiting
  * approval, completed — and the deal state machine has nine statuses. The
@@ -10,10 +10,17 @@ import type { DealStatus } from '@/db/schema';
  * declined or expired would silently vanish from the only screen a creator has
  * to see it on.
  *
- * Pure domain vocabulary, deliberately with no database imports. The deal inbox
- * (KAN-39) is two waves out and will group the same nine statuses, and the
- * moment this mapping is imported from `lib/deals/` rather than re-derived per
- * screen, a new status cannot fail to appear in one of them.
+ * Pure domain vocabulary, deliberately with no database imports and no runtime
+ * import of the state machine — the type-only `DealStatus` above is erased.
+ * That purity is enforced by a test, and it is what lets both creator screens
+ * and any future client component share this mapping without dragging
+ * `drizzle-orm` and the schema into a bundle.
+ *
+ * The deal inbox is the second caller the KAN-25 docstring anticipated, so
+ * `groupDeals` moved here from `lib/creators/dashboard.ts` on KAN-39 — the
+ * "extract at the second caller" rule. It is generic over anything carrying a
+ * status, because the two screens select different columns and the only part
+ * that must not drift is the partition.
  */
 
 export const DEAL_GROUPS = [
@@ -50,6 +57,27 @@ export function groupForStatus(status: DealStatus): DealGroup {
 }
 
 /**
+ * Partitions rows into all five groups, in `DEAL_GROUPS` order.
+ *
+ * Every group is present even when empty, so a screen renders a stable set of
+ * headings rather than a layout that reshuffles as deals move through the
+ * machine. Pure, so the mapping is testable without a database.
+ *
+ * Generic over anything carrying a status. The dashboard selects five columns
+ * and the inbox selects more, and neither projection is the other's business —
+ * what must not drift between the two screens is which status lands in which
+ * group, and that is the whole of what this shares.
+ */
+export function groupDeals<T extends { status: DealStatus }>(
+  rows: T[]
+): Array<{ group: DealGroup; deals: T[]; count: number }> {
+  return DEAL_GROUPS.map((group) => {
+    const deals = rows.filter((row) => groupForStatus(row.status) === group);
+    return { group, deals, count: deals.length };
+  });
+}
+
+/**
  * Copy held beside the mapping, following the `NO_MATCHES_TITLE` precedent in
  * `lib/creators/discovery.ts`: a user-facing string defined once cannot be
  * paraphrased apart from itself by a later edit.
@@ -82,3 +110,39 @@ export const GROUP_LABELS: Record<DealGroup, { title: string; empty: string }> =
       empty: 'Nothing closed.',
     },
   };
+
+/**
+ * One status, named for a person (KAN-39, AC-5).
+ *
+ * The history timeline reads `deal_event.to_status`, which is a raw column
+ * value: rendering it unmapped puts `revision_requested` in front of a creator.
+ * Held here beside the grouping rather than in the component, because the same
+ * nine statuses will be named on the brand's deal view too, and two screens
+ * calling the same state different things is the version of this that is hard
+ * to notice.
+ *
+ * `satisfies` again, for the same reason `GROUP_BY_STATUS` uses it: a tenth
+ * status is a compile error, not a blank chip.
+ */
+const STATUS_LABELS = {
+  pending: 'Offer sent',
+  accepted: 'Offer accepted',
+  declined: 'Offer declined',
+  expired: 'Offer expired',
+  funded: 'Funded',
+  delivered: 'Video submitted',
+  revision_requested: 'Changes requested',
+  completed: 'Completed',
+  refunded: 'Refunded',
+} satisfies Record<DealStatus, string>;
+
+/**
+ * Takes a plain `string`, not a `DealStatus`, because that is what the history
+ * column is typed as after it leaves the database. An unrecognised value falls
+ * back to itself: a status this build has never heard of is a row written by a
+ * newer deploy, and showing it verbatim is more honest than dropping the event
+ * or rendering an empty line where a transition happened.
+ */
+export function labelForStatus(status: string): string {
+  return STATUS_LABELS[status as DealStatus] ?? status;
+}
