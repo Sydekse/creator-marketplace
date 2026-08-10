@@ -1,0 +1,12 @@
+feat(scheduler): implement Vercel cron harness infrastructure
+
+This commit introduces a robust, timeout-safe Cron Harness infrastructure for Vercel, enabling future batch jobs (like offer expiry in KAN-38) to execute securely and reliably.
+
+Key Additions & Justifications:
+- Serverless Memory & Freeze Safety: Implemented a background 290s `setTimeout` trigger for `AbortController` rather than using `Promise.race`, preventing Vercel container freeze mid-database query and eliminating Unhandled Promise Rejection crashes.
+- RFC 6750 Strict Auth: Secured the `/api/cron` endpoint using precise `Bearer` token extraction and `crypto.timingSafeEqual()` (pre-hashing inputs with SHA-256 to mitigate length-leak and timing attacks).
+- PII-Safe Observability: Standardized HTTP 500 error envelopes (`{ error: { code, message, details } }`) per Tech Spec 4.7. Scrubbed raw error messages to prevent PII leaks (NFR-010), while extracting and logging custom properties like `dealId` to maintain trace context (AC-007).
+- Strict Type Safety: Removed dangerous `as Record<string, unknown>` casts in favor of true TypeScript object narrowing for error extraction.
+- Hobby Plan Compliance: Scheduled the cron to run daily (`0 0 * * *`) in `vercel.json` to prevent Vercel deployment failures on Hobby accounts.
+
+Refs KAN-56
