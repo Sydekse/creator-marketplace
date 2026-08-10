@@ -16,6 +16,14 @@ import {
   zodIssuesToDetails,
 } from '../lib/validation';
 import { COMMISSION_RATE } from '../lib/config/pricing';
+import {
+  CAMPAIGN_NOT_DRAFT_MESSAGE,
+  REMOVE_FROM_CART_FAILED,
+  REMOVE_FROM_CART_LABEL,
+  REMOVE_FROM_CART_MISSING,
+  REMOVE_FROM_CART_PENDING_LABEL,
+  REMOVE_FROM_CART_SUCCESS,
+} from '../lib/campaigns/constants';
 
 /**
  * KAN-30 — Add creators + video counts to campaign cart, running total (AC-009, AC-013).
@@ -913,5 +921,131 @@ describe('DELETE /api/campaigns/[id]/items/[creatorId] route handler', () => {
     expect(response.status).toBe(404);
     const body = await response.json();
     expect(body.error.code).toBe(ErrorCode.NOT_FOUND);
+  });
+});
+
+describe('remove-from-cart button (AC-015 — the brand-facing half)', () => {
+  // Source guards only. There is no DOM environment in this repo, so these
+  // prove the component references the right things — never that it renders.
+  const BUTTON_SOURCE = readFileSync(
+    'components/campaign/remove-from-cart-button.tsx',
+    'utf8'
+  );
+  const BUTTON = stripComments(BUTTON_SOURCE);
+  const PAGE = stripComments(
+    readFileSync('app/(brand)/(onboarded)/campaigns/[id]/page.tsx', 'utf8')
+  );
+  const ADD_FORM = stripComments(
+    readFileSync('components/campaign/add-to-cart-form.tsx', 'utf8')
+  );
+
+  it('strips comments without stripping the component (guards are not vacuous)', () => {
+    expect(BUTTON).toContain('export function RemoveFromCartButton');
+    expect(PAGE).toContain('export default async function CampaignCartPage');
+    expect(ADD_FORM).toContain('export function AddToCartForm');
+  });
+
+  it('the cart page renders a remove control for each item', () => {
+    // Without this the endpoint is unreachable from the product and AC-015's
+    // first clause — "a brand removes a creator" — has no surface at all.
+    expect(PAGE).toContain('RemoveFromCartButton');
+    expect(PAGE).toContain(
+      "from '@/components/campaign/remove-from-cart-button'"
+    );
+    expect(PAGE).toContain('creatorId={item.creatorId}');
+    expect(PAGE).toContain('creatorHandle={item.creator.tiktokHandle}');
+  });
+
+  it('shows the control only on a draft campaign', () => {
+    expect(PAGE).toMatch(
+      /campaign\.status === 'draft' && \(\s*<RemoveFromCartButton/
+    );
+  });
+
+  it('calls DELETE on the item endpoint with both ids encoded', () => {
+    expect(BUTTON).toMatch(/method:\s*'DELETE'/);
+    expect(BUTTON).toContain(
+      '`/api/campaigns/${encodeURIComponent(campaignId)}/items/${encodeURIComponent(creatorId)}`'
+    );
+  });
+
+  it('re-reads the totals from the server rather than patching them client-side', () => {
+    // AC-015's second clause. The summary is server-rendered from
+    // `sumCartTotal`; trusting the response body here would let the two
+    // disagree after any concurrent change.
+    expect(BUTTON).toContain('router.refresh()');
+    expect(BUTTON).not.toContain('running_total');
+    expect(BUTTON).not.toContain('remaining_budget');
+  });
+
+  it('confirms before removing, since the action is destructive and one click away', () => {
+    expect(BUTTON).toContain('window.confirm');
+    // The confirm names the creator — "Remove this item?" on a list of five
+    // does not tell a brand which one they are about to drop.
+    expect(BUTTON).toContain('${creatorHandle}');
+  });
+
+  it('names the creator in the accessible label', () => {
+    // Five buttons all reading "Remove" are indistinguishable to a screen
+    // reader walking the list.
+    expect(BUTTON).toMatch(
+      /aria-label=\{`\$\{REMOVE_FROM_CART_LABEL\} \$\{creatorHandle\}`\}/
+    );
+  });
+
+  it('is a plain button with buttonVariants, not the Base UI Button', () => {
+    // Base UI's `Button` is a client component; this file is already a client
+    // component, but the precedent is the styling helper either way, and
+    // `<Button render={<Link/>}>` is the shape the repo has banned.
+    expect(BUTTON).toContain('buttonVariants({');
+    expect(BUTTON).not.toMatch(/import \{[^}]*\bButton\b[^}]*\} from/);
+    expect(BUTTON).not.toContain('<Button');
+  });
+
+  it('disables itself while the request is in flight and says so', () => {
+    expect(BUTTON).toContain('disabled={removing}');
+    expect(BUTTON).toContain('REMOVE_FROM_CART_PENDING_LABEL');
+    // A disabled control explains itself beside the control, never on hover.
+    expect(BUTTON).not.toContain('title=');
+  });
+
+  it('distinguishes an already-gone item from a real failure', () => {
+    // A 404 here means someone else removed them, or this is a second click.
+    // Reporting that as "failed" tells the brand to retry something that has
+    // already happened.
+    expect(BUTTON).toContain("code === 'NOT_FOUND'");
+    expect(BUTTON).toContain('REMOVE_FROM_CART_MISSING');
+    expect(BUTTON).toContain("code === 'CAMPAIGN_NOT_DRAFT'");
+  });
+
+  it('holds its copy in constants, and both cart paths share the not-draft sentence', () => {
+    expect(REMOVE_FROM_CART_LABEL).toBe('Remove');
+    expect(REMOVE_FROM_CART_MISSING).toBe(
+      'That creator is no longer in this cart.'
+    );
+    expect(CAMPAIGN_NOT_DRAFT_MESSAGE).toBe(
+      'This campaign is no longer a draft and cannot be edited.'
+    );
+
+    // Neither component retypes a string the constants already own — that is
+    // what stops a later edit paraphrasing one copy away from the other.
+    expect(BUTTON).not.toContain("'Remove'");
+    expect(ADD_FORM).toContain('CAMPAIGN_NOT_DRAFT_MESSAGE');
+    expect(ADD_FORM).not.toContain('no longer a draft');
+  });
+
+  it('puts no ticket number in anything a brand reads', () => {
+    const copy = [
+      REMOVE_FROM_CART_LABEL,
+      REMOVE_FROM_CART_PENDING_LABEL,
+      REMOVE_FROM_CART_SUCCESS,
+      REMOVE_FROM_CART_MISSING,
+      REMOVE_FROM_CART_FAILED,
+      CAMPAIGN_NOT_DRAFT_MESSAGE,
+    ];
+    for (const line of copy) {
+      expect(line).not.toMatch(/KAN-\d+/);
+    }
+    expect(BUTTON).not.toMatch(/KAN-\d+/);
   });
 });

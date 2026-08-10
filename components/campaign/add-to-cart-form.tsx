@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
 import {
   ADD_TO_CAMPAIGN_LABEL,
+  CAMPAIGN_NOT_DRAFT_MESSAGE,
   NO_DRAFT_CAMPAIGN_MESSAGE,
 } from '@/lib/campaigns/constants';
 
@@ -63,9 +64,7 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
         } else if (data?.error?.code === 'CREATOR_NOT_BOOKABLE') {
           toast.error('This creator is not currently bookable.');
         } else if (data?.error?.code === 'CAMPAIGN_NOT_DRAFT') {
-          toast.error(
-            'This campaign is no longer a draft and cannot be edited.'
-          );
+          toast.error(CAMPAIGN_NOT_DRAFT_MESSAGE);
         } else {
           toast.error('Failed to add creator to campaign.');
         }
