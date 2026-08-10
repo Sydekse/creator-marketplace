@@ -33,8 +33,12 @@ export function extractSafeErrorDetails(err: unknown) {
     if ('campaignId' in err) context.campaignId = err.campaignId;
   }
 
+  // Emails with international characters, IDN domains, and single-letter TLDs
+  // (user@bücher.de, user@a.b) were invisible to the ASCII-only pattern. The
+  // accepted limit is emails only: scrubbing TikTok handles would also mangle
+  // @-prefixed context in legitimately useful error text.
   const safeMessage = message.replace(
-    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+    /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu,
     '***@***.***'
   );
   return { name, code, message: safeMessage, context };

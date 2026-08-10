@@ -91,6 +91,38 @@ export enum ErrorCode {
    * collapsing "no such row" into FORBIDDEN so they are not existence oracles.
    */
   NOT_FOUND = 'NOT_FOUND',
+  /**
+   * The scheduled run exceeded its time budget and was aborted (KAN-56).
+   *
+   * Not in the §4.7 table — that table holds business codes for the §4 REST
+   * surface, and the cron route is Vercel infrastructure, not part of it — but
+   * the envelope rule holds here too: an ad-hoc string would bypass the
+   * `ErrorEnvelope` type, so these are members like any other. The status is
+   * 504, never 500: an aborted run is a timeout, not an internal failure, and
+   * it must not trip the same alarms as a crash.
+   */
+  CRON_TIMEOUT = 'CRON_TIMEOUT',
+  /**
+   * The scheduled run completed but one or more jobs failed (KAN-56).
+   *
+   * The summary — the one thing an operator wants from this response — stays
+   * in the server logs and in the 200 body of a healthy run; the envelope here
+   * carries no `details` so the shape stays `Record<string, string[]>`.
+   */
+  CRON_PARTIAL_FAILURE = 'CRON_PARTIAL_FAILURE',
+  /**
+   * The request did not carry the shared cron secret (KAN-56 AC-002).
+   *
+   * Deliberately no distinct response for an *unconfigured* secret: a 500
+   * would answer an unauthenticated probe with the server's config state.
+   * Misconfiguration is loud in the logs instead, and the request still gets
+   * this 401.
+   */
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  /**
+   * An unexpected infrastructure failure in the cron route (KAN-56).
+   */
+  INTERNAL_SERVER_ERROR = 'INTERNAL_SERVER_ERROR',
 }
 
 export const ErrorMessage: Record<ErrorCode, string> = {
@@ -117,6 +149,11 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.FORBIDDEN]: 'You do not have permission to perform this action.',
   [ErrorCode.VALIDATION_ERROR]: 'Validation failed.',
   [ErrorCode.NOT_FOUND]: 'The requested resource does not exist.',
+  [ErrorCode.CRON_TIMEOUT]: 'The scheduled run exceeded its time limit.',
+  [ErrorCode.CRON_PARTIAL_FAILURE]: 'One or more jobs failed during this run.',
+  [ErrorCode.UNAUTHORIZED]:
+    'Invalid or missing cron secret authorization header.',
+  [ErrorCode.INTERNAL_SERVER_ERROR]: 'Unhandled infrastructure failure.',
 };
 
 export const ErrorHttpStatus: Record<ErrorCode, number> = {
@@ -140,6 +177,10 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.FORBIDDEN]: 403,
   [ErrorCode.VALIDATION_ERROR]: 422,
   [ErrorCode.NOT_FOUND]: 404,
+  [ErrorCode.CRON_TIMEOUT]: 504,
+  [ErrorCode.CRON_PARTIAL_FAILURE]: 500,
+  [ErrorCode.UNAUTHORIZED]: 401,
+  [ErrorCode.INTERNAL_SERVER_ERROR]: 500,
 };
 
 export interface ErrorEnvelope {
