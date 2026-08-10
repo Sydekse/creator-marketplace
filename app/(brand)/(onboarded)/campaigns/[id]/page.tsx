@@ -12,6 +12,7 @@ import {
 import { getCampaignForBrand } from '@/lib/campaigns/queries';
 import { formatEtb } from '@/lib/money';
 
+import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-button';
 import { EmptyState } from '@/components/feedback/empty-state';
 
 export const runtime = 'nodejs';
@@ -157,6 +158,20 @@ export default async function CampaignCartPage({
                             {formatEtb(item.totalPrice)}
                           </span>
                         </div>
+                        {/*
+                          Draft only (AC-015): once the campaign is confirmed
+                          the offers exist, and withdrawing one is the
+                          decline/cancel path, not this. The endpoint refuses
+                          it either way — hiding the button is the courtesy,
+                          the 409 is the rule.
+                        */}
+                        {campaign.status === 'draft' && (
+                          <RemoveFromCartButton
+                            campaignId={campaign.id}
+                            creatorId={item.creatorId}
+                            creatorHandle={item.creator.tiktokHandle}
+                          />
+                        )}
                       </div>
                     </CardContent>
                   </Card>

@@ -97,8 +97,10 @@ export async function handleAddCampaignItem(
         const excess = result.excess;
         return Response.json(
           errorResponse(ErrorCode.BUDGET_EXCEEDED, {
+            // No trailing ` ETB` — `formatEtb` already ends in it (`lib/money.ts`),
+            // and appending one rendered "by 0.01 ETB ETB." to the brand.
             excess: [
-              `This exceeds your remaining budget by ${formatEtb(excess)} ETB.`,
+              `This exceeds your remaining budget by ${formatEtb(excess)}.`,
             ],
           }),
           { status: ErrorHttpStatus[ErrorCode.BUDGET_EXCEEDED] }

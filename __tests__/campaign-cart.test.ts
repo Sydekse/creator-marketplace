@@ -5,6 +5,8 @@ import {
   addToCart,
 } from '../lib/campaigns/add-to-cart';
 import type { AddToCartDeps } from '../lib/campaigns/add-to-cart';
+import { removeFromCart } from '../lib/campaigns/remove-from-cart';
+import type { RemoveFromCartDeps } from '../lib/campaigns/remove-from-cart';
 import { ForbiddenError } from '../lib/authz';
 import type { Tx } from '../lib/authz';
 import {
@@ -14,6 +16,14 @@ import {
   zodIssuesToDetails,
 } from '../lib/validation';
 import { COMMISSION_RATE } from '../lib/config/pricing';
+import {
+  CAMPAIGN_NOT_DRAFT_MESSAGE,
+  REMOVE_FROM_CART_FAILED,
+  REMOVE_FROM_CART_LABEL,
+  REMOVE_FROM_CART_MISSING,
+  REMOVE_FROM_CART_PENDING_LABEL,
+  REMOVE_FROM_CART_SUCCESS,
+} from '../lib/campaigns/constants';
 
 /**
  * KAN-30 — Add creators + video counts to campaign cart, running total (AC-009, AC-013).
@@ -28,6 +38,8 @@ vi.mock('../lib/authz', async (importOriginal) => {
 
 const { handleAddCampaignItem } =
   await import('../app/api/campaigns/[id]/items/route');
+const { handleDeleteCampaignItem } =
+  await import('../app/api/campaigns/[id]/items/[creatorId]/route');
 
 const BRAND_USER_ID = 'user-brand-1';
 const BRAND_PROFILE_ID = '11111111-1111-4111-8111-111111111111';
@@ -43,11 +55,29 @@ function postRequest(body: unknown, raw?: string) {
   });
 }
 
+function deleteRequest() {
+  return new Request(
+    `http://localhost/api/campaigns/${CAMPAIGN_ID}/items/${CREATOR_ID}`,
+    {
+      method: 'DELETE',
+    }
+  );
+}
+
 function uniqueViolation(constraint: string) {
   return Object.assign(
     new Error('duplicate key value violates unique constraint'),
     { code: '23505', constraint }
   );
+}
+
+/**
+ * Source guards read code, not prose about code. A module that documents why it
+ * avoids something names that thing in a comment, and an un-stripped guard reads
+ * the explanation as the violation.
+ */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 }
 
 beforeEach(() => {
@@ -518,6 +548,504 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
     expect(response.status).toBe(409); // From ErrorHttpStatus mapping
     const body = await response.json();
     expect(body.error.code).toBe(ErrorCode.BUDGET_EXCEEDED);
-    expect(body.error.details.excess[0]).toContain('0.01 ETB');
+    // `toBe`, not `toContain`. The whole sentence is short enough that
+    // `toContain('0.01 ETB')` passed against "by 0.01 ETB ETB." — `formatEtb`
+    // already ends in the currency, so a substring match could not tell the
+    // right string from the doubled one. Pinning the full sentence can.
+    expect(body.error.details.excess[0]).toBe(
+      'This exceeds your remaining budget by 0.01 ETB.'
+    );
+  });
+});
+
+describe('removeFromCart service', () => {
+  const mockCampaign = {
+    id: CAMPAIGN_ID,
+    brandId: BRAND_PROFILE_ID,
+    budget: 500000,
+    status: 'draft' as const,
+  };
+
+  function createMockRemoveDeps(
+    overrides: Partial<RemoveFromCartDeps> = {}
+  ): RemoveFromCartDeps {
+    return {
+      getCampaign: vi.fn().mockResolvedValue(mockCampaign),
+      deleteItem: vi.fn().mockResolvedValue([{ id: 'item-uuid-1' }]),
+      getRunningTotal: vi.fn().mockResolvedValue(100000), // new total after removal
+      transaction: async (fn) => fn({} as Tx),
+      ...overrides,
+    };
+  }
+
+  it('sums the cart on the transaction connection, not the pool', async () => {
+    // Every other test here stubs `getRunningTotal`, so the real dependency
+    // never runs and a deadlock in the wiring would go unseen. Two guards
+    // stand in for it.
+
+    // 1. Behavioural: the sum is handed the same `tx` the transaction opened.
+    //    Dropping that argument sends the query to the global pool while this
+    //    transaction still holds `FOR UPDATE` on the campaign row.
+    const tx = { transactionConnection: true } as unknown as Tx;
+    const deps = createMockRemoveDeps({
+      transaction: async (fn) => fn(tx),
+    });
+
+    await removeFromCart(CAMPAIGN_ID, BRAND_PROFILE_ID, CREATOR_ID, deps);
+
+    expect(deps.getRunningTotal).toHaveBeenCalledWith(tx, CAMPAIGN_ID);
+
+    // 2. Structural: the default wiring uses the un-authz'd sum. Comments are
+    //    stripped first — this module explains the choice in prose that names
+    //    the wrong function, and a raw-source guard cannot tell an explanation
+    //    from a violation.
+    const service = stripComments(
+      readFileSync('lib/campaigns/remove-from-cart.ts', 'utf8')
+    );
+    expect(service).toContain('export async function removeFromCart'); // not vacuous
+    expect(service).toContain('sumCartTotal(campaignId, tx)');
+    expect(service).not.toContain('getCartRunningTotal');
+
+    // Same wiring in the sibling service, which is where the precedent is.
+    const sibling = stripComments(
+      readFileSync('lib/campaigns/add-to-cart.ts', 'utf8')
+    );
+    expect(sibling).toContain('sumCartTotal(campaignId, tx)');
+    expect(sibling).not.toContain('getCartRunningTotal');
+  });
+
+  it('distinguishes the two cart totals: one calls guard, one does not', () => {
+    // Without this the guard above is a spelling test. `sumCartTotal` is only
+    // the safe one for as long as it stays free of authz, and
+    // `getCartRunningTotal` is only worth avoiding because it is not.
+    const queries = stripComments(
+      readFileSync('lib/campaigns/cart-queries.ts', 'utf8')
+    );
+    const sumBody = queries.slice(
+      queries.indexOf('export async function sumCartTotal'),
+      queries.indexOf('export async function getCartRunningTotal')
+    );
+    const wrappedBody = queries.slice(
+      queries.indexOf('export async function getCartRunningTotal'),
+      queries.indexOf('export async function listCartItems')
+    );
+
+    expect(sumBody).toContain('sumCartTotal'); // not vacuous
+    expect(wrappedBody).toContain('getCartRunningTotal'); // not vacuous
+    expect(sumBody).not.toContain('guard(');
+    expect(sumBody).not.toContain('requireOwnership');
+    expect(wrappedBody).toContain('guard(');
+  });
+
+  it('removes item from cart, returning updated running total and budget', async () => {
+    const deps = createMockRemoveDeps();
+    const result = await removeFromCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      CREATOR_ID,
+      deps
+    );
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.runningTotal).toBe(100000);
+      expect(result.remainingBudget).toBe(400000);
+    }
+
+    expect(deps.deleteItem).toHaveBeenCalledWith(
+      expect.anything(),
+      CAMPAIGN_ID,
+      CREATOR_ID
+    );
+  });
+
+  it('rejects if campaign does not exist or does not belong to brand', async () => {
+    const deps = createMockRemoveDeps({
+      getCampaign: vi.fn().mockResolvedValue(null),
+    });
+
+    const result = await removeFromCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      CREATOR_ID,
+      deps
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'not_found' });
+    // The ownership layer is the `brandProfileId` reaching the `where` clause.
+    // A lookup by campaign id alone would find another brand's campaign and
+    // then delete from it, with the role gate none the wiser (NFR-005).
+    expect(deps.getCampaign).toHaveBeenCalledWith(
+      expect.anything(),
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID
+    );
+    expect(deps.deleteItem).not.toHaveBeenCalled();
+  });
+
+  it('rejects if campaign is not in draft status', async () => {
+    const deps = createMockRemoveDeps({
+      getCampaign: vi.fn().mockResolvedValue({
+        ...mockCampaign,
+        status: 'confirmed',
+      }),
+    });
+
+    const result = await removeFromCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      CREATOR_ID,
+      deps
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'not_draft' });
+    // "and changes nothing" is the other half of that AC. A 409 that has
+    // already deleted the row satisfies the status code and nothing else.
+    expect(deps.deleteItem).not.toHaveBeenCalled();
+  });
+
+  it('refuses every non-draft status, not just confirmed', async () => {
+    // The AC names confirmed and funded; the campaign machine has six statuses
+    // and only one of them is removable. Asserting the one the reviewer thought
+    // of leaves the other four to whichever comparison a later edit reaches for.
+    const nonDraft = [
+      'confirmed',
+      'funded',
+      'in_progress',
+      'completed',
+      'cancelled',
+    ] as const;
+
+    for (const status of nonDraft) {
+      const deps = createMockRemoveDeps({
+        getCampaign: vi.fn().mockResolvedValue({ ...mockCampaign, status }),
+      });
+
+      const result = await removeFromCart(
+        CAMPAIGN_ID,
+        BRAND_PROFILE_ID,
+        CREATOR_ID,
+        deps
+      );
+
+      expect(result).toEqual({ ok: false, reason: 'not_draft' });
+      expect(deps.deleteItem).not.toHaveBeenCalled();
+    }
+  });
+
+  it('locks the campaign row for update', () => {
+    // Same reason as the add path: status is read, then the cart is mutated and
+    // the total recomputed against `budget`. Without the lock a concurrent
+    // confirm can land between the read and the delete.
+    const source = readFileSync('lib/campaigns/remove-from-cart.ts', 'utf8');
+    expect(source).toMatch(/\.for\(['"]update['"]\)/);
+  });
+
+  it('rejects if creator item was not found in cart', async () => {
+    const deps = createMockRemoveDeps({
+      deleteItem: vi.fn().mockResolvedValue([]),
+    });
+
+    const result = await removeFromCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      CREATOR_ID,
+      deps
+    );
+
+    expect(result).toEqual({ ok: false, reason: 'item_not_found' });
+  });
+});
+
+describe('DELETE /api/campaigns/[id]/items/[creatorId] route handler', () => {
+  const mockCampaign = {
+    id: CAMPAIGN_ID,
+    brandId: BRAND_PROFILE_ID,
+    budget: 500000,
+    status: 'draft' as const,
+  };
+
+  function createMockRemoveDeps(
+    overrides: Partial<RemoveFromCartDeps> = {}
+  ): RemoveFromCartDeps {
+    return {
+      getCampaign: vi.fn().mockResolvedValue(mockCampaign),
+      deleteItem: vi.fn().mockResolvedValue([{ id: 'item-uuid-1' }]),
+      getRunningTotal: vi.fn().mockResolvedValue(100000), // new total after removal
+      transaction: async (fn) => fn({} as Tx),
+      ...overrides,
+    };
+  }
+
+  it('returns 200 with new totals on successful removal', async () => {
+    const deps = createMockRemoveDeps();
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID,
+      { removeFromCartDeps: deps }
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toEqual({
+      running_total: 100000,
+      remaining_budget: 400000,
+    });
+
+    // The brand scope comes from the guard's resolved context, never from the
+    // URL or the body — there is no parameter a caller could set to reach
+    // another brand's cart.
+    expect(deps.getCampaign).toHaveBeenCalledWith(
+      expect.anything(),
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID
+    );
+  });
+
+  it('returns 403 FORBIDDEN when the caller has the brand role but no profile', async () => {
+    guardMock.mockResolvedValue({
+      user: {
+        id: BRAND_USER_ID,
+        email: 'brand@example.com',
+        name: 'Brand',
+        role: 'brand',
+      },
+      brandProfileId: null,
+      creatorProfileId: null,
+    });
+
+    const deps = createMockRemoveDeps();
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID,
+      { removeFromCartDeps: deps }
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
+    // Passing through with an undefined brand scope would widen the `where`
+    // clause to every campaign, so the removal must not run at all.
+    expect(deps.getCampaign).not.toHaveBeenCalled();
+  });
+
+  it('enforces RBAC — rejects unauthorized callers with 403 FORBIDDEN', async () => {
+    guardMock.mockRejectedValue(new ForbiddenError('wrong role'));
+
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
+  });
+
+  it('rejects malformed campaign id with 403 FORBIDDEN', async () => {
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      'not-a-uuid',
+      CREATOR_ID
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
+  });
+
+  it('rejects malformed creatorId with 403 FORBIDDEN', async () => {
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      'not-a-uuid'
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
+  });
+
+  it('returns 403 FORBIDDEN when campaign is not found', async () => {
+    const deps = createMockRemoveDeps({
+      getCampaign: vi.fn().mockResolvedValue(null),
+    });
+
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID,
+      { removeFromCartDeps: deps }
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
+  });
+
+  it('returns 409 CAMPAIGN_NOT_DRAFT when campaign is not draft', async () => {
+    const deps = createMockRemoveDeps({
+      getCampaign: vi.fn().mockResolvedValue({
+        ...mockCampaign,
+        status: 'confirmed',
+      }),
+    });
+
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID,
+      { removeFromCartDeps: deps }
+    );
+
+    expect(response.status).toBe(409);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.CAMPAIGN_NOT_DRAFT);
+  });
+
+  it('returns 404 NOT_FOUND when item not found in cart', async () => {
+    const deps = createMockRemoveDeps({
+      deleteItem: vi.fn().mockResolvedValue([]),
+    });
+
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID,
+      { removeFromCartDeps: deps }
+    );
+
+    expect(response.status).toBe(404);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.NOT_FOUND);
+  });
+});
+
+describe('remove-from-cart button (AC-015 — the brand-facing half)', () => {
+  // Source guards only. There is no DOM environment in this repo, so these
+  // prove the component references the right things — never that it renders.
+  const BUTTON_SOURCE = readFileSync(
+    'components/campaign/remove-from-cart-button.tsx',
+    'utf8'
+  );
+  const BUTTON = stripComments(BUTTON_SOURCE);
+  const PAGE = stripComments(
+    readFileSync('app/(brand)/(onboarded)/campaigns/[id]/page.tsx', 'utf8')
+  );
+  const ADD_FORM = stripComments(
+    readFileSync('components/campaign/add-to-cart-form.tsx', 'utf8')
+  );
+
+  it('strips comments without stripping the component (guards are not vacuous)', () => {
+    expect(BUTTON).toContain('export function RemoveFromCartButton');
+    expect(PAGE).toContain('export default async function CampaignCartPage');
+    expect(ADD_FORM).toContain('export function AddToCartForm');
+  });
+
+  it('the cart page renders a remove control for each item', () => {
+    // Without this the endpoint is unreachable from the product and AC-015's
+    // first clause — "a brand removes a creator" — has no surface at all.
+    expect(PAGE).toContain('RemoveFromCartButton');
+    expect(PAGE).toContain(
+      "from '@/components/campaign/remove-from-cart-button'"
+    );
+    expect(PAGE).toContain('creatorId={item.creatorId}');
+    expect(PAGE).toContain('creatorHandle={item.creator.tiktokHandle}');
+  });
+
+  it('shows the control only on a draft campaign', () => {
+    expect(PAGE).toMatch(
+      /campaign\.status === 'draft' && \(\s*<RemoveFromCartButton/
+    );
+  });
+
+  it('calls DELETE on the item endpoint with both ids encoded', () => {
+    expect(BUTTON).toMatch(/method:\s*'DELETE'/);
+    expect(BUTTON).toContain(
+      '`/api/campaigns/${encodeURIComponent(campaignId)}/items/${encodeURIComponent(creatorId)}`'
+    );
+  });
+
+  it('re-reads the totals from the server rather than patching them client-side', () => {
+    // AC-015's second clause. The summary is server-rendered from
+    // `sumCartTotal`; trusting the response body here would let the two
+    // disagree after any concurrent change.
+    expect(BUTTON).toContain('router.refresh()');
+    expect(BUTTON).not.toContain('running_total');
+    expect(BUTTON).not.toContain('remaining_budget');
+  });
+
+  it('confirms before removing, since the action is destructive and one click away', () => {
+    expect(BUTTON).toContain('window.confirm');
+    // The confirm names the creator — "Remove this item?" on a list of five
+    // does not tell a brand which one they are about to drop.
+    expect(BUTTON).toContain('${creatorHandle}');
+  });
+
+  it('names the creator in the accessible label', () => {
+    // Five buttons all reading "Remove" are indistinguishable to a screen
+    // reader walking the list.
+    expect(BUTTON).toMatch(
+      /aria-label=\{`\$\{REMOVE_FROM_CART_LABEL\} \$\{creatorHandle\}`\}/
+    );
+  });
+
+  it('is a plain button with buttonVariants, not the Base UI Button', () => {
+    // Base UI's `Button` is a client component; this file is already a client
+    // component, but the precedent is the styling helper either way, and
+    // `<Button render={<Link/>}>` is the shape the repo has banned.
+    expect(BUTTON).toContain('buttonVariants({');
+    expect(BUTTON).not.toMatch(/import \{[^}]*\bButton\b[^}]*\} from/);
+    expect(BUTTON).not.toContain('<Button');
+  });
+
+  it('disables itself while the request is in flight and says so', () => {
+    expect(BUTTON).toContain('disabled={removing}');
+    expect(BUTTON).toContain('REMOVE_FROM_CART_PENDING_LABEL');
+    // A disabled control explains itself beside the control, never on hover.
+    expect(BUTTON).not.toContain('title=');
+  });
+
+  it('distinguishes an already-gone item from a real failure', () => {
+    // A 404 here means someone else removed them, or this is a second click.
+    // Reporting that as "failed" tells the brand to retry something that has
+    // already happened.
+    expect(BUTTON).toContain("code === 'NOT_FOUND'");
+    expect(BUTTON).toContain('REMOVE_FROM_CART_MISSING');
+    expect(BUTTON).toContain("code === 'CAMPAIGN_NOT_DRAFT'");
+  });
+
+  it('holds its copy in constants, and both cart paths share the not-draft sentence', () => {
+    expect(REMOVE_FROM_CART_LABEL).toBe('Remove');
+    expect(REMOVE_FROM_CART_MISSING).toBe(
+      'That creator is no longer in this cart.'
+    );
+    expect(CAMPAIGN_NOT_DRAFT_MESSAGE).toBe(
+      'This campaign is no longer a draft and cannot be edited.'
+    );
+
+    // Neither component retypes a string the constants already own — that is
+    // what stops a later edit paraphrasing one copy away from the other.
+    expect(BUTTON).not.toContain("'Remove'");
+    expect(ADD_FORM).toContain('CAMPAIGN_NOT_DRAFT_MESSAGE');
+    expect(ADD_FORM).not.toContain('no longer a draft');
+  });
+
+  it('puts no ticket number in anything a brand reads', () => {
+    const copy = [
+      REMOVE_FROM_CART_LABEL,
+      REMOVE_FROM_CART_PENDING_LABEL,
+      REMOVE_FROM_CART_SUCCESS,
+      REMOVE_FROM_CART_MISSING,
+      REMOVE_FROM_CART_FAILED,
+      CAMPAIGN_NOT_DRAFT_MESSAGE,
+    ];
+    for (const line of copy) {
+      expect(line).not.toMatch(/KAN-\d+/);
+    }
+    expect(BUTTON).not.toMatch(/KAN-\d+/);
   });
 });
