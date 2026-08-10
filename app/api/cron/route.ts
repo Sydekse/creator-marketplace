@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { runSchedulerJobs, verifyCronSecret } from '@/lib/scheduler/harness';
+import {
+  extractSafeErrorDetails,
+  runSchedulerJobs,
+  verifyCronSecret,
+} from '@/lib/scheduler/harness';
 import type { Job, SchedulerRunResult } from '@/lib/scheduler/harness';
 
 export const dynamic = 'force-dynamic';
@@ -11,7 +15,31 @@ export const maxDuration = 300;
 // Jobs will be imported and registered here in future tickets (e.g. KAN-38)
 const jobsToRun: Job[] = [];
 
-async function handleCronRequest(request: Request) {
+/** Injectable for tests — the only seam the route exposes. */
+export interface CronRouteDeps {
+  runJobs?: typeof runSchedulerJobs;
+}
+
+export async function handleCronRequest(
+  request: Request,
+  deps: CronRouteDeps = {}
+): Promise<Response> {
+  const runJobs = deps.runJobs ?? runSchedulerJobs;
+
+  // Declared outside the try so the catch can read it, and aborted by either
+  // end: our own ceiling (290s) or the platform aborting the request before
+  // we finish. Jobs receive one signal that fires on both.
+  const controller = new AbortController();
+  const signal =
+    typeof AbortSignal.any === 'function'
+      ? AbortSignal.any([request.signal, controller.signal])
+      : controller.signal;
+
+  const timeoutMs = 290000;
+  const timerId = setTimeout(() => {
+    controller.abort(new Error('Internal execution timeout'));
+  }, timeoutMs);
+
   try {
     if (!process.env.CRON_SECRET || process.env.CRON_SECRET.trim() === '') {
       return NextResponse.json(
@@ -42,32 +70,21 @@ async function handleCronRequest(request: Request) {
       );
     }
 
-    const controller = new AbortController();
-    const timeoutMs = 290000;
-
-    // Await jobs directly. The setTimeout will call controller.abort() if it takes too long,
-    // which will cause runSchedulerJobs to gracefully terminate before Vercel kills us.
-    const timerId = setTimeout(() => {
-      controller.abort(new Error('Internal execution timeout'));
-    }, timeoutMs);
-
     let summary: SchedulerRunResult;
 
     try {
-      summary = await runSchedulerJobs(jobsToRun, console, controller.signal);
-    } catch (error: unknown) {
-      throw error;
+      summary = await runJobs(jobsToRun, console, signal);
     } finally {
       if (timerId) clearTimeout(timerId);
     }
 
-    if (controller.signal.aborted) {
+    if (signal.aborted) {
       return NextResponse.json(
         {
           error: {
             code: 'CRON_TIMEOUT',
             message: 'Execution timed out after 290s',
-            details: summary,
+            details: summary ?? {},
           },
         },
         { status: 504 }
@@ -89,19 +106,24 @@ async function handleCronRequest(request: Request) {
 
     return NextResponse.json(summary, { status: 200 });
   } catch (error: unknown) {
-    let errorName = 'Error';
-    let errorCode = 'UNKNOWN_ERROR';
-    const context: Record<string, unknown> = {};
+    const { name, code, message, context } = extractSafeErrorDetails(error);
 
-    if (typeof error === 'object' && error !== null) {
-      if ('name' in error && typeof error.name === 'string')
-        errorName = error.name;
-      if (
-        'code' in error &&
-        (typeof error.code === 'string' || typeof error.code === 'number')
-      )
-        errorCode = String(error.code);
-      if ('dealId' in error) context.dealId = error.dealId;
+    // A rejection that escaped the loop while the run was aborted is a
+    // timeout, not an internal failure — the platform or our own timer ended
+    // the execution, and a timeout must map to 504, never 500. Judged from
+    // the signal rather than the error message: the timer aborts with a plain
+    // `Error`, not a `DOMException`.
+    if (name === 'AbortError' || signal.aborted) {
+      return NextResponse.json(
+        {
+          error: {
+            code: 'CRON_TIMEOUT',
+            message: 'Execution timed out after 290s',
+            details: {},
+          },
+        },
+        { status: 504 }
+      );
     }
 
     const contextStr =
@@ -110,7 +132,7 @@ async function handleCronRequest(request: Request) {
         : '';
 
     console.error(
-      `[Cron Route Error] Unhandled infrastructure failure: [${errorName}] ${errorCode}${contextStr}`
+      `[Cron Route Error] Unhandled infrastructure failure: [${name}] ${code} - ${message}${contextStr}`
     );
 
     return NextResponse.json(
@@ -123,6 +145,8 @@ async function handleCronRequest(request: Request) {
       },
       { status: 500 }
     );
+  } finally {
+    if (timerId) clearTimeout(timerId);
   }
 }
 

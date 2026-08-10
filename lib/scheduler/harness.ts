@@ -8,20 +8,36 @@ export interface JobRunOutput {
 export function extractSafeErrorDetails(err: unknown) {
   let name = 'Error';
   let code = 'UNKNOWN_ERROR';
+  let message = 'An unknown error occurred';
   const context: Record<string, unknown> = {};
 
-  if (typeof err === 'object' && err !== null) {
+  if (err instanceof Error) {
+    name = err.name;
+    message = err.message;
+  } else if (typeof err === 'string') {
+    message = err;
+  } else if (typeof err === 'object' && err !== null) {
     if ('name' in err && typeof err.name === 'string') name = err.name;
+    if ('message' in err && typeof err.message === 'string')
+      message = err.message;
+  }
+
+  if (typeof err === 'object' && err !== null) {
     if (
       'code' in err &&
       (typeof err.code === 'string' || typeof err.code === 'number')
-    )
+    ) {
       code = String(err.code);
-
+    }
     if ('dealId' in err) context.dealId = err.dealId;
     if ('campaignId' in err) context.campaignId = err.campaignId;
   }
-  return { name, code, context };
+
+  const safeMessage = message.replace(
+    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
+    '***@***.***'
+  );
+  return { name, code, message: safeMessage, context };
 }
 
 export interface Job {
@@ -63,16 +79,16 @@ export function verifyCronSecret(
   }
 
   const authHeader = request.headers.get('authorization');
-  if (typeof authHeader !== 'string' || authHeader.length > 256) {
+  if (typeof authHeader !== 'string') {
     return false;
   }
 
-  const prefix = 'Bearer ';
-  if (!authHeader.startsWith(prefix)) {
+  const match = authHeader.match(/^bearer +(.+)$/i);
+  if (!match) {
     return false;
   }
 
-  const token = authHeader.slice(prefix.length).trim();
+  const token = match[1];
   const expectedToken = secret.trim();
 
   const expectedHash = createHash('sha256').update(expectedToken).digest();
@@ -123,7 +139,7 @@ export async function runSchedulerJobs(
       });
     } catch (err: unknown) {
       const durationMs = Date.now() - start;
-      const { name, code, context } = extractSafeErrorDetails(err);
+      const { name, code, message, context } = extractSafeErrorDetails(err);
 
       const contextStr =
         Object.keys(context).length > 0
@@ -131,7 +147,7 @@ export async function runSchedulerJobs(
           : '';
 
       logger.error(
-        `[Scheduler] Job "${job.name}" failed after ${durationMs}ms: [${name}] ${code}${contextStr}`
+        `[Scheduler] Job "${job.name}" failed after ${durationMs}ms: [${name}] ${code} - ${message}${contextStr}`
       );
 
       results.push({
@@ -140,7 +156,7 @@ export async function runSchedulerJobs(
         examined: 0,
         acted: 0,
         durationMs,
-        error: name === 'AbortError' ? 'ABORTED' : 'JOB_EXECUTION_FAILED',
+        error: signal?.aborted ? 'ABORTED' : 'JOB_EXECUTION_FAILED',
       });
     }
   }

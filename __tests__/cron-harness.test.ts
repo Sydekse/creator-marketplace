@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { runSchedulerJobs, verifyCronSecret } from '../lib/scheduler/harness';
 import type { Job, Logger } from '../lib/scheduler/harness';
 import type { NextRequest } from 'next/server';
-import { GET } from '../app/api/cron/route';
+import { GET, handleCronRequest } from '../app/api/cron/route';
 import { transitionDeal } from '../lib/deals/state-machine';
 import type { Tx } from '../lib/authz';
 import type { DealStatus } from '../db/schema';
@@ -32,6 +32,14 @@ describe('verifyCronSecret (KAN-56 AC-002)', () => {
     expect(verifyCronSecret(req)).toBe(false);
   });
 
+  it('uses process.env as default and accepts valid token correctly', () => {
+    vi.stubEnv('CRON_SECRET', 'test-secret-12345');
+    const req = new Request('http://localhost/api/cron', {
+      headers: { authorization: 'Bearer test-secret-12345' },
+    });
+    expect(verifyCronSecret(req)).toBe(true);
+  });
+
   it('returns false if authorization header is missing', () => {
     const req = new Request('http://localhost/api/cron');
     expect(verifyCronSecret(req, env)).toBe(false);
@@ -58,22 +66,33 @@ describe('verifyCronSecret (KAN-56 AC-002)', () => {
     expect(verifyCronSecret(req, env)).toBe(true);
   });
 
-  it('returns false when bearer scheme is lowercase but handles extra spacing (RFC 6750 strictness)', () => {
+  it('accepts the bearer scheme case-insensitively and extra spacing (RFC 6750)', () => {
+    // RFC 6750's scheme is case-insensitive, so `bearer ` and `Bearer   `
+    // must verify the same token just as readily as the canonical form.
     const req1 = new Request('http://localhost/api/cron', {
       headers: { authorization: 'bearer test-secret-12345' },
     });
     const req2 = new Request('http://localhost/api/cron', {
       headers: { authorization: 'Bearer   test-secret-12345' },
     });
-    expect(verifyCronSecret(req1, env)).toBe(false);
+    expect(verifyCronSecret(req1, env)).toBe(true);
     expect(verifyCronSecret(req2, env)).toBe(true);
   });
 
-  it('returns false when auth header is overly long (DoS protection)', () => {
-    const req = new Request('http://localhost/api/cron', {
-      headers: { authorization: `Bearer test-secret-12345${'a'.repeat(300)}` },
+  it('accepts a long but valid token (no arbitrary header length limit)', () => {
+    // The earlier 256-character ceiling was an invented limit: the token is
+    // compared by sha256 + timingSafeEqual, so length adds no attack surface.
+    const longToken = `test-secret-12345${'a'.repeat(300)}`;
+    const matching = new Request('http://localhost/api/cron', {
+      headers: { authorization: `Bearer ${longToken}` },
     });
-    expect(verifyCronSecret(req, env)).toBe(false);
+    const mismatching = new Request('http://localhost/api/cron', {
+      headers: { authorization: `Bearer ${longToken}b` },
+    });
+    expect(verifyCronSecret(matching, { CRON_SECRET: longToken })).toBe(true);
+    expect(verifyCronSecret(mismatching, { CRON_SECRET: longToken })).toBe(
+      false
+    );
   });
 });
 
@@ -241,15 +260,20 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
 
     await runSchedulerJobs([job], logger);
 
-    const hasLog = logger.logs.some((log) =>
-      log.includes(
-        'Job "test-job" completed: examined 10 rows, acted on 2 rows'
-      )
-    );
-    expect(hasLog).toBe(true);
-
+    // Exact log lines, not a blanket "no sensitive words" regex: a future log
+    // that legitimately contains "user" or "email" is not a PII leak, and the
+    // broad pattern would start failing for the wrong reason.
     const logText = logger.logs.join('\n');
-    expect(logText).not.toMatch(/@|email|password|token|secret|user/i);
+    expect(logText).toContain(
+      '[Scheduler] Job "test-job" completed: examined 10 rows, acted on 2 rows'
+    );
+    expect(logText).toContain('[Scheduler] Completed run at ');
+    expect(logText).toMatch(/[0-9]+\/[0-9]+ jobs succeeded/);
+
+    // The only thing that must never reach a log is a bare email address.
+    expect(logText).not.toMatch(
+      /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/
+    );
   });
 
   it('surfaces job failure errors in logs with context safely (AC-007)', async () => {
@@ -276,6 +300,7 @@ describe('runSchedulerJobs (KAN-56 AC-003, AC-005, AC-006, AC-007, NFR-010)', ()
     );
     expect(logger.errors[0].message).toContain('[LeakError] LEAK_CODE');
     expect(logger.errors[0].message).not.toContain('user@example.com');
+    expect(logger.errors[0].message).toContain('***@***.***');
   });
 
   it('handles non-Error payload rejections gracefully', async () => {
@@ -340,6 +365,51 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     const body = await res.json();
     expect(body.success).toBe(true);
   });
+
+  it('propagates the request signal down into runSchedulerJobs', async () => {
+    const runJobs = vi.fn<typeof runSchedulerJobs>();
+    const reqAbort = new AbortController();
+    reqAbort.abort();
+    const req = new Request('http://localhost/api/cron', {
+      method: 'GET',
+      headers: { authorization: 'Bearer route-test-secret' },
+      signal: reqAbort.signal,
+    });
+
+    const res = await handleCronRequest(req, { runJobs });
+
+    expect(runJobs).toHaveBeenCalledTimes(1);
+    const signalArg = runJobs.mock.calls[0][2];
+    expect(signalArg).toBeInstanceOf(AbortSignal);
+    expect(signalArg?.aborted).toBe(true);
+
+    // A run ended by an abort is a timeout, not an internal failure.
+    expect(res.status).toBe(504);
+    const body = await res.json();
+    expect(body.error.code).toBe('CRON_TIMEOUT');
+  });
+
+  it('hands runSchedulerJobs a live, un-aborted signal for a normal request', async () => {
+    const runJobs = vi.fn<typeof runSchedulerJobs>(async () => ({
+      success: true,
+      timestamp: new Date().toISOString(),
+      totalJobs: 0,
+      successfulJobs: 0,
+      failedJobs: 0,
+      results: [],
+    }));
+    const req = new Request('http://localhost/api/cron', {
+      method: 'GET',
+      headers: { authorization: 'Bearer route-test-secret' },
+    });
+
+    const res = await handleCronRequest(req, { runJobs });
+
+    const signalArg = runJobs.mock.calls[0][2];
+    expect(signalArg).toBeInstanceOf(AbortSignal);
+    expect(signalArg?.aborted).toBe(false);
+    expect(res.status).toBe(200);
+  });
 });
 
 describe('Guarded transitions and idempotency compliance (KAN-56 AC-004, AC-005, FR-007)', () => {
@@ -348,46 +418,52 @@ describe('Guarded transitions and idempotency compliance (KAN-56 AC-004, AC-005,
   function createMockTx(
     existingDeal: { id: string; status: DealStatus } | null
   ) {
-    let currentStatus = existingDeal ? existingDeal.status : 'pending';
-
-    const resultRows = existingDeal
+    const currentStatus = existingDeal ? existingDeal.status : 'pending';
+    const rows = existingDeal
       ? [{ id: existingDeal.id, status: currentStatus }]
       : [];
-    const limitResult = Object.assign(Promise.resolve(resultRows), {
-      execute: vi.fn().mockResolvedValue(resultRows),
-    });
+    const calls: string[] = [];
 
-    const executeLimit = limitResult.execute;
-    const limit = vi.fn(() => limitResult);
+    // A fluent node: every query-builder method (`select`, `from`, `where`,
+    // `for`, `limit`, `set`, `values`, …) returns the same object, which is
+    // both thenable — `await tx.select()...limit(1)` resolves to the rows —
+    // and exposes `execute()` for drizzle's explicit finish. Only the
+    // terminal row values matter to `transitionDeal`, so no individual chain
+    // link can go stale when the query shape changes.
+    const node: Record<string, unknown> = {
+      execute: vi.fn(async () => rows),
+      then: (resolve: (value: unknown) => void) => resolve(rows),
+    };
+    for (const method of [
+      'select',
+      'from',
+      'where',
+      'for',
+      'limit',
+      'set',
+      'values',
+      'update',
+      'insert',
+    ]) {
+      node[method] = vi.fn(() => {
+        calls.push(method);
+        return node;
+      });
+    }
 
-    const forUpdate = vi.fn(() => ({ limit }));
-    const whereSelect = vi.fn(() => ({ for: forUpdate }));
-    const from = vi.fn(() => ({ where: whereSelect }));
-    const select = vi.fn(() => ({ from }));
-
-    const whereUpdate = vi.fn().mockImplementation(async () => []);
-    const setUpdate = vi.fn().mockImplementation(({ status }) => {
-      currentStatus = status;
-      return { where: whereUpdate };
-    });
-    const update = vi.fn(() => ({ set: setUpdate }));
-
-    const valuesInsert = vi.fn().mockResolvedValue([]);
-    const insert = vi.fn(() => ({ values: valuesInsert }));
-
-    const tx = { select, update, insert } as unknown as Tx;
+    const tx = node as unknown as Tx;
 
     return {
       tx,
       spies: {
-        select,
-        forUpdate,
-        limit,
-        executeLimit,
-        update,
-        setUpdate,
-        insert,
-        valuesInsert,
+        calls,
+        select: node.select as ReturnType<typeof vi.fn>,
+        forUpdate: node.for as ReturnType<typeof vi.fn>,
+        limit: node.limit as ReturnType<typeof vi.fn>,
+        setUpdate: node.set as ReturnType<typeof vi.fn>,
+        valuesInsert: node.values as ReturnType<typeof vi.fn>,
+        update: node.update as ReturnType<typeof vi.fn>,
+        insert: node.insert as ReturnType<typeof vi.fn>,
       },
     };
   }
