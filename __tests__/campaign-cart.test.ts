@@ -63,6 +63,15 @@ function uniqueViolation(constraint: string) {
   );
 }
 
+/**
+ * Source guards read code, not prose about code. A module that documents why it
+ * avoids something names that thing in a comment, and an un-stripped guard reads
+ * the explanation as the violation.
+ */
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 beforeEach(() => {
   guardMock.mockReset();
   guardMock.mockResolvedValue({
@@ -531,7 +540,13 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
     expect(response.status).toBe(409); // From ErrorHttpStatus mapping
     const body = await response.json();
     expect(body.error.code).toBe(ErrorCode.BUDGET_EXCEEDED);
-    expect(body.error.details.excess[0]).toContain('0.01 ETB');
+    // `toBe`, not `toContain`. The whole sentence is short enough that
+    // `toContain('0.01 ETB')` passed against "by 0.01 ETB ETB." — `formatEtb`
+    // already ends in the currency, so a substring match could not tell the
+    // right string from the doubled one. Pinning the full sentence can.
+    expect(body.error.details.excess[0]).toBe(
+      'This exceeds your remaining budget by 0.01 ETB.'
+    );
   });
 });
 
@@ -554,6 +569,65 @@ describe('removeFromCart service', () => {
       ...overrides,
     };
   }
+
+  it('sums the cart on the transaction connection, not the pool', async () => {
+    // Every other test here stubs `getRunningTotal`, so the real dependency
+    // never runs and a deadlock in the wiring would go unseen. Two guards
+    // stand in for it.
+
+    // 1. Behavioural: the sum is handed the same `tx` the transaction opened.
+    //    Dropping that argument sends the query to the global pool while this
+    //    transaction still holds `FOR UPDATE` on the campaign row.
+    const tx = { transactionConnection: true } as unknown as Tx;
+    const deps = createMockRemoveDeps({
+      transaction: async (fn) => fn(tx),
+    });
+
+    await removeFromCart(CAMPAIGN_ID, BRAND_PROFILE_ID, CREATOR_ID, deps);
+
+    expect(deps.getRunningTotal).toHaveBeenCalledWith(tx, CAMPAIGN_ID);
+
+    // 2. Structural: the default wiring uses the un-authz'd sum. Comments are
+    //    stripped first — this module explains the choice in prose that names
+    //    the wrong function, and a raw-source guard cannot tell an explanation
+    //    from a violation.
+    const service = stripComments(
+      readFileSync('lib/campaigns/remove-from-cart.ts', 'utf8')
+    );
+    expect(service).toContain('export async function removeFromCart'); // not vacuous
+    expect(service).toContain('sumCartTotal(campaignId, tx)');
+    expect(service).not.toContain('getCartRunningTotal');
+
+    // Same wiring in the sibling service, which is where the precedent is.
+    const sibling = stripComments(
+      readFileSync('lib/campaigns/add-to-cart.ts', 'utf8')
+    );
+    expect(sibling).toContain('sumCartTotal(campaignId, tx)');
+    expect(sibling).not.toContain('getCartRunningTotal');
+  });
+
+  it('distinguishes the two cart totals: one calls guard, one does not', () => {
+    // Without this the guard above is a spelling test. `sumCartTotal` is only
+    // the safe one for as long as it stays free of authz, and
+    // `getCartRunningTotal` is only worth avoiding because it is not.
+    const queries = stripComments(
+      readFileSync('lib/campaigns/cart-queries.ts', 'utf8')
+    );
+    const sumBody = queries.slice(
+      queries.indexOf('export async function sumCartTotal'),
+      queries.indexOf('export async function getCartRunningTotal')
+    );
+    const wrappedBody = queries.slice(
+      queries.indexOf('export async function getCartRunningTotal'),
+      queries.indexOf('export async function listCartItems')
+    );
+
+    expect(sumBody).toContain('sumCartTotal'); // not vacuous
+    expect(wrappedBody).toContain('getCartRunningTotal'); // not vacuous
+    expect(sumBody).not.toContain('guard(');
+    expect(sumBody).not.toContain('requireOwnership');
+    expect(wrappedBody).toContain('guard(');
+  });
 
   it('removes item from cart, returning updated running total and budget', async () => {
     const deps = createMockRemoveDeps();
@@ -590,6 +664,15 @@ describe('removeFromCart service', () => {
     );
 
     expect(result).toEqual({ ok: false, reason: 'not_found' });
+    // The ownership layer is the `brandProfileId` reaching the `where` clause.
+    // A lookup by campaign id alone would find another brand's campaign and
+    // then delete from it, with the role gate none the wiser (NFR-005).
+    expect(deps.getCampaign).toHaveBeenCalledWith(
+      expect.anything(),
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID
+    );
+    expect(deps.deleteItem).not.toHaveBeenCalled();
   });
 
   it('rejects if campaign is not in draft status', async () => {
@@ -608,6 +691,46 @@ describe('removeFromCart service', () => {
     );
 
     expect(result).toEqual({ ok: false, reason: 'not_draft' });
+    // "and changes nothing" is the other half of that AC. A 409 that has
+    // already deleted the row satisfies the status code and nothing else.
+    expect(deps.deleteItem).not.toHaveBeenCalled();
+  });
+
+  it('refuses every non-draft status, not just confirmed', async () => {
+    // The AC names confirmed and funded; the campaign machine has six statuses
+    // and only one of them is removable. Asserting the one the reviewer thought
+    // of leaves the other four to whichever comparison a later edit reaches for.
+    const nonDraft = [
+      'confirmed',
+      'funded',
+      'in_progress',
+      'completed',
+      'cancelled',
+    ] as const;
+
+    for (const status of nonDraft) {
+      const deps = createMockRemoveDeps({
+        getCampaign: vi.fn().mockResolvedValue({ ...mockCampaign, status }),
+      });
+
+      const result = await removeFromCart(
+        CAMPAIGN_ID,
+        BRAND_PROFILE_ID,
+        CREATOR_ID,
+        deps
+      );
+
+      expect(result).toEqual({ ok: false, reason: 'not_draft' });
+      expect(deps.deleteItem).not.toHaveBeenCalled();
+    }
+  });
+
+  it('locks the campaign row for update', () => {
+    // Same reason as the add path: status is read, then the cart is mutated and
+    // the total recomputed against `budget`. Without the lock a concurrent
+    // confirm can land between the read and the delete.
+    const source = readFileSync('lib/campaigns/remove-from-cart.ts', 'utf8');
+    expect(source).toMatch(/\.for\(['"]update['"]\)/);
   });
 
   it('rejects if creator item was not found in cart', async () => {
@@ -661,6 +784,43 @@ describe('DELETE /api/campaigns/[id]/items/[creatorId] route handler', () => {
       running_total: 100000,
       remaining_budget: 400000,
     });
+
+    // The brand scope comes from the guard's resolved context, never from the
+    // URL or the body — there is no parameter a caller could set to reach
+    // another brand's cart.
+    expect(deps.getCampaign).toHaveBeenCalledWith(
+      expect.anything(),
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID
+    );
+  });
+
+  it('returns 403 FORBIDDEN when the caller has the brand role but no profile', async () => {
+    guardMock.mockResolvedValue({
+      user: {
+        id: BRAND_USER_ID,
+        email: 'brand@example.com',
+        name: 'Brand',
+        role: 'brand',
+      },
+      brandProfileId: null,
+      creatorProfileId: null,
+    });
+
+    const deps = createMockRemoveDeps();
+    const response = await handleDeleteCampaignItem(
+      deleteRequest(),
+      CAMPAIGN_ID,
+      CREATOR_ID,
+      { removeFromCartDeps: deps }
+    );
+
+    expect(response.status).toBe(403);
+    const body = await response.json();
+    expect(body.error.code).toBe(ErrorCode.FORBIDDEN);
+    // Passing through with an undefined brand scope would widen the `where`
+    // clause to every campaign, so the removal must not run at all.
+    expect(deps.getCampaign).not.toHaveBeenCalled();
   });
 
   it('enforces RBAC — rejects unauthorized callers with 403 FORBIDDEN', async () => {

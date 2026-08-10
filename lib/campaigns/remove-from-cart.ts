@@ -3,7 +3,7 @@ import { db } from '@/db';
 import { campaign, campaignItem } from '@/db/schema';
 import type { CampaignStatus } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
-import { getCartRunningTotal } from './cart-queries';
+import { sumCartTotal } from './cart-queries';
 
 export type RemoveFromCartResult =
   | { ok: true; runningTotal: number; remainingBudget: number }
@@ -56,7 +56,19 @@ const defaultDeps: RemoveFromCartDeps = {
       )
       .returning({ id: campaignItem.id });
   },
-  getRunningTotal: (tx, campaignId) => getCartRunningTotal(campaignId, tx),
+  // `sumCartTotal`, not `getCartRunningTotal` — the un-wrapped variant, matching
+  // `add-to-cart.ts`. The authz-wrapped one calls `guard()`, and `guard()` issues
+  // four queries through `db`: the session lookup, `brandProfile`,
+  // `creatorProfile`, then `loadOwnerRefs('campaign')`. Each checks out its own
+  // pool connection while `tx` is still holding one with `FOR UPDATE` on the
+  // campaign row, and the pool is `max: 5` — five concurrent removals occupy
+  // every connection inside their transactions and then each waits for a sixth
+  // that cannot exist. `sumCartTotal`'s docstring exists for exactly this.
+  //
+  // Not a downgrade: the route has already run `guard({ roles: ['brand'],
+  // resource: { kind: 'campaign', id } })`, and `getCampaign` above filters on
+  // `brandId`, so a caller who does not own the campaign never reaches here.
+  getRunningTotal: (tx, campaignId) => sumCartTotal(campaignId, tx),
   transaction: (fn) => db.transaction(fn),
 };
 
