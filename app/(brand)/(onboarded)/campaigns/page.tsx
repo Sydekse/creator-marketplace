@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/card';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
-import { listDraftCampaignsByBrand } from '@/lib/campaigns/queries';
+import { listCampaignsByBrand } from '@/lib/campaigns/queries';
 import { formatEtb } from '@/lib/money';
 
 export const runtime = 'nodejs';
@@ -21,14 +21,16 @@ export const runtime = 'nodejs';
 /**
  * Campaigns list page for brands (KAN-26, US-003, AC-007).
  *
- * Shows draft campaigns that the brand can continue editing or add creators to.
+ * Every campaign the brand owns, whatever its status — a confirmed campaign is
+ * still theirs, and a draft-only list would drop it from view the moment they
+ * sent its offers.
  */
 export default async function CampaignsPage() {
   const user = await requireRole('brand');
   const profile = await getBrandProfileByUserId(user.id);
   if (!profile) redirect('/brand/onboarding');
 
-  const campaigns = await listDraftCampaignsByBrand(profile.id);
+  const campaigns = await listCampaignsByBrand(profile.id);
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 py-4">
@@ -111,15 +113,34 @@ export default async function CampaignsPage() {
                   )}
 
                   <div className="mt-2 pt-2 border-t border-border flex items-center justify-end">
-                    <Link
-                      href={`/campaigns/${camp.id}/edit`}
-                      className={buttonVariants({
-                        variant: 'outline',
-                        size: 'sm',
-                      })}
-                    >
-                      Edit brief
-                    </Link>
+                    {/*
+                      A confirmed campaign has no brief to edit — the edit page
+                      answers with a "cannot be edited" alert and a way back.
+                      Sending them to the campaign itself is the useful link
+                      once offers are out, and this list only shows non-draft
+                      campaigns at all because confirmation exists.
+                    */}
+                    {camp.status === 'draft' ? (
+                      <Link
+                        href={`/campaigns/${camp.id}/edit`}
+                        className={buttonVariants({
+                          variant: 'outline',
+                          size: 'sm',
+                        })}
+                      >
+                        Edit brief
+                      </Link>
+                    ) : (
+                      <Link
+                        href={`/campaigns/${camp.id}`}
+                        className={buttonVariants({
+                          variant: 'outline',
+                          size: 'sm',
+                        })}
+                      >
+                        View campaign
+                      </Link>
+                    )}
                   </div>
                 </CardContent>
               </Card>

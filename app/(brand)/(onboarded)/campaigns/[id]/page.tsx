@@ -12,6 +12,7 @@ import {
 import { getCampaignForBrand } from '@/lib/campaigns/queries';
 import { formatEtb } from '@/lib/money';
 
+import { ConfirmCampaignButton } from '@/components/campaign/confirm-campaign-button';
 import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-button';
 import { EmptyState } from '@/components/feedback/empty-state';
 
@@ -72,7 +73,7 @@ export default async function CampaignCartPage({
           </div>
         </div>
         {campaign.status === 'draft' && (
-          <div className="flex items-center gap-3">
+          <div className="flex items-start gap-3">
             <Link
               href={`/campaigns/${campaign.id}/edit`}
               className={buttonVariants({ variant: 'outline', size: 'sm' })}
@@ -81,10 +82,19 @@ export default async function CampaignCartPage({
             </Link>
             <Link
               href="/discover"
-              className={buttonVariants({ variant: 'default', size: 'sm' })}
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
             >
               Find creators
             </Link>
+            {/*
+              AC-016. Draft only, and disabled on an empty cart — both are
+              courtesies. `POST /confirm` re-checks the status, the ownership,
+              the cart and the budget ceiling regardless (NFR-005, AC-014).
+            */}
+            <ConfirmCampaignButton
+              campaignId={campaign.id}
+              itemCount={items.length}
+            />
           </div>
         )}
       </div>

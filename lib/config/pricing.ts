@@ -70,6 +70,35 @@ export const PRICING_TIERS = [
 ] as const;
 
 /**
+ * How long a `pending` offer stands before the expiry sweep may take it.
+ *
+ * Neither the PRD nor the tech spec ever gave this a duration — AC-018 names an
+ * "offer window" and the column that holds it (`deal.offer_expires_at`) is
+ * nullable with no default. Seven days is a product decision, taken so the value
+ * lives in one importable place rather than as a literal at whichever call site
+ * needed it first.
+ *
+ * `offer_expires_at` is not optional in practice even though the column allows
+ * null: the sweep selects `status = 'pending' AND offer_expires_at < now()`, a
+ * predicate no NULL row ever satisfies, so an offer issued without one never
+ * expires — silently, with nothing failing.
+ */
+export const OFFER_WINDOW_DAYS = 7;
+
+export const OFFER_WINDOW_MS = OFFER_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * When an offer issued at `from` stops standing.
+ *
+ * `from` is a parameter rather than an inlined `new Date()` so a test can assert
+ * the window without freezing the clock, and so every deal in one confirmation
+ * can share a single instant instead of drifting by however long the loop took.
+ */
+export function offerExpiresAt(from: Date = new Date()): Date {
+  return new Date(from.getTime() + OFFER_WINDOW_MS);
+}
+
+/**
  * Usage-rights terms seeded into `rights_terms`.
  *
  * PROVISIONAL pending Q5 — this is engineer-written placeholder text, not legal

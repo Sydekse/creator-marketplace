@@ -157,3 +157,48 @@ export async function transitionDeal(
 
   return { ...row, status: toStatus };
 }
+
+/**
+ * The opening `deal_event` for deals that have just been created (KAN-33).
+ *
+ * Creation is the one point in a deal's life that `transitionDeal` cannot
+ * express. `LEGAL_TRANSITIONS` has no inbound edge to `pending` — it is listed
+ * only as a source, and `PRECONDITION_FAILED_CODE` maps a `pending` target to
+ * `VALIDATION_ERROR` on the grounds that a caller asking for it invented the
+ * target. A deal does not *arrive* at `pending`; it *begins* there.
+ *
+ * So it lives here rather than at the call site. Invariant 6 says every deal
+ * transition writes a `deal_event`, and the suite enforces that structurally by
+ * refusing any `insert(dealEvent)` outside this module — a rule worth keeping
+ * exactly because an event written next to some other business logic is how an
+ * audit row with no status change behind it gets created. Creation events are
+ * the legitimate exception, and this is where they are written.
+ *
+ * `fromStatus` is null: there is no status the deal came from. That is the same
+ * convention the schema documents for `actor_id`, where null means the system
+ * acted rather than a person — here the null is about history, not agency, and
+ * `actorId` is still the person who confirmed the campaign.
+ *
+ * @param tx An open transaction — the same one the deals were inserted in, so
+ *   the history cannot commit without the deals or the deals without it.
+ * @param dealIds The deals that were just created, each at `pending`
+ * @param actorId The user whose action created them, or null for the system
+ */
+export async function recordDealsCreated(
+  tx: Tx,
+  dealIds: string[],
+  actorId?: string | null
+): Promise<void> {
+  if (dealIds.length === 0) return;
+
+  // One multi-row insert rather than one per deal: they are a single event in
+  // the domain, and they share a transaction regardless.
+  await tx.insert(dealEvent).values(
+    dealIds.map((dealId) => ({
+      dealId,
+      fromStatus: null,
+      toStatus: 'pending' as const,
+      actorId: actorId ?? null,
+    }))
+  );
+}

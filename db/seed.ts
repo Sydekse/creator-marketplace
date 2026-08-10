@@ -9,6 +9,7 @@ import {
   COMMISSION_RATE,
   PRICING_TIERS,
   RIGHTS_TERMS,
+  offerExpiresAt as computeOfferExpiry,
 } from '../lib/config/pricing';
 import { selectTier } from '../lib/creators/tier-assignment';
 import { formatEtb } from '../lib/money';
@@ -591,7 +592,7 @@ async function seedDemoDeals(
   console.log('  Demo deals …');
 
   const ledger = new EscrowLedgerService(db, getPaymentProvider());
-  const offerExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const offerExpiresAt = computeOfferExpiry();
 
   for (const spec of DEMO_DEALS) {
     const totalPrice = creator.pricePerVideo * spec.videoCount;
