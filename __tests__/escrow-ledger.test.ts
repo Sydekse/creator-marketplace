@@ -1,7 +1,10 @@
 import { describe, it, expect } from 'vitest';
+import type { SQL } from 'drizzle-orm';
+import { PgDialect } from 'drizzle-orm/pg-core';
 import * as schema from '../db/schema';
 import type { DealStatus } from '../db/schema';
 import { ErrorCode } from '../lib/validation/errors';
+import { UUID_REGEX } from '../lib/validation/schemas';
 import { MockPaymentProvider } from '../lib/payment/mock-provider';
 import { PaymentError } from '../lib/payment/types';
 import {
@@ -130,6 +133,20 @@ function serializationFailure(): Error {
   });
 }
 
+/**
+ * The uuid a predicate binds, so the fake can tell one locked read of `deal`
+ * from another. `sqlToQuery` is the same rendering the real driver does, which
+ * is why it is preferred here over reaching into `queryChunks`: the predicate
+ * is read the way Postgres would read it.
+ */
+function firstUuidParam(condition: unknown): string | undefined {
+  if (!condition) return undefined;
+  const { params } = new PgDialect().sqlToQuery(condition as SQL);
+  return params.find(
+    (p): p is string => typeof p === 'string' && UUID_REGEX.test(p)
+  );
+}
+
 class FakeDb {
   log: string[] = [];
   inserts: { table: string; values: Record<string, unknown>[] }[] = [];
@@ -150,11 +167,15 @@ class FakeDb {
   /**
    * Every read the service makes is distinguishable by (table, selected fields,
    * whether it was limited), so the fake can answer without parsing SQL.
+   *
+   * `whereId` is the exception: two locked reads of `deal` differ only by the
+   * id they ask for, so that one value is extracted from the predicate.
    */
   private rowsFor(
     table: unknown,
     fields: Record<string, unknown> | undefined,
-    limited: boolean
+    limited: boolean,
+    whereId?: string
   ): Record<string, unknown>[] {
     const name = this.tableName(table);
 
@@ -172,7 +193,19 @@ class FakeDb {
     if (name === 'deal') {
       // Lock-by-id uses .limit(1); the accepted-deals scan does not.
       if (limited) {
-        const d = this.seed.targetDeal;
+        // Answered by the id the caller actually asked for, not by whichever
+        // row the seed happens to list first. `holdForCampaign` scans for
+        // accepted deals and then calls `transitionDeal` once per deal, each
+        // re-reading its own row by id under FOR UPDATE — a fake that returned
+        // `deals[0]` to both would let the multi-deal test pass while the
+        // service validated the wrong row's status twice.
+        const candidates: { id: string; status: DealStatus }[] = [
+          ...(this.seed.targetDeal ? [this.seed.targetDeal] : []),
+          ...(this.seed.deals ?? []),
+        ];
+        const d = whereId
+          ? candidates.find((c) => c.id === whereId)
+          : candidates[0];
         return d
           ? [{ ...d, campaignId: CAMPAIGN_ID, creatorId: CREATOR_ID }]
           : [];
@@ -214,13 +247,17 @@ class FakeDb {
     let table: unknown;
     let limited = false;
     let locked = false;
+    let whereId: string | undefined;
 
     const builder = {
       from: (t: unknown) => {
         table = t;
         return builder;
       },
-      where: () => builder,
+      where: (condition?: unknown) => {
+        whereId = firstUuidParam(condition);
+        return builder;
+      },
       for: (strength: string) => {
         locked = true;
         this.log.push(`lock:${this.tableName(table)}:${strength}`);
@@ -237,10 +274,9 @@ class FakeDb {
         this.log.push(
           `select:${this.tableName(table)}${locked ? ':forUpdate' : ''}`
         );
-        return Promise.resolve(this.rowsFor(table, fields, limited)).then(
-          resolve,
-          reject
-        );
+        return Promise.resolve(
+          this.rowsFor(table, fields, limited, whereId)
+        ).then(resolve, reject);
       },
     };
     return builder;
@@ -407,10 +443,38 @@ describe('holdForCampaign', () => {
       expect(e.toStatus).toBe('funded');
       expect(e.actorId).toBe('user-1');
     }
+    // One event per deal, each naming its own deal. Asserting only the count
+    // would pass if the service transitioned the first deal twice.
+    expect(events.map((e) => e.dealId).sort()).toEqual(
+      twoDeals.map((d) => d.id).sort()
+    );
     expect(db.updates.filter((u) => u.table === 'deal')).toHaveLength(2);
     expect(db.updates.find((u) => u.table === 'campaign')?.set).toEqual({
       status: 'funded',
     });
+  });
+
+  it('validates each deal against its own locked row, not the first one', async () => {
+    // The scan and the per-deal lock are separate reads, and only the second
+    // is under FOR UPDATE. If `transitionDeal` trusted the status the scan
+    // returned — or if anything collapsed the N lookups into one — a deal that
+    // moved on between the two reads would be funded out of the wrong state.
+    // Seeding a second deal the scan should never have returned makes that
+    // visible: it has to be judged on `delivered`, which cannot reach funded.
+    const { svc } = await build({
+      deals: [
+        { id: DEAL_ID, status: 'accepted' as DealStatus, totalPrice: 100_000 },
+        {
+          id: 'd0000000-0000-0000-0000-000000000002',
+          status: 'delivered' as DealStatus,
+          totalPrice: 50_000,
+        },
+      ],
+    });
+
+    await expect(svc.holdForCampaign(CAMPAIGN_ID, 'user-1')).rejects.toThrow(
+      /from delivered to funded/
+    );
   });
 
   it('records a null actor when the system acts', async () => {

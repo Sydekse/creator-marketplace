@@ -5,6 +5,7 @@ import type { DealStatus } from '@/db/schema';
 import { ErrorCode } from '@/lib/validation/errors';
 import type { PaymentProvider } from './types';
 import { PaymentError } from './types';
+import { transitionDeal } from '@/lib/deals/state-machine';
 
 type Db = NodePgDatabase<typeof schema>;
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -189,7 +190,7 @@ export class EscrowLedgerService {
           providerRef: held.providerRef,
         });
 
-        await this.transitionDeal(tx, d.id, d.status, 'funded', actorId, {
+        await transitionDeal(tx, d.id, 'funded', actorId, {
           reason: 'Campaign funded',
         });
       }
@@ -270,14 +271,9 @@ export class EscrowLedgerService {
         },
       ]);
 
-      await this.transitionDeal(
-        tx,
-        deal.id,
-        deal.status,
-        'completed',
-        actorId,
-        { reason: 'Deliverable approved' }
-      );
+      await transitionDeal(tx, deal.id, 'completed', actorId, {
+        reason: 'Deliverable approved',
+      });
     });
   }
 
@@ -331,7 +327,7 @@ export class EscrowLedgerService {
         providerRef: holdRef,
       });
 
-      await this.transitionDeal(tx, deal.id, deal.status, 'refunded', actorId, {
+      await transitionDeal(tx, deal.id, 'refunded', actorId, {
         reason: 'Deal refunded',
       });
     });
@@ -449,36 +445,5 @@ export class EscrowLedgerService {
       );
     }
     return entry.providerRef;
-  }
-
-  /**
-   * Moves the deal and records why, in the same transaction as the money.
-   *
-   * `deal_event` is append-only and every transition writes one as it happens
-   * (FR-007, NFR-012) — the table is the audit trail for the state machine, so
-   * a status update without its event is a hole in the record.
-   */
-  private async transitionDeal(
-    tx: Tx,
-    dealId: string,
-    from: DealStatus,
-    to: DealStatus,
-    actorId: string | undefined,
-    opts: { reason: string }
-  ): Promise<void> {
-    await tx
-      .update(schema.deal)
-      .set({ status: to })
-      .where(eq(schema.deal.id, dealId));
-
-    await tx.insert(schema.dealEvent).values({
-      dealId,
-      fromStatus: from,
-      toStatus: to,
-      // Null means the system acted rather than a person — the expiry sweep,
-      // for instance, has no user behind it.
-      actorId: actorId ?? null,
-      reason: opts.reason,
-    });
   }
 }
