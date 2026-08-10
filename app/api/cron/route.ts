@@ -17,9 +17,10 @@ export const maxDuration = 300;
 /**
  * Ten seconds of margin under the 300s platform ceiling (`maxDuration`): a run
  * that outlives its budget is aborted by us and answered with a proper 504
- * before the platform kills it.
+ * before the platform kills it. Exported so tests can pin the boundary
+ * (sub-ceiling runs must complete, over-ceiling runs must 504).
  */
-const CRON_TIMEOUT_MS = 290000;
+export const CRON_TIMEOUT_MS = 290000;
 const CRON_TIMEOUT_ABORT_REASON = 'Internal execution timeout';
 
 // Jobs will be imported and registered here in future tickets (e.g. KAN-38)
@@ -86,8 +87,8 @@ export async function handleCronRequest(
           level: 'error',
           event: 'cron.timeout',
           message: '[Cron Route] Run aborted after timeout',
-          runId: summary?.runId,
-          summary: summary ?? {},
+          runId: summary.runId,
+          summary,
         })
       );
       return NextResponse.json(errorResponse(ErrorCode.CRON_TIMEOUT, {}), {

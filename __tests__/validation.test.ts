@@ -24,6 +24,11 @@ import {
 // ---------------------------------------------------------------------------
 
 describe('ErrorCode enum', () => {
+  it('has no duplicate values, so every response code is unambiguous', () => {
+    const codes = Object.values(ErrorCode);
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+
   it('defines the 12 spec codes plus the twelve of our own', () => {
     const codes = Object.values(ErrorCode);
     // 12 from the PRD table, plus PROFILE_EXISTS (KAN-21), NOT_FOUND (KAN-52
