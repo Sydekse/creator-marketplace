@@ -25,14 +25,6 @@ export const ACCEPT_DEAL_LABEL = 'Accept offer';
 export const DECLINE_DEAL_LABEL = 'Decline offer';
 
 /**
- * Declining is KAN-37, a different branch in the same wave. Narrowed from the
- * sentence that covered both controls, which would now be false about the one
- * beside it — accepting works.
- */
-export const DECLINE_UNAVAILABLE_MESSAGE =
-  'Declining an offer is not available yet. Let it expire if you do not want it, or accept it above.';
-
-/**
  * What the accept button is waiting for, when it is disabled and there is
  * something to agree to.
  *
@@ -68,3 +60,31 @@ export const ACCEPT_NETWORK_ERROR_MESSAGE =
  */
 export const ACCEPT_FAILED_MESSAGE =
   'Could not accept this offer. Reload the page and try again.';
+
+/** While the decline request is in flight. */
+export const DECLINING_LABEL = 'Declining…';
+
+/**
+ * The last stop before an irreversible action.
+ *
+ * A declined deal cannot be accepted or resurrected — `LEGAL_TRANSITIONS.declined`
+ * is empty — and this button sits one tap from the accept button, so the prompt
+ * says what cannot be undone rather than just asking "are you sure". `confirm`
+ * rather than a dialog because no dialog primitive is installed and adding one
+ * for a yes/no would widen the ticket; `remove-from-cart-button.tsx` set that
+ * precedent.
+ */
+export const DECLINE_CONFIRM_MESSAGE =
+  'Decline this offer? This cannot be undone — the brand will be told, and you will not be able to accept it later.';
+
+export const DECLINE_SUCCESS_MESSAGE =
+  'Offer declined. The brand has been notified and the budget is back with them.';
+
+/**
+ * The fallback when a response carries no message of its own — the accept
+ * button's `ACCEPT_FAILED_MESSAGE` reasoning, applied to this one. Every code
+ * this endpoint returns has its own sentence in `ErrorMessage`, and that is what
+ * gets shown; this covers only a response shaped unlike the envelope.
+ */
+export const DECLINE_FAILED_MESSAGE =
+  'Could not decline this offer. Reload the page and try again.';

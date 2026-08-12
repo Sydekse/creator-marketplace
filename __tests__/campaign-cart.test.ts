@@ -604,37 +604,46 @@ describe('removeFromCart service', () => {
     );
     expect(service).toContain('export async function removeFromCart'); // not vacuous
     expect(service).toContain('sumCartTotal(campaignId, tx)');
-    expect(service).not.toContain('getCartRunningTotal');
+    expect(service).not.toContain('guard(');
 
     // Same wiring in the sibling service, which is where the precedent is.
     const sibling = stripComments(
       readFileSync('lib/campaigns/add-to-cart.ts', 'utf8')
     );
     expect(sibling).toContain('sumCartTotal(campaignId, tx)');
-    expect(sibling).not.toContain('getCartRunningTotal');
+    expect(sibling).not.toContain('guard(');
   });
 
-  it('distinguishes the two cart totals: one calls guard, one does not', () => {
+  it('keeps the transaction-safe sum free of authz, unlike its neighbours', () => {
     // Without this the guard above is a spelling test. `sumCartTotal` is only
-    // the safe one for as long as it stays free of authz, and
-    // `getCartRunningTotal` is only worth avoiding because it is not.
+    // the safe one for as long as it stays free of authz — the moment it calls
+    // `guard` it acquires a read of its own and the deadlock is back.
+    //
+    // The guarded wrapper this used to be compared against, `getCartRunningTotal`,
+    // was deleted on KAN-37: its one caller was the campaign page, and that page
+    // now reads `readCampaignBudget`, which switches from cart rows to deals once
+    // offers exist (AC-018). Leaving a guarded total with no callers would have
+    // left the next person a coin flip between two functions. `listCartItems` is
+    // the guarded neighbour now, and it makes the same contrast.
     const queries = stripComments(
       readFileSync('lib/campaigns/cart-queries.ts', 'utf8')
     );
     const sumBody = queries.slice(
       queries.indexOf('export async function sumCartTotal'),
-      queries.indexOf('export async function getCartRunningTotal')
-    );
-    const wrappedBody = queries.slice(
-      queries.indexOf('export async function getCartRunningTotal'),
       queries.indexOf('export async function listCartItems')
     );
 
     expect(sumBody).toContain('sumCartTotal'); // not vacuous
-    expect(wrappedBody).toContain('getCartRunningTotal'); // not vacuous
     expect(sumBody).not.toContain('guard(');
     expect(sumBody).not.toContain('requireOwnership');
-    expect(wrappedBody).toContain('guard(');
+    // Gone, and asserted gone: a re-added guarded total is what would make the
+    // deadlock guard above ambiguous again.
+    expect(queries).not.toContain('getCartRunningTotal');
+    // The neighbour that does gate, so the absence above is a property of this
+    // function rather than of the whole module.
+    expect(queries).toMatch(
+      /export async function listCartItems[\s\S]*?requireOwnership/
+    );
   });
 
   it('removes item from cart, returning updated running total and budget', async () => {

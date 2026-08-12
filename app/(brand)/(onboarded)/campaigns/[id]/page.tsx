@@ -5,10 +5,8 @@ import { buttonVariants } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
-import {
-  getCartRunningTotal,
-  listCartItems,
-} from '@/lib/campaigns/cart-queries';
+import { readCampaignBudget } from '@/lib/campaigns/budget';
+import { listCartItems } from '@/lib/campaigns/cart-queries';
 import { getCampaignForBrand } from '@/lib/campaigns/queries';
 import { formatEtb } from '@/lib/money';
 
@@ -36,12 +34,19 @@ export default async function CampaignCartPage({
   const campaign = await getCampaignForBrand(id, profile.id);
   if (!campaign) notFound();
 
-  const [items, runningTotal] = await Promise.all([
+  const [items, budget] = await Promise.all([
     listCartItems(campaign.id),
-    getCartRunningTotal(campaign.id),
+    readCampaignBudget(campaign.id),
   ]);
 
-  const remainingBudget = campaign.budget - runningTotal;
+  // `getCampaignForBrand` already returned this campaign for this brand, so the
+  // guarded read above cannot miss. Falling back to the campaign's own ceiling
+  // with nothing committed keeps the type honest without a second `notFound()`
+  // for a case that is unreachable.
+  const { committed, available } = budget ?? {
+    committed: 0,
+    available: campaign.budget,
+  };
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-8 py-4">
@@ -204,13 +209,22 @@ export default async function CampaignCartPage({
                 </span>
               </div>
               <div className="flex justify-between items-center text-sm">
-                <span className="text-muted-foreground">Running Total</span>
-                <span className="font-medium">{formatEtb(runningTotal)}</span>
+                {/*
+                  Two labels because there are two sources (see
+                  `readCampaignBudget`): the cart while the campaign is a draft,
+                  the live deals once offers exist. "Running Total" over a
+                  deals-derived figure would name the wrong thing — and it is the
+                  figure that no longer counts a declined offer (AC-018).
+                */}
+                <span className="text-muted-foreground">
+                  {campaign.status === 'draft' ? 'Running Total' : 'Committed'}
+                </span>
+                <span className="font-medium">{formatEtb(committed)}</span>
               </div>
               <div className="pt-4 border-t border-border flex justify-between items-center">
                 <span className="font-semibold">Remaining</span>
                 <span className="font-semibold text-primary">
-                  {formatEtb(remainingBudget)}
+                  {formatEtb(available)}
                 </span>
               </div>
             </CardContent>

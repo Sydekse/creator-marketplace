@@ -13,8 +13,11 @@ import {
   ACCEPT_NETWORK_ERROR_MESSAGE,
   ACCEPT_SUCCESS_MESSAGE,
   ACCEPTING_LABEL,
+  DECLINE_CONFIRM_MESSAGE,
   DECLINE_DEAL_LABEL,
-  DECLINE_UNAVAILABLE_MESSAGE,
+  DECLINE_FAILED_MESSAGE,
+  DECLINE_SUCCESS_MESSAGE,
+  DECLINING_LABEL,
 } from '@/lib/deals/copy';
 
 /**
@@ -64,6 +67,7 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
   const router = useRouter();
   const [agreed, setAgreed] = useState(false);
   const [accepting, setAccepting] = useState(false);
+  const [declining, setDeclining] = useState(false);
 
   // Nothing to agree to when the deal carries no terms row. The page renders the
   // missing-terms sentence in that case; the buttons still show, because AC-3 is
@@ -71,7 +75,7 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
   const canAccept = agreed && terms !== null;
 
   async function handleAccept() {
-    if (accepting || !canAccept || !terms) return;
+    if (accepting || declining || !canAccept || !terms) return;
 
     setAccepting(true);
 
@@ -133,6 +137,54 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
     router.refresh();
   }
 
+  /**
+   * AC-018's creator side. No body, no terms, and no `agreed` gate — a creator
+   * refusing the terms should not have to tick that they accept them first.
+   */
+  async function handleDecline() {
+    if (accepting || declining) return;
+
+    // Irreversible: `LEGAL_TRANSITIONS.declined` is empty, so there is no path
+    // back. `confirm` rather than a dialog, per `remove-from-cart-button.tsx`.
+    if (!window.confirm(DECLINE_CONFIRM_MESSAGE)) return;
+
+    setDeclining(true);
+
+    let response: Response;
+    try {
+      response = await fetch(
+        `/api/deals/${encodeURIComponent(dealId)}/decline`,
+        { method: 'POST' }
+      );
+    } catch {
+      // Transport, not accept-specific — the same sentence serves both buttons
+      // rather than a near-duplicate that could drift.
+      toast.error(ACCEPT_NETWORK_ERROR_MESSAGE);
+      setDeclining(false);
+      return;
+    }
+
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      // The server's own sentence, for the reason `handleAccept` gives.
+      toast.error(body?.error?.message ?? DECLINE_FAILED_MESSAGE);
+      setDeclining(false);
+
+      // Every failure here is a disagreement about state — the offer was already
+      // answered in another tab, or swept. Re-reading the server's view is what
+      // stops the screen offering an action that cannot succeed.
+      router.refresh();
+      return;
+    }
+
+    toast.success(DECLINE_SUCCESS_MESSAGE);
+
+    // Same reasoning as accept: the refresh is what removes these controls, since
+    // the page renders them only for a `pending` deal.
+    setDeclining(false);
+    router.refresh();
+  }
+
   return (
     <section className="flex flex-col gap-4">
       {terms ? (
@@ -147,22 +199,22 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
         <button
           type="button"
           onClick={handleAccept}
-          disabled={accepting || !canAccept}
+          disabled={accepting || declining || !canAccept}
           aria-describedby={terms && !agreed ? 'accept-note' : undefined}
           className={buttonVariants({ size: 'sm' })}
         >
           {accepting ? ACCEPTING_LABEL : ACCEPT_DEAL_LABEL}
         </button>
         {/* Declining needs no agreement — a creator refusing terms should not
-            have to tick that they accept them first. Still disabled: the endpoint
-            is KAN-37, a different branch in this wave. */}
+            have to tick that they accept them first. Disabled only while a
+            request is in flight, so the two buttons cannot both be firing. */}
         <button
           type="button"
-          disabled
-          aria-describedby="decline-note"
+          onClick={handleDecline}
+          disabled={accepting || declining}
           className={buttonVariants({ variant: 'outline', size: 'sm' })}
         >
-          {DECLINE_DEAL_LABEL}
+          {declining ? DECLINING_LABEL : DECLINE_DEAL_LABEL}
         </button>
       </div>
 
@@ -177,9 +229,6 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
           {ACCEPT_NEEDS_AGREEMENT_MESSAGE}
         </p>
       ) : null}
-      <p id="decline-note" className="text-sm text-muted-foreground">
-        {DECLINE_UNAVAILABLE_MESSAGE}
-      </p>
     </section>
   );
 }

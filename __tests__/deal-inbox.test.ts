@@ -15,7 +15,6 @@ import {
   ACCEPTING_LABEL,
   COMMISSION_LABEL,
   DECLINE_DEAL_LABEL,
-  DECLINE_UNAVAILABLE_MESSAGE,
   EXPECTED_PAYOUT_LABEL,
   NO_RIGHTS_TERMS_MESSAGE,
   OFFER_EXPIRY_LABEL,
@@ -466,25 +465,23 @@ describe('the offer actions are gated by the agreement (F31)', () => {
     expect(ACCEPT_DEAL_LABEL).not.toBe(DECLINE_DEAL_LABEL);
   });
 
-  it('explains each disabled state in a sentence, not a tooltip', () => {
-    // One sentence per control, not the single sentence that covered both on
-    // KAN-39. Accepting works now, so a message about "these actions" would be
-    // false about the button beside it.
+  it('explains the one disabled state that needs explaining', () => {
+    // Only the accept button has a precondition a creator can act on. Declining
+    // no longer has one — the sentence that used to say it was unavailable was
+    // deleted with KAN-37, because a note explaining a button that works is
+    // worse than none.
     expect(source).toContain('ACCEPT_NEEDS_AGREEMENT_MESSAGE');
-    expect(source).toContain('DECLINE_UNAVAILABLE_MESSAGE');
     expect(ACCEPT_NEEDS_AGREEMENT_MESSAGE.length).toBeGreaterThan(20);
-    expect(DECLINE_UNAVAILABLE_MESSAGE.length).toBeGreaterThan(20);
+    expect(source).not.toContain('decline-note');
   });
 
-  it('reaches each note from the control it explains', () => {
+  it('reaches the note from the control it explains', () => {
     // `aria-describedby` rather than mere adjacency, so a screen reader gets the
     // reason from the disabled control itself.
     expect(source).toMatch(
       /aria-describedby=\{terms && !agreed \? 'accept-note'/
     );
     expect(source).toContain(`id="accept-note"`);
-    expect(source).toContain(`aria-describedby="decline-note"`);
-    expect(source).toContain(`id="decline-note"`);
   });
 
   it('withholds the tick-the-box note when there is no box to tick', () => {
@@ -548,16 +545,9 @@ describe('the accept control calls the endpoint', () => {
 
   it('never lies about being idle while a request is in flight', () => {
     expect(source).toMatch(/accepting \? ACCEPTING_LABEL : ACCEPT_DEAL_LABEL/);
-    expect(source).toMatch(/disabled=\{accepting \|\| !canAccept\}/);
-  });
-
-  it('leaves declining to KAN-37 rather than half-wiring it', () => {
-    // The decline button is disabled outright — no handler, no endpoint.
-    const declineButton = buttonRendering(source, 'DECLINE_DEAL_LABEL');
-
-    expect(declineButton).not.toMatch(/onClick=/);
-    expect(declineButton).toMatch(/\sdisabled\s/);
-    expect(source).not.toMatch(/\/decline/);
+    expect(source).toMatch(
+      /disabled=\{accepting \|\| declining \|\| !canAccept\}/
+    );
   });
 
   it('wires the handler onto the accept button and nothing else', () => {
@@ -939,7 +929,6 @@ describe('user-facing copy', () => {
     ['VIEW_DEAL_LABEL', VIEW_DEAL_LABEL],
     ['ACCEPT_DEAL_LABEL', ACCEPT_DEAL_LABEL],
     ['DECLINE_DEAL_LABEL', DECLINE_DEAL_LABEL],
-    ['DECLINE_UNAVAILABLE_MESSAGE', DECLINE_UNAVAILABLE_MESSAGE],
     ['ACCEPT_NEEDS_AGREEMENT_MESSAGE', ACCEPT_NEEDS_AGREEMENT_MESSAGE],
     ['ACCEPTING_LABEL', ACCEPTING_LABEL],
     ['ACCEPT_SUCCESS_MESSAGE', ACCEPT_SUCCESS_MESSAGE],
