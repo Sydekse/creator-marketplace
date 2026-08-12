@@ -310,7 +310,7 @@ export const NO_RIGHTS_TERMS_MESSAGE =
   'No usage-rights terms are recorded for this deal. Ask the brand to reissue the offer before accepting.';
 
 /**
- * The strings the accept surface renders, re-exported so this module stays the
+ * The strings the offer surface renders, re-exported so this module stays the
  * one place a server-side caller looks for deal copy.
  *
  * They are *defined* in `lib/deals/copy.ts` because `components/deals/offer-
@@ -327,8 +327,11 @@ export {
   ACCEPT_NETWORK_ERROR_MESSAGE,
   ACCEPT_SUCCESS_MESSAGE,
   ACCEPTING_LABEL,
+  DECLINE_CONFIRM_MESSAGE,
   DECLINE_DEAL_LABEL,
-  DECLINE_UNAVAILABLE_MESSAGE,
+  DECLINE_FAILED_MESSAGE,
+  DECLINE_SUCCESS_MESSAGE,
+  DECLINING_LABEL,
 } from './copy';
 
 export const SUBMIT_DELIVERABLE_LABEL = 'Submit your video';

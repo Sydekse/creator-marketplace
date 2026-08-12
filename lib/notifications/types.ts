@@ -20,11 +20,17 @@
  * point and AC-029 speaks of "the outcome". One point, one row, one email whose
  * body branches.
  *
- * `offer_accepted` is the one entry AC-2 does not name. It was added on KAN-36,
- * whose AC-8 requires the brand to be told when a creator accepts — a lifecycle
- * point the PRD's list skips, and one the brand has to know about because
- * funding is their next move. Added at the end rather than beside
- * `offer_received`, so the nine above stay in the order the AC gives them.
+ * The last two entries are the ones AC-2 does not name, and both are appended
+ * rather than filed beside `offer_received`, so the nine the AC lists keep the
+ * order it gives them:
+ *
+ * - `offer_accepted` (KAN-36 AC-8) — the brand has to know, because funding is
+ *   their next move.
+ * - `offer_declined` (KAN-37, AC-018) — AC-018 says the brand is notified, and
+ *   `offer_expired` is not it. Both release the same money, but they are
+ *   different facts: a creator said no, versus nobody answered. A brand may
+ *   re-offer differently depending on which, and the two bodies read differently
+ *   because of it.
  */
 export const NOTIFICATION_TYPES = [
   'offer_received',
@@ -37,6 +43,7 @@ export const NOTIFICATION_TYPES = [
   'dispute_resolved',
   'offer_expired',
   'offer_accepted',
+  'offer_declined',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -117,6 +124,19 @@ export interface NotificationPayloadMap {
     creatorHandle: string;
     /** What the brand will owe on this deal, in santim (invariant 4). */
     totalPrice: number;
+  };
+  offer_declined: {
+    dealId: string;
+    campaignId: string;
+    campaignTitle: string;
+    /** Public handle only, for the reason given on `offer_accepted`. */
+    creatorHandle: string;
+    /**
+     * Back in the brand's available budget, and equal to the deal's
+     * `total_price` exactly (AC-018). Same field name as `offer_expired` — same
+     * fact, so the same word.
+     */
+    releasedAmount: number;
   };
 }
 

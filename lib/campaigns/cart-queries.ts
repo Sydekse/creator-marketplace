@@ -15,6 +15,13 @@ import type { Tx } from '@/lib/authz';
 /**
  * Calculates the total price from campaign items, decoupled from authz
  * to allow safe use inside transactions without deadlocks.
+ *
+ * This is the **draft-only** figure. Once a campaign is confirmed its cart rows
+ * stay in place as the brand's record of what was carted and at what price, so
+ * they stop being what the budget is measured against — `readCampaignBudget` in
+ * `lib/campaigns/budget.ts` switches to the deals at that point (KAN-37,
+ * AC-018). Call this directly only from a path that is already draft-only:
+ * `add-to-cart.ts` and `remove-from-cart.ts` both are.
  */
 export async function sumCartTotal(
   campaignId: string,
@@ -28,25 +35,6 @@ export async function sumCartTotal(
     .where(eq(campaignItem.campaignId, campaignId));
 
   return result?.total ?? 0;
-}
-
-/**
- * Calculates the current running total (sum of total_price in santim) of all
- * items in a campaign cart. Includes authz check.
- */
-export async function getCartRunningTotal(
-  campaignId: string,
-  client: typeof db | Tx = db,
-  deps = {
-    requireOwnership: () =>
-      guard({
-        roles: ['brand'],
-        resource: { kind: 'campaign', id: campaignId },
-      }),
-  }
-): Promise<number> {
-  await deps.requireOwnership();
-  return sumCartTotal(campaignId, client);
 }
 
 /**

@@ -138,7 +138,7 @@ describe('notification types', () => {
    * the order the AC gives them, and named here so the next person reads the
    * change as a deliberate addition rather than drift.
    */
-  it('covers the nine points AC-2 names, plus the one KAN-36 adds', () => {
+  it('covers the nine points AC-2 names, plus the two the deal wave adds', () => {
     expect([...NOTIFICATION_TYPES]).toEqual([
       'offer_received',
       'verification_result',
@@ -150,6 +150,7 @@ describe('notification types', () => {
       'dispute_resolved',
       'offer_expired',
       'offer_accepted',
+      'offer_declined',
     ]);
   });
 
@@ -243,6 +244,16 @@ const SAMPLES: {
       campaignTitle: 'Spring Coffee Push',
       creatorHandle: '@selam',
       totalPrice: 450_000,
+    },
+  },
+  offer_declined: {
+    type: 'offer_declined',
+    payload: {
+      dealId: 'd1',
+      campaignId: 'ca1',
+      campaignTitle: 'Spring Coffee Push',
+      creatorHandle: '@selam',
+      releasedAmount: 450_000,
     },
   },
 };

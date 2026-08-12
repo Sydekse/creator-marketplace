@@ -135,6 +135,7 @@ const subjects: {
   dispute_resolved: (p) => `A decision was made on ${p.campaignTitle}`,
   offer_expired: (p) => `An offer for ${p.campaignTitle} expired`,
   offer_accepted: (p) => `${p.creatorHandle} accepted your offer`,
+  offer_declined: (p) => `${p.creatorHandle} declined your offer`,
 };
 
 function Content({ type, payload }: NotificationInput): React.ReactElement {
@@ -309,6 +310,29 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             <strong>{formatEtb(payload.totalPrice)}</strong> is what this deal
             comes to. Fund the campaign to move it into escrow — the creator
             starts once the money is held.
+          </Text>
+          <Cta href={appUrl('/brand/campaigns')} label="Open the campaign →" />
+        </Layout>
+      );
+
+    case 'offer_declined':
+      return (
+        <Layout
+          preview={`${payload.creatorHandle} passed on ${payload.campaignTitle}`}
+          heading="A creator declined your offer"
+        >
+          <Text style={styles.text}>
+            <strong>{payload.creatorHandle}</strong> declined your offer for{' '}
+            {payload.campaignTitle}.
+          </Text>
+          {/* Says the same thing `offer_expired` does about the money, because
+              the money did the same thing. The sentence above is where the two
+              differ, and it is the one the brand acts on. No reason is given —
+              the creator was never asked for one, and inventing a neutral
+              phrasing would read as if they had. */}
+          <Text style={styles.text}>
+            <strong>{formatEtb(payload.releasedAmount)}</strong> is back in your
+            available budget and can be offered to another creator.
           </Text>
           <Cta href={appUrl('/brand/campaigns')} label="Open the campaign →" />
         </Layout>
