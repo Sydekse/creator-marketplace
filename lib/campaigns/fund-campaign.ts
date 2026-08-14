@@ -5,6 +5,7 @@ import { ErrorCode } from '@/lib/validation';
 import { notify } from '@/lib/notifications/notify';
 import { getPaymentProvider, PaymentError } from '@/lib/payment';
 import { EscrowLedgerService, LedgerError } from '@/lib/payment/ledger';
+import { logPaymentFailure } from '@/lib/payment/log';
 import type { HoldForCampaignResult } from '@/lib/payment/ledger';
 
 /**
@@ -73,6 +74,12 @@ export interface FundCampaignDeps {
   /** Defaults to the real ledger. The seam is what keeps tests off Postgres. */
   hold: (campaignId: string, actorId: string) => Promise<HoldForCampaignResult>;
   notify: typeof notify;
+  /**
+   * A seam, so a test can assert *what* was logged rather than that something
+   * was. AC-020's requirement is about the content — the detail present, the PAN
+   * absent — and spying on the global console proves neither.
+   */
+  logFailure: typeof logPaymentFailure;
 }
 
 const defaultDeps: FundCampaignDeps = {
@@ -99,6 +106,7 @@ const defaultDeps: FundCampaignDeps = {
       actorId
     ),
   notify,
+  logFailure: logPaymentFailure,
 };
 
 /**
@@ -136,6 +144,23 @@ export async function fundCampaign(
     result = await deps.hold(campaignId, actorUserId);
   } catch (error) {
     const reason = fundFailureReason(error);
+
+    // AC-020 bullet 7. The brand is about to be told one fixed sentence, so this
+    // is the only place the actual cause is ever recorded — without it, "Payment
+    // failed" is the entire diagnostic surface for a money bug.
+    //
+    // Logged for every failure, not only the payment ones. A refused transition
+    // is the cheap case; the expensive case is the unrecognised error on the next
+    // line, which becomes a 500 with no envelope, and which would otherwise be
+    // the one failure in the money path that left no trace at all.
+    if (reason === 'payment_failed' || !reason) {
+      deps.logFailure(error, {
+        operation: 'fund_campaign',
+        campaignId,
+        actorId: actorUserId,
+      });
+    }
+
     // An unrecognised failure is re-thrown, not reported as a payment problem.
     // Money may or may not have moved, and the caller must not be told "try
     // again" about a state nobody has established.

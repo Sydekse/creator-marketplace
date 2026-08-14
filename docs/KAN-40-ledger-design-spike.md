@@ -475,12 +475,32 @@ user is sufficient).
 
 ## 9. Exit Criteria
 
-| #   | Criterion                                                                                                  | Status                                              |
-| --- | ---------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
-| 1   | ADR recording transaction ordering, locking strategy, and rounding rule                                    | **Done** (§5.1–§5.4, §3.3)                          |
-| 2   | Interface signature written down and aligned with KAN-41 AC                                                | **Done** (§4, §8)                                   |
-| 3   | Proof-of-concept test showing simulated provider failure leaves zero ledger rows and unchanged deal status | **Done** (`__tests__/poc-provider-failure.test.ts`) |
-| 4   | Ledger service story re-estimated on the board                                                             | * —                                                 |
+| #   | Criterion                                                                                                  | Status                                           |
+| --- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 1   | ADR recording transaction ordering, locking strategy, and rounding rule                                    | **Done** (§5.1–§5.4, §3.3)                       |
+| 2   | Interface signature written down and aligned with KAN-41 AC                                                | **Done** (§4, §8)                                |
+| 3   | Proof-of-concept test showing simulated provider failure leaves zero ledger rows and unchanged deal status | **Superseded** by real coverage — see note below |
+| 4   | Ledger service story re-estimated on the board                                                             | * —                                              |
+
+> **On criterion 3 (updated KAN-44).** The spike satisfied this with
+> `__tests__/poc-provider-failure.test.ts`, which simulated the design in a local
+> `simulatePayout` helper — including a `hold_pending` entry type that §5.2
+> proposed and the shipped schema does not have (`LedgerEntryType` is `hold` /
+> `release_payout` / `commission` / `refund`). It was the right artifact for a
+> design spike and the wrong one to leave standing as coverage: it exercised no
+> application code, so it would have stayed green with the ledger deleted, and
+> AC-020 bullet 6 asks for this path to be _covered_ rather than reasoned about.
+>
+> The real coverage is `escrow-ledger.test.ts` — a provider failure leaves zero
+> ledger rows, no `deal` or `campaign` update and no `deal_event`, and a retry
+> after a failure funds as a first attempt — plus `__tests__/funding-failure.test.ts`
+> for the 402, the response carrying no provider detail, and the scrubbed log line.
+>
+> The PoC file was deleted on KAN-44. Its second-order problem was the commission
+> split: it hardcoded 0.85/0.15, and Q1 is still open. Invariant 8 keeps that number
+> in config precisely so no such literal exists to be copied out of a green test.
+> The design it recorded is preserved above in §5.1–§5.4, which is where a design
+> belongs.
 
 ---
 

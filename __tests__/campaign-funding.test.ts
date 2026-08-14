@@ -3,6 +3,7 @@ import { join } from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fundCampaign } from '../lib/campaigns/fund-campaign';
 import type { FundCampaignDeps } from '../lib/campaigns/fund-campaign';
+import type { PaymentFailureContext } from '../lib/payment/log';
 import { readCampaignEscrow } from '../lib/campaigns/escrow';
 import type { CampaignEscrowDeps } from '../lib/campaigns/escrow';
 import { ForbiddenError } from '../lib/authz';
@@ -74,6 +75,12 @@ interface Recorded {
   held: Array<{ campaignId: string; actorId: string }>;
   notifications: Array<{ userId: string; type: string; payload: unknown }>;
   ownershipReads: Array<{ campaignId: string; brandProfileId: string }>;
+  /**
+   * The failure-log seam (KAN-44). Recorded rather than ignored so the success
+   * path can assert it stays empty — what gets logged on a failure is asserted in
+   * `funding-failure.test.ts`, where the rest of AC-020 lives.
+   */
+  failureLogs: Array<{ error: unknown; context: PaymentFailureContext }>;
 }
 
 interface Overrides {
@@ -93,6 +100,7 @@ function makeDeps(overrides: Overrides = {}): {
     held: [],
     notifications: [],
     ownershipReads: [],
+    failureLogs: [],
   };
 
   const deps: FundCampaignDeps = {
@@ -117,6 +125,10 @@ function makeDeps(overrides: Overrides = {}): {
       if (overrides.failNotify) throw new Error('resend down');
       recorded.notifications.push({ userId, type, payload });
     }) as FundCampaignDeps['notify'],
+    logFailure: (error, context) => {
+      recorded.calls.push('logFailure');
+      recorded.failureLogs.push({ error, context });
+    },
   };
 
   return { deps, recorded };
@@ -188,6 +200,16 @@ describe('fundCampaign — AC-019: the accepted total is held', () => {
     await fundCampaign(CAMPAIGN_ID, BRAND_PROFILE_ID, BRAND_USER_ID, deps);
 
     expect(recorded.calls.filter((c) => c === 'hold')).toHaveLength(1);
+  });
+
+  it('logs nothing when funding succeeds', async () => {
+    const { deps, recorded } = makeDeps();
+
+    await fundCampaign(CAMPAIGN_ID, BRAND_PROFILE_ID, BRAND_USER_ID, deps);
+
+    // The failure log is for failures. A line on the happy path would make the
+    // `payment.failed` event useless for alerting.
+    expect(recorded.failureLogs).toHaveLength(0);
   });
 
   /**

@@ -1,94 +1,25 @@
 import { timingSafeEqual, createHash, randomUUID } from 'node:crypto';
 
+/**
+ * Both log primitives moved to `lib/logging.ts` on KAN-44, when the payment
+ * failure path became their second caller. Re-exported from here — rather than
+ * every existing import being repointed — because this module's public surface is
+ * what `lib/scheduler/index.ts` and the cron route already consume, and a
+ * mechanical rename across those call sites would be a bigger diff than the
+ * extraction it serves.
+ */
+export {
+  extractSafeErrorDetails,
+  toLogString,
+  EMAIL_PATTERN,
+} from '@/lib/logging';
+export type { SafeErrorDetails } from '@/lib/logging';
+
+import { extractSafeErrorDetails, toLogString } from '@/lib/logging';
+
 export interface JobRunOutput {
   examined: number;
   acted: number;
-}
-
-export function extractSafeErrorDetails(err: unknown) {
-  let name = 'Error';
-  let code = 'UNKNOWN_ERROR';
-  let message = 'An unknown error occurred';
-  const context: Record<string, unknown> = {};
-
-  if (err instanceof Error) {
-    name = err.name;
-    message = err.message;
-  } else if (typeof err === 'string') {
-    message = err;
-  } else if (typeof err === 'object' && err !== null) {
-    if ('name' in err && typeof err.name === 'string') name = err.name;
-    if ('message' in err && typeof err.message === 'string')
-      message = err.message;
-  }
-
-  if (typeof err === 'object' && err !== null) {
-    if (
-      'code' in err &&
-      (typeof err.code === 'string' || typeof err.code === 'number')
-    ) {
-      code = String(err.code);
-    }
-    if ('dealId' in err) context.dealId = err.dealId;
-    if ('campaignId' in err) context.campaignId = err.campaignId;
-  }
-
-  // Emails with international characters, IDN domains, and single-letter TLDs
-  // (user@bücher.de, user@a.b) were invisible to the ASCII-only pattern. The
-  // accepted limit is emails only: scrubbing TikTok handles would also mangle
-  // @-prefixed context in legitimately useful error text.
-  //
-  // Accepted, documented divergence from lib/audit/redact.ts (M7): that module
-  // also redacts phone/SSN/birth/address, but it guards audit rows built from
-  // request bodies. Scheduler logs never contain row content — jobs report
-  // counts and whitelisted ids — so no such field can reach this log today. If
-  // a future job ever logs row-derived context, it must reuse that redactor
-  // rather than widen this regex.
-  const safeMessage = message.replace(
-    /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)+/gu,
-    '***@***.***'
-  );
-  return { name, code, message: safeMessage, context };
-}
-
-/**
- * Serializes a log payload into a single JSON line that cannot throw on the
- * values error handling produces.
- *
- * One JSON object per console call is what Vercel's Log Drain can field-parse
- * (searchable `event`/`job`/`durationMs` instead of prose), and JSON escaping
- * neutralizes CR/LF log injection (CWE-117) by construction.
- *
- * BigInts become strings and cyclic references are replaced with a marker, so
- * a hostile error property (a circular `dealId`, a BigInt `campaignId`)
- * cannot destroy the failure log it lives in — the failure mode where the
- * catch itself becomes the 500.
- *
- * Not a silver bullet: a value with a throwing getter or `toJSON` can still
- * make `JSON.stringify` throw. That is contained two layers out — the
- * harness's defensive per-job catch and the route catch — so the run and the
- * response survive; only the detail line degrades.
- */
-export function toLogString(fields: Record<string, unknown>): string {
-  // The set is never pruned, so a reference repeated between siblings is
-  // marked `[Circular]` as well. Scheduler payloads are flat, so the false
-  // positive cannot fire today; a stack-based ancestor set would be the fix
-  // if that ever changes.
-  const seen = new WeakSet<object>();
-  const replacer = (_key: string, value: unknown): unknown => {
-    if (typeof value === 'bigint') {
-      return value.toString();
-    }
-    if (typeof value === 'object' && value !== null) {
-      if (seen.has(value)) {
-        return '[Circular]';
-      }
-      seen.add(value);
-    }
-    return value;
-  };
-
-  return JSON.stringify(fields, replacer);
 }
 
 /**
