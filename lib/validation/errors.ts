@@ -59,6 +59,28 @@ export enum ErrorCode {
    * in `draft` status (KAN-26, KAN-30, Tech Spec §4.3).
    */
   CAMPAIGN_NOT_DRAFT = 'CAMPAIGN_NOT_DRAFT',
+  /**
+   * Funding was attempted on a campaign whose status does not admit it — it has
+   * already been funded, or it has not been confirmed yet (KAN-43, AC-019,
+   * Tech Spec §4.3).
+   *
+   * Not CAMPAIGN_NOT_DRAFT, which is its inverse: that one fires when a campaign
+   * has *left* draft, and its sentence — "This campaign can no longer be
+   * edited." — says nothing about funding and would be actively wrong on the
+   * commonest cause of this one, a campaign that is already funded.
+   *
+   * Not VALIDATION_ERROR, which is what the ledger threw for both cases before
+   * this existed. A 422 says the request was malformed; nothing about a second
+   * fund click is malformed, and §4.3 gives this endpoint no 422 at all. The
+   * status has to be 409 so a double submit is answered as a conflict with the
+   * state, which is exactly what it is.
+   *
+   * One code for both causes on purpose. The two differ in what the brand does
+   * next only in that one of them is already finished, and the client's response
+   * to either is the same: re-read the campaign. The ledger keeps the
+   * distinction in its own message, which goes to the server log.
+   */
+  CAMPAIGN_NOT_FUNDABLE = 'CAMPAIGN_NOT_FUNDABLE',
   OFFER_EXPIRED = 'OFFER_EXPIRED',
   /**
    * An accept named a usage-rights version that is no longer the current one
@@ -138,6 +160,8 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.CREATOR_ALREADY_IN_CART]:
     'This creator is already in this campaign.',
   [ErrorCode.CAMPAIGN_NOT_DRAFT]: 'This campaign can no longer be edited.',
+  [ErrorCode.CAMPAIGN_NOT_FUNDABLE]:
+    'This campaign cannot be funded right now. Reload the page to see where it stands.',
   [ErrorCode.OFFER_EXPIRED]: 'This offer has expired.',
   [ErrorCode.RIGHTS_TERMS_STALE]:
     'The usage-rights terms were updated. Reload the page and read the current terms before accepting.',
@@ -167,6 +191,7 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.CREATOR_NOT_BOOKABLE]: 422,
   [ErrorCode.CREATOR_ALREADY_IN_CART]: 409,
   [ErrorCode.CAMPAIGN_NOT_DRAFT]: 409,
+  [ErrorCode.CAMPAIGN_NOT_FUNDABLE]: 409,
   [ErrorCode.OFFER_EXPIRED]: 409,
   [ErrorCode.RIGHTS_TERMS_STALE]: 409,
   [ErrorCode.PAYMENT_FAILED]: 402,

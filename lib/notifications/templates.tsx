@@ -46,6 +46,29 @@ function appUrl(path: string): string {
 }
 
 /**
+ * Every path passed to `appUrl` must resolve to a real route.
+ *
+ * Five of these pointed at `/brand/campaigns`, which has never existed — the
+ * brand campaign routes live at `/campaigns`, inside the `(brand)/(onboarded)`
+ * group, and a route group's folder name is not part of the URL. Three of the
+ * five (`offer_accepted`, `offer_declined`, `offer_expired`) were already sending
+ * brands to a 404 in production. Nothing caught it: no test asserted a CTA href,
+ * and a wrong link is invisible to the type checker, to `next build`, and to
+ * anyone reading the template.
+ *
+ * `__tests__/campaign-funding.test.ts` now resolves every literal in this file
+ * against `app/`, so a CTA to a route that does not exist fails the suite. Keep
+ * the paths as inline literals for that reason — a computed path is one the guard
+ * cannot check.
+ *
+ * The three notifications carrying a `campaignId` deep-link to that campaign
+ * rather than the list. They are all about one campaign, and the brand receiving
+ * "a creator accepted" has to open that campaign to fund it. The two that carry
+ * only a `dealId` land on the list, because there is no brand-side deal route to
+ * point at yet.
+ */
+
+/**
  * Re-exported so `lib/notifications/index.ts` keeps its surface and the KAN-54
  * tests that import it from there keep working. Both implementations moved out
  * for the same bundling reason — `formatEtb` to `lib/money.ts` on KAN-24,
@@ -203,7 +226,10 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
           <Text style={styles.text}>
             Creators are paid from escrow only after you approve their video.
           </Text>
-          <Cta href={appUrl('/brand/campaigns')} label="Open the campaign →" />
+          <Cta
+            href={appUrl(`/campaigns/${payload.campaignId}`)}
+            label="Open the campaign →"
+          />
         </Layout>
       );
 
@@ -219,7 +245,9 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
           <Text style={styles.text}>
             Approving it releases their payment from escrow.
           </Text>
-          <Cta href={appUrl('/brand/campaigns')} label="Review the video →" />
+          {/* The list, not one campaign: this payload carries only a `dealId`,
+              and there is no brand-side deal route to point at yet. */}
+          <Cta href={appUrl('/campaigns')} label="Review the video →" />
         </Layout>
       );
 
@@ -292,7 +320,10 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             <strong>{formatEtb(payload.releasedAmount)}</strong> is back in your
             available budget and can be offered to another creator.
           </Text>
-          <Cta href={appUrl('/brand/campaigns')} label="Open the campaign →" />
+          {/* The list, for `deliverable_submitted`'s reason: this payload carries
+              only a `dealId`. Deep-linking would need `campaignId` on the payload,
+              which is a change to what KAN-38's sweep writes. */}
+          <Cta href={appUrl('/campaigns')} label="Open the campaign →" />
         </Layout>
       );
 
@@ -311,7 +342,12 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             comes to. Fund the campaign to move it into escrow — the creator
             starts once the money is held.
           </Text>
-          <Cta href={appUrl('/brand/campaigns')} label="Open the campaign →" />
+          {/* Deep-linked: this is the email that asks the brand to fund, and the
+              fund button is on this page. */}
+          <Cta
+            href={appUrl(`/campaigns/${payload.campaignId}`)}
+            label="Open the campaign →"
+          />
         </Layout>
       );
 
@@ -334,7 +370,10 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             <strong>{formatEtb(payload.releasedAmount)}</strong> is back in your
             available budget and can be offered to another creator.
           </Text>
-          <Cta href={appUrl('/brand/campaigns')} label="Open the campaign →" />
+          <Cta
+            href={appUrl(`/campaigns/${payload.campaignId}`)}
+            label="Open the campaign →"
+          />
         </Layout>
       );
   }

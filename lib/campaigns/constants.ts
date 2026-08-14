@@ -46,3 +46,54 @@ export const CONFIRM_CAMPAIGN_FAILED = 'Failed to send offers.';
  */
 export const CONFIRM_EMPTY_CART_MESSAGE =
   'Add at least one creator before sending offers.';
+
+/** AC-019 / KAN-43 — funding a confirmed campaign holds the accepted total. */
+export const FUND_CAMPAIGN_LABEL = 'Fund campaign';
+export const FUND_CAMPAIGN_PENDING_LABEL = 'Holding funds…';
+
+/**
+ * The confirmation prompt.
+ *
+ * Says "held" and not "paid", because that is the whole substance of AC-021: the
+ * money leaves the brand's available balance now and reaches no creator until a
+ * deliverable is approved. A brand who reads this as payment would think an
+ * unposted video had already cost them.
+ *
+ * No amount interpolated. The figure the button knows is the one the page
+ * rendered, and the amount actually held is re-summed from the accepted deals
+ * under a row lock — a prompt quoting a stale number would be worse than one
+ * quoting none, and the Budget Summary beside it already shows the total.
+ */
+export const FUND_CAMPAIGN_PROMPT =
+  'Hold the total for every accepted offer in escrow? The money leaves your available budget now, and each creator is paid only after you approve their video.';
+
+export const FUND_CAMPAIGN_SUCCESS =
+  'Funds held. Your creators can start work.';
+export const FUND_CAMPAIGN_FAILED = 'Failed to fund this campaign.';
+
+/**
+ * Nobody has accepted yet (`NO_ACCEPTED_DEALS`). Doubles as the disabled-button
+ * explanation and the 409 toast, because both answer the same question and the
+ * brand's move is the same either way: wait.
+ */
+export const FUND_NO_ACCEPTED_DEALS_MESSAGE =
+  'No creator has accepted an offer yet. You can fund this campaign once at least one has.';
+
+/**
+ * `CAMPAIGN_NOT_FUNDABLE` from the client's side — already funded, or not
+ * confirmed. Deliberately does not guess which: the button refreshes the page
+ * straight after, and the status badge is the honest answer.
+ */
+export const FUND_NOT_FUNDABLE_MESSAGE =
+  'This campaign cannot be funded right now. Reloading to show where it stands.';
+
+/** AC-019 item 6, brand side — the Budget Summary row. */
+export const HELD_IN_ESCROW_LABEL = 'Held in escrow';
+
+/**
+ * What "held" means, under the figure. AC-021 is a promise to the brand as much
+ * as to the creator, so the screen states it rather than leaving the brand to
+ * infer it from a label.
+ */
+export const HELD_IN_ESCROW_NOTE =
+  'Released to each creator only after you approve their video.';
