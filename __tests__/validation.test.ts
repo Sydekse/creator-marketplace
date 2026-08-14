@@ -24,7 +24,12 @@ import {
 // ---------------------------------------------------------------------------
 
 describe('ErrorCode enum', () => {
-  it('defines the 12 spec codes plus the eight of our own', () => {
+  it('has no duplicate values, so every response code is unambiguous', () => {
+    const codes = Object.values(ErrorCode);
+    expect(new Set(codes).size).toBe(codes.length);
+  });
+
+  it('defines the 12 spec codes plus the twelve of our own', () => {
     const codes = Object.values(ErrorCode);
     // 12 from the PRD table, plus PROFILE_EXISTS (KAN-21), NOT_FOUND (KAN-52
     // audit read path), CREATOR_NOT_PENDING (KAN-22), CREATOR_NOT_VERIFIED
@@ -44,9 +49,15 @@ describe('ErrorCode enum', () => {
     // would be false — the offer still is pending. See the comments on the enum
     // members.
     //
+    // Plus the four cron-infrastructure codes (KAN-56): CRON_TIMEOUT,
+    // CRON_PARTIAL_FAILURE, UNAUTHORIZED and INTERNAL_SERVER_ERROR. Not part of
+    // the §4.7 table (the cron route is Vercel infrastructure, not the §4 REST
+    // surface) but members of the enum so the route's responses carry the same
+    // `ErrorEnvelope` type instead of ad-hoc strings.
+    //
     // The count is the point of this test: it is what makes adding a code a
     // deliberate act rather than something that slips in.
-    expect(codes).toHaveLength(20);
+    expect(codes).toHaveLength(24);
     expect(codes).toContain(ErrorCode.TIKTOK_HANDLE_TAKEN);
     expect(codes).toContain(ErrorCode.PROFILE_EXISTS);
     expect(codes).toContain(ErrorCode.CREATOR_NOT_PENDING);
@@ -66,6 +77,10 @@ describe('ErrorCode enum', () => {
     expect(codes).toContain(ErrorCode.FORBIDDEN);
     expect(codes).toContain(ErrorCode.VALIDATION_ERROR);
     expect(codes).toContain(ErrorCode.NOT_FOUND);
+    expect(codes).toContain(ErrorCode.CRON_TIMEOUT);
+    expect(codes).toContain(ErrorCode.CRON_PARTIAL_FAILURE);
+    expect(codes).toContain(ErrorCode.UNAUTHORIZED);
+    expect(codes).toContain(ErrorCode.INTERNAL_SERVER_ERROR);
   });
 });
 

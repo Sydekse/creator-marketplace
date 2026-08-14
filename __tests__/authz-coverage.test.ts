@@ -35,6 +35,9 @@ const EXEMPT = new Set([
   // Unauthenticated liveness probe. Returns { ok: boolean } and touches no
   // business data — deliberately, so it can be curled from a preview deploy.
   'app/api/health/db/route.ts',
+  // Vercel Cron trigger harness (KAN-56). Authenticated via shared CRON_SECRET
+  // bearer token rather than a user session guard.
+  'app/api/cron/route.ts',
 ]);
 
 const MUTATING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
