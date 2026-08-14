@@ -7,6 +7,7 @@ import {
   verifyCronSecret,
 } from '@/lib/scheduler/harness';
 import type { Job, SchedulerRunResult } from '@/lib/scheduler/harness';
+import { expireOffersJob } from '@/lib/deals/expire-offers';
 import { ErrorCode, ErrorHttpStatus, errorResponse } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
@@ -23,8 +24,15 @@ export const maxDuration = 300;
 export const CRON_TIMEOUT_MS = 290000;
 const CRON_TIMEOUT_ABORT_REASON = 'Internal execution timeout';
 
-// Jobs will be imported and registered here in future tickets (e.g. KAN-38)
-const jobsToRun: Job[] = [];
+/**
+ * The registry. Order is execution order, and the harness isolates each entry
+ * so a failure here does not reach the next one (KAN-56 AC-003).
+ *
+ * `expire-offers` (KAN-38) is first because it releases brand budget, which is
+ * the one thing in this run a person is waiting on. KAN-57's metric reminders
+ * join it later.
+ */
+const jobsToRun: Job[] = [expireOffersJob];
 
 /** Injectable for tests — the only seam the route exposes. */
 export interface CronRouteDeps {
