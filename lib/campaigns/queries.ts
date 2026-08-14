@@ -1,6 +1,6 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { campaign } from '@/db/schema';
+import { campaign, deal } from '@/db/schema';
 import { UUID_REGEX } from '@/lib/validation';
 
 /**
@@ -69,3 +69,27 @@ export async function getCampaignForBrand(
 export type CampaignRow = NonNullable<
   Awaited<ReturnType<typeof getCampaignForBrand>>
 >;
+
+/**
+ * How many of a campaign's deals are `accepted` — the set funding would hold for
+ * (KAN-43, AC-019).
+ *
+ * A count and not a list, because the only caller is the fund button's
+ * disabled/enabled state and the sentence beside it. The brand's view of *which*
+ * creators accepted is KAN-49's campaign dashboard; building it here would widen
+ * the ticket for a screen that already exists in the plan.
+ *
+ * Un-guarded, matching every other function in this module: callers reach it
+ * after `getCampaignForBrand` has already scoped the campaign to the session's
+ * brand. It is a count of rows the brand's own campaign owns, so it says nothing
+ * a brand may not know — but it is only ever called with an id that read
+ * returned, never one from a URL.
+ */
+export async function countAcceptedDeals(campaignId: string): Promise<number> {
+  const [row] = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(deal)
+    .where(and(eq(deal.campaignId, campaignId), eq(deal.status, 'accepted')));
+
+  return Number(row?.count ?? 0);
+}

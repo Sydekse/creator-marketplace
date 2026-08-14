@@ -29,13 +29,13 @@ describe('ErrorCode enum', () => {
     expect(new Set(codes).size).toBe(codes.length);
   });
 
-  it('defines the 12 spec codes plus the twelve of our own', () => {
+  it('defines the 12 spec codes plus the thirteen of our own', () => {
     const codes = Object.values(ErrorCode);
     // 12 from the PRD table, plus PROFILE_EXISTS (KAN-21), NOT_FOUND (KAN-52
     // audit read path), CREATOR_NOT_PENDING (KAN-22), CREATOR_NOT_VERIFIED
     // (KAN-23), CREATOR_NOT_BOOKABLE (KAN-30), CREATOR_ALREADY_IN_CART (KAN-30),
-    // CAMPAIGN_NOT_DRAFT (KAN-26, KAN-30) and RIGHTS_TERMS_STALE (KAN-36). None
-    // is an AC string:
+    // CAMPAIGN_NOT_DRAFT (KAN-26, KAN-30), RIGHTS_TERMS_STALE (KAN-36) and
+    // CAMPAIGN_NOT_FUNDABLE (KAN-43). None is an AC string:
     // PROFILE_EXISTS covers the *other* unique constraint on `creator_profile`
     // (`user_id`), which AC-003's message would describe wrongly; NOT_FOUND is
     // the envelope member admin endpoints return when the caller is entitled to
@@ -46,8 +46,12 @@ describe('ErrorCode enum', () => {
     // CREATOR_ALREADY_IN_CART guards duplicate items; CAMPAIGN_NOT_DRAFT guards
     // edits against non-draft campaigns; RIGHTS_TERMS_STALE answers an accept
     // whose terms version was superseded, where OFFER_NOT_PENDING's sentence
-    // would be false — the offer still is pending. See the comments on the enum
-    // members.
+    // would be false — the offer still is pending;
+    // CAMPAIGN_NOT_FUNDABLE answers a fund on a campaign that is not
+    // `confirmed` — either still `draft` or already `funded`. AC-019 gives
+    // NO_ACCEPTED_DEALS for the empty-cart case only, and reusing it here would
+    // tell a brand who just funded that nobody has accepted. See the comments on
+    // the enum members.
     //
     // Plus the four cron-infrastructure codes (KAN-56): CRON_TIMEOUT,
     // CRON_PARTIAL_FAILURE, UNAUTHORIZED and INTERNAL_SERVER_ERROR. Not part of
@@ -57,8 +61,9 @@ describe('ErrorCode enum', () => {
     //
     // The count is the point of this test: it is what makes adding a code a
     // deliberate act rather than something that slips in.
-    expect(codes).toHaveLength(24);
+    expect(codes).toHaveLength(25);
     expect(codes).toContain(ErrorCode.TIKTOK_HANDLE_TAKEN);
+    expect(codes).toContain(ErrorCode.CAMPAIGN_NOT_FUNDABLE);
     expect(codes).toContain(ErrorCode.PROFILE_EXISTS);
     expect(codes).toContain(ErrorCode.CREATOR_NOT_PENDING);
     expect(codes).toContain(ErrorCode.CREATOR_NOT_VERIFIED);

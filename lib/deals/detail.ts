@@ -334,6 +334,31 @@ export {
   DECLINING_LABEL,
 } from './copy';
 
+/**
+ * The creator's half of AC-019 item 6 — "both parties can see that the campaign
+ * is funded and that money is held" (KAN-43).
+ *
+ * Shown when `isMoneyHeld(status)` and nowhere else, which is what makes it worth
+ * putting on screen: until now a creator could not tell an accepted deal from a
+ * funded one, because `GROUP_BY_STATUS` files both under "Accepted · in progress"
+ * and this page had no status line of its own. The status badge is not the answer
+ * either — `funded` is a word about the campaign; this is a sentence about their
+ * money.
+ *
+ * Names the amount as the deal total rather than the payout, because the deal
+ * total is what is actually held (one `hold` entry per deal, `amount =
+ * total_price`). The commission comes out of it on approval, which the payout
+ * figure above already shows, and quoting the payout here would understate the
+ * escrow.
+ *
+ * Says "approve" and not "pay", per AC-021: the money is held and reaches nobody
+ * until a deliverable is approved. Promising otherwise is the failure mode this
+ * whole ledger exists to prevent.
+ */
+export const FUNDS_HELD_LABEL = 'Funds held in escrow';
+export const FUNDS_HELD_MESSAGE =
+  'The brand has funded this deal, so the full amount is held for you. It is released once they approve your video.';
+
 export const SUBMIT_DELIVERABLE_LABEL = 'Submit your video';
 export const SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE =
   'Submitting a video is not available yet. The brand has funded this deal and will be told as soon as you can post.';

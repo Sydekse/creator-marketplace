@@ -10,6 +10,8 @@ import {
   COMMISSION_LABEL,
   DEAL_TERMS_TITLE,
   EXPECTED_PAYOUT_LABEL,
+  FUNDS_HELD_LABEL,
+  FUNDS_HELD_MESSAGE,
   NO_RIGHTS_TERMS_MESSAGE,
   OFFER_EXPIRY_LABEL,
   PAYOUT_ESTIMATE_NOTE,
@@ -22,6 +24,7 @@ import {
 } from '@/lib/deals/detail';
 import { getDealHistory } from '@/lib/deals/queries';
 import { formatEtb } from '@/lib/money';
+import { isMoneyHeld } from '@/lib/payment/ledger';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -140,6 +143,27 @@ export default async function CreatorDealDetailPage({
           {NO_RIGHTS_TERMS_MESSAGE}
         </p>
       )}
+
+      {/* KAN-43, AC-019 item 6 — the creator's half of "both parties can see
+          that money is held".
+
+          Gated on `isMoneyHeld`, which is `REFUNDABLE_FROM`: the ledger's own
+          answer to "is there a live hold for this deal", derived from the list it
+          refuses refunds against rather than a second list of statuses that could
+          disagree with it. So this line appears exactly when a `hold` entry
+          exists and has not been released, with no edit here if that set ever
+          changes.
+
+          Above the deliver button on purpose: the money being held is why the
+          creator is willing to start work, so it comes before the control that
+          starts it. */}
+      {isMoneyHeld(deal.status) ? (
+        <section className="flex flex-col gap-1 rounded-md border border-border p-4">
+          <h2 className="text-sm font-medium">{FUNDS_HELD_LABEL}</h2>
+          <p className="font-mono text-sm">{formatEtb(deal.totalPrice)}</p>
+          <p className="text-sm text-muted-foreground">{FUNDS_HELD_MESSAGE}</p>
+        </section>
+      ) : null}
 
       {/* AC-3. `canAct` reads `LEGAL_TRANSITIONS`, so these controls cannot
           outlive the rule that permits them — a status the machine stops

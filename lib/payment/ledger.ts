@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import * as schema from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
@@ -6,6 +6,7 @@ import { ErrorCode } from '@/lib/validation/errors';
 import type { PaymentProvider } from './types';
 import { PaymentError } from './types';
 import { transitionDeal } from '@/lib/deals/state-machine';
+import { sumEscrowedByCampaign } from './escrow';
 
 type Db = NodePgDatabase<typeof schema>;
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
@@ -43,6 +44,28 @@ export const REFUNDABLE_FROM: readonly DealStatus[] = [
 export const PAYABLE_FROM: DealStatus = 'delivered';
 
 /**
+ * Is this deal's money sitting in escrow right now (KAN-43 AC-019 item 6)?
+ *
+ * Derived from `REFUNDABLE_FROM` rather than written out as `=== 'funded'`,
+ * because the two are the same question: a refund is only possible where a hold
+ * exists and has not been paid out, which is exactly when money is held. A
+ * screen with its own list of statuses would be free to drift from the one the
+ * ledger enforces, and the drift would surface as a creator being told their
+ * money is held when the ledger would refuse to release it.
+ *
+ * Defined here rather than in `lib/payment/escrow.ts` so that module needs
+ * nothing from this one — it is imported *by* this one, and a cycle between them
+ * would leave `REFUNDABLE_FROM` undefined at its point of use.
+ *
+ * `completed` is deliberately false: that money has left escrow for the creator
+ * (spike §6 calls it `spent`), so a screen calling it "held" would tell a paid
+ * creator they have not been paid.
+ */
+export function isMoneyHeld(status: DealStatus): boolean {
+  return REFUNDABLE_FROM.includes(status);
+}
+
+/**
  * Split a deal's total into platform commission and creator payout (spike §3.3).
  *
  * Exported and pure because this is the ledger math NFR-009 wants at 100%
@@ -63,6 +86,21 @@ export function computeSplit(
   const rateBp = Math.round(Number(commissionRate) * 100);
   const commission = Math.round((totalPrice * rateBp) / 10_000);
   return { commission, payout: totalPrice - commission };
+}
+
+/**
+ * What one funding run put into escrow (KAN-43).
+ *
+ * The figures the `campaign_funded` notification states, taken from the
+ * transaction that wrote the entries rather than re-derived afterwards.
+ */
+export interface HoldForCampaignResult {
+  /** How many deals moved `accepted -> funded`. */
+  dealCount: number;
+  /** The sum held, in integer santim (invariant 4). */
+  totalHeld: number;
+  /** The provider's reference for the hold, shared by every entry in the run. */
+  providerRef: string;
 }
 
 /** Spike §5.3: 3 retries on serialization failure, exponential backoff. */
@@ -109,25 +147,34 @@ export class EscrowLedgerService {
   ) {}
 
   /**
-   * Hold funds for every accepted deal in a confirmed campaign (KAN-43).
+   * Hold funds for every accepted deal in a confirmed campaign (KAN-43, AC-019).
    *
    * One `provider.hold()` for the campaign total, then one `hold` ledger entry
    * per deal so each deal's escrow can be released or refunded independently.
+   *
+   * Returns what it held rather than `void`, so the caller can say so without
+   * asking the database a second question after the transaction has closed. A
+   * re-read outside the lock could also answer with a *different* campaign's
+   * worth of activity if anything moved in between; these figures are the ones
+   * the entries were actually written from.
    */
-  async holdForCampaign(campaignId: string, actorId?: string): Promise<void> {
+  async holdForCampaign(
+    campaignId: string,
+    actorId?: string
+  ): Promise<HoldForCampaignResult> {
     // Generated once, deliberately outside the retry loop. Every retry reuses
     // it, so a serialization retry replays the provider's cached result instead
     // of placing a second hold (spike §4.2). A fresh UUID per attempt — what
     // this method used to do — would double-charge on the first conflict.
     const idempotencyKey = crypto.randomUUID();
 
-    await this.inSerializableTx(async (tx) => {
+    return this.inSerializableTx(async (tx) => {
       const campaign = await this.lockCampaign(tx, campaignId);
 
       if (campaign.status !== 'confirmed') {
         throw new LedgerError(
           `Campaign ${campaignId} is ${campaign.status}, expected confirmed.`,
-          ErrorCode.VALIDATION_ERROR
+          ErrorCode.CAMPAIGN_NOT_FUNDABLE
         );
       }
 
@@ -168,7 +215,7 @@ export class EscrowLedgerService {
       if (alreadyHeld.length > 0) {
         throw new LedgerError(
           'Campaign has already been funded.',
-          ErrorCode.VALIDATION_ERROR
+          ErrorCode.CAMPAIGN_NOT_FUNDABLE
         );
       }
 
@@ -199,6 +246,14 @@ export class EscrowLedgerService {
         .update(schema.campaign)
         .set({ status: 'funded' })
         .where(eq(schema.campaign.id, campaignId));
+
+      // Returned from inside the transaction, so a serialization retry returns
+      // the winning attempt's figures rather than a stale closure's.
+      return {
+        dealCount: deals.length,
+        totalHeld: total,
+        providerRef: held.providerRef,
+      };
     });
   }
 
@@ -413,17 +468,15 @@ export class EscrowLedgerService {
    * `now()`, which is constant within a transaction, so every entry written by
    * one `holdForCampaign` shares a timestamp and `ORDER BY created_at DESC
    * LIMIT 1` picked an arbitrary one of them.
+   *
+   * Delegates to `sumEscrowedByCampaign` rather than holding its own copy of the
+   * query, so the figure the guards below enforce and the figure a brand is shown
+   * (AC-019 item 6) are the same sum. Always through `tx` — this runs under the
+   * campaign row lock taken above, and the global `db` would wait on a connection
+   * the `max: 5` pool has already lent out.
    */
-  private async sumBalance(tx: Tx, campaignId: string): Promise<number> {
-    const [row] = await tx
-      .select({
-        balance: sql<number>`COALESCE(SUM(${schema.ledgerEntry.amount}), 0)::int`,
-      })
-      .from(schema.ledgerEntry)
-      .where(eq(schema.ledgerEntry.campaignId, campaignId));
-
-    // SUM() returns bigint, which node-postgres hands back as a string.
-    return Number(row?.balance ?? 0);
+  private sumBalance(tx: Tx, campaignId: string): Promise<number> {
+    return sumEscrowedByCampaign(campaignId, tx);
   }
 
   private async requireHoldRef(tx: Tx, dealId: string): Promise<string> {

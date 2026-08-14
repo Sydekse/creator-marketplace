@@ -7,10 +7,19 @@ import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import { readCampaignBudget } from '@/lib/campaigns/budget';
 import { listCartItems } from '@/lib/campaigns/cart-queries';
-import { getCampaignForBrand } from '@/lib/campaigns/queries';
+import {
+  HELD_IN_ESCROW_LABEL,
+  HELD_IN_ESCROW_NOTE,
+} from '@/lib/campaigns/constants';
+import { readCampaignEscrow } from '@/lib/campaigns/escrow';
+import {
+  countAcceptedDeals,
+  getCampaignForBrand,
+} from '@/lib/campaigns/queries';
 import { formatEtb } from '@/lib/money';
 
 import { ConfirmCampaignButton } from '@/components/campaign/confirm-campaign-button';
+import { FundCampaignButton } from '@/components/campaign/fund-campaign-button';
 import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-button';
 import { EmptyState } from '@/components/feedback/empty-state';
 
@@ -34,9 +43,18 @@ export default async function CampaignCartPage({
   const campaign = await getCampaignForBrand(id, profile.id);
   if (!campaign) notFound();
 
-  const [items, budget] = await Promise.all([
+  // `readCampaignEscrow` and `countAcceptedDeals` are only asked for once the
+  // campaign has left `draft`. A draft has no deals and no ledger entries, so both
+  // answers are known to be zero — and running them anyway would put two queries
+  // on the page that carries the cart, which is the one a brand loads repeatedly
+  // while shopping.
+  const settled = campaign.status !== 'draft';
+
+  const [items, budget, escrowed, acceptedCount] = await Promise.all([
     listCartItems(campaign.id),
     readCampaignBudget(campaign.id),
+    settled ? readCampaignEscrow(campaign.id) : Promise.resolve(0),
+    settled ? countAcceptedDeals(campaign.id) : Promise.resolve(0),
   ]);
 
   // `getCampaignForBrand` already returned this campaign for this brand, so the
@@ -99,6 +117,19 @@ export default async function CampaignCartPage({
             <ConfirmCampaignButton
               campaignId={campaign.id}
               itemCount={items.length}
+            />
+          </div>
+        )}
+        {/*
+          AC-019. `confirmed` only: before it there is nothing accepted to hold,
+          and after it the money is already held — `POST /fund` answers a second
+          attempt with 409 `CAMPAIGN_NOT_FUNDABLE` regardless (AC bullet 7).
+        */}
+        {campaign.status === 'confirmed' && (
+          <div className="flex items-start gap-3">
+            <FundCampaignButton
+              campaignId={campaign.id}
+              acceptedCount={acceptedCount}
             />
           </div>
         )}
@@ -221,6 +252,32 @@ export default async function CampaignCartPage({
                 </span>
                 <span className="font-medium">{formatEtb(committed)}</span>
               </div>
+              {/*
+                AC-019 item 6, brand side. Shown only once something is actually
+                held: a "0.00 ETB held" row on a campaign nobody has funded reads
+                as a fact about the escrow rather than the absence of one.
+
+                Summed from `ledger_entry`, not from the deals — a separate figure
+                from `Committed` above on purpose. The two agree while every
+                accepted deal is funded and diverge exactly when they should: a
+                confirmed campaign commits its budget with nothing held yet, and an
+                approved deliverable pays out, leaving it committed and spent but no
+                longer held (spike §6's `budget = available + escrowed + spent`).
+              */}
+              {escrowed > 0 && (
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">
+                      {HELD_IN_ESCROW_LABEL}
+                    </span>
+                    <span className="font-medium">{formatEtb(escrowed)}</span>
+                  </div>
+                  {/* AC-021, stated rather than left to be inferred from a label. */}
+                  <p className="text-xs text-muted-foreground">
+                    {HELD_IN_ESCROW_NOTE}
+                  </p>
+                </div>
+              )}
               <div className="pt-4 border-t border-border flex justify-between items-center">
                 <span className="font-semibold">Remaining</span>
                 <span className="font-semibold text-primary">
