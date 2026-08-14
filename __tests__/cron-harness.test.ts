@@ -631,16 +631,42 @@ describe('Route Handler /api/cron (KAN-56 AC-001, AC-002)', () => {
     });
   });
 
-  it('returns 200 OK for a valid authenticated GET with no jobs registered', async () => {
+  it('returns 200 OK for a valid authenticated GET on a healthy run', async () => {
+    // Was "with no jobs registered", which stopped being a property of the route
+    // the moment KAN-38 registered the expiry sweep. The registry is real now,
+    // so a test that calls `GET` reaches a real job and a database CI does not
+    // have; the `runJobs` seam is what keeps this about the route's contract —
+    // a successful summary answers 200 — rather than about whatever is
+    // registered today.
+    const runJobs = vi.fn<typeof runSchedulerJobs>(async () => ({
+      success: true,
+      runId: 'mock-run-ok',
+      timestamp: new Date().toISOString(),
+      totalJobs: 1,
+      successfulJobs: 1,
+      failedJobs: 0,
+      results: [],
+    }));
     const req = new Request('http://localhost/api/cron', {
       method: 'GET',
       headers: { authorization: 'Bearer route-test-secret' },
     });
-    const res = await GET(req as unknown as NextRequest);
+
+    const res = await handleCronRequest(req, { runJobs });
 
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.success).toBe(true);
+  });
+
+  it('registers the offer-expiry sweep, so the schedule drives real work (KAN-38)', () => {
+    // The complement of the seam above: with every route test injecting
+    // `runJobs`, nothing else would notice if the registry were emptied and the
+    // cron fired daily against an empty list.
+    const routeSource = readFileSync('app/api/cron/route.ts', 'utf8');
+    expect(routeSource).toMatch(
+      /jobsToRun:\s*Job\[\]\s*=\s*\[\s*expireOffersJob/
+    );
   });
 
   it('maps a run with failed jobs to 500 CRON_PARTIAL_FAILURE, summary kept out of the envelope', async () => {
