@@ -533,6 +533,61 @@ describe('holdForCampaign', () => {
     expect(ledgerRows(db)).toHaveLength(0);
     expect(db.updates).toHaveLength(0);
   });
+
+  // -- AC-020: a failed attempt leaves everything exactly as it was ----------
+
+  /**
+   * The bullet above covers "no ledger rows" and "no updates". These cover the
+   * two AC-020 clauses it does not reach in those words: that no deal moved, and
+   * that nothing about the failed attempt poisons the retry.
+   */
+  it('leaves every deal status untouched when the provider fails (AC-020)', async () => {
+    const { db, svc, mock } = await build({ deals: twoDeals });
+    mock.setFailNext('hold');
+
+    await expect(svc.holdForCampaign(CAMPAIGN_ID)).rejects.toThrow(
+      PaymentError
+    );
+
+    // No `deal` update, so both deals are still `accepted` — the "nothing sits in
+    // a half-funded state" clause. Asserted on the table rather than on
+    // `updates.length` so a future write to some *other* table cannot mask it.
+    expect(db.updates.filter((u) => u.table === 'deal')).toHaveLength(0);
+    expect(db.updates.filter((u) => u.table === 'campaign')).toHaveLength(0);
+    // And no history claiming otherwise. `deal_event` is append-only, so a row
+    // written before the rollback would be a permanent record of a transition
+    // that did not happen — the rollback is what prevents it, and this is what
+    // proves the insert is inside the transaction.
+    expect(dealEvents(db)).toHaveLength(0);
+  });
+
+  it('funds normally on a retry after a failed attempt (AC-020)', async () => {
+    const { db, svc, mock } = await build({ deals: twoDeals });
+
+    // `setFailNext` arms exactly one failure, so the second call takes the
+    // ordinary path — which is the point: the retry must behave as a first
+    // attempt, not as a resumption of a half-finished one.
+    mock.setFailNext('hold');
+    await expect(svc.holdForCampaign(CAMPAIGN_ID)).rejects.toThrow(
+      PaymentError
+    );
+
+    const result = await svc.holdForCampaign(CAMPAIGN_ID);
+
+    expect(result.dealCount).toBe(2);
+    expect(result.totalHeld).toBe(150_000);
+    // Two entries from the successful attempt and none left over from the failed
+    // one. A `hold` per deal, and the balance built from zero — 150_000 rather
+    // than 300_000 is the assertion that the failed attempt contributed nothing.
+    const rows = ledgerRows(db);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.balanceAfter)).toEqual([100_000, 150_000]);
+    // One provider call per attempt. The failed attempt's idempotency key is not
+    // reused — a fresh one is generated per call, outside the retry loop but
+    // inside the method — so the successful attempt is a new authorization rather
+    // than a replay of the declined one.
+    expect(db.log.filter((l) => l === 'provider:hold')).toHaveLength(2);
+  });
 });
 
 // -- payoutForDeal ----------------------------------------------------------
