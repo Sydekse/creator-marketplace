@@ -94,6 +94,20 @@ export function computeSplit(
  * The figures the `campaign_funded` notification states, taken from the
  * transaction that wrote the entries rather than re-derived afterwards.
  */
+/**
+ * What one approval released to the creator and kept as commission (KAN-45).
+ *
+ * The figures the `release_payout`/`commission` entries were written from,
+ * returned from inside the transaction rather than re-derived afterwards —
+ * the same rule `HoldForCampaignResult` documents for funding.
+ */
+export interface PayoutResult {
+  /** Integer santim the creator receives, net of commission. */
+  payout: number;
+  /** Integer santim the platform keeps. */
+  commission: number;
+}
+
 export interface HoldForCampaignResult {
   /** How many deals moved `accepted -> funded`. */
   dealCount: number;
@@ -263,11 +277,16 @@ export class EscrowLedgerService {
    * `payout` is derived by subtraction from integer basis points (spike §3.3),
    * which is what guarantees `release_payout + commission === total_price`
    * exactly rather than to within a rounding error.
+   *
+   * Returns what it moved, like `holdForCampaign` returns what it held: the
+   * figures the entries were actually written from, captured inside the
+   * transaction rather than re-derived afterwards from a read that could see
+   * a *different* state (and would double as a second source for the split).
    */
-  async payoutForDeal(dealId: string, actorId?: string): Promise<void> {
+  async payoutForDeal(dealId: string, actorId?: string): Promise<PayoutResult> {
     const idempotencyKey = crypto.randomUUID();
 
-    await this.inSerializableTx(async (tx) => {
+    return this.inSerializableTx(async (tx) => {
       const deal = await this.lockDeal(tx, dealId);
 
       if (deal.status !== PAYABLE_FROM) {
@@ -329,6 +348,11 @@ export class EscrowLedgerService {
       await transitionDeal(tx, deal.id, 'completed', actorId, {
         reason: 'Deliverable approved',
       });
+
+      // Returned from inside the transaction, so a serialization retry returns
+      // the winning attempt's figures rather than a stale closure's — the same
+      // rule `holdForCampaign` documents for its own return.
+      return { payout, commission };
     });
   }
 
