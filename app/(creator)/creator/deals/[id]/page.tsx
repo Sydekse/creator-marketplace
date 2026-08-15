@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DealHistory } from '@/components/deals/deal-history';
+import { DeliverableForm } from '@/components/deals/deliverable-form';
 import { OfferActions } from '@/components/deals/offer-actions';
 import { UsageRightsCard } from '@/components/deals/usage-rights';
-import { buttonVariants } from '@/components/ui/button';
 import { NO_EXPIRY_LABEL, expiryLabel, formatDeadlineUtc } from '@/lib/dates';
 import { canAct, canDeliver } from '@/lib/deals';
 import {
@@ -15,8 +15,8 @@ import {
   NO_RIGHTS_TERMS_MESSAGE,
   OFFER_EXPIRY_LABEL,
   PAYOUT_ESTIMATE_NOTE,
-  SUBMIT_DELIVERABLE_LABEL,
-  SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE,
+  SUBMITTED_AT_LABEL,
+  SUBMITTED_DELIVERABLE_LABEL,
   TOTAL_PRICE_LABEL,
   UNIT_PRICE_LABEL,
   VIDEO_COUNT_LABEL,
@@ -172,23 +172,29 @@ export default async function CreatorDealDetailPage({
         <OfferActions dealId={deal.id} terms={deal.rightsTerms} />
       ) : null}
 
-      {/* AC-4. `canDeliver` is `{funded, revision_requested}`, read off the same
-          table: a funded deal is what the creator may deliver against, and a
-          rejected one is what they may re-deliver against. */}
-      {canDeliver(deal.status) ? (
-        <section className="flex flex-col gap-3">
-          <div>
-            <button
-              type="button"
-              disabled
-              aria-describedby="deliverable-note"
-              className={buttonVariants({ size: 'sm' })}
-            >
-              {SUBMIT_DELIVERABLE_LABEL}
-            </button>
-          </div>
-          <p id="deliverable-note" className="text-sm text-muted-foreground">
-            {SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE}
+      {/* KAN-46, AC-022 — the deliverable submission path. `canDeliver` is
+          `{funded, revision_requested}`, read off the same transition table as
+          the accept controls: a funded deal is what the creator may deliver
+          against, and a rejected one is what they may re-deliver against. The
+          form is client-side — it holds the URL field and posts to
+          `/api/deals/{id}/deliverable`. */}
+      {canDeliver(deal.status) ? <DeliverableForm dealId={deal.id} /> : null}
+
+      {/* What the creator submitted, once there is something to show. For a
+          `revision_requested` deal this is the submission the brand sent back,
+          sitting above the resubmit form so the creator can see what they are
+          replacing. Shown as text, not a link: nothing here navigates or
+          fetches (AC-8), and the brand-side "links to the live post" is
+          KAN-49's. */}
+      {deal.deliverable ? (
+        <section className="flex flex-col gap-1 rounded-md border border-border p-4">
+          <h2 className="text-sm font-medium">{SUBMITTED_DELIVERABLE_LABEL}</h2>
+          <p className="font-mono text-sm break-all">
+            {deal.deliverable.tiktokUrl}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {SUBMITTED_AT_LABEL}:{' '}
+            {formatDeadlineUtc(deal.deliverable.submittedAt)}
           </p>
         </section>
       ) : null}

@@ -1,7 +1,13 @@
 import { and, eq } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '@/db';
-import { brandProfile, campaign, deal, rightsTerms } from '@/db/schema';
+import {
+  brandProfile,
+  campaign,
+  deal,
+  deliverable,
+  rightsTerms,
+} from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
 import { canAct } from '@/lib/deals/state-machine';
@@ -106,6 +112,23 @@ export interface CreatorDealDetail {
   rightsTerms: DealRightsTerms | null;
   /** True when `rightsTerms` is the version in effect now, not the stamped one. */
   rightsTermsAreCurrent: boolean;
+  /**
+   * The live TikTok post URL the creator submitted, when one exists (KAN-46,
+   * AC-022).
+   *
+   * Null until the deal is `delivered`; from then on the row exists — and on
+   * `revision_requested` it is the submission the brand sent back, which the
+   * creator needs to see while they re-submit. Only the URL and its timestamp
+   * are carried: `review_status` and any rejection note are the brand's half
+   * of the review, and no creator-facing sentence on this page reads them.
+   */
+  deliverable: DeliverableView | null;
+}
+
+/** The one deliverable row a deal can have, as the creator is allowed to see it. */
+export interface DeliverableView {
+  tiktokUrl: string;
+  submittedAt: Date;
 }
 
 /**
@@ -136,6 +159,11 @@ export interface CreatorDealJoinRow {
   commissionRate: string;
   offerExpiresAt: Date | null;
   rightsTerms: DealRightsTerms | null;
+  /** Nullable columns: a missing row arrives as all-nulls, not a joined null. */
+  deliverable: {
+    tiktokUrl: string | null;
+    submittedAt: Date | null;
+  } | null;
 }
 
 /**
@@ -152,25 +180,35 @@ export interface CreatorDealJoinRow {
  * selected from `brand_profile` (NFR-010).
  */
 export function creatorDealQuery(where: SQL) {
-  return db
-    .select({
-      id: deal.id,
-      status: deal.status,
-      campaignName: campaign.name,
-      companyName: brandProfile.companyName,
-      videoCount: deal.videoCount,
-      unitPrice: deal.unitPrice,
-      totalPrice: deal.totalPrice,
-      commissionRate: deal.commissionRate,
-      offerExpiresAt: deal.offerExpiresAt,
-      rightsTerms: rightsTerms,
-    })
-    .from(deal)
-    .innerJoin(campaign, eq(deal.campaignId, campaign.id))
-    .innerJoin(brandProfile, eq(campaign.brandId, brandProfile.id))
-    .leftJoin(rightsTerms, eq(deal.rightsTermsId, rightsTerms.id))
-    .where(where)
-    .limit(1);
+  return (
+    db
+      .select({
+        id: deal.id,
+        status: deal.status,
+        campaignName: campaign.name,
+        companyName: brandProfile.companyName,
+        videoCount: deal.videoCount,
+        unitPrice: deal.unitPrice,
+        totalPrice: deal.totalPrice,
+        commissionRate: deal.commissionRate,
+        offerExpiresAt: deal.offerExpiresAt,
+        rightsTerms: rightsTerms,
+        deliverable: {
+          tiktokUrl: deliverable.tiktokUrl,
+          submittedAt: deliverable.submittedAt,
+        },
+      })
+      .from(deal)
+      .innerJoin(campaign, eq(deal.campaignId, campaign.id))
+      .innerJoin(brandProfile, eq(campaign.brandId, brandProfile.id))
+      .leftJoin(rightsTerms, eq(deal.rightsTermsId, rightsTerms.id))
+      // Left for the same reason as `rights_terms`: the join *is* the
+      // deliverable, and a deal with none must come back with nulls rather than
+      // disappear from the creator's own detail view.
+      .leftJoin(deliverable, eq(deliverable.dealId, deal.id))
+      .where(where)
+      .limit(1)
+  );
 }
 
 /**
@@ -193,6 +231,16 @@ export function toDealDetail(row: CreatorDealJoinRow): CreatorDealDetail {
     commission,
     expectedPayout: payout,
     rightsTermsAreCurrent: false,
+    // The two nullable columns come from the same left join, so a URL present
+    // guarantees the timestamp is too (`submitted_at` is `not null` in the
+    // table). Folding the pair into a single nullable object is what lets the
+    // page ask one question — "has the creator submitted?" — instead of two.
+    deliverable: row.deliverable?.tiktokUrl
+      ? {
+          tiktokUrl: row.deliverable.tiktokUrl,
+          submittedAt: row.deliverable.submittedAt as Date,
+        }
+      : null,
   };
 }
 
@@ -332,6 +380,14 @@ export {
   DECLINE_FAILED_MESSAGE,
   DECLINE_SUCCESS_MESSAGE,
   DECLINING_LABEL,
+  SUBMIT_DELIVERABLE_FAILED_MESSAGE,
+  SUBMIT_DELIVERABLE_LABEL,
+  SUBMIT_DELIVERABLE_NETWORK_ERROR_MESSAGE,
+  SUBMIT_DELIVERABLE_SUCCESS_MESSAGE,
+  SUBMIT_DELIVERABLE_URL_HINT,
+  SUBMIT_DELIVERABLE_URL_LABEL,
+  SUBMIT_DELIVERABLE_URL_PLACEHOLDER,
+  SUBMITTING_DELIVERABLE_LABEL,
 } from './copy';
 
 /**
@@ -359,9 +415,17 @@ export const FUNDS_HELD_LABEL = 'Funds held in escrow';
 export const FUNDS_HELD_MESSAGE =
   'The brand has funded this deal, so the full amount is held for you. It is released once they approve your video.';
 
-export const SUBMIT_DELIVERABLE_LABEL = 'Submit your video';
-export const SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE =
-  'Submitting a video is not available yet. The brand has funded this deal and will be told as soon as you can post.';
+/**
+ * What the creator sees once a submission exists (KAN-46, AC-022).
+ *
+ * The submitted URL and its timestamp are facts the creator is entitled to
+ * read back — "submitted_at is recorded" is an AC, and a submission the
+ * screen then forgets would read as a lost video. The URL is shown as text,
+ * not a link: the brand-side "links to the live TikTok post" requirement is
+ * KAN-49's, and nothing here needs to navigate anywhere.
+ */
+export const SUBMITTED_DELIVERABLE_LABEL = 'Submitted video';
+export const SUBMITTED_AT_LABEL = 'Submitted at';
 
 export const DEAL_HISTORY_TITLE = 'Deal history';
 export const DEAL_HISTORY_EMPTY = 'Nothing has happened on this deal yet.';

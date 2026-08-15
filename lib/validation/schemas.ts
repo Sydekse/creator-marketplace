@@ -226,8 +226,41 @@ export const discoverCreatorsSchema = z
 
 export type DiscoverCreatorsInput = z.infer<typeof discoverCreatorsSchema>;
 
-const tiktokUrlPattern =
-  /^(https?:\/\/)?(www\.)?(tiktok\.com\/@[\w.-]+\/video\/\d+|vm\.tiktok\.com\/[\w-]+)/;
+/**
+ * AC-025 allowlist for TikTok video URLs (KAN-46, Tech Spec §4.4, §6.3).
+ *
+ * Everything the endpoint stores has to be one of these two shapes:
+ *
+ *   - `tiktok.com/@<handle>/video/<id>` — the long form of a video post,
+ *     optionally on the `www.` or `m.` (mobile) host;
+ *   - `vm.tiktok.com/<code>` — TikTok's own share shortener.
+ *
+ * Deliberately a regex allowlist rather than a URL parser: parsing is a
+ * *post-hoc* judgement about what a string looks like, and the SSRF rule is
+ * about which hosts are ever accepted, so the pattern has to be the authority.
+ * That is also why it is fully anchored (`^` … `$`) and why the optional
+ * scheme is the only thing in front of the host: an arbitrary host, a
+ * non-video TikTok page, a scheme-injected prefix, and a URL with trailing
+ * garbage are all non-matches, and a non-match is a rejection (AC-025).
+ *
+ * `m.` is accepted because the TikTok mobile app hands out `m.tiktok.com/
+ * @<handle>/video/<id>` links and they are public video posts like any other;
+ * rejecting them would bounce a link a creator copied straight out of the app
+ * with AC-025's sentence. Each alternative carries its own anchors, so the
+ * `m.`/`www.` prefix can only sit in front of `tiktok.com` — a host like
+ * `m.vm.tiktok.com` is a non-match, not a tolerated shape.
+ *
+ * The two things after the host are not openings, they are TikTok's own
+ * reality: a trailing slash on a share link, and a query string on a share
+ * URL (`?is_from_webapp=1&…`). Rejecting those would bounce real, public
+ * links a creator just copied out of the app. Fragments and whitespace are
+ * still rejected, so the stored value stays a clean, single URL.
+ *
+ * Exported so the route can name what it validates with and the suite can
+ * assert the allowlist cases without re-deriving the regex.
+ */
+export const TIKTOK_VIDEO_URL_PATTERN =
+  /^(?:https?:\/\/)?(?:(?:www|m)\.)?tiktok\.com\/@[\w.-]+\/video\/\d+\/?(?:\?[^#\s]*)?$|^(?:https?:\/\/)?vm\.tiktok\.com\/[\w-]+\/?(?:\?[^#\s]*)?$/i;
 
 export const MAX_CAMPAIGN_NAME_LENGTH = 120;
 export const MAX_CAMPAIGN_GOAL_LENGTH = 1000;
@@ -337,10 +370,30 @@ export const acceptDealSchema = z.object({
     .uuid({ message: 'Valid rights terms ID is required.' }),
 });
 
+/**
+ * Longest accepted TikTok URL, and the cap on the whole submission.
+ *
+ * The allowlist bounds the URL's *shape*, not its length: the handle class
+ * `[\w.-]+` and the video id `\d+` are both unbounded, so a hostile client
+ * could otherwise store a multi-megabyte string in `deliverable.tiktok_url`
+ * and ride it into the notification jsonb. Real TikTok links are a couple of
+ * hundred characters; 2048 is generous without being unlimited — the same
+ * discipline every other client-supplied text field in this repo carries
+ * (company name, campaign brief, audit notes).
+ */
+export const MAX_TIKTOK_URL_LENGTH = 2048;
+
 export const submitDeliverableSchema = z.object({
-  tiktokUrl: z.string().min(1).regex(tiktokUrlPattern, {
-    message: 'Enter a valid public TikTok video link.',
-  }),
+  tiktokUrl: z
+    .string({ message: 'Enter a valid public TikTok video link.' })
+    .trim()
+    .min(1, { message: 'Enter a valid public TikTok video link.' })
+    .max(MAX_TIKTOK_URL_LENGTH, {
+      message: 'Enter a valid public TikTok video link.',
+    })
+    .regex(TIKTOK_VIDEO_URL_PATTERN, {
+      message: 'Enter a valid public TikTok video link.',
+    }),
 });
 
 export const rejectDeliverableSchema = z.object({

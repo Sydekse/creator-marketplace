@@ -750,7 +750,10 @@ async function walkDealTo(
     'funded',
     'delivered',
     creatorUserId,
-    'Creator submitted the deliverable'
+    // The same sentence the real action records — `SUBMIT_DELIVERABLE_EVENT_REASON`
+    // in `lib/deals/submit-deliverable.ts` (KAN-46) — so a demo deal's history
+    // reads exactly like a production one's.
+    'Creator submitted the live TikTok post URL'
   );
 
   if (target === 'delivered') return;

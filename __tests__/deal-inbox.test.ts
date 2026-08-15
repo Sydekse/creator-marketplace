@@ -20,7 +20,8 @@ import {
   OFFER_EXPIRY_LABEL,
   PAYOUT_ESTIMATE_NOTE,
   SUBMIT_DELIVERABLE_LABEL,
-  SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE,
+  SUBMITTED_AT_LABEL,
+  SUBMITTED_DELIVERABLE_LABEL,
   TOTAL_PRICE_LABEL,
   UNIT_PRICE_LABEL,
   VIDEO_COUNT_LABEL,
@@ -116,6 +117,7 @@ const joinRow = (
   commissionRate: '0.17',
   offerExpiresAt: null,
   rightsTerms: null,
+  deliverable: null,
   ...over,
 });
 
@@ -314,6 +316,7 @@ describe('the detail read returns every field AC-2 names', () => {
     'expectedPayout',
     'offerExpiresAt',
     'rightsTerms',
+    'deliverable',
   ])('carries %s', (field) => {
     expect(detail).toHaveProperty(field);
   });
@@ -354,6 +357,13 @@ describe('the detail query', () => {
     // `deal.rights_terms_id` is nullable; an inner join would make an older deal
     // vanish from the creator's own inbox rather than render without its terms.
     expect(sql).toMatch(/left join "rights_terms"/i);
+  });
+
+  it('left-joins the deliverable (KAN-46)', () => {
+    // The join *is* the deliverable: a deal with none must come back with nulls
+    // rather than disappear from the creator's own detail view.
+    expect(sql).toMatch(/left join "deliverable"/i);
+    expect(sql).toContain('"tiktok_url"');
   });
 
   it('inner-joins the campaign and the brand', () => {
@@ -610,16 +620,29 @@ describe('canDeliver is exactly funded and revision_requested', () => {
 
 describe('the deliverable path renders under canDeliver and nowhere else', () => {
   const source = src(DETAIL_PAGE);
+  const form = src('components/deals/deliverable-form.tsx');
 
   it('is conditioned on the predicate', () => {
-    expect(source).toMatch(/canDeliver\(deal\.status\) \?/);
+    expect(source).toMatch(/canDeliver\(deal\.status\) \? <DeliverableForm/);
   });
 
-  it('renders its label and its reason from constants', () => {
-    expect(source).toContain('SUBMIT_DELIVERABLE_LABEL');
-    expect(source).toContain('SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE');
-    expect(SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE.length).toBeGreaterThan(20);
+  it('mounts the working form rather than a disabled placeholder (KAN-46)', () => {
+    // AC-022's submission path: the form posts to the deliverable route and
+    // the label lives beside it in the pure copy module.
+    expect(source).toContain('<DeliverableForm dealId={deal.id} />');
+    expect(form).toContain('SUBMIT_DELIVERABLE_LABEL');
+    expect(form).toMatch(
+      /fetch\(\s*`\/api\/deals\/\$\{encodeURIComponent\(dealId\)\}\/deliverable`/
+    );
     expect(SUBMIT_DELIVERABLE_LABEL).not.toBe(ACCEPT_DEAL_LABEL);
+  });
+
+  it('shows the submitted deliverable once one exists', () => {
+    // The creator can read back what they submitted (AC-6) — the URL as text
+    // and the recorded submission time.
+    expect(source).toMatch(/deal\.deliverable \?/);
+    expect(source).toContain('SUBMITTED_DELIVERABLE_LABEL');
+    expect(source).toContain('SUBMITTED_AT_LABEL');
   });
 });
 
@@ -935,10 +958,8 @@ describe('user-facing copy', () => {
     ['ACCEPT_NETWORK_ERROR_MESSAGE', ACCEPT_NETWORK_ERROR_MESSAGE],
     ['ACCEPT_FAILED_MESSAGE', ACCEPT_FAILED_MESSAGE],
     ['SUBMIT_DELIVERABLE_LABEL', SUBMIT_DELIVERABLE_LABEL],
-    [
-      'SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE',
-      SUBMIT_DELIVERABLE_UNAVAILABLE_MESSAGE,
-    ],
+    ['SUBMITTED_DELIVERABLE_LABEL', SUBMITTED_DELIVERABLE_LABEL],
+    ['SUBMITTED_AT_LABEL', SUBMITTED_AT_LABEL],
     ['NO_RIGHTS_TERMS_MESSAGE', NO_RIGHTS_TERMS_MESSAGE],
     ['PAYOUT_ESTIMATE_NOTE', PAYOUT_ESTIMATE_NOTE],
     ['DEAL_HISTORY_TITLE', DEAL_HISTORY_TITLE],
