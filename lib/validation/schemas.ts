@@ -396,8 +396,31 @@ export const submitDeliverableSchema = z.object({
     }),
 });
 
+/**
+ * Longest rejection note accepted, deliberately the same bound `audit_log`
+ * truncates at.
+ *
+ * The note fans out to three places from one field: the deliverable row, the
+ * `notification.payload` jsonb, and the body of the creator's email. Only the
+ * first of those is bounded downstream — `redactDetail` caps the audit log's
+ * copy — so without a limit here the other two are unbounded, and a brand's
+ * note is free text that reaches an outbound email. Matching
+ * `MAX_STRING_LENGTH` rather than picking a larger round number means the
+ * stored note is never truncated against itself: what the creator reads is
+ * exactly what was stored (NFR-010). Same reasoning as
+ * `MAX_VERIFICATION_NOTE_LENGTH`; kept as its own name because the two notes
+ * are different domains and a rename here should not have to touch the other.
+ */
+export const MAX_REJECTION_REASON_LENGTH = MAX_STRING_LENGTH;
+
 export const rejectDeliverableSchema = z.object({
-  reason: z.string().min(1, { message: 'A rejection reason is required.' }),
+  reason: z
+    .string({ message: 'A rejection reason is required.' })
+    .trim()
+    .min(1, { message: 'A rejection reason is required.' })
+    .max(MAX_REJECTION_REASON_LENGTH, {
+      message: 'A rejection reason is required.',
+    }),
 });
 
 export const updateMetricsSchema = z.object({

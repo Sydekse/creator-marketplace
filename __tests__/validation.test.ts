@@ -14,6 +14,7 @@ import {
   acceptDealSchema,
   submitDeliverableSchema,
   rejectDeliverableSchema,
+  MAX_REJECTION_REASON_LENGTH,
   updateMetricsSchema,
   verifyCreatorSchema,
   resolveDisputeSchema,
@@ -59,9 +60,13 @@ describe('ErrorCode enum', () => {
     // surface) but members of the enum so the route's responses carry the same
     // `ErrorEnvelope` type instead of ad-hoc strings.
     //
+    // Plus REASON_REQUIRED (KAN-47), which AC-024 and §4.4 name for a
+    // rejection with no reason — see the enum member's comment for why it is
+    // not a VALIDATION_ERROR.
+    //
     // The count is the point of this test: it is what makes adding a code a
     // deliberate act rather than something that slips in.
-    expect(codes).toHaveLength(25);
+    expect(codes).toHaveLength(26);
     expect(codes).toContain(ErrorCode.TIKTOK_HANDLE_TAKEN);
     expect(codes).toContain(ErrorCode.CAMPAIGN_NOT_FUNDABLE);
     expect(codes).toContain(ErrorCode.PROFILE_EXISTS);
@@ -79,6 +84,7 @@ describe('ErrorCode enum', () => {
     expect(codes).toContain(ErrorCode.INVALID_TIKTOK_URL);
     expect(codes).toContain(ErrorCode.DEAL_NOT_FUNDED);
     expect(codes).toContain(ErrorCode.DEAL_NOT_DELIVERED);
+    expect(codes).toContain(ErrorCode.REASON_REQUIRED);
     expect(codes).toContain(ErrorCode.FORBIDDEN);
     expect(codes).toContain(ErrorCode.VALIDATION_ERROR);
     expect(codes).toContain(ErrorCode.NOT_FOUND);
@@ -106,6 +112,9 @@ describe('ErrorMessage', () => {
     expect(ErrorMessage[ErrorCode.INVALID_TIKTOK_URL]).toBe(
       'Enter a valid public TikTok video link.'
     );
+    expect(ErrorMessage[ErrorCode.REASON_REQUIRED]).toBe(
+      'A rejection reason is required.'
+    );
   });
 
   it('has a message for every code', () => {
@@ -128,6 +137,7 @@ describe('ErrorHttpStatus', () => {
     expect(ErrorHttpStatus[ErrorCode.INVALID_TIKTOK_URL]).toBe(422);
     expect(ErrorHttpStatus[ErrorCode.DEAL_NOT_FUNDED]).toBe(409);
     expect(ErrorHttpStatus[ErrorCode.DEAL_NOT_DELIVERED]).toBe(409);
+    expect(ErrorHttpStatus[ErrorCode.REASON_REQUIRED]).toBe(422);
     expect(ErrorHttpStatus[ErrorCode.FORBIDDEN]).toBe(403);
     expect(ErrorHttpStatus[ErrorCode.VALIDATION_ERROR]).toBe(422);
   });
@@ -527,8 +537,29 @@ describe('rejectDeliverableSchema', () => {
     expect(result.reason).toBe('Does not match the brief.');
   });
 
-  it('rejects empty reason', () => {
+  it('trims the stored reason, so padding never reaches the email', () => {
+    // The reason fans out to the deliverable row and the creator's email;
+    // leading/trailing whitespace would be stored and quoted verbatim.
+    const result = rejectDeliverableSchema.parse({
+      reason: '  Does not match the brief.  ',
+    });
+    expect(result.reason).toBe('Does not match the brief.');
+  });
+
+  it('rejects an empty reason', () => {
     expect(() => rejectDeliverableSchema.parse({ reason: '' })).toThrow();
+  });
+
+  it('rejects a reason of only spaces', () => {
+    // Trimmed, a spaces-only note is an empty note — AC-2's "empty reason".
+    expect(() => rejectDeliverableSchema.parse({ reason: '   ' })).toThrow(
+      'A rejection reason is required.'
+    );
+  });
+
+  it('rejects a reason over the stored length bound', () => {
+    const long = 'x'.repeat(MAX_REJECTION_REASON_LENGTH + 1);
+    expect(() => rejectDeliverableSchema.parse({ reason: long })).toThrow();
   });
 });
 

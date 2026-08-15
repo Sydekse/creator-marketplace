@@ -102,6 +102,18 @@ export enum ErrorCode {
   INVALID_TIKTOK_URL = 'INVALID_TIKTOK_URL',
   DEAL_NOT_FUNDED = 'DEAL_NOT_FUNDED',
   DEAL_NOT_DELIVERED = 'DEAL_NOT_DELIVERED',
+  /**
+   * A rejection of a delivered deliverable carried no reason (KAN-47, AC-024,
+   * Tech Spec §4.4 reject).
+   *
+   * Named by the ticket and by §4.4 — "an empty reason returns 422
+   * `REASON_REQUIRED`" — rather than folded into VALIDATION_ERROR, because a
+   * missing reason is not a malformed request: it is a refusal to say what
+   * needs changing, and the creator's email quotes it. Saying "Validation
+   * failed" at a brand whose only mistake was clicking Reject on an empty box
+   * tells them nothing they can act on; this sentence does.
+   */
+  REASON_REQUIRED = 'REASON_REQUIRED',
   FORBIDDEN = 'FORBIDDEN',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   /**
@@ -170,6 +182,7 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.INVALID_TIKTOK_URL]: 'Enter a valid public TikTok video link.',
   [ErrorCode.DEAL_NOT_FUNDED]: 'Deal has not been funded yet.',
   [ErrorCode.DEAL_NOT_DELIVERED]: 'Deal has not been delivered yet.',
+  [ErrorCode.REASON_REQUIRED]: 'A rejection reason is required.',
   [ErrorCode.FORBIDDEN]: 'You do not have permission to perform this action.',
   [ErrorCode.VALIDATION_ERROR]: 'Validation failed.',
   [ErrorCode.NOT_FOUND]: 'The requested resource does not exist.',
@@ -199,6 +212,7 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.INVALID_TIKTOK_URL]: 422,
   [ErrorCode.DEAL_NOT_FUNDED]: 409,
   [ErrorCode.DEAL_NOT_DELIVERED]: 409,
+  [ErrorCode.REASON_REQUIRED]: 422,
   [ErrorCode.FORBIDDEN]: 403,
   [ErrorCode.VALIDATION_ERROR]: 422,
   [ErrorCode.NOT_FOUND]: 404,
