@@ -194,6 +194,77 @@ export class MockPaymentProvider implements PaymentProvider {
     return result;
   }
 
+  /**
+   * The platform's leg of a payout (KAN-68, F21).
+   *
+   * `capturePayout` minus the recipient — see `PaymentProvider.captureCommission`
+   * for why the platform needs no identifier. Every guard is the same, because
+   * both methods draw against the same remaining balance: a positive integer
+   * amount, a hold that is still `held`, and no draw larger than what is left.
+   *
+   * Its idempotency key space is independent of `capturePayout`'s, so a deal's
+   * two legs cannot replay each other's cached result even if they were somehow
+   * handed the same key.
+   */
+  async captureCommission(
+    amount: number,
+    holdRef: string,
+    idempotencyKey: string
+  ): Promise<ProviderCaptureResult> {
+    this.assertValidAmount(amount);
+
+    const args = { amount, holdRef };
+    const cached = this.checkIdempotency<ProviderCaptureResult>(
+      'captureCommission',
+      idempotencyKey,
+      args
+    );
+    if (cached) return cached;
+
+    if (this.failNext.has('captureCommission')) {
+      this.failNext.delete('captureCommission');
+      throw new PaymentError(
+        'Mock commission capture failed',
+        'PROVIDER_UNAVAILABLE'
+      );
+    }
+
+    const record = this.holds.get(holdRef);
+    if (!record) {
+      throw new PaymentError('Hold not found', 'INVALID_REFERENCE');
+    }
+
+    if (record.state !== 'held') {
+      throw new PaymentError(
+        `Hold is in state '${record.state}', expected 'held'`,
+        'INVALID_REFERENCE'
+      );
+    }
+
+    if (amount > record.amount) {
+      throw new PaymentError(
+        'INSUFFICIENT_FUNDS: Commission amount exceeds hold amount',
+        'INSUFFICIENT_FUNDS'
+      );
+    }
+
+    const now = new Date().toISOString();
+    record.amount -= amount;
+    if (record.amount === 0) {
+      record.state = 'captured';
+    }
+    record.updatedAt = now;
+
+    const result: ProviderCaptureResult = {
+      providerRef: holdRef,
+      status: 'captured',
+      capturedAt: now,
+    };
+
+    this.setIdempotency('captureCommission', idempotencyKey, args, result);
+    return result;
+  }
+
   async releaseHold(
     holdRef: string,
     idempotencyKey: string

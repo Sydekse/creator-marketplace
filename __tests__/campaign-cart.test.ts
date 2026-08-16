@@ -966,9 +966,26 @@ describe('remove-from-cart button (AC-015 — the brand-facing half)', () => {
   });
 
   it('shows the control only on a draft campaign', () => {
-    expect(PAGE).toMatch(
-      /campaign\.status === 'draft' && \(\s*<RemoveFromCartButton/
-    );
+    // The guard moved from a condition on the button to the branch that decides
+    // whether a cart is rendered at all (KAN-68). `settled` is
+    // `status !== 'draft'`, the deals list is its first arm and the cart its
+    // second, so a confirmed campaign never reaches the remove control — the two
+    // lists are the same creators at different stages and showing both would
+    // duplicate them.
+    //
+    // Asserted as structure rather than as the old inline `&&` so this test stays
+    // about the rule instead of its spelling.
+    expect(PAGE).toContain("const settled = campaign.status !== 'draft'");
+
+    const ternary = PAGE.search(/settled \? \(/);
+    const dealsBranch = PAGE.indexOf('Deals ({deals.length})');
+    const cartBranch = PAGE.indexOf('Cart ({items.length})');
+    const button = PAGE.indexOf('<RemoveFromCartButton');
+
+    expect(ternary).toBeGreaterThan(-1);
+    expect(dealsBranch).toBeGreaterThan(ternary);
+    expect(cartBranch).toBeGreaterThan(dealsBranch);
+    expect(button).toBeGreaterThan(cartBranch);
   });
 
   it('calls DELETE on the item endpoint with both ids encoded', () => {

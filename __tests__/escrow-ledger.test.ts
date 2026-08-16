@@ -116,6 +116,12 @@ interface Seed {
   noBalanceRow?: boolean;
   /** `null` means no hold entry exists for the deal. */
   holdRef?: string | null;
+  /**
+   * Hold references per deal id, for tests that must tell one deal's escrow from
+   * another's (F20). Takes precedence over `holdRef` when the locked lookup names
+   * a deal in it, so a two-deal campaign can be refunded one deal at a time.
+   */
+  dealHoldRefs?: Record<string, string>;
   alreadyHeld?: boolean;
   /** Errors thrown before the transaction body runs, indexed by attempt. */
   txErrors?: (Error | undefined)[];
@@ -230,6 +236,15 @@ class FakeDb {
         ];
       }
       if (fields && 'providerRef' in fields) {
+        // Per-deal first. `requireHoldRef` answering every deal with one seeded
+        // reference is exactly the campaign-wide-reference bug F20 fixes, so a
+        // test that needs to tell one deal's hold from another's seeds this map
+        // instead — see `dealHoldRefs` on `Seed`.
+        if (whereId !== undefined) {
+          const perDeal = this.seed.dealHoldRefs?.[whereId];
+          if (perDeal !== undefined) return [{ providerRef: perDeal }];
+        }
+
         const ref = this.seed.holdRef;
         return ref == null ? [] : [{ providerRef: ref }];
       }
@@ -346,6 +361,10 @@ function loggingProvider(log: string[], inner: MockPaymentProvider) {
       log.push('provider:capturePayout');
       return inner.capturePayout(a, r, h, k);
     },
+    captureCommission: (a: number, h: string, k: string) => {
+      log.push('provider:captureCommission');
+      return inner.captureCommission(a, h, k);
+    },
     releaseHold: (h: string, k: string) => {
       log.push('provider:releaseHold');
       return inner.releaseHold(h, k);
@@ -359,9 +378,15 @@ function loggingProvider(log: string[], inner: MockPaymentProvider) {
  * real one is placed on the provider first (bypassing the log) so that
  * capture/release exercise the provider's genuine state machine rather than a
  * stub that accepts anything.
+ *
+ * `existingMock` carries provider state across two phases of one scenario — fund
+ * a campaign, then refund one of its deals. The fake seeds statuses statically
+ * and cannot show a deal moving from `accepted` to `funded` mid-test, so the two
+ * halves need separate fakes over the *same* provider for the holds placed by the
+ * first half to still be there for the second.
  */
-async function build(seed: Seed) {
-  const mock = new MockPaymentProvider();
+async function build(seed: Seed, existingMock?: MockPaymentProvider) {
+  const mock = existingMock ?? new MockPaymentProvider();
 
   const holdAmount = seed.targetDeal?.totalPrice ?? 0;
   let holdRef = seed.holdRef;
@@ -374,7 +399,10 @@ async function build(seed: Seed) {
     db as never,
     loggingProvider(db.log, mock)
   );
-  return { db, svc, mock };
+  // `holdRef` is returned so a test can ask the provider what state the hold is
+  // actually in, rather than inferring it from our own rows — which is the whole
+  // point of F20/F21, where our rows balanced and the provider disagreed.
+  return { db, svc, mock, holdRef };
 }
 
 function ledgerRows(db: FakeDb) {
@@ -412,6 +440,48 @@ describe('holdForCampaign', () => {
     // The balance accumulates across entries rather than repeating per row.
     expect(rows.map((r) => r.balanceAfter)).toEqual([100_000, 150_000]);
     expect(rows.every((r) => typeof r.providerRef === 'string')).toBe(true);
+  });
+
+  it('gives every deal its own provider hold and its own reference (F20)', async () => {
+    const { db, svc, mock } = await build({ deals: twoDeals });
+    await svc.holdForCampaign(CAMPAIGN_ID);
+
+    // One call per deal, for that deal's own total rather than the campaign sum.
+    expect(db.log.filter((l) => l === 'provider:hold')).toHaveLength(2);
+
+    // Distinctness is the property, not merely presence. The version this
+    // replaced stamped one campaign-wide ref onto every row, and every existing
+    // assertion about `providerRef` being a string passed against it.
+    const refs = ledgerRows(db).map((r) => r.providerRef);
+    expect(new Set(refs).size).toBe(2);
+
+    // Each ref names a real hold at the provider, for that deal's amount.
+    for (const [i, ref] of refs.entries()) {
+      const status = await mock.getStatus(ref as string);
+      expect(status.state).toBe('held');
+      expect(status.amount).toBe(twoDeals[i].totalPrice);
+    }
+  });
+
+  it('keys each hold per deal, so equal-priced deals cannot share a reference', async () => {
+    // The trap this guards: `MockPaymentProvider.hold` deduplicates on
+    // `{ amount }` alone, so two deals of the same price under one key would be
+    // handed the *same* cached `providerRef` — silently rebuilding the bug F20
+    // fixes, with no error anywhere.
+    const equalPriced = [
+      { id: DEAL_ID, status: 'accepted' as DealStatus, totalPrice: 100_000 },
+      {
+        id: 'd0000000-0000-0000-0000-000000000002',
+        status: 'accepted' as DealStatus,
+        totalPrice: 100_000,
+      },
+    ];
+    const { db, svc } = await build({ deals: equalPriced });
+    await svc.holdForCampaign(CAMPAIGN_ID);
+
+    const refs = ledgerRows(db).map((r) => r.providerRef);
+    expect(refs).toHaveLength(2);
+    expect(new Set(refs).size).toBe(2);
   });
 
   it('runs serializable, locks both tables, and pays the provider inside the transaction', async () => {
@@ -582,11 +652,86 @@ describe('holdForCampaign', () => {
     const rows = ledgerRows(db);
     expect(rows).toHaveLength(2);
     expect(rows.map((r) => r.balanceAfter)).toEqual([100_000, 150_000]);
-    // One provider call per attempt. The failed attempt's idempotency key is not
-    // reused — a fresh one is generated per call, outside the retry loop but
-    // inside the method — so the successful attempt is a new authorization rather
-    // than a replay of the declined one.
-    expect(db.log.filter((l) => l === 'provider:hold')).toHaveLength(2);
+    // Three provider calls across the two attempts, not two: the failed attempt
+    // got as far as the first deal's hold before `setFailNext` tripped it, and
+    // the successful attempt then placed one hold per deal. The failed attempt's
+    // idempotency key is not reused — a fresh method-level UUID is generated per
+    // call, outside the retry loop but inside the method — so the successful
+    // attempt is a new authorization rather than a replay of the declined one.
+    expect(db.log.filter((l) => l === 'provider:hold')).toHaveLength(3);
+  });
+
+  it('rolls back with nothing held when a deal is priced at zero', async () => {
+    // Reachable, if only just: `deal_total_price_valid` ties `total_price` to
+    // `unit_price × video_count` and `video_count > 0` is checked, but no CHECK
+    // bounds `unit_price` or `pricing_tier.price_per_video`. Per-deal holds move
+    // the provider's positive-amount rule onto each deal instead of the sum, so
+    // this became reachable with F20 where the campaign total had masked it.
+    //
+    // The failure is safe — the whole transaction rolls back and nothing is held
+    // — but it surfaces as `PAYMENT_FAILED` ("please try again"), which invites a
+    // retry that cannot succeed. The missing constraint is filed as a follow-up
+    // rather than guarded here; this test pins the containment either way.
+    const { db, svc } = await build({
+      deals: [
+        { id: DEAL_ID, status: 'accepted' as DealStatus, totalPrice: 100_000 },
+        {
+          id: 'd0000000-0000-0000-0000-000000000002',
+          status: 'accepted' as DealStatus,
+          totalPrice: 0,
+        },
+      ],
+    });
+
+    await expect(svc.holdForCampaign(CAMPAIGN_ID)).rejects.toThrow(
+      PaymentError
+    );
+
+    expect(db.log).toContain('ROLLBACK');
+    expect(ledgerRows(db)).toHaveLength(0);
+    expect(dealEvents(db)).toHaveLength(0);
+    expect(db.updates).toHaveLength(0);
+  });
+
+  it('leaves the earlier deals held at the provider when a later one fails', async () => {
+    // The known gap, pinned so it is visible rather than silent. Spike §5.2
+    // already acknowledges a provider-succeeds/DB-rolls-back window and defers
+    // the mitigation (an outbox, or a pending-hold row) to Phase 2; per-deal
+    // holds multiply that window by the deal count.
+    //
+    // Our rows roll back cleanly. The provider's do not: deal one's hold is real
+    // and nothing ever releases it. Asserted against the mock's own state,
+    // because `db.log` shows a clean ROLLBACK and says nothing about this.
+    const { db, svc, mock } = await build({ deals: twoDeals });
+
+    // Let the first hold through, fail the second. `setFailNext` cannot express
+    // "the second call" — it arms exactly one failure, which would trip on the
+    // first — so the provider is wrapped for this one test.
+    const placed: string[] = [];
+    const realHold = mock.hold.bind(mock);
+    mock.hold = async (amount: number, key: string) => {
+      if (placed.length === 1) {
+        throw new PaymentError('Mock hold failed', 'INSUFFICIENT_FUNDS');
+      }
+      const result = await realHold(amount, key);
+      placed.push(result.providerRef);
+      return result;
+    };
+
+    await expect(svc.holdForCampaign(CAMPAIGN_ID)).rejects.toThrow(
+      PaymentError
+    );
+
+    expect(db.log).toContain('ROLLBACK');
+    expect(ledgerRows(db)).toHaveLength(0);
+    expect(dealEvents(db)).toHaveLength(0);
+
+    // One hold was really placed, and after the rollback no row of ours refers
+    // to it. It stays `held` at the provider until someone reconciles by hand.
+    expect(placed).toHaveLength(1);
+    const orphaned = await mock.getStatus(placed[0]);
+    expect(orphaned.state).toBe('held');
+    expect(orphaned.amount).toBe(twoDeals[0].totalPrice);
   });
 });
 
@@ -634,6 +779,70 @@ describe('payoutForDeal', () => {
       toStatus: 'completed',
       actorId: 'brand-1',
     });
+  });
+
+  it('captures both legs and drains the hold to captured (F21)', async () => {
+    const { db, svc, mock, holdRef } = await build({
+      targetDeal: delivered,
+      entries: [{ amount: 100_000 }],
+    });
+
+    // Before: the whole deal total is sitting held at the provider.
+    expect(await mock.getStatus(holdRef as string)).toMatchObject({
+      state: 'held',
+      amount: 100_000,
+    });
+
+    await svc.payoutForDeal(DEAL_ID);
+
+    // After: nothing remains, and the hold has reached its terminal state. This
+    // is the assertion that fails against the version of this method that
+    // captured only the payout — there, 15_000 stayed held forever and the
+    // platform's own ledger row described money the processor never moved.
+    expect(await mock.getStatus(holdRef as string)).toMatchObject({
+      state: 'captured',
+      amount: 0,
+    });
+
+    // Both legs reached the provider, inside the transaction, payout first.
+    const payout = db.log.indexOf('provider:capturePayout');
+    const commission = db.log.indexOf('provider:captureCommission');
+    expect(payout).toBeGreaterThan(db.log.indexOf('BEGIN'));
+    expect(commission).toBeGreaterThan(payout);
+    expect(db.log.indexOf('COMMIT')).toBeGreaterThan(commission);
+  });
+
+  it('drains the hold on the payout leg alone when commission is zero', async () => {
+    // A zero commission is ordinary, not a degenerate input: `computeSplit(3,
+    // '15.00')` is 0, and so is any deal at a 0% rate. The provider refuses a
+    // zero amount, so the commission leg is skipped — and nothing is stranded,
+    // because payout then equals total_price and drains the hold by itself.
+    const { db, svc, mock, holdRef } = await build({
+      targetDeal: { ...delivered, commissionRate: '0.00' },
+      entries: [{ amount: 100_000 }],
+    });
+
+    const result = await svc.payoutForDeal(DEAL_ID);
+
+    expect(result).toEqual({ payout: 100_000, commission: 0 });
+    expect(db.log).not.toContain('provider:captureCommission');
+    expect(await mock.getStatus(holdRef as string)).toMatchObject({
+      state: 'captured',
+      amount: 0,
+    });
+
+    // The paired rows are still both written — a zero commission is a real
+    // recorded zero, and dropping the row would lose the fact that the rate was
+    // zero rather than that nobody looked. Negating it yields `-0`, which
+    // Postgres stores as 0 in an `integer` column and which sums and compares
+    // as 0 everywhere; asserted as written rather than normalised away.
+    const rows = ledgerRows(db);
+    expect(rows.map((r) => r.entryType)).toEqual([
+      'release_payout',
+      'commission',
+    ]);
+    expect(rows.map((r) => r.amount)).toEqual([-100_000, -0]);
+    expect(rows.reduce((s, r) => s + (r.amount as number), 0)).toBe(-100_000);
   });
 
   it.each<DealStatus>([
@@ -768,6 +977,73 @@ describe('refundDeal', () => {
       fromStatus: 'funded',
       toStatus: 'refunded',
       actorId: 'admin-1',
+    });
+  });
+
+  it('releases only the refunded deal, leaving its siblings held (F20)', async () => {
+    // The test this whole change exists for, and the one that could not be
+    // written before it. Driven end to end rather than from seeded references:
+    // fund a two-deal campaign for real, then refund one deal and ask the
+    // *provider* what happened to the other.
+    //
+    // Against the previous design it fails on the last assertion. One
+    // `provider.hold()` for the campaign total meant both deals shared a
+    // reference, and `releaseHold` is documented to release the entire hold — so
+    // refunding deal one returned deal two's money as well, our ledger recorded
+    // exactly one refund, and the next payout threw `INVALID_REFERENCE` against a
+    // hold that was no longer `held`.
+    const secondId = 'd0000000-0000-0000-0000-000000000002';
+
+    // Phase one: fund. No `targetDeal`, so no setup hold is placed — every hold
+    // here is one `holdForCampaign` really asked for.
+    const funding = await build({
+      deals: [
+        { id: DEAL_ID, status: 'accepted', totalPrice: 100_000 },
+        { id: secondId, status: 'accepted', totalPrice: 50_000 },
+      ],
+    });
+    await funding.svc.holdForCampaign(CAMPAIGN_ID);
+
+    const dealHoldRefs = Object.fromEntries(
+      ledgerRows(funding.db)
+        .filter((r) => r.entryType === 'hold')
+        .map((r) => [r.dealId as string, r.providerRef as string])
+    );
+    expect(Object.keys(dealHoldRefs)).toHaveLength(2);
+
+    // Phase two: refund one deal, over the same provider. `holdRef: null`
+    // suppresses a second setup hold; the references come from phase one's rows.
+    const { db, svc, mock } = await build(
+      {
+        targetDeal: {
+          id: DEAL_ID,
+          status: 'funded',
+          totalPrice: 100_000,
+          commissionRate: '15.00',
+        },
+        entries: [{ amount: 150_000 }],
+        holdRef: null,
+        dealHoldRefs,
+      },
+      funding.mock
+    );
+
+    await svc.refundDeal(DEAL_ID, 'admin-1');
+
+    expect(ledgerRows(db)).toHaveLength(1);
+    expect(ledgerRows(db)[0]).toMatchObject({
+      entryType: 'refund',
+      amount: -100_000,
+    });
+
+    // The refunded deal's hold is released…
+    expect(await mock.getStatus(dealHoldRefs[DEAL_ID])).toMatchObject({
+      state: 'released',
+    });
+    // …and the other deal's money is untouched and still spendable.
+    expect(await mock.getStatus(dealHoldRefs[secondId])).toMatchObject({
+      state: 'held',
+      amount: 50_000,
     });
   });
 

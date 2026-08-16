@@ -154,6 +154,33 @@ export interface PaymentProvider {
   ): Promise<ProviderReleaseResult>;
 
   /**
+   * Transfer the platform's commission out of a hold.
+   * Called when a deal is approved (KAN-45), after capturePayout.
+   *
+   * ADDED ON KAN-68 — see §11.2. This method is not derived from the PRD or the
+   * tech spec: neither describes the commission ever moving at the provider.
+   * Without it, capturePayout drew only the creator's share and the commission
+   * slice stayed outstanding at the PSP forever, so the platform was never paid.
+   *
+   * - amount: the commission (total_price - payout); must be ≤ the hold's
+   *   remaining amount
+   * - holdRef: the providerRef from the corresponding hold()
+   * - idempotencyKey: caller-generated UUID, distinct from the payout leg's
+   *
+   * No recipient. The platform is the only possible destination, and the
+   * alternative — a second capturePayout addressed to a platform account —
+   * needs an account identifier no document defines and that Q3 defers past
+   * the MVP.
+   *
+   * Throws if hold is not in 'held' state.
+   */
+  captureCommission(
+    amount: number,
+    holdRef: string,
+    idempotencyKey: string
+  ): Promise<ProviderCaptureResult>;
+
+  /**
    * Check the status of a previous operation by provider reference.
    * Used for reconciliation and manual review.
    */
@@ -278,9 +305,12 @@ export class EscrowLedgerService {
    * Hold funds for all accepted deals in a confirmed campaign.
    * Called by KAN-43 (brand funds campaign).
    *
-   * - Sums total_price of every accepted deal
-   * - Calls provider.hold() once for the campaign total
-   * - Writes one ledger_entry per deal with type 'hold'
+   * - Sums total_price of every accepted deal (for the returned figure)
+   * - Calls provider.hold() ONCE PER DEAL, for that deal's own total
+   * - Writes one ledger_entry per deal with type 'hold', each carrying its
+   *   own providerRef
+   *
+   * REVISED ON KAN-68 — this said "once for the campaign total". See §11.1.
    */
   async holdForCampaign(campaignId: string): Promise<void>
 
@@ -289,8 +319,12 @@ export class EscrowLedgerService {
    * Called by KAN-45 (approve deliverable).
    *
    * - Calls provider.capturePayout() for the creator net amount
+   * - Calls provider.captureCommission() for the platform's cut, unless it
+   *   rounds to zero — between them the two legs drain the hold to 'captured'
    * - Writes two ledger entries: 'release_payout', 'commission'
    * - Updates deal status to 'completed'
+   *
+   * REVISED ON KAN-68 — the commission leg is new. See §11.2.
    */
   async payoutForDeal(dealId: string): Promise<void>
 
@@ -339,6 +373,16 @@ query `getStatus()` for any PSP ref not linked to a confirmed `hold` entry.
 Phase 2 if the team accepts the risk window. The mock provider's synthetic refs
 have no real-world cost, so the window only matters when a real PSP is connected.
 
+**Widened on KAN-68.** Funding now places one hold per deal (§11.1), so a
+campaign of N deals has N chances to fail partway: deals 1..k held at the PSP,
+deal k+1 declined, every one of our rows rolled back, and k real holds left
+behind that nothing references. The mock makes this invisible — the transaction
+log shows a clean `ROLLBACK` and zero rows while the provider's map still holds
+k `held` records — so `escrow-ledger.test.ts` pins the behaviour deliberately
+rather than leaving it to be discovered. Still deferred, and still for the same
+reason: the mitigation needs `'hold_pending'` in `LedgerEntryType` and therefore
+a migration, which is its own ticket.
+
 ### 5.3 Locking strategy
 
 Each money-mutating method:
@@ -381,6 +425,14 @@ balance_after = COALESCE(
 | 5   | `provider_ref` on `hold` entries matches a real PSP hold               | Not nullable after funding — written in same transaction                         |
 | 6   | Money is never created or destroyed — ledger sum is zero-sum           | Audit: sum all entries across time = 0                                           |
 | 7   | Failed provider calls leave campaign untouched                         | KAN-44: roll back DB changes on `PaymentError`                                   |
+| 8   | The commission rate is config, snapshotted per deal — never a literal  | `lib/config/pricing.ts`; `deal.commission_rate` written at offer time            |
+| 9   | Each deal's `provider_ref` is its own — one hold, one deal             | KAN-68: `provider.hold()` inside the per-deal loop, keyed per deal (§11.1)       |
+
+**Invariants 8 and 9 were added later.** 8 was referenced by §9's exit criteria
+before it was ever written down here, which is how a dangling cross-reference
+survived to KAN-68; it is the rule `lib/config/pricing.ts` exists to serve. 9 is
+KAN-68's, and it is what makes invariant 5 mean something per deal rather than
+per campaign.
 
 **Invariant 4 — note on schema change:** §2 and §8 previously stated "no schema
 change needed". Invariant 4 requires a partial unique index to prevent
@@ -513,3 +565,97 @@ lib/
     mock-provider.ts  ← MockPaymentProvider (always-succeed, with failNext toggle)
     index.ts          ← re-exports
 ```
+
+---
+
+## 11. Revisions
+
+Amendments made after the spike was accepted, recorded here rather than edited
+silently into the sections above. Each names what changed, what forced it, and
+what it means for the documents that outrank this one.
+
+### 11.1 One provider hold per deal, not one per campaign (KAN-68, 2026-08-16)
+
+§5.2 said `holdForCampaign` "calls provider.hold() once for the campaign total"
+and writes one `hold` ledger entry per deal. KAN-42 implemented exactly that, and
+`HoldForCampaignResult.providerRef` documented itself as "shared by every entry in
+the run."
+
+**The spike contradicted itself, and the contradiction was load-bearing.**
+`refundDeal(dealId)` is defined here as a per-deal operation that calls
+`provider.releaseHold()`, while `releaseHold` is defined — in this same document,
+§4 — as taking no amount and releasing the _entire_ hold. With one campaign-wide
+reference those two cannot both be honoured. Refunding one deal of five told the
+PSP to let go of all five: our ledger recorded a single refund of that deal's
+`total_price`, the other four holds were released with nothing recording it, and
+the next payout threw `INVALID_REFERENCE` against a hold that was no longer
+`held`. On a funded campaign, any decline, expiry or dispute refund (KAN-37,
+KAN-38, KAN-51) reaches it.
+
+**Resolution:** the hold moves inside the per-deal loop. Each deal gets its own
+`providerRef` on its own `hold` row, so `requireHoldRef` → `releaseHold` acts on
+one deal and `refundDeal`'s docstring becomes true.
+
+The key is derived as `` `${idempotencyKey}:${dealId}` `` from the method-level
+UUID, which has to hold two properties at once. It must be **distinct per deal**,
+because `MockPaymentProvider.hold` deduplicates on `{ amount }` alone — two
+equal-priced deals under one key would be handed the same cached `providerRef`
+with no error raised, silently rebuilding the bug. And it must be **stable across
+retries**, because a fresh UUID generated inside the loop would re-hold every deal
+on a serialization retry, which is the double-charge §4.2 exists to prevent.
+
+**Nothing above this document had to change.** PRD AC-019 says the accepted total
+is "captured/held" and never distinguishes the two, let alone the granularity;
+AC-021 is silent. The tech spec is ambiguous rather than contrary — §4's endpoint
+entry says "writes hold ledger entries" (plural) while its Escrow Ledger Service
+section says "insert a hold entry" (singular). So this reverses a spike decision
+and drifts from no requirement.
+
+**Costs, both accepted knowingly.** Funding a campaign of N deals now makes N
+sequential provider calls inside one serializable transaction, which is an NFR-002
+(sub-second) consideration — free against an in-process mock, and the reason a real
+PSP under Q3 would want a batch endpoint. And the provider-succeeds/DB-rolls-back
+window of §5.2 is now N times wider; see the note there.
+
+### 11.2 The commission is captured, not merely recorded (KAN-68, 2026-08-16)
+
+`payoutForDeal` called `provider.capturePayout()` for the creator's net amount and
+then wrote **two** ledger rows, `release_payout` and `commission`. No provider call
+ever moved the commission. Our books said the platform had taken its cut; the
+processor was never told, so the hold stayed `held` with the commission slice
+outstanding forever and the platform was never actually paid.
+
+**Resolution:** a `captureCommission(amount, holdRef, idempotencyKey)` method on
+`PaymentProvider` (§4), called as a second leg with its own idempotency key.
+Between them the two legs draw the remaining amount to zero, which is what takes
+the hold to `captured` — the terminal state §4's state machine documents and that
+nothing previously reached.
+
+The commission leg is skipped when the commission rounds to zero, which is
+ordinary rather than degenerate: `computeSplit(3, '15.00')` is 0, and so is any
+deal at a 0% rate, while the provider refuses a zero amount. Nothing is stranded
+by the skip — `payout + commission === total_price` exactly and the hold is for
+`total_price`, so a zero commission means the payout leg alone drained it.
+
+**This depends on §11.1 and could not have shipped without it.** A hold reaches
+`captured` only when its remaining amount hits zero, so while the hold was
+campaign-wide one deal's `payout + commission` was a slice of it and no sequence of
+captures could drain it.
+
+**This one is an addition beyond every document, and that is worth stating
+plainly.** Nothing in the PRD, the tech spec or this spike describes the commission
+moving at the provider. AC-023 says the funds are "released to the creator minus
+platform commission" and never says where the commission goes; the spec's Escrow
+Ledger Service names one call, `transfer(payout -> creator)`; the spec's glossary
+calls commission a deduction rather than a movement. PRD Q1 is about _incidence_ —
+brand markup, creator deduction, or split — not collection, so it does not answer
+this either.
+
+The alternative considered and rejected was a second `capturePayout` addressed to
+a platform account. It needs a payout identifier that no document defines and that
+Q3 defers past the MVP, which would have put an invented constant in the money
+path. A method with no recipient says what it does instead.
+
+**If Q3 lands a real processor**, this is the first place to look: a real PSP may
+model the platform's cut as a fee on the capture rather than a second draw, in
+which case both legs collapse into one call and this method goes away.

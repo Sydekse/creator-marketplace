@@ -245,9 +245,17 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
           <Text style={styles.text}>
             Approving it releases their payment from escrow.
           </Text>
-          {/* The list, not one campaign: this payload carries only a `dealId`,
-              and there is no brand-side deal route to point at yet. */}
-          <Cta href={appUrl('/campaigns')} label="Review the video →" />
+          {/* Straight to the deal, which is the whole point of the mail. This
+              pointed at `/campaigns` until the brand had a review surface — a
+              page that showed neither the video nor a control to act on it, so
+              KAN-46's "the brand is notified that a video is awaiting review" was
+              satisfied by a link to nothing. The payload's `dealId` is enough for
+              the deep link, which is why the route is `/deals/[id]` rather than
+              nested under the campaign. */}
+          <Cta
+            href={appUrl(`/deals/${payload.dealId}`)}
+            label="Review the video →"
+          />
         </Layout>
       );
 

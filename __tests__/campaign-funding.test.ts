@@ -67,7 +67,6 @@ const CAMPAIGN_NAME = 'Ramadan launch';
 /** Three accepted deals, so a `rows[0]`-shaped bug cannot read as correct. */
 const HELD_TOTAL = 1_250_000;
 const DEAL_COUNT = 3;
-const PROVIDER_REF = 'mock_hold_0001';
 
 interface Recorded {
   /** Seam names in call order — ordering asserted without reading source. */
@@ -117,7 +116,6 @@ function makeDeps(overrides: Overrides = {}): {
       return {
         dealCount: DEAL_COUNT,
         totalHeld: HELD_TOTAL,
-        providerRef: PROVIDER_REF,
       } satisfies HoldForCampaignResult;
     },
     notify: (async (userId, type, payload) => {
@@ -1098,15 +1096,25 @@ describe('the source guards can fail', () => {
  * Asserted structurally rather than on the clock: a wall-clock assertion against
  * a fake database measures the fake, and one against a real Neon instance
  * measures the network. What actually decides whether this is a sub-second
- * endpoint is the query shape, so that is what is checked — one provider call and
- * one balance sum per fund, with no per-deal fan-out.
+ * endpoint is the query shape, so that is what is checked — one balance sum per
+ * fund, and every *database* read bounded regardless of the deal count.
+ *
+ * The provider call is the deliberate exception since KAN-68. Funding now places
+ * one hold **per deal** (F20), because a single campaign-wide reference made
+ * refunding one deal release every deal's money. So this is a real fan-out, and
+ * it is the one NFR-002 cost this ticket accepts knowingly: free against the
+ * in-process mock, and the reason a real processor under Q3 would want a batch
+ * endpoint rather than N sequential calls inside a serializable transaction.
  */
 describe('NFR-002 — the work is bounded', () => {
-  it('places one hold with the provider, whatever the deal count', async () => {
+  it('calls the ledger once, whatever the deal count', async () => {
     const { deps, recorded } = makeDeps();
 
     await fundCampaign(CAMPAIGN_ID, BRAND_PROFILE_ID, BRAND_USER_ID, deps);
 
+    // `hold` here is the `deps.hold` seam — `holdForCampaign` itself, not
+    // `provider.hold`. The wrapper's own work is fixed; the per-deal fan-out
+    // lives one layer down and is asserted in `escrow-ledger.test.ts`.
     expect(recorded.calls.filter((c) => c === 'hold')).toHaveLength(1);
     expect(recorded.calls).toHaveLength(3);
   });
@@ -1114,14 +1122,19 @@ describe('NFR-002 — the work is bounded', () => {
   it('loads the accepted deals in one query and sums the balance once', () => {
     // Both in `holdForCampaign`: a `select(...).where(status = accepted)` and a
     // single `sumBalance`, with the running total carried in memory across the
-    // insert loop rather than re-summed per deal.
+    // insert loop rather than re-summed per deal. The database work is what stays
+    // bounded here; the provider call moved into the loop on purpose (F20).
     const holdBody = LEDGER_MODULE.slice(
       LEDGER_MODULE.indexOf('async holdForCampaign'),
       LEDGER_MODULE.indexOf('async payoutForDeal')
     );
     expect(holdBody).toContain('this.sumBalance(tx, campaignId)');
     expect(holdBody.match(/this\.sumBalance/g)).toHaveLength(1);
+    // One call site, inside the loop, keyed per deal — the suffix is what stops
+    // two equal-priced deals sharing a cached reference.
     expect(holdBody.match(/this\.provider\./g)).toHaveLength(1);
+    expect(holdBody).toContain('this.provider.hold(');
+    expect(holdBody).toMatch(/\$\{idempotencyKey\}:\$\{d\.id\}/);
   });
 
   it('asks for the escrow total and the accepted count only once a campaign settles', () => {
