@@ -1,10 +1,14 @@
 /**
  * Pricing and commission configuration.
  *
- * PROVISIONAL — every value in this file is a placeholder pending Q1
- * (commission rate and who bears it) and Q2 (tier bands and price per video).
- * Nothing depends on the specific numbers; they exist so the marketplace loop
- * can be built and demoed before the business answers those questions.
+ * PROVISIONAL — the pricing and commission values in this file are placeholders
+ * pending Q1 (commission rate and who bears it) and Q2 (tier bands and price per
+ * video). Nothing depends on the specific numbers; they exist so the marketplace
+ * loop can be built and demoed before the business answers those questions.
+ *
+ * The two time windows below are a different kind of value: product decisions
+ * with no open question behind them, and settled. They live here for the same
+ * reason as everything else, not because they are provisional.
  *
  * The point of this module is that there is exactly *one* place to change when
  * they are answered. Do not copy these values into seed scripts, tests, or
@@ -96,6 +100,45 @@ export const OFFER_WINDOW_MS = OFFER_WINDOW_DAYS * 24 * 60 * 60 * 1000;
  */
 export function offerExpiresAt(from: Date = new Date()): Date {
   return new Date(from.getTime() + OFFER_WINDOW_MS);
+}
+
+/**
+ * How long a completed video may go unmeasured before it is chased (KAN-50,
+ * AC-027 final bullet).
+ *
+ * The second window with no document behind it, and it gets the same treatment
+ * as the offer window above: a product decision, named once, imported rather
+ * than retyped. Seven days, chosen to match `OFFER_WINDOW_DAYS` — a creator
+ * already lives on a seven-day clock for answering an offer, and a second
+ * cadence to learn would be arbitrary. Neither number is waiting on Q1 or Q2.
+ *
+ * **Why metrics need chasing at all.** They are recorded by hand in the MVP
+ * (`lib/deals/record-metrics.ts`), so the numbers a brand's dashboard is for
+ * arrive only if somebody remembers. Nothing else in the system notices that
+ * they never did.
+ */
+export const METRICS_REMINDER_DAYS = 7;
+
+export const METRICS_REMINDER_MS = METRICS_REMINDER_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * The instant a reminder sweep compares completions against: a video completed
+ * before this has had its whole window and is overdue.
+ *
+ * **Subtracts where `offerExpiresAt` adds**, and the direction is the whole
+ * difference between the two helpers. An offer carries its own deadline forward
+ * in a column (`deal.offer_expires_at`), so the sweep compares a stored future
+ * instant against the clock. Nothing stores a metrics deadline, so this walks
+ * the clock backwards to a cutoff instead — the same comparison, one fewer
+ * column, and no nullable deadline that a missing value could make unreachable
+ * the way an offer issued without one never expires.
+ *
+ * `now` is a parameter for `offerExpiresAt`'s reason and one more: a cron run
+ * fires up to an hour off its schedule, so the boundary has to be assertable
+ * against an injected instant rather than whatever the test machine's clock says.
+ */
+export function metricsOverdueBefore(now: Date = new Date()): Date {
+  return new Date(now.getTime() - METRICS_REMINDER_MS);
 }
 
 /**

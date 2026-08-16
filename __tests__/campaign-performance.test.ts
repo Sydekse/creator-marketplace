@@ -7,6 +7,8 @@ import {
   CAMPAIGN_TOTAL_LABEL,
   COMMISSION_LABEL,
   EMPTY_PERFORMANCE,
+  LAST_KNOWN_GOOD_LABEL,
+  LAST_UPDATED_LABEL,
   METRICS_PENDING,
   METRIC_LABELS,
   NO_VIDEOS_DESCRIPTION,
@@ -14,10 +16,14 @@ import {
   PAID_OUT_LABEL,
   PERFORMANCE_TITLE,
   SETTLEMENT_NOTE,
+  STALE_LABEL,
+  STALE_NOTE,
+  SUBMITTED_LABEL,
   VIEW_POST_LABEL,
   campaignVideosQuery,
   coverageNote,
   formatMetricCount,
+  metricsUpdatedLabel,
   readCampaignPerformance,
   toCampaignTotals,
 } from '../lib/campaigns/performance';
@@ -29,7 +35,8 @@ import type {
 import type { DealStatus } from '../db/schema';
 
 /**
- * KAN-49 — the brand's campaign performance dashboard (US-009, AC-026, FR-006).
+ * The brand's campaign performance dashboard (KAN-49, KAN-50, US-009, AC-026,
+ * AC-027, NFR-011, FR-006).
  *
  * Four claims carry the weight, and three of them are about honesty rather than
  * correctness.
@@ -55,6 +62,14 @@ import type { DealStatus } from '../db/schema';
  * returning null — a sum over an unknown campaign is `0`, indistinguishable from a
  * real campaign holding nothing, so a nullable return would invite a caller to
  * render an empty dashboard for a denial.
+ *
+ * KAN-50 adds a fourth honesty claim over the same read: **every number says how
+ * far to trust it.** When it was written (`metricsUpdatedLabel`), whether it can
+ * still be trusted (`STALE_LABEL`, `STALE_NOTE`), and how much of a campaign total
+ * is missing (`coverageNote`). Two of its assertions are about *wording* rather
+ * than logic, which is unusual and deliberate: `Metrics updated` and `Last
+ * confirmed` make different claims about the same instant, and a later edit
+ * collapsing them into one label would make one of the two false.
  *
  * One thing this file cannot assert: there is no DOM environment, so every claim
  * about the page and the component is a source guard. It proves the page *mounts*
@@ -90,6 +105,12 @@ const row = (over: Partial<CampaignVideoRow> = {}): CampaignVideoRow => ({
   likes: null,
   shares: null,
   comments: null,
+  // The unmeasured default, and the two go together: `last_updated_at` is written
+  // by every metrics write and by nothing else, so a row with four nulls has no
+  // timestamp either. A fixture that defaulted one without the other would be a
+  // state the database cannot hold.
+  lastUpdatedAt: null,
+  stale: false,
   ...over,
 });
 
@@ -213,12 +234,21 @@ describe('the video query', () => {
     }
   });
 
-  it('does not read last_updated_at or stale — those are KAN-50’s', () => {
-    // KAN-48 writes both. Rendering them is AC-027's other half, and selecting
-    // what this ticket does not render would invite a later edit to show it
-    // without deciding how.
-    expect(sql).not.toContain('last_updated_at');
-    expect(sql).not.toContain('"stale"');
+  it('reads the two honesty columns beside the counts (AC-027)', () => {
+    // KAN-49 pinned the opposite of this and named this ticket in the assertion.
+    // Inverted rather than deleted, so the claim reads forwards: the freshness of
+    // a number is fetched with the number, because a screen that read the counts
+    // and their timestamps separately could render one without the other.
+    expect(sql).toContain('"last_updated_at"');
+    expect(sql).toContain('"stale"');
+  });
+
+  it('coalesces stale, because the left join can make a not-null column null', () => {
+    // An unmeasured video has no `video_metric` row, so `stale` arrives as SQL
+    // NULL while drizzle types it `boolean` off the column definition. Without
+    // this the type is a lie, and `false` is also the right answer: a video nobody
+    // measured is not out of date, it is unmeasured.
+    expect(sql).toMatch(/coalesce\("video_metric"\."stale", false\)/i);
   });
 });
 
@@ -365,8 +395,11 @@ describe('readCampaignPerformance', () => {
 
   it('throws rather than returning null, so a denial cannot render as empty', () => {
     const moduleSource = src(READ_MODULE);
+    // Bounded at the next export: `metricsUpdatedLabel` returns null legitimately,
+    // and an unbounded slice would read that as this function's escape hatch.
     const body = moduleSource.slice(
-      moduleSource.indexOf('export async function readCampaignPerformance')
+      moduleSource.indexOf('export async function readCampaignPerformance'),
+      moduleSource.indexOf('export const METRICS_PENDING')
     );
 
     expect(body).toContain('throw new ForbiddenError');
@@ -398,6 +431,15 @@ describe('formatMetricCount', () => {
     expect(METRICS_PENDING).toBe('Metrics pending');
   });
 
+  it('never renders a recorded zero and an absent count alike (AC-027)', () => {
+    // The claim the whole ticket rests on, asserted as a difference rather than as
+    // two separate strings — a later edit that made pending render as `0`, or a
+    // zero render as pending, would satisfy either half alone.
+    expect(formatMetricCount(0)).not.toBe(formatMetricCount(null));
+    expect(formatMetricCount(0)).not.toContain('pending');
+    expect(formatMetricCount(null)).not.toMatch(/\d/);
+  });
+
   it('does not abbreviate', () => {
     // `awaiting-tier-list.tsx` renders `1.0M` privately for its own table. A
     // campaign total a brand may act on should not be rounded on the way out.
@@ -405,21 +447,113 @@ describe('formatMetricCount', () => {
   });
 });
 
+// -- AC-027 bullets 3 and 4: when, and whether to trust it --------------------
+
+describe('metricsUpdatedLabel', () => {
+  const measuredAt = new Date('2026-08-15T09:00:00Z');
+
+  it('says when fresh counts were written', () => {
+    expect(metricsUpdatedLabel(measuredAt, false)).toBe(
+      'Metrics updated 15 Aug 2026, 09:00 UTC'
+    );
+  });
+
+  it('calls a stale timestamp the last confirmed one, not an update', () => {
+    // NFR-011 asks for "the timestamp of the last known-good value". Calling that
+    // an update would claim the numbers are current as of then, which is the one
+    // thing a stale row is saying it cannot claim.
+    expect(metricsUpdatedLabel(measuredAt, true)).toBe(
+      'Last confirmed 15 Aug 2026, 09:00 UTC'
+    );
+    expect(metricsUpdatedLabel(measuredAt, true)).not.toContain(
+      LAST_UPDATED_LABEL
+    );
+  });
+
+  it('names the same instant either way', () => {
+    // Only the wording changes. A stale row keeps its numbers *and* its timestamp
+    // (NFR-011: "instead of failing or hiding the row").
+    const fresh = metricsUpdatedLabel(measuredAt, false) ?? '';
+    const stale = metricsUpdatedLabel(measuredAt, true) ?? '';
+
+    expect(fresh.replace(LAST_UPDATED_LABEL, '')).toBe(
+      stale.replace(LAST_KNOWN_GOOD_LABEL, '')
+    );
+  });
+
+  it('is null when nothing has been measured, either way', () => {
+    // Not a placeholder. `Metrics pending` is already on that row four times, and
+    // an "Updated: —" line would be a second way to say the same thing. Null in
+    // both stale states, because the flag cannot make an absent timestamp exist.
+    expect(metricsUpdatedLabel(null, false)).toBeNull();
+    expect(metricsUpdatedLabel(null, true)).toBeNull();
+  });
+
+  it('takes an ISO string as well as a Date', () => {
+    // Drizzle hands back `Date`, but this is the same tolerance `formatDeadline`
+    // has, and the alternative is a `new Date(...)` at whichever call site meets a
+    // serialised row first.
+    expect(metricsUpdatedLabel('2026-08-15T09:00:00Z', false)).toBe(
+      metricsUpdatedLabel(measuredAt, false)
+    );
+  });
+
+  it('renders the instant in UTC, named', () => {
+    // Invariant 11: a server-local render changes meaning when the region does.
+    expect(metricsUpdatedLabel(measuredAt, false)).toContain('UTC');
+  });
+
+  it('composes the sentence here, so no screen writes one', () => {
+    const source = src(READ_MODULE);
+
+    expect(source).toContain('formatDeadlineUtc');
+    // Not `Intl.DateTimeFormat` locally, and not a hand-rolled ISO slice — the
+    // shared formatter is what keeps this instant reading like every other one.
+    expect(source).not.toContain('DateTimeFormat');
+    expect(source).not.toContain('toISOString');
+  });
+
+  it('warns in prose that nothing can set the flag', () => {
+    // The one thing a reader of this function needs and cannot see: the stale
+    // branch is correct and unreachable. Asserted so the note cannot be dropped by
+    // an edit that leaves the code working.
+    const raw = readFileSync(join(process.cwd(), READ_MODULE), 'utf8');
+    const doc = raw.slice(
+      raw.indexOf('How the timestamp beside'),
+      raw.indexOf('export function metricsUpdatedLabel')
+    );
+
+    expect(doc).toContain('record-metrics.ts');
+    expect(doc).toMatch(/no writer|cannot set|has no writer/i);
+  });
+});
+
 describe('coverageNote', () => {
-  it('says which videos the totals cover', () => {
+  it('says which videos the totals cover and how many are missing', () => {
     expect(coverageNote(2, 5)).toBe(
-      'Totals cover 2 of 5 videos with recorded metrics.'
+      'Totals cover 2 of 5 videos — 3 still pending.'
     );
   });
 
   it('agrees in number for a single video', () => {
     expect(coverageNote(1, 1)).toBe(
-      'Totals cover 1 of 1 video with recorded metrics.'
+      'Totals cover 1 of 1 video — none pending.'
     );
   });
 
-  it('is honest when nothing is measured', () => {
+  it('says none rather than zero when the total is complete', () => {
+    // A `0` in a sentence about missing data reads for a moment like a metric,
+    // which is the confusion this whole ticket is about.
+    expect(coverageNote(5, 5)).toContain('none pending');
+    expect(coverageNote(5, 5)).not.toContain('0 still pending');
+  });
+
+  it('states the pending count rather than leaving it to be subtracted', () => {
+    // AC-027 bullet 5 asks the totals to say how many are still pending. Coverage
+    // implies it; the AC wants it said, because the number a brand needs in order
+    // to know whether to chase anyone is the missing one.
     expect(coverageNote(0, 3)).toContain('0 of 3');
+    expect(coverageNote(0, 3)).toContain('3 still pending');
   });
 });
 
@@ -539,6 +673,44 @@ describe('VideoPerformance', () => {
     expect(source).toContain('video.videoCount');
   });
 
+  it('shows when the counts were written, beside them (AC-027)', () => {
+    expect(source).toContain('metricsUpdatedLabel(video.lastUpdatedAt');
+    expect(source).toContain('formatDeadlineUtc(video.submittedAt)');
+  });
+
+  it('omits the timestamp line rather than placeholdering it', () => {
+    // The helper returns null for an unmeasured video and the render is gated on
+    // that, so an empty "Updated: —" cannot appear beside four `Metrics pending`
+    // cells. Gated on the composed label, not on the raw column, or a stale row
+    // with a timestamp and no counts would print a bare instant.
+    expect(source).toMatch(/\{updated \?/);
+    expect(source).not.toMatch(/metricsUpdatedLabel\([^)]*\) \?\? '/);
+  });
+
+  it('gates the stale marker on the flag (AC-027, NFR-011)', () => {
+    // The assertion that keeps an unreachable state unreachable: nothing sets
+    // `stale` today, so a marker rendered unconditionally would tell every brand
+    // their fresh numbers are out of date.
+    expect(source).toMatch(/\{video\.stale \? \(?\s*<Badge/);
+    expect(source).toMatch(/\{video\.stale \?[\s\S]{0,200}STALE_NOTE/);
+    expect(source).toContain('STALE_LABEL');
+  });
+
+  it('keeps a stale row’s numbers on screen', () => {
+    // NFR-011: clearly-marked stale metrics render "instead of failing or hiding
+    // the row". So the flag adds a badge and a sentence and gates nothing else —
+    // the counts, the price and the post link are outside every `stale` branch.
+    const rowBody = source.slice(
+      source.indexOf('function VideoRow'),
+      source.indexOf('export function VideoPerformance')
+    );
+    const guarded = rowBody.match(/video\.stale \?/g) ?? [];
+
+    expect(guarded).toHaveLength(2);
+    expect(rowBody).not.toMatch(/video\.stale \?[\s\S]{0,80}METRIC_KEYS/);
+    expect(rowBody).not.toContain('!video.stale');
+  });
+
   it('explains an absent control in text, never a tooltip', () => {
     expect(source).not.toMatch(/<[a-z][a-zA-Z0-9]*\s[^>]*\stitle=/);
   });
@@ -550,10 +722,25 @@ describe('VideoPerformance', () => {
     NO_VIDEOS_TITLE,
     NO_VIDEOS_DESCRIPTION,
     METRICS_PENDING,
+    STALE_LABEL,
+    STALE_NOTE,
+    SUBMITTED_LABEL,
+    LAST_UPDATED_LABEL,
+    LAST_KNOWN_GOOD_LABEL,
     ...Object.values(METRIC_LABELS),
   ])('renders “%s” from its constant rather than retyping it', (copy) => {
     expect(source).not.toContain(`>${copy}<`);
     expect(copy).not.toMatch(/KAN-\d+/);
+  });
+
+  it('composes no sentence of its own about freshness', () => {
+    // The two labels differ by the claim they make, so the choice between them is
+    // a wording decision and belongs beside the query. A component that
+    // interpolated either one would be free to pair the wrong label with the flag.
+    expect(source).not.toContain(`${LAST_UPDATED_LABEL} {`);
+    expect(source).not.toContain(`${LAST_KNOWN_GOOD_LABEL} {`);
+    expect(source).not.toContain('LAST_UPDATED_LABEL');
+    expect(source).not.toContain('LAST_KNOWN_GOOD_LABEL');
   });
 
   it.each([PAID_OUT_LABEL, COMMISSION_LABEL, SETTLEMENT_NOTE])(
@@ -620,6 +807,37 @@ describe('the source guards are not vacuous', () => {
 
   it('would catch a ticket number in copy', () => {
     expect('Video performance (KAN-49)').toMatch(/KAN-\d+/);
+  });
+
+  it('would catch an ungated stale marker', () => {
+    // The guard that matters most, because the state it protects is unreachable:
+    // nothing sets `stale`, so a marker rendered unconditionally would never fail
+    // in a walkthrough and would tell every brand their numbers are out of date.
+    const gated = /\{video\.stale \? \(?\s*<Badge/;
+    expect('<Badge variant="destructive">{STALE_LABEL}</Badge>').not.toMatch(
+      gated
+    );
+    expect(
+      '{video.stale ? (\n  <Badge variant="destructive">{STALE_LABEL}</Badge>'
+    ).toMatch(gated);
+  });
+
+  it('would catch a placeholdered timestamp', () => {
+    const placeholder = /metricsUpdatedLabel\([^)]*\) \?\? '/;
+    expect(
+      "metricsUpdatedLabel(video.lastUpdatedAt, video.stale) ?? '—'"
+    ).toMatch(placeholder);
+    expect(
+      'const updated = metricsUpdatedLabel(video.lastUpdatedAt, video.stale);'
+    ).not.toMatch(placeholder);
+  });
+
+  it('would catch a stale branch that hid the counts', () => {
+    const hidden = /video\.stale \?[\s\S]{0,80}METRIC_KEYS/;
+    expect('{video.stale ? null : METRIC_KEYS.map((key) => (').toMatch(hidden);
+    expect('{video.stale ? <Badge>{STALE_LABEL}</Badge> : null}').not.toMatch(
+      hidden
+    );
   });
 
   it('reads real files, so a renamed path fails loudly', () => {

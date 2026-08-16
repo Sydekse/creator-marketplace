@@ -1,18 +1,29 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { creatorProfile, deal, deliverable, videoMetric } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import { ForbiddenError, guard } from '@/lib/authz';
+import { formatDeadlineUtc } from '@/lib/dates';
 import { sumSettledByCampaign } from '@/lib/payment/escrow';
 import { UUID_REGEX } from '@/lib/validation';
 
 /**
- * The brand's campaign performance dashboard (KAN-49, US-009, AC-026, FR-006).
+ * The brand's campaign performance dashboard (KAN-49, KAN-50, US-009, AC-026,
+ * AC-027, NFR-011, FR-006).
  *
  * Two halves, read together: what each video did, and what the campaign cost. The
  * money half is summed from the ledger and the engagement half from
  * `video_metric` — this module is the first thing in the repo to read that table
  * at all, KAN-48 having been the first to write it.
+ *
+ * **Every number here says how much to trust it.** That is AC-027, and it is a
+ * requirement about honesty rather than about display: a video nobody has measured
+ * shows `Metrics pending` and not `0`, because a zero would read as a video that
+ * flopped rather than one nobody looked at. The same rule then applies to each
+ * figure's surroundings — when it was written (`metricsUpdatedLabel`), whether it
+ * can still be trusted (`STALE_NOTE`), and how much of a campaign total is missing
+ * (`coverageNote`). A recorded `0` is a measurement and renders as `0`; null and
+ * zero never render alike.
  *
  * **One row per deal, not per video, and that is a known gap rather than a
  * choice.** AC-026 says "each video shows views, likes, shares, and comments", and
@@ -36,6 +47,12 @@ import { UUID_REGEX } from '@/lib/validation';
  * coverage, reporting a campaign total that quietly averages in videos nobody has
  * looked at. `toCampaignTotals` is pure and exported so that rule is testable
  * directly rather than through a database.
+ *
+ * **Chasing the missing numbers is not here.** AC-027's last bullet asks that a
+ * completed video still unmeasured after the configured window be flagged for a
+ * reminder; that read is `lib/deals/pending-metrics.ts`, because it is
+ * platform-wide and runs on a schedule with no session, where everything in this
+ * module is one campaign's and brand-gated.
  */
 
 /** One deal's row on the dashboard: what it cost, and what the video did. */
@@ -68,6 +85,22 @@ export interface CampaignVideoRow {
   likes: number | null;
   shares: number | null;
   comments: number | null;
+  /**
+   * When the counts were last written (AC-027 bullet 3).
+   *
+   * Null exactly when nothing has been recorded — `record-metrics.ts` sets it on
+   * every write, insert or update, so a row with any count has a timestamp. That
+   * is what lets the screen render the two together without asking twice.
+   */
+  lastUpdatedAt: Date | null;
+  /**
+   * Whether these counts are known to be out of date (AC-027 bullet 4, NFR-011).
+   *
+   * `not null` with a `false` default, and cleared by every manual write. Nothing
+   * in the MVP sets it — see `metricsUpdatedLabel` for what that means for the
+   * marker it drives.
+   */
+  stale: boolean;
 }
 
 /**
@@ -165,6 +198,19 @@ export function campaignVideosQuery(campaignId: string) {
       likes: videoMetric.likes,
       shares: videoMetric.shares,
       comments: videoMetric.comments,
+      // The two honesty columns (KAN-50). Selected beside the counts rather than
+      // in a second read: they qualify these very numbers, and a screen that
+      // fetched the figures and their freshness separately could render one
+      // without the other.
+      lastUpdatedAt: videoMetric.lastUpdatedAt,
+      // Coalesced, because `stale` is `not null` in the table and this is a left
+      // join — an unmeasured video has no `video_metric` row, so the column
+      // arrives as SQL NULL while drizzle's type, read off the column
+      // definition, says `boolean`. The type would be a lie the first time
+      // somebody wrote `stale === false`. `false` is also the right answer: a
+      // video nobody measured is not stale, it is unmeasured, and `Metrics
+      // pending` is what says so.
+      stale: sql<boolean>`coalesce(${videoMetric.stale}, false)`,
     })
     .from(deal)
     .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
@@ -285,17 +331,13 @@ export async function readCampaignPerformance(
  */
 
 /**
- * AC-027's exact string, and the one piece of copy here that is not ours.
- *
- * Borrowed deliberately. AC-027 belongs to KAN-50, but a row with no numbers has
- * to render *something*, and inventing a placeholder would put two strings in the
- * product for one state — the worse outcome, and one KAN-50 would then have to
- * hunt down. What KAN-50 keeps is the rest of AC-027: the last-updated timestamp
- * and the stale marking, both of which KAN-48 now writes real data for and neither
- * of which this ticket reads.
+ * AC-027's exact string.
  *
  * "**rather than zeros**" is part of the AC, not a stylistic note — a zero here
- * would claim a measurement nobody took.
+ * would claim a measurement nobody took. KAN-49 introduced this constant because
+ * a row with no numbers had to render something; KAN-50 owns the rule it states
+ * and the three things around it: when the numbers were last written, whether
+ * they can still be trusted, and how much of a campaign total is still missing.
  */
 export const METRICS_PENDING = 'Metrics pending';
 
@@ -340,15 +382,96 @@ export const METRIC_LABELS: Record<MetricKey, string> = {
 export const CAMPAIGN_TOTAL_LABEL = 'Campaign total';
 
 /**
- * Says which videos the totals actually cover.
+ * When the counts were written, and when they were last trustworthy (AC-027
+ * bullets 3 and 4).
+ *
+ * Two labels rather than one, because they make different claims. `Metrics
+ * updated` says these numbers are current as of then. `Last confirmed` says these
+ * numbers are the newest anyone could verify and may since have moved — which is
+ * what NFR-011 means by "the timestamp of the last known-good value", and it would
+ * be false to call it an update.
+ */
+export const LAST_UPDATED_LABEL = 'Metrics updated';
+export const LAST_KNOWN_GOOD_LABEL = 'Last confirmed';
+
+/**
+ * The stale marker (AC-027 bullet 4, NFR-011).
+ *
+ * Plain words rather than the schema's. A brand reading "stale" has to guess
+ * whether the platform failed or the video did; "Out of date" says which.
+ */
+export const STALE_LABEL = 'Out of date';
+
+/**
+ * Why the row is still showing its numbers (NFR-011).
+ *
+ * The NFR is explicit that stale metrics render "instead of failing or hiding the
+ * row", so the row keeps every count it has and this sentence is what stops that
+ * being misread as a fresh reading. It also says which way the numbers are wrong
+ * — counts only ever grow, so the last known-good figure is a floor, and a brand
+ * who knows that can still act on it.
+ */
+export const STALE_NOTE =
+  'These are the last counts we could confirm. The real figures are at least this high.';
+
+/**
+ * How the timestamp beside a row's counts reads, or `null` when there is none.
+ *
+ * **Null is the ordinary case, not an error.** `last_updated_at` is written by
+ * every metrics write and by nothing else, so it is null exactly when the counts
+ * are null — a video nobody has measured. `Metrics pending` is already on that
+ * row saying so, and an "Updated: —" line beside it would be a second way to say
+ * the same thing. Returning null rather than a placeholder is what lets the
+ * component omit the line instead of choosing what to put in it.
+ *
+ * **`stale` only changes the wording, never whether the row appears.** That is
+ * NFR-011's whole instruction.
+ *
+ * > **Nothing in the product can set `stale` to true today.**
+ * > `lib/deals/record-metrics.ts` clears it on every write and the column defaults
+ * > `false`, so the flag has no writer. It is there for a TikTok feed that goes
+ * > down (NFR-011), and the MVP has no feed — metrics are typed in by a creator or
+ * > an admin, and a value somebody just typed is fresh by definition. The AC asks
+ * > for the marker, so it is built and gated on the flag; what it is not is
+ * > reachable, and it will start working the moment a feed exists rather than
+ * > needing to be remembered then. The alternative — leaving it out — is a screen
+ * > that silently shows stale numbers as current the first time it matters.
+ */
+export function metricsUpdatedLabel(
+  lastUpdatedAt: Date | string | null,
+  stale: boolean
+): string | null {
+  if (lastUpdatedAt === null) return null;
+
+  const label = stale ? LAST_KNOWN_GOOD_LABEL : LAST_UPDATED_LABEL;
+  return `${label} ${formatDeadlineUtc(lastUpdatedAt)}`;
+}
+
+/** When the creator posted the link, beside the row's other timestamp. */
+export const SUBMITTED_LABEL = 'Submitted';
+
+/**
+ * Says which videos the totals cover, and how many are still missing (AC-027
+ * bullet 5).
  *
  * Not decoration. A campaign total is a number a brand may act on, and a total
  * over 2 of 5 videos means something different from a total over all 5. Without
  * this line the figure reads as complete, which is the same species of overclaim
  * AC-027 forbids one row at a time.
+ *
+ * **The pending count is stated, not left to be subtracted.** Coverage implies it
+ * — 2 of 5 is 3 short — and the AC asks for it said out loud, which is the right
+ * call: the number a brand needs in order to know whether to chase anyone is the
+ * one that is missing, not the one that arrived. `none pending` rather than `0
+ * still pending` for a complete total, because a zero in a sentence about missing
+ * data reads for a moment like a metric.
  */
 export function coverageNote(measured: number, total: number): string {
-  return `Totals cover ${measured} of ${total} ${total === 1 ? 'video' : 'videos'} with recorded metrics.`;
+  const pending = total - measured;
+  const noun = total === 1 ? 'video' : 'videos';
+  const tail = pending === 0 ? 'none pending' : `${pending} still pending`;
+
+  return `Totals cover ${measured} of ${total} ${noun} — ${tail}.`;
 }
 
 export const VIEW_POST_LABEL = 'View post';

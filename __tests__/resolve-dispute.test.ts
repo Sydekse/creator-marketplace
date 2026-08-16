@@ -8,7 +8,7 @@ import type {
 import { TransitionError, type DealRow } from '../lib/deals/state-machine';
 import { ForbiddenError } from '../lib/authz';
 import type { Tx } from '../lib/authz';
-import { EscrowLedgerService, LedgerError } from '../lib/payment/ledger';
+import { LedgerError } from '../lib/payment/ledger';
 import { PaymentError } from '../lib/payment';
 import type { CurrentUser } from '../lib/auth';
 import {
