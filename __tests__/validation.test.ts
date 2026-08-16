@@ -18,6 +18,8 @@ import {
   updateMetricsSchema,
   verifyCreatorSchema,
   resolveDisputeSchema,
+  flagDealSchema,
+  MAX_RESOLUTION_NOTE_LENGTH,
 } from '../lib/validation';
 
 // ---------------------------------------------------------------------------
@@ -557,9 +559,47 @@ describe('rejectDeliverableSchema', () => {
     );
   });
 
-  it('rejects a reason over the stored length bound', () => {
+  it('rejects a reason over the stored length bound with a truthful message', () => {
+    // KAN-69 (N1): over-long is not missing — the message must not claim a
+    // 513-character reason is no reason at all.
     const long = 'x'.repeat(MAX_REJECTION_REASON_LENGTH + 1);
-    expect(() => rejectDeliverableSchema.parse({ reason: long })).toThrow();
+    expect(() => rejectDeliverableSchema.parse({ reason: long })).toThrow(
+      `A rejection reason must be at most ${MAX_REJECTION_REASON_LENGTH} characters.`
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Schemas — Flag (KAN-69, F40)
+// ---------------------------------------------------------------------------
+
+describe('flagDealSchema', () => {
+  it('accepts a flag with an optional trimmed note', () => {
+    expect(flagDealSchema.parse({ flagged: true })).toEqual({ flagged: true });
+    expect(
+      flagDealSchema.parse({ flagged: false, note: '  resolved  ' })
+    ).toEqual({ flagged: false, note: 'resolved' });
+  });
+
+  it('requires the flagged field', () => {
+    expect(() => flagDealSchema.parse({})).toThrow();
+  });
+
+  it('refuses a non-boolean flag', () => {
+    expect(() => flagDealSchema.parse({ flagged: 'yes' })).toThrow();
+  });
+
+  it('bounds the note like the resolve note', () => {
+    const long = 'x'.repeat(MAX_RESOLUTION_NOTE_LENGTH + 1);
+    expect(() => flagDealSchema.parse({ flagged: true, note: long })).toThrow(
+      `The note must be at most ${MAX_RESOLUTION_NOTE_LENGTH} characters.`
+    );
+  });
+
+  it('rejects unknown keys instead of stripping them', () => {
+    expect(() =>
+      flagDealSchema.parse({ flagged: true, flagged2: false })
+    ).toThrow();
   });
 });
 

@@ -419,7 +419,9 @@ export const rejectDeliverableSchema = z.object({
     .trim()
     .min(1, { message: 'A rejection reason is required.' })
     .max(MAX_REJECTION_REASON_LENGTH, {
-      message: 'A rejection reason is required.',
+      // KAN-69 (N1): over-long is not missing — a brand who wrote 513
+      // characters gave a reason, and telling them they gave none is false.
+      message: `A rejection reason must be at most ${MAX_REJECTION_REASON_LENGTH} characters.`,
     }),
 });
 
@@ -518,12 +520,34 @@ export const resolveDisputeSchema = z
       .trim()
       .min(1, { message: 'A resolution note is required.' })
       .max(MAX_RESOLUTION_NOTE_LENGTH, {
-        message: 'A resolution note is required.',
+        // KAN-69 (N1): a distinct message — an over-long note is not a missing
+        // one, and "required" to a brand who wrote 513 characters is false.
+        message: `The note must be at most ${MAX_RESOLUTION_NOTE_LENGTH} characters.`,
       }),
   })
   // Refused rather than stripped, the same call every other mutation schema in
   // this repo makes and for the same reason: a typo'd `resoultion` should fail
   // loudly instead of resolving with a default the admin never chose.
+  .strict();
+
+/**
+ * KAN-69 (F40) — the admin flag mutation body: `POST /api/admin/deals/{id}/flag`.
+ *
+ * `note` is optional (a flag can be self-explanatory) and bounded by the same
+ * length as the resolve note: both are admin remarks that land in the audit
+ * `detail` jsonb, and a bounded log stays honest (NFR-010).
+ */
+export const flagDealSchema = z
+  .object({
+    flagged: z.boolean({ message: 'flagged must be true or false.' }),
+    note: z
+      .string({ message: 'The note must be text.' })
+      .trim()
+      .max(MAX_RESOLUTION_NOTE_LENGTH, {
+        message: `The note must be at most ${MAX_RESOLUTION_NOTE_LENGTH} characters.`,
+      })
+      .optional(),
+  })
   .strict();
 
 /**
