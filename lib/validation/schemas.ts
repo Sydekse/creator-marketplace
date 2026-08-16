@@ -496,12 +496,35 @@ export const verifyCreatorSchema = z
   // wrong outcomes and no error anywhere.
   .strict();
 
-export const resolveDisputeSchema = z.object({
-  resolution: z.enum(['release', 'refund', 'revision'], {
-    message: 'Resolution must be "release", "refund", or "revision".',
-  }),
-  note: z.string().min(1, { message: 'A resolution note is required.' }),
-});
+/**
+ * Longest resolution note accepted, deliberately the same bound `audit_log`
+ * truncates at — the same argument `MAX_VERIFICATION_NOTE_LENGTH` documents.
+ *
+ * The note lands in `deal_event.reason` (revision path) and the audit row's
+ * `detail`, and only the latter is bounded downstream (`redactDetail` caps it).
+ * Bounding here means the event and the log can never disagree about what the
+ * admin said, and what the admin wrote is never silently cut short (AC-031,
+ * NFR-010).
+ */
+export const MAX_RESOLUTION_NOTE_LENGTH = MAX_STRING_LENGTH;
+
+export const resolveDisputeSchema = z
+  .object({
+    resolution: z.enum(['release', 'refund', 'revision'], {
+      message: 'Resolution must be "release", "refund", or "revision".',
+    }),
+    note: z
+      .string({ message: 'A resolution note is required.' })
+      .trim()
+      .min(1, { message: 'A resolution note is required.' })
+      .max(MAX_RESOLUTION_NOTE_LENGTH, {
+        message: 'A resolution note is required.',
+      }),
+  })
+  // Refused rather than stripped, the same call every other mutation schema in
+  // this repo makes and for the same reason: a typo'd `resoultion` should fail
+  // loudly instead of resolving with a default the admin never chose.
+  .strict();
 
 /**
  * Audit log filters — `GET /api/admin/audit-log` (KAN-52, AC-031).
