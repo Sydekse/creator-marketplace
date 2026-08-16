@@ -1,0 +1,84 @@
+import { describe, expect, it } from 'vitest';
+import { and, eq, sql } from 'drizzle-orm';
+import { db } from '@/db';
+import { auditLog, deal, dealEvent, ledgerEntry } from '@/db/schema';
+import { AUDIT_ACTIONS } from '@/lib/audit/actions';
+import { handleResolveDispute } from '@/app/api/admin/deals/[id]/resolve/route';
+import { guardForCookie, seededDeal, signInCookie } from './helpers';
+
+/**
+ * KAN-60 flow 6 — admin dispute resolution (AC-030, AC-031): the refund path
+ * returns the funds and writes the audit log.
+ *
+ * The seeded 'Fitness January' campaign is the demo dispute — delivered,
+ * money held, flagged. There is no admin dispute *UI* yet (that is KAN-78),
+ * so the flow is exercised through the real resolve endpoint with a real
+ * admin session, which is where the money and the audit trail live.
+ */
+describe('admin dispute resolution (AC-030, AC-031)', () => {
+  it('refund path returns the funds, writes the audit log, and clears the flag', async () => {
+    const { dealId, campaignId } = await seededDeal('Fitness January');
+    const adminCookie = await signInCookie('admin@demo.com');
+
+    const [dealRow] = await db
+      .select({ totalPrice: deal.totalPrice, flagged: deal.flagged })
+      .from(deal)
+      .where(eq(deal.id, dealId));
+    if (!dealRow.flagged) {
+      throw new Error('[integration] expected the seeded dispute to be flagged');
+    }
+
+    const response = await handleResolveDispute(
+      new Request(`http://localhost/api/admin/deals/${dealId}/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resolution: 'refund',
+          note: 'Brand and creator agreed to cancel (integration).',
+        }),
+      }),
+      dealId,
+      { guard: guardForCookie(adminCookie) }
+    );
+    expect(response.status).toBe(200);
+
+    // Money: a refund entry equal to the held total, escrow back to zero.
+    const [refund] = await db
+      .select({ amount: ledgerEntry.amount })
+      .from(ledgerEntry)
+      .where(
+        sql`${ledgerEntry.campaignId} = ${campaignId} and ${ledgerEntry.entryType} = 'refund'`
+      );
+    expect(refund?.amount).toBe(dealRow.totalPrice);
+
+    // State: the deal is refunded, the flag cleared (F40).
+    const [after] = await db
+      .select({ status: deal.status, flagged: deal.flagged })
+      .from(deal)
+      .where(eq(deal.id, dealId));
+    expect(after.status).toBe('refunded');
+    expect(after.flagged).toBe(false);
+
+    // Audit (AC-031): the resolution is recorded, targeting the deal.
+    const [audit] = await db
+      .select({ action: auditLog.action })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.targetType, 'deal'),
+          eq(auditLog.targetId, dealId)
+        )
+      )
+      .limit(1);
+    expect(audit?.action).toBe(AUDIT_ACTIONS.DEAL_RESOLVE_DISPUTE);
+
+    // The event history reads the resolution back.
+    const [event] = await db
+      .select({ toStatus: dealEvent.toStatus })
+      .from(dealEvent)
+      .where(eq(dealEvent.dealId, dealId))
+      .orderBy(sql`"created_at" desc`)
+      .limit(1);
+    expect(event?.toStatus).toBe('refunded');
+  });
+});
