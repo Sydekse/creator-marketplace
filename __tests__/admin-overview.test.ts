@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getCampaignLedgerForAdmin,
   listCampaignsForAdmin,
-  listDisputedDealsForAdmin,
+  listWorklistForAdmin,
 } from '../lib/admin/overview';
 import type {
   AdminCampaignOverview,
-  AdminDisputeRow,
   AdminLedgerEntry,
   AdminOverviewDeps,
+  AdminWorklistRow,
 } from '../lib/admin/overview';
 
 import type { DealHistoryDeps } from '../lib/deals/queries';
@@ -18,8 +18,8 @@ import { ErrorCode } from '../lib/validation';
 
 /**
  * KAN-53 — the admin overview: campaigns with held/spent totals, a campaign's
- * ledger with a reconciliation answer, the disputed-deals worklist, and deal
- * history (US-010, Tech Spec §4.6, §3.2 `ledger_entry`).
+ * ledger with a reconciliation answer, the worklist, and deal history
+ * (US-010, Tech Spec §4.6, §3.2 `ledger_entry`).
  *
  * The load-bearing claims:
  *
@@ -33,7 +33,11 @@ import { ErrorCode } from '../lib/validation';
  * definition `sumEscrowedByCampaign` guards (invariant 7); `paidOut`,
  * `commission`, and `refunded` are the three ways money left escrow. The
  * ledger view's `reconciled` is the AC-3 answer: `sum(amount)` equals the
- * stored final `balance_after`, or the chain is corrupt.
+ * stored final `balance_after`, or the chain is corrupt. "Final" is defined
+ * by `seq` — the bigserial write order — because `created_at` is transaction
+ * start (shared by entries written together) and `id` is random; a source
+ * guard pins the query to `seq` ordering so `reconciled` cannot become a coin
+ * flip on a clean ledger.
  *
  * **The worklist is `REFUNDABLE_FROM` by construction** — exactly what the
  * resolve endpoint can act on, so the worklist and the mutation agree.
@@ -63,35 +67,46 @@ const CAMPAIGNS: AdminCampaignOverview[] = [
   },
 ];
 
-/** A fully reconciled ledger: hold → payout+commission → 0, sums agree. */
+/**
+ * A fully reconciled ledger: hold → payout+commission → 0, sums agree.
+ *
+ * The payout rows share `created_at` (one transaction, `now()` is
+ * transaction-start) and their ids sort *opposite* to their write order
+ * (`'a3' < 'z2'`) — the exact shape that made the old `createdAt, id` display
+ * order a coin flip for `reconciled`. `seq` is the write order; it is what
+ * makes this fixture's answer deterministic.
+ */
 const RECONCILED_ENTRIES: AdminLedgerEntry[] = [
   {
     id: 'e1',
     entryType: 'hold',
     amount: 300_000,
     balanceAfter: 300_000,
+    seq: 1,
     providerRef: 'p1',
     createdAt: new Date('2026-08-01'),
   },
   {
-    id: 'e2',
+    id: 'z2',
     entryType: 'release_payout',
     amount: -255_000,
     balanceAfter: 45_000,
+    seq: 2,
     providerRef: 'p1',
     createdAt: new Date('2026-08-02'),
   },
   {
-    id: 'e3',
+    id: 'a3',
     entryType: 'commission',
     amount: -45_000,
     balanceAfter: 0,
+    seq: 3,
     providerRef: 'p1',
     createdAt: new Date('2026-08-02'),
   },
 ];
 
-const DISPUTES: AdminDisputeRow[] = [
+const WORKLIST: AdminWorklistRow[] = [
   {
     id: DEAL_ID,
     status: 'funded',
@@ -154,9 +169,9 @@ function makeDeps(
       calls.push('ledgerFor');
       return overrides.entries ?? RECONCILED_ENTRIES;
     },
-    listDisputes: async () => {
-      calls.push('listDisputes');
-      return DISPUTES;
+    listWorklist: async () => {
+      calls.push('listWorklist');
+      return WORKLIST;
     },
   };
   return { deps, calls };
@@ -174,13 +189,13 @@ describe('the admin gate lives inside the module', () => {
     expect(calls).toEqual(['requireAdmin', 'listCampaigns']);
   });
 
-  it('listDisputedDealsForAdmin gates before listing', async () => {
+  it('listWorklistForAdmin gates before listing', async () => {
     const { deps, calls } = makeDeps();
 
-    const result = await listDisputedDealsForAdmin(deps);
+    const result = await listWorklistForAdmin(deps);
 
-    expect(result).toEqual(DISPUTES);
-    expect(calls).toEqual(['requireAdmin', 'listDisputes']);
+    expect(result).toEqual(WORKLIST);
+    expect(calls).toEqual(['requireAdmin', 'listWorklist']);
   });
 
   it('getCampaignLedgerForAdmin gates before reading', async () => {
@@ -204,9 +219,7 @@ describe('the admin gate lives inside the module', () => {
     const { deps, calls } = makeDeps({ failAdmin: true });
 
     await expect(listCampaignsForAdmin(deps)).rejects.toThrow(ForbiddenError);
-    await expect(listDisputedDealsForAdmin(deps)).rejects.toThrow(
-      ForbiddenError
-    );
+    await expect(listWorklistForAdmin(deps)).rejects.toThrow(ForbiddenError);
     expect(calls).toEqual(['requireAdmin', 'requireAdmin']);
   });
 });
@@ -243,6 +256,7 @@ describe('getCampaignLedgerForAdmin', () => {
         entryType: 'hold',
         amount: 300_000,
         balanceAfter: 300_000,
+        seq: 1,
         providerRef: null,
         createdAt: new Date(),
       },
@@ -251,6 +265,7 @@ describe('getCampaignLedgerForAdmin', () => {
         entryType: 'refund',
         amount: -300_000,
         balanceAfter: 0,
+        seq: 2,
         providerRef: null,
         createdAt: new Date(),
       },
@@ -276,6 +291,7 @@ describe('getCampaignLedgerForAdmin', () => {
         entryType: 'hold',
         amount: 100_000,
         balanceAfter: 100_000,
+        seq: 1,
         providerRef: null,
         createdAt: new Date(),
       },
@@ -284,6 +300,7 @@ describe('getCampaignLedgerForAdmin', () => {
         entryType: 'release_payout',
         amount: -100_000,
         balanceAfter: 10_000,
+        seq: 2,
         providerRef: null,
         createdAt: new Date(),
       },
@@ -316,15 +333,78 @@ describe('getCampaignLedgerForAdmin', () => {
     });
     expect(result?.reconciled).toBe(true);
   });
+
+  it('reconciles entries written in one transaction, even when their ids sort the wrong way', async () => {
+    // The regression behind the `seq` column: `payoutForDeal` writes both of
+    // its entries in one `values([...])`, so they share `created_at`, and `id`
+    // is random — ordering by `createdAt, id` made "the last entry" a coin
+    // flip and `reconciled` would cry wolf on a clean ledger roughly half the
+    // time. `seq` is the write order; given that order, the check is sound.
+    // The ids here sort *opposite* to the write order (`0000…` < `m1…` <
+    // `ffff…`), so an id tiebreak would have answered false on this clean
+    // chain.
+    const entries: AdminLedgerEntry[] = [
+      {
+        id: 'm1111111-1111-1111-1111-111111111111',
+        entryType: 'hold',
+        amount: 100_000,
+        balanceAfter: 100_000,
+        seq: 1,
+        providerRef: 'p1',
+        createdAt: new Date('2026-08-02'),
+      },
+      {
+        id: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+        entryType: 'release_payout',
+        amount: -85_000,
+        balanceAfter: 15_000,
+        seq: 2,
+        providerRef: 'p1',
+        createdAt: new Date('2026-08-02'),
+      },
+      {
+        id: '00000000-0000-0000-0000-000000000000',
+        entryType: 'commission',
+        amount: -15_000,
+        balanceAfter: 0,
+        seq: 3,
+        providerRef: 'p1',
+        createdAt: new Date('2026-08-02'),
+      },
+    ];
+    const { deps } = makeDeps({ entries });
+
+    const result = await getCampaignLedgerForAdmin(CAMPAIGN_ID, deps);
+
+    // sum(amount) = 0, and the entry with the highest seq has balance_after 0.
+    expect(result?.reconciled).toBe(true);
+  });
+
+  it('orders the ledger query by seq — the write order, never the id tiebreak', async () => {
+    // The behavioral test above proves the *computation* is sound given the
+    // write order; this source guard pins the *query* to that order. With the
+    // old `asc(createdAt), asc(id)` ordering the fixture ids `z2`/`a3` would
+    // have flipped and `reconciled` would have answered false on a clean
+    // ledger — the coin flip the reviewer blocked on.
+    const { readFileSync } = await import('fs');
+    const source = readFileSync('lib/admin/overview.ts', 'utf8');
+    const ledgerFor = source.slice(
+      source.indexOf('ledgerFor: async'),
+      source.indexOf('listWorklist: async')
+    );
+    expect(ledgerFor).toContain('seq: ledgerEntry.seq');
+    expect(ledgerFor).toContain('.orderBy(asc(ledgerEntry.seq));');
+    expect(ledgerFor).not.toContain('asc(ledgerEntry.id)');
+  });
 });
 
 // -- The worklist definition ------------------------------------------------
 
-describe('the disputed worklist', () => {
+describe('the worklist', () => {
   it('is served read-only with the names an operator recognises', async () => {
     const { deps } = makeDeps();
 
-    const result = await listDisputedDealsForAdmin(deps);
+    const result = await listWorklistForAdmin(deps);
 
     expect(result[0]).toMatchObject({
       id: DEAL_ID,
@@ -357,7 +437,7 @@ describe('the admin views are read-only (AC-5)', () => {
       'lib/admin/overview.ts',
       'app/api/admin/campaigns/route.ts',
       'app/api/admin/campaigns/[id]/ledger/route.ts',
-      'app/api/admin/disputes/route.ts',
+      'app/api/admin/worklist/route.ts',
       'app/api/admin/deals/[id]/history/route.ts',
     ];
     const writePrimitives = [
@@ -390,7 +470,7 @@ const { handleListCampaigns } =
   await import('../app/api/admin/campaigns/route');
 const { handleCampaignLedger } =
   await import('../app/api/admin/campaigns/[id]/ledger/route');
-const { handleListDisputes } = await import('../app/api/admin/disputes/route');
+const { handleListWorklist } = await import('../app/api/admin/worklist/route');
 const { handleDealHistory } =
   await import('../app/api/admin/deals/[id]/history/route');
 
@@ -473,7 +553,7 @@ describe('GET /api/admin/campaigns/[id]/ledger', () => {
   });
 });
 
-describe('GET /api/admin/disputes', () => {
+describe('GET /api/admin/worklist', () => {
   beforeEach(() => {
     guardMock.mockReset();
     guardMock.mockResolvedValue({
@@ -483,16 +563,16 @@ describe('GET /api/admin/disputes', () => {
     });
   });
 
-  it('returns the disputed-deals worklist', async () => {
+  it('returns the worklist', async () => {
     const { deps } = makeDeps();
 
-    const response = await handleListDisputes({ overviewDeps: deps });
+    const response = await handleListWorklist({ overviewDeps: deps });
     const body = await response.json();
 
     expect(response.status).toBe(200);
     // Through `Response.json` the fixture's `Date` becomes its ISO string.
     expect(body.deals).toEqual(
-      DISPUTES.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() }))
+      WORKLIST.map((d) => ({ ...d, createdAt: d.createdAt.toISOString() }))
     );
   });
 });

@@ -18,7 +18,7 @@ import type { LedgerEntryType } from '@/db/schema';
  *
  * Three questions an operator asks with a database open, answered read-only:
  * "where is every campaign's money", "does this campaign's ledger actually
- * add up", and "which deals are waiting on a dispute resolution".
+ * add up", and "which deals need an operator's eyes".
  *
  * **The gate is inside the module, not only on the routes.** The same rule
  * `readAuditLog` documents: a page and a route handler are two call sites
@@ -40,13 +40,15 @@ import type { LedgerEntryType } from '@/db/schema';
  * stored running `balance_after` must equal the sum of the entries that
  * produced it, or the chain is corrupt.
  *
- * **The disputed worklist is the refundable set, defined by the ledger.** There
- * is no `flagged`/`disputed` column — the machine models dispute as the
- * `refunded` edges — so "deals an admin may need to resolve" is exactly the
- * set the resolve endpoint can act on: `REFUNDABLE_FROM` (money held, not yet
- * paid out or refunded). Imported from the ledger rather than typed out, so
- * the worklist and the money path agree by construction the way
- * `LEGAL_TRANSITIONS` and `REFUNDABLE_FROM` already do.
+ * **The worklist is the refundable set, defined by the ledger.** There is no
+ * `flagged`/`disputed` column — the machine models dispute as the `refunded`
+ * edges — so "deals an admin may need to resolve" is exactly the set the
+ * resolve endpoint can act on: `REFUNDABLE_FROM` (money held, not yet paid
+ * out or refunded). Imported from the ledger rather than typed out, so the
+ * worklist and the money path agree by construction the way
+ * `LEGAL_TRANSITIONS` and `REFUNDABLE_FROM` already do. The endpoint is named
+ * `/worklist`, not `/disputes`: a list labelled "disputes" would read as
+ * though every row were disputed, when the deals here are merely in flight.
  *
  * Deal history is deliberately not here: `getDealHistory` in
  * `lib/deals/queries.ts` already serves both parties *and* the admin
@@ -80,6 +82,13 @@ export interface AdminLedgerEntry {
   amount: number;
   /** The running balance the ledger stored for this entry. */
   balanceAfter: number;
+  /**
+   * Monotonic write order (bigserial). `created_at` is transaction start, so
+   * entries written in one transaction share it and `id` is random — `seq` is
+   * the only reliable "which entry came last" answer, which the reconciliation
+   * check depends on. Display order follows it, so `at(-1)` is the last write.
+   */
+  seq: number;
   providerRef: string | null;
   createdAt: Date;
 }
@@ -103,7 +112,8 @@ export interface AdminCampaignLedger {
   totals: AdminLedgerTotals;
   /**
    * True when the stored running balance agrees with the entries that
-   * produced it: `sum(amount)` equals the last entry's `balance_after`
+   * produced it: `sum(amount)` equals the last entry's `balance_after` — "the
+   * last entry" meaning the one with the highest `seq`, the write order
    * (both 0 for a campaign with no entries). The ledger writes `balance_after`
    * as a running sum inside its own transaction, so a `false` here means
    * corrupted data, not a normal state.
@@ -111,7 +121,7 @@ export interface AdminCampaignLedger {
   reconciled: boolean;
 }
 
-export interface AdminDisputeRow {
+export interface AdminWorklistRow {
   id: string;
   /**
    * One of `REFUNDABLE_FROM` at runtime — the query filters the worklist to
@@ -141,7 +151,7 @@ export interface AdminOverviewDeps {
     budget: number;
   } | null>;
   ledgerFor: (campaignId: string) => Promise<AdminLedgerEntry[]>;
-  listDisputes: () => Promise<AdminDisputeRow[]>;
+  listWorklist: () => Promise<AdminWorklistRow[]>;
 }
 
 const defaultDeps: AdminOverviewDeps = {
@@ -181,23 +191,27 @@ const defaultDeps: AdminOverviewDeps = {
     return row ?? null;
   },
   ledgerFor: async (campaignId) => {
-    // Oldest-first is the audit order — the same choice `dealHistoryQuery`
-    // documents for deal events — with `id` as the tiebreaker for entries
-    // written inside one transaction (where `created_at` is transaction start).
+    // Oldest-first is the audit order, and within a transaction it is the
+    // *write* order: `created_at` is transaction start (shared by every entry
+    // written together) and `id` is random, so ordering by `seq` — the
+    // bigserial insertion order — is the only ordering that makes "last
+    // entry" well-defined. The reconciliation check depends on it; a display
+    // tiebreak would make `reconciled` a coin flip on a clean ledger.
     return db
       .select({
         id: ledgerEntry.id,
         entryType: ledgerEntry.entryType,
         amount: ledgerEntry.amount,
         balanceAfter: ledgerEntry.balanceAfter,
+        seq: ledgerEntry.seq,
         providerRef: ledgerEntry.providerRef,
         createdAt: ledgerEntry.createdAt,
       })
       .from(ledgerEntry)
       .where(eq(ledgerEntry.campaignId, campaignId))
-      .orderBy(asc(ledgerEntry.createdAt), asc(ledgerEntry.id));
+      .orderBy(asc(ledgerEntry.seq));
   },
-  listDisputes: async () => {
+  listWorklist: async () => {
     return (
       db
         .select({
@@ -287,16 +301,18 @@ export async function getCampaignLedgerForAdmin(
 }
 
 /**
- * The disputed-deals worklist: every deal the resolve endpoint could act on,
- * oldest first, with the names an operator recognises.
+ * The worklist: every deal the resolve endpoint could act on, oldest first,
+ * with the names an operator recognises. Named for what it is — deals whose
+ * money is held and unresolved — not for a dispute, because none of them
+ * necessarily are.
  *
  * `REFUNDABLE_FROM` is the definition of "money held and not resolved" — the
  * same set the ledger's `refundDeal` accepts and the machine's `refunded`
  * edges reach, so the worklist and the action agree by construction.
  */
-export async function listDisputedDealsForAdmin(
+export async function listWorklistForAdmin(
   deps: AdminOverviewDeps = defaultDeps
-): Promise<AdminDisputeRow[]> {
+): Promise<AdminWorklistRow[]> {
   await deps.requireAdmin();
-  return deps.listDisputes();
+  return deps.listWorklist();
 }
