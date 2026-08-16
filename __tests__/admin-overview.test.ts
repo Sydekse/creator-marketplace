@@ -52,6 +52,7 @@ import { ErrorCode } from '../lib/validation';
 // non-UUID would be refused before the fake seams ever run.
 const CAMPAIGN_ID = '00000000-0000-4000-8000-000000000001';
 const DEAL_ID = '00000000-0000-4000-8000-000000000002';
+const FLAGGED_DEAL_ID = '00000000-0000-4000-8000-000000000003';
 const MISSING_CAMPAIGN_ID = '00000000-0000-4000-8000-0000000000ff';
 
 const CAMPAIGNS: AdminCampaignOverview[] = [
@@ -110,6 +111,9 @@ const WORKLIST: AdminWorklistRow[] = [
   {
     id: DEAL_ID,
     status: 'funded',
+    // In the refundable set without an explicit flag — the ledger half of the
+    // KAN-69 (F40) union.
+    flagged: false,
     totalPrice: 100_000,
     videoCount: 1,
     campaignId: CAMPAIGN_ID,
@@ -117,6 +121,20 @@ const WORKLIST: AdminWorklistRow[] = [
     brandCompanyName: 'Acme',
     creatorHandle: '@selam',
     createdAt: new Date('2026-08-01'),
+  },
+  {
+    // A flagged deal past the refundable set — the flag half of the union:
+    // attention an admin raised, which does not expire with the state machine.
+    id: FLAGGED_DEAL_ID,
+    status: 'completed',
+    flagged: true,
+    totalPrice: 50_000,
+    videoCount: 1,
+    campaignId: CAMPAIGN_ID,
+    campaignName: 'Summer launch',
+    brandCompanyName: 'Acme',
+    creatorHandle: '@selam',
+    createdAt: new Date('2026-08-02'),
   },
 ];
 
@@ -409,19 +427,29 @@ describe('the worklist', () => {
     expect(result[0]).toMatchObject({
       id: DEAL_ID,
       status: 'funded',
+      flagged: false,
       campaignName: 'Summer launch',
       brandCompanyName: 'Acme',
       creatorHandle: '@selam',
     });
+    // KAN-69 (F40): the second row is the flag half of the union — a flagged
+    // deal past the refundable set still surfaces.
+    expect(result[1]).toMatchObject({
+      id: FLAGGED_DEAL_ID,
+      status: 'completed',
+      flagged: true,
+    });
   });
 
-  it('defines the set from the ledger, never a typed-out list', async () => {
-    // The query filters on `REFUNDABLE_FROM` imported from the ledger — a
-    // source-guard mirror of the state-machine/ledger agreement tests.
+  it('defines the set as flagged OR refundable, never a typed-out list', async () => {
+    // The query unions an explicit flag with `REFUNDABLE_FROM` imported from
+    // the ledger — the AC-4 "flagged or disputed" reading, with the money-path
+    // half agreeing by construction the way the state machine and ledger do.
     const { readFileSync } = await import('fs');
     const source = readFileSync('lib/admin/overview.ts', 'utf8');
     expect(source).toContain('REFUNDABLE_FROM');
     expect(source).toContain('inArray(deal.status, REFUNDABLE_FROM)');
+    expect(source).toContain('or(deal.flagged,');
   });
 });
 

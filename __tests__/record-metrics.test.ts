@@ -419,6 +419,67 @@ describe('admin writes are audited, creator writes are not (AC-031)', () => {
   });
 });
 
+// -- The source guards are not vacuous (KAN-69, R2) -------------------------
+
+/**
+ * Every negative guard above could pass silently if a path renamed or a read
+ * failed — six assertions that never fire prove nothing. This block gives each
+ * one something to discriminate: a positive string it must match, and the
+ * comments-aware read that keeps a mention in a comment from tripping it.
+ */
+describe('the source guards are not vacuous', () => {
+  it('reads both files to a meaningful length', () => {
+    // A renamed path or a failed read would make every guard below pass on an
+    // empty string — the floor makes that a failure instead of a silence.
+    expect(METRICS_MODULE.length).toBeGreaterThan(1_000);
+    expect(METRICS_ROUTE.length).toBeGreaterThan(1_000);
+  });
+
+  it('strips comments before matching, so a mention in prose never trips a guard', () => {
+    // The guarded tokens exist in the *comments* of both files (this test file
+    // aside): `read` removes them, which is what makes the negative guards
+    // true. Prove the strip actually strips.
+    expect(
+      stripComments(
+        '// withNotifications would re-queue emails; state-machine guards legality'
+      )
+    ).not.toMatch(/withNotifications|\bnotify\b/);
+    expect(
+      stripComments('// transitionDeal writes the deal_event row')
+    ).not.toMatch(/transitionDeal|dealEvent|insert\(dealEvent\)/);
+    expect(
+      stripComments('// import from @/lib/deals/state-machine')
+    ).not.toContain('state-machine');
+  });
+
+  it('would catch a real state-machine import', () => {
+    expect("from '@/lib/deals/state-machine'").toContain('state-machine');
+  });
+
+  it('would catch a real transition or event write', () => {
+    expect("transitionDeal(tx, dealId, 'delivered', actorId)").toMatch(
+      /transitionDeal|dealEvent|insert\(dealEvent\)/
+    );
+  });
+
+  it('would catch a real notification call', () => {
+    expect('withNotifications(async (tx, notify) => …)').toMatch(
+      /withNotifications|\bnotify\b/
+    );
+  });
+
+  it('would catch a client-supplied source', () => {
+    expect('source: body.source').toMatch(/source:\s*(body|parsed)/);
+    // And would not flag the honest form the route uses.
+    expect('source: role').not.toMatch(/source:\s*(body|parsed)/);
+  });
+
+  it('would catch a Math.min or Math.max clamping the counts', () => {
+    expect('Math.min(views, 0)').toContain('Math.min');
+    expect('Math.max(likes, 0)').toContain('Math.max');
+  });
+});
+
 // -- The endpoint ------------------------------------------------------------
 
 describe('PUT /api/deliverables/[id]/metrics', () => {

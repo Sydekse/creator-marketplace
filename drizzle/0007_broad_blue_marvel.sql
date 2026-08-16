@@ -1,0 +1,1 @@
+ALTER TABLE "deal" ADD COLUMN "flagged" boolean DEFAULT false NOT NULL;

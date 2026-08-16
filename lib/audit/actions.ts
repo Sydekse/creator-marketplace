@@ -37,6 +37,8 @@ export const AUDIT_ACTIONS = {
    */
   CREATOR_ASSIGN_TIER: 'creator.assign_tier',
   DEAL_RESOLVE_DISPUTE: 'deal.resolve_dispute',
+  /** KAN-69 (F40): an admin raises or lowers the flagged attention state. */
+  DEAL_FLAG: 'deal.flag',
   METRIC_EDIT: 'metric.edit',
 } as const;
 
@@ -75,6 +77,7 @@ export const AUDIT_ACTION_TARGET: Record<AuditAction, AuditTargetType> = {
   [AUDIT_ACTIONS.CREATOR_REJECT]: AUDIT_TARGET_TYPES.CREATOR_PROFILE,
   [AUDIT_ACTIONS.CREATOR_ASSIGN_TIER]: AUDIT_TARGET_TYPES.CREATOR_PROFILE,
   [AUDIT_ACTIONS.DEAL_RESOLVE_DISPUTE]: AUDIT_TARGET_TYPES.DEAL,
+  [AUDIT_ACTIONS.DEAL_FLAG]: AUDIT_TARGET_TYPES.DEAL,
   [AUDIT_ACTIONS.METRIC_EDIT]: AUDIT_TARGET_TYPES.VIDEO_METRIC,
 };
 

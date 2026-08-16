@@ -50,5 +50,6 @@ export {
   updateMetricsSchema,
   verifyCreatorSchema,
   resolveDisputeSchema,
+  flagDealSchema,
   auditLogQuerySchema,
 } from './schemas';

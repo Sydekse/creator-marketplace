@@ -117,6 +117,36 @@ export interface PayoutResult {
 }
 
 /**
+ * KAN-69 (F32, F39): the knobs `payoutForDeal` takes beyond the money itself.
+ *
+ * `reason` overrides the `deal_event` reason the transaction writes. The
+ * default stays "Deliverable approved" so brand approval is byte-identical;
+ * the dispute path passes an honest "Dispute resolved: …" instead, because a
+ * `deal_event` is append-only and a losing brand must not read that their
+ * deliverable was approved (F32).
+ *
+ * `onCommit` runs **inside the same serializable transaction**, after the
+ * ledger rows and the state change, before commit — a rejection rolls back
+ * the payout with everything else (invariant 1, NFR-003). This is the F39
+ * fix: the caller's `deal.resolve_dispute` audit row becomes atomic with the
+ * money movement instead of a second, post-commit transaction that could be
+ * lost. Notifications deliberately stay *outside*: emails must not be queued
+ * inside a retrying transaction (they would re-send per serialization retry)
+ * and the ledger must not hold a second pool connection — the shape
+ * `approve-deliverable.ts` documents.
+ */
+export interface PayoutForDealOptions {
+  reason?: string;
+  onCommit?: (tx: Tx, result: PayoutResult) => Promise<void>;
+}
+
+/** The refund twin of `PayoutForDealOptions` — no result to hand back. */
+export interface RefundDealOptions {
+  reason?: string;
+  onCommit?: (tx: Tx) => Promise<void>;
+}
+
+/**
  * What one funding run put into escrow (KAN-43).
  *
  * The figures the `campaign_funded` notification states, taken from the
@@ -332,7 +362,11 @@ export class EscrowLedgerService {
    * than in `approve-deliverable.ts` because it has to share this transaction —
    * a deliverable marked approved outside it could survive a rolled-back payout.
    */
-  async payoutForDeal(dealId: string, actorId?: string): Promise<PayoutResult> {
+  async payoutForDeal(
+    dealId: string,
+    actorId?: string,
+    opts?: PayoutForDealOptions
+  ): Promise<PayoutResult> {
     const idempotencyKey = crypto.randomUUID();
 
     return this.inSerializableTx(async (tx) => {
@@ -424,7 +458,7 @@ export class EscrowLedgerService {
       ]);
 
       await transitionDeal(tx, deal.id, 'completed', actorId, {
-        reason: 'Deliverable approved',
+        reason: opts?.reason ?? 'Deliverable approved',
       });
 
       // The deliverable is now judged, and says so.
@@ -451,6 +485,14 @@ export class EscrowLedgerService {
         .set({ reviewStatus: 'approved', reviewedAt: new Date() })
         .where(eq(schema.deliverable.dealId, deal.id));
 
+      // F39: the caller's bookkeeping (the audit row) runs under the same lock
+      // and the same fate as the money — see `PayoutForDealOptions`.
+      await opts?.onCommit?.(tx, {
+        payout,
+        commission,
+        totalPrice: deal.totalPrice,
+      });
+
       // Returned from inside the transaction, so a serialization retry returns
       // the winning attempt's figures rather than a stale closure's — the same
       // rule `holdForCampaign` documents for its own return.
@@ -470,7 +512,11 @@ export class EscrowLedgerService {
    * The brand's available budget rising is a *consequence* of escrow falling,
    * derived from this one column — not a second entry (spike §6).
    */
-  async refundDeal(dealId: string, actorId?: string): Promise<void> {
+  async refundDeal(
+    dealId: string,
+    actorId?: string,
+    opts?: RefundDealOptions
+  ): Promise<void> {
     const idempotencyKey = crypto.randomUUID();
 
     await this.inSerializableTx(async (tx) => {
@@ -509,8 +555,11 @@ export class EscrowLedgerService {
       });
 
       await transitionDeal(tx, deal.id, 'refunded', actorId, {
-        reason: 'Deal refunded',
+        reason: opts?.reason ?? 'Deal refunded',
       });
+
+      // F39: same as `payoutForDeal` — the audit row commits with the refund.
+      await opts?.onCommit?.(tx);
     });
   }
 

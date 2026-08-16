@@ -780,6 +780,53 @@ describe('payoutForDeal', () => {
       toStatus: 'completed',
       actorId: 'brand-1',
     });
+    // The default reason, unchanged — brand approval reads exactly this.
+    expect(dealEvents(db)[0].reason).toBe('Deliverable approved');
+  });
+
+  it('writes an overridden deal_event reason when one is given (F32)', async () => {
+    const { db, svc } = await build({
+      targetDeal: delivered,
+      entries: [{ amount: 100_000 }],
+    });
+
+    await svc.payoutForDeal(DEAL_ID, 'admin-1', {
+      reason: 'Dispute resolved: released to creator',
+    });
+
+    // A dispute release must not read as brand approval — deal_event is
+    // append-only, so the story it tells cannot be corrected later.
+    expect(dealEvents(db)[0].reason).toBe(
+      'Dispute resolved: released to creator'
+    );
+  });
+
+  it('runs an onCommit callback inside the transaction, before commit (F39)', async () => {
+    const { db, svc } = await build({
+      targetDeal: delivered,
+      entries: [{ amount: 100_000 }],
+    });
+    const seen: unknown[] = [];
+
+    await svc.payoutForDeal(DEAL_ID, 'admin-1', {
+      onCommit: async (_tx, result) => {
+        seen.push(result);
+        db.log.push('onCommit');
+      },
+    });
+
+    // The callback saw the exact figures the entries were written from — and a
+    // serialization retry re-runs it with the winning attempt's numbers. All
+    // three of them, including the gross the ledger locked (KAN-55 AC-4).
+    expect(seen).toEqual([
+      { payout: 85_000, commission: 15_000, totalPrice: 100_000 },
+    ]);
+    const order = db.log;
+    // Entries and the state change first, then the callback, then the commit.
+    expect(order.indexOf('onCommit')).toBeGreaterThan(
+      order.indexOf('update:deal')
+    );
+    expect(order.indexOf('COMMIT')).toBeGreaterThan(order.indexOf('onCommit'));
   });
 
   it('marks the deliverable approved, which nothing used to do (KAN-55)', async () => {
@@ -1003,6 +1050,21 @@ describe('refundDeal', () => {
     expect(row.entryType).toBe('refund');
     expect(row.amount).toBe(-100_000);
     expect(row.amount as number).toBeLessThan(0);
+  });
+
+  it('writes an overridden deal_event reason when one is given (F32)', async () => {
+    const { db, svc } = await build({
+      targetDeal: funded,
+      entries: [{ amount: 100_000 }],
+    });
+
+    await svc.refundDeal(DEAL_ID, 'admin-1', {
+      reason: 'Dispute resolved: refunded to brand',
+    });
+
+    expect(dealEvents(db)[0].reason).toBe(
+      'Dispute resolved: refunded to brand'
+    );
   });
 
   it('is zero-sum with its hold, so the money is not payable twice', async () => {
