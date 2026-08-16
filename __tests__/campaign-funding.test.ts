@@ -1017,12 +1017,26 @@ describe('email CTAs resolve to real routes', () => {
   });
 
   it('deep-links the notifications that carry a campaignId', () => {
-    // `campaign_funded`, `offer_accepted` and `offer_declined` all name one
-    // campaign, and the brand's next move is on that campaign's page.
+    // `campaign_funded`, `offer_accepted`, `offer_declined` and — since KAN-55 —
+    // `offer_expired` all name one campaign, and the brand's next move is on
+    // that campaign's page. `offer_expired` was the odd one out: it told the
+    // brand their budget had been released and then sent them to the list to
+    // find the campaign themselves.
     const deepLinks = TEMPLATES.match(
       /appUrl\(`\/campaigns\/\$\{payload\.campaignId\}`\)/g
     );
-    expect(deepLinks).toHaveLength(3);
+    expect(deepLinks).toHaveLength(4);
+  });
+
+  it('keeps the one CTA that is deliberately not a deep link', () => {
+    // `dispute_resolved` goes to `/dashboard`, and must while one payload serves
+    // both parties: the brand and the creator read their deals at different
+    // routes and the payload cannot know which is rendering. Either concrete
+    // route would be a 403 for half the recipients. Pinned so the count above
+    // reads as three deliberate deep links plus one reasoned exception rather
+    // than four out of five.
+    expect(TEMPLATES).toContain("appUrl('/dashboard')");
+    expect(routeExists('/dashboard')).toBe(true);
   });
 
   it('no longer points anywhere at /brand/campaigns', () => {

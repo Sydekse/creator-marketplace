@@ -434,6 +434,7 @@ describe('expireOffers — failure isolation (AC-5)', () => {
     expect(recorded.notifications.map((n) => n.payload)).toEqual([
       {
         dealId: DEAL_B,
+        campaignId: CAMPAIGN_ID,
         campaignTitle: CAMPAIGN_NAME,
         releasedAmount: TOTAL_PRICE,
       },
@@ -626,11 +627,30 @@ describe('the brand is notified (AC-018)', () => {
         type: 'offer_expired',
         payload: {
           dealId: DEAL_A,
+          campaignId: CAMPAIGN_ID,
           campaignTitle: CAMPAIGN_NAME,
           releasedAmount: TOTAL_PRICE,
         },
       },
     ]);
+  });
+
+  it('carries the campaign id, so the email can link the campaign (KAN-55)', async () => {
+    // The released budget is re-offered on the campaign page, so the mail asking
+    // the brand to re-offer used to land them one click short — the template had
+    // no id to build a URL from and fell back to the campaign list. The sweep
+    // already selected `campaignId` for its own joins and dropped it here.
+    const { deps, recorded } = makeDeps();
+
+    await expireOffers(deps);
+
+    const payload = recorded.notifications[0].payload as {
+      campaignId: string;
+    };
+    expect(payload.campaignId).toBe(CAMPAIGN_ID);
+    // Taken from the locked row like every other figure in this payload, not
+    // re-read after the transition.
+    expect(CODE).toMatch(/campaignId:\s*row\.campaignId/);
   });
 
   it('uses offer_expired rather than offer_declined', () => {

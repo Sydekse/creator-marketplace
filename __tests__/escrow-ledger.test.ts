@@ -167,6 +167,7 @@ class FakeDb {
     if (t === schema.deal) return 'deal';
     if (t === schema.dealEvent) return 'deal_event';
     if (t === schema.ledgerEntry) return 'ledger_entry';
+    if (t === schema.deliverable) return 'deliverable';
     return 'unknown';
   }
 
@@ -781,6 +782,53 @@ describe('payoutForDeal', () => {
     });
   });
 
+  it('marks the deliverable approved, which nothing used to do (KAN-55)', async () => {
+    // `submit-deliverable.ts` writes `'pending'` and `reject-deliverable.ts`
+    // writes `'rejected'`, but this path used to pay the creator and close the
+    // deal without touching the row — so a paid-out video still read as a
+    // submission nobody had judged, and `'approved'` was a declared enum value
+    // with no writer anywhere. Asserted here rather than in the approval action
+    // because it has to happen in *this* transaction.
+    const { db, svc } = await build({
+      targetDeal: delivered,
+      entries: [{ amount: 100_000 }],
+    });
+    await svc.payoutForDeal(DEAL_ID);
+
+    const update = db.updates.find((u) => u.table === 'deliverable');
+    expect(update?.set).toMatchObject({ reviewStatus: 'approved' });
+    expect(update?.set.reviewedAt).toBeInstanceOf(Date);
+    // The stamp and the status are set together. A status with no timestamp is
+    // what `reject-deliverable.ts` deliberately avoids, and the metrics sweep
+    // reads the pair.
+    expect(Object.keys(update?.set ?? {}).sort()).toEqual([
+      'reviewStatus',
+      'reviewedAt',
+    ]);
+  });
+
+  it('returns the gross the transaction locked, for the payment email (AC-4)', async () => {
+    // The email states gross, commission and net. Returning the gross from
+    // inside the transaction is what keeps all three the figures the ledger rows
+    // were written from — a caller re-reading the deal could see a different row
+    // than the one that was paid, and adding payout to commission would make the
+    // caller a second source for a split `computeSplit` already owns.
+    const { svc } = await build({
+      targetDeal: delivered,
+      entries: [{ amount: 100_000 }],
+    });
+
+    const result = await svc.payoutForDeal(DEAL_ID);
+
+    expect(result).toEqual({
+      payout: 85_000,
+      commission: 15_000,
+      totalPrice: 100_000,
+    });
+    expect(result.totalPrice).toBe(delivered.totalPrice);
+    expect(result.payout + result.commission).toBe(result.totalPrice);
+  });
+
   it('captures both legs and drains the hold to captured (F21)', async () => {
     const { db, svc, mock, holdRef } = await build({
       targetDeal: delivered,
@@ -824,7 +872,11 @@ describe('payoutForDeal', () => {
 
     const result = await svc.payoutForDeal(DEAL_ID);
 
-    expect(result).toEqual({ payout: 100_000, commission: 0 });
+    expect(result).toEqual({
+      payout: 100_000,
+      commission: 0,
+      totalPrice: 100_000,
+    });
     expect(db.log).not.toContain('provider:captureCommission');
     expect(await mock.getStatus(holdRef as string)).toMatchObject({
       state: 'captured',
@@ -913,6 +965,10 @@ describe('payoutForDeal', () => {
     expect(db.log).toContain('ROLLBACK');
     expect(ledgerRows(db)).toHaveLength(0);
     expect(db.updates).toHaveLength(0);
+    // Invariant 1 in the other direction: the deliverable is not approved on a
+    // rollback either. A row marked approved by a transaction that did not pay
+    // would tell a creator their video was accepted and leave them unpaid.
+    expect(db.updates.filter((u) => u.table === 'deliverable')).toHaveLength(0);
   });
 
   it('uses the rate snapshotted on the deal, not a global (invariant 8)', async () => {

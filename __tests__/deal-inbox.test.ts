@@ -1014,11 +1014,12 @@ describe('every path to the inbox names the same route', () => {
       (m) => m[1]
     );
 
-    // Four of them — offer received, deliverable approved, revision requested,
-    // payout sent — all naming a route that now exists. The exact count rather
-    // than "at least one": a regression that dropped three of them would still
-    // pass a `> 0` assertion.
-    expect(ctas.filter((href) => href === ROUTE)).toHaveLength(4);
+    // Three of them — offer received, deliverable approved, revision requested
+    // — all naming a route that now exists. A fourth, payout sent, was dropped
+    // with its type in the KAN-55 review (no producer; approval carries the
+    // money). The exact count rather than "at least one": a regression that
+    // dropped two of them would still pass a `> 0` assertion.
+    expect(ctas.filter((href) => href === ROUTE)).toHaveLength(3);
     expect(ctas).not.toContain('/deals');
   });
 

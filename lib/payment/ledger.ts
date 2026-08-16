@@ -76,6 +76,11 @@ export function isMoneyHeld(status: DealStatus): boolean {
  * with `total` on roughly one deal in ten. Basis points keep the intermediate
  * an integer, so the only float that ever exists is inside `rateBp`.
  *
+ * Called from outside `lib/payment/` since KAN-55 — `confirm-campaign.ts` needs
+ * it to tell a creator what an offer would pay. It stays here rather than moving
+ * to a shared leaf: the payout that eventually happens is computed by this
+ * function, and a copy anywhere else is a second answer to the same question.
+ *
  * @param totalPrice integer ETB santim
  * @param commissionRate `numeric(5, 2)` as drizzle returns it — a string
  */
@@ -100,6 +105,15 @@ export interface PayoutResult {
   payout: number;
   /** Integer santim the platform keeps. */
   commission: number;
+  /**
+   * The deal's gross, as locked (KAN-55 AC-4).
+   *
+   * Here so the payment email can state gross, commission and net without a
+   * caller re-reading the deal or adding the other two together. Both of those
+   * would be a second source for a figure this transaction already has, and the
+   * re-read could see a different row than the one that was paid.
+   */
+  totalPrice: number;
 }
 
 /**
@@ -313,6 +327,10 @@ export class EscrowLedgerService {
    * figures the entries were actually written from, captured inside the
    * transaction rather than re-derived afterwards from a read that could see
    * a *different* state (and would double as a second source for the split).
+   *
+   * Also marks the deliverable `'approved'` (KAN-55). That belongs here rather
+   * than in `approve-deliverable.ts` because it has to share this transaction —
+   * a deliverable marked approved outside it could survive a rolled-back payout.
    */
   async payoutForDeal(dealId: string, actorId?: string): Promise<PayoutResult> {
     const idempotencyKey = crypto.randomUUID();
@@ -409,10 +427,34 @@ export class EscrowLedgerService {
         reason: 'Deliverable approved',
       });
 
+      // The deliverable is now judged, and says so.
+      //
+      // Until KAN-55 nothing ever wrote `'approved'`: `submit-deliverable.ts`
+      // writes `'pending'`, `reject-deliverable.ts` writes `'rejected'`, and this
+      // path paid the creator and closed the deal without touching the row. So a
+      // paid-out video still read as a submission nobody had looked at — the
+      // meaning `lib/deals/brand-detail.ts` gives `'pending'`, on a column it
+      // already selects — and `'approved'` was a declared enum value with no
+      // writer at all.
+      //
+      // Inside the transaction, so it cannot disagree with the payout: the same
+      // rollback that un-pays the creator un-approves the deliverable
+      // (invariant 1). `reviewedAt` is computed in JS and set alongside the
+      // status, matching `recordRejection`.
+      //
+      // No row-count check. `payoutForDeal` refuses any status but `delivered`,
+      // and reaching `delivered` requires a submitted deliverable, so the update
+      // matches exactly one row — and an update that matched none would leave
+      // nothing inconsistent anyway.
+      await tx
+        .update(schema.deliverable)
+        .set({ reviewStatus: 'approved', reviewedAt: new Date() })
+        .where(eq(schema.deliverable.dealId, deal.id));
+
       // Returned from inside the transaction, so a serialization retry returns
       // the winning attempt's figures rather than a stale closure's — the same
       // rule `holdForCampaign` documents for its own return.
-      return { payout, commission };
+      return { payout, commission, totalPrice: deal.totalPrice };
     });
   }
 

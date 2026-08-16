@@ -15,13 +15,15 @@ import {
   redactEmail,
   renderNotification,
 } from '../lib/notifications';
-import type {
-  EmailMessage,
-  NotificationInput,
-  NotificationType,
-} from '../lib/notifications';
+import type { EmailMessage, NotificationType } from '../lib/notifications';
 import { notifyWith, withNotifications } from '../lib/notifications/notify';
 import type { NotifyDeps } from '../lib/notifications/notify';
+import {
+  LEGACY_SAMPLE_NOTIFICATIONS,
+  SAMPLE_NOTIFICATIONS,
+  allSamples,
+} from '../lib/notifications/samples';
+import { computeSplit } from '../lib/payment/ledger';
 
 /**
  * KAN-54 — notification service (Tech Spec §5, PRD AC-018/029/030, NFR-010).
@@ -138,7 +140,10 @@ describe('notification types', () => {
    * the order the AC gives them, and named here so the next person reads the
    * change as a deliberate addition rather than drift.
    */
-  it('covers the nine points AC-2 names, plus the two the deal wave adds', () => {
+  it('covers every AC-2 point except payout_sent, plus the two the deal wave adds', () => {
+    // `payout_sent` was dropped (KAN-55 review): it had no producer, and the
+    // approval email already carries the money because payout is instant. Named
+    // here so re-adding it (Q3 async settlement) reads as a deliberate change.
     expect([...NOTIFICATION_TYPES]).toEqual([
       'offer_received',
       'verification_result',
@@ -146,7 +151,6 @@ describe('notification types', () => {
       'deliverable_submitted',
       'deliverable_approved',
       'revision_requested',
-      'payout_sent',
       'dispute_resolved',
       'offer_expired',
       'offer_accepted',
@@ -161,102 +165,15 @@ describe('notification types', () => {
 
 // -- Templates ---------------------------------------------------------------
 
-const SAMPLES: {
-  [K in NotificationType]: Extract<NotificationInput, { type: K }>;
-} = {
-  offer_received: {
-    type: 'offer_received',
-    payload: {
-      dealId: 'd1',
-      campaignTitle: 'Spring Coffee Push',
-      companyName: 'Habesha Coffee',
-      totalPrice: 450_000,
-      videoCount: 3,
-      offerExpiresAt: '2026-09-01T09:00:00.000Z',
-    },
-  },
-  verification_result: {
-    type: 'verification_result',
-    payload: { creatorProfileId: 'c1', outcome: 'approved' },
-  },
-  campaign_funded: {
-    type: 'campaign_funded',
-    payload: {
-      campaignId: 'ca1',
-      campaignTitle: 'Spring Coffee Push',
-      dealCount: 2,
-      totalHeld: 900_000,
-    },
-  },
-  deliverable_submitted: {
-    type: 'deliverable_submitted',
-    payload: {
-      dealId: 'd1',
-      deliverableId: 'dl1',
-      campaignTitle: 'Spring Coffee Push',
-    },
-  },
-  deliverable_approved: {
-    type: 'deliverable_approved',
-    payload: {
-      dealId: 'd1',
-      campaignTitle: 'Spring Coffee Push',
-      payout: 382_500,
-    },
-  },
-  revision_requested: {
-    type: 'revision_requested',
-    payload: {
-      dealId: 'd1',
-      campaignTitle: 'Spring Coffee Push',
-      reason: 'Please show the packaging in the first three seconds.',
-    },
-  },
-  payout_sent: {
-    type: 'payout_sent',
-    payload: {
-      dealId: 'd1',
-      campaignTitle: 'Spring Coffee Push',
-      payout: 382_500,
-    },
-  },
-  dispute_resolved: {
-    type: 'dispute_resolved',
-    payload: {
-      dealId: 'd1',
-      campaignTitle: 'Spring Coffee Push',
-      resolution: 'refunded',
-    },
-  },
-  offer_expired: {
-    type: 'offer_expired',
-    payload: {
-      dealId: 'd1',
-      campaignTitle: 'Spring Coffee Push',
-      releasedAmount: 150_000,
-    },
-  },
-  offer_accepted: {
-    type: 'offer_accepted',
-    payload: {
-      dealId: 'd1',
-      campaignId: 'ca1',
-      campaignTitle: 'Spring Coffee Push',
-      creatorHandle: '@selam',
-      totalPrice: 450_000,
-    },
-  },
-  offer_declined: {
-    type: 'offer_declined',
-    payload: {
-      dealId: 'd1',
-      campaignId: 'ca1',
-      campaignTitle: 'Spring Coffee Push',
-      creatorHandle: '@selam',
-      releasedAmount: 450_000,
-    },
-  },
-};
+/**
+ * The fixtures live in `lib/notifications/samples.ts` (moved there on KAN-55).
+ *
+ * `scripts/preview-emails.ts` renders the same set to files so the templates can
+ * be looked at without sending mail (AC-7), and two copies would drift — the copy
+ * that drifted being the one nobody renders. The exhaustive mapped type that makes
+ * a missing sample a compile error travels with the export.
+ */
+const SAMPLES = SAMPLE_NOTIFICATIONS;
 
 describe('renderNotification', () => {
   it('has a sample for every type, so the cases below cannot silently shrink', () => {
@@ -332,6 +249,339 @@ describe('renderNotification', () => {
     // a way for one user's address to end up in another's email.
     const message = await renderNotification(SAMPLES.offer_received);
     expect(message.html).not.toContain(RECIPIENT);
+  });
+});
+
+// -- KAN-55 AC-3 / AC-4: the money emails explain the money ------------------
+
+/**
+ * The fixture's three figures, formatted. 450,000 santim gross at the
+ * provisional 15% is 67,500 commission and 382,500 net.
+ *
+ * Written out rather than computed from `formatEtb` so a bug in the formatter
+ * cannot make these assertions agree with a wrong render — the point is what a
+ * creator reads, and a creator reads the string.
+ */
+const GROSS = '4,500.00 ETB';
+const COMMISSION_LINE = '675.00 ETB';
+const NET = '3,825.00 ETB';
+
+/**
+ * The email a creator is paid by. `deliverable_approved` is the one actually
+ * sent — approval releases the money in the same transaction — so it is the
+ * payout email and AC-4 is asserted on it. A separate `payout_sent` type was
+ * dropped (KAN-55 review): it had no producer, and two emails seconds apart
+ * would say one thing twice.
+ */
+const PAYMENT_TYPES = ['deliverable_approved'] as const;
+
+/**
+ * Every figure is checked in the **HTML and the plain text separately**.
+ *
+ * `renderNotification` builds both from one React tree, so they cannot disagree
+ * about the words — but that is a claim about construction. A figure inside an
+ * element `html-to-text` drops would be present in exactly one of the two, and
+ * a plain-text part is what a mail client shows when images and CSS are off.
+ * With no DOM environment in this repo this is the closest the suite gets to
+ * reading the email.
+ *
+ * The label and its figure are only asserted *together* in the plain text: the
+ * HTML renderer emits `Deal total: ` and `4,500.00 ETB` as separate nodes, so a
+ * contiguous match there would assert an implementation detail of React's
+ * server renderer rather than anything about the email.
+ */
+describe('money emails state gross, commission and net', () => {
+  it.each(PAYMENT_TYPES)('%s shows the full breakdown', async (type) => {
+    const message = await renderNotification(SAMPLE_NOTIFICATIONS[type]);
+
+    for (const part of [message.html, message.text]) {
+      expect(part).toContain(GROSS);
+      expect(part).toContain(COMMISSION_LINE);
+      expect(part).toContain(NET);
+      expect(part).toContain('Deal total');
+      expect(part).toContain('Less platform commission');
+    }
+
+    expect(message.text).toContain(`Deal total: ${GROSS}`);
+    expect(message.text).toContain(
+      `Less platform commission: ${COMMISSION_LINE}`
+    );
+    expect(message.text).toContain(`You receive: ${NET}`);
+  });
+
+  it('shows the creator what an offer would pay before they accept (AC-3)', async () => {
+    const message = await renderNotification(
+      SAMPLE_NOTIFICATIONS.offer_received
+    );
+
+    for (const part of [message.html, message.text]) {
+      expect(part).toContain(GROSS);
+      expect(part).toContain(COMMISSION_LINE);
+      expect(part).toContain(NET);
+    }
+    // Video count and expiry are the other half of AC-3 and predate KAN-55;
+    // asserted here so adding the breakdown cannot have displaced them.
+    expect(message.text).toContain('3 videos');
+    expect(message.text).toContain('1 Sept 2026, 09:00');
+  });
+
+  it('says "would receive" on an offer and "receive" on a payment', async () => {
+    // An offer is a decision the creator has not made yet. Telling them they
+    // receive the money states as settled the thing they are still weighing.
+    const offer = await renderNotification(SAMPLE_NOTIFICATIONS.offer_received);
+    const paid = await renderNotification(
+      SAMPLE_NOTIFICATIONS.deliverable_approved
+    );
+
+    expect(offer.text).toContain('You would receive');
+    expect(paid.text).toContain('You receive');
+    expect(paid.text).not.toContain('would receive');
+  });
+
+  it('states the same net the ledger would pay, not its own arithmetic', () => {
+    // The template does no arithmetic — `splitOf` refuses a partial payload
+    // rather than filling a gap by subtraction. This asserts the fixture the
+    // renders above are read from is itself what `computeSplit` produces, so a
+    // breakdown that looked internally consistent could not be quoting figures
+    // no ledger entry would ever be written from.
+    const { totalPrice, commission, payout } =
+      SAMPLE_NOTIFICATIONS.offer_received.payload;
+    const split = computeSplit(totalPrice, '15.00');
+
+    expect(split).toEqual({ commission: 67_500, payout: 382_500 });
+    expect(commission).toBe(split.commission);
+    expect(payout).toBe(split.payout);
+    // The three reconcile exactly — `computeSplit` derives the payout by
+    // subtraction from the basis points, so there is no rounding gap to hide.
+    expect(split.commission + split.payout).toBe(totalPrice);
+  });
+});
+
+/**
+ * The other half of Nate's call on back-compatibility: **old rows render with
+ * what they have.**
+ *
+ * Every notification is also stored as a `notification.payload` jsonb row, and
+ * the rows already in the table — including the ones from the end-to-end
+ * walkthrough — carry only the net figure. The new fields are therefore optional
+ * and every money template branches. A zero or a blank beside a money figure
+ * would be a false statement about money; leaving the line out is not.
+ *
+ * This is the branch every historical row takes, so it is the branch most likely
+ * to be seen and least likely to be looked at.
+ */
+describe('a payload written before the breakdown existed', () => {
+  const legacy = (type: NotificationType) => {
+    const found = LEGACY_SAMPLE_NOTIFICATIONS.find((s) => s.type === type);
+    if (!found) throw new Error(`no legacy sample for ${type}`);
+    return found;
+  };
+
+  /**
+   * The one figure each older payload does carry, which differs by email: an
+   * offer stored the gross and a payment stored the net. Asserting the right one
+   * per type is the difference between "the fallback renders" and "the fallback
+   * renders the number it has".
+   */
+  const ONLY_FIGURE: Record<string, string> = {
+    offer_received: GROSS,
+    deliverable_approved: NET,
+  };
+
+  it.each(['offer_received', ...PAYMENT_TYPES] as const)(
+    'renders %s with one figure and no gaps',
+    async (type) => {
+      const message = await renderNotification(legacy(type));
+
+      for (const part of [message.html, message.text]) {
+        expect(part).toContain(ONLY_FIGURE[type]);
+        // Not a partial breakdown: the lines it has no numbers for are absent
+        // rather than empty.
+        expect(part).not.toContain('Less platform commission');
+        expect(part).not.toContain('Deal total');
+        // The two ways a missing optional number leaks into a render.
+        expect(part).not.toContain('NaN');
+        expect(part).not.toContain('undefined');
+        // A money figure that is exactly zero. The lookbehind matters: every
+        // figure here ends in `00 ETB`, so a bare `0.00 ETB` substring check
+        // would match `4,500.00 ETB` and pass for the wrong reason.
+        expect(part).not.toMatch(/(?<![\d,])0\.00 ETB/);
+      }
+    }
+  );
+
+  it('keeps the sentence that explained the commission in words', async () => {
+    // Without the breakdown this clause is the only thing telling a creator the
+    // figure is net. Deleting it while the fallback exists would leave the older
+    // rows stating a number with no indication of what it is net of.
+    const message = await renderNotification(legacy('deliverable_approved'));
+    expect(message.text).toContain('after the platform commission');
+  });
+
+  it('links the campaign list when an expiry has no campaign to link (AC-2)', async () => {
+    // The sweep now puts `campaignId` on the payload, so new mail deep-links.
+    // Older rows have nothing to build a URL from, and a link to `/campaigns/`
+    // with the id missing would be a 404 rather than a degraded link.
+    const current = await renderNotification(
+      SAMPLE_NOTIFICATIONS.offer_expired
+    );
+    const old = await renderNotification(legacy('offer_expired'));
+
+    expect(current.text).toContain('/campaigns/ca1');
+    expect(old.text).toContain('/campaigns');
+    expect(old.text).not.toMatch(/\/campaigns\/(\s|$|")/);
+  });
+});
+
+// -- KAN-55 AC-7: previewable locally ----------------------------------------
+
+/**
+ * "Previewable locally without sending real email." Before this there was no way
+ * to look at one of these at all — `ConsoleEmailProvider` logs the recipient and
+ * the subject and discards the body.
+ *
+ * What is asserted here is *coverage*, not appearance: that the preview set
+ * cannot fall behind the templates. Whether the copy reads well is a human
+ * check, and `npm run email:preview` is the thing that makes it possible.
+ */
+describe('the preview set covers every email', () => {
+  it('renders one of every notification type', () => {
+    const labels = allSamples().map((s) => s.label);
+
+    for (const type of NOTIFICATION_TYPES) {
+      expect(labels).toContain(type);
+    }
+  });
+
+  it('renders the fallback branch of every template that has one', () => {
+    // A branch nobody previews is a branch nobody has looked at, and this is the
+    // branch every row written before KAN-55 takes.
+    const labels = allSamples().map((s) => s.label);
+
+    for (const type of ['offer_received', ...PAYMENT_TYPES, 'offer_expired']) {
+      expect(labels).toContain(`${type}--legacy`);
+    }
+  });
+
+  it('produces a subject, an HTML part and a text part for each', async () => {
+    for (const { label, input } of allSamples()) {
+      const message = await renderNotification(input);
+
+      expect(message.subject.length, label).toBeGreaterThan(0);
+      expect(message.html, label).toContain('<html');
+      expect(message.text.trim().length, label).toBeGreaterThan(0);
+    }
+  });
+
+  it('gives every sample a distinct label, so no preview overwrites another', () => {
+    const labels = allSamples().map((s) => s.label);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+});
+
+/**
+ * Structural half of AC-7: the preview is *reachable*.
+ *
+ * Rendering to files is worth nothing if nobody can find the command, and this
+ * repo has shipped correct, tested code that nothing invoked more than once. So
+ * these read the source: the npm script exists, it points at the file that is
+ * actually there, the script renders through the real template module rather
+ * than a copy of it, and the output is gitignored.
+ */
+describe('the preview is wired up, not just written', () => {
+  const read = (path: string) =>
+    readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8');
+
+  /**
+   * Source with the comments taken out.
+   *
+   * Two of the assertions below are about what the code *does*, and both of
+   * those words appear in a docstring explaining why the code does not do it —
+   * `templates.tsx` names `totalPrice - commission` as the thing it never
+   * computes, and the preview script explains that reading an email used to mean
+   * configuring Resend. A guard that read the prose would fail on the comment
+   * that documents it, and the fix would be to delete the explanation.
+   *
+   * `//` preceded by a colon is left alone so `http://localhost:3000` survives.
+   */
+  const code = (path: string) =>
+    read(path)
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+  const PKG = read('package.json');
+  const SCRIPT = read('scripts/preview-emails.ts');
+  const GITIGNORE = read('.gitignore');
+  const SCRIPT_CODE = code('scripts/preview-emails.ts');
+  const TEMPLATE_CODE = code('lib/notifications/templates.tsx');
+
+  it('read the files it asserts on', () => {
+    // Non-vacuity. A path typo would make every assertion below pass against an
+    // empty string, and `readFileSync` on a missing file throws — so the length
+    // check is what proves these are the real files.
+    for (const source of [PKG, SCRIPT, GITIGNORE, SCRIPT_CODE, TEMPLATE_CODE]) {
+      expect(source.length).toBeGreaterThan(50);
+    }
+    // And it would fail if pointed at something that is not the file: the
+    // renamed-path direction of the same guard.
+    expect(() => read('scripts/preview-email.ts')).toThrow();
+  });
+
+  it('strips comments without eating code', () => {
+    // Non-vacuity for the stripper itself: the two assertions that depend on it
+    // would pass against an over-eager one that returned almost nothing.
+    expect(TEMPLATE_CODE).toContain('export async function renderNotification');
+    expect(TEMPLATE_CODE).toContain("'http://localhost:3000'");
+    expect(TEMPLATE_CODE).not.toContain('a second source for a split');
+    expect(SCRIPT_CODE).toContain('writeFileSync');
+    expect(SCRIPT_CODE).not.toContain('configure Resend');
+  });
+
+  it('exposes the command as npm run email:preview', () => {
+    expect(JSON.parse(PKG).scripts['email:preview']).toBe(
+      'tsx scripts/preview-emails.ts'
+    );
+  });
+
+  it('renders through the real templates, not a copy of them', () => {
+    // A preview built from its own copy of the markup would show something no
+    // recipient receives, which is worse than no preview.
+    expect(SCRIPT).toMatch(
+      /import \{ renderNotification \} from '\.\.\/lib\/notifications\/templates'/
+    );
+    expect(SCRIPT).toMatch(
+      /import \{ allSamples \} from '\.\.\/lib\/notifications\/samples'/
+    );
+  });
+
+  it('writes both parts of every email', () => {
+    // AC-5's only real evidence in a repo with no DOM environment is someone
+    // opening the text file.
+    expect(SCRIPT).toContain('message.html');
+    expect(SCRIPT).toContain('message.text');
+  });
+
+  it('touches neither the database nor the network', () => {
+    // It imports fixtures and templates and writes files. A script that needed a
+    // `DATABASE_URL` or a Resend key would not be "without sending real email".
+    expect(SCRIPT_CODE).not.toMatch(/from '\.\.\/db/);
+    expect(SCRIPT_CODE).not.toMatch(/resend|providerFromEnv|EMAIL_SEND/i);
+  });
+
+  it('keeps the rendered output out of git', () => {
+    expect(GITIGNORE).toContain('.email-preview/');
+  });
+
+  it('does no money arithmetic in the templates', () => {
+    // The rule the breakdown helper documents: a template that computed
+    // `totalPrice - commission` would become a second source for a split
+    // `computeSplit` owns, and the two could disagree on a rounding. The
+    // fallback branch exists precisely so a gap is never filled by subtraction.
+    expect(TEMPLATE_CODE).not.toMatch(/totalPrice\s*-/);
+    expect(TEMPLATE_CODE).not.toMatch(
+      /-\s*(payload|split)\.(commission|payout)/
+    );
+    expect(TEMPLATE_CODE).not.toMatch(/computeSplit|COMMISSION_RATE/);
   });
 });
 
@@ -608,16 +858,38 @@ describe('RedirectingEmailProvider', () => {
     expect(inner.sent[0].to).toBe('inbox@test.com');
   });
 
-  it('keeps the intended recipient in the subject so it stays traceable', () => {
-    // Redirected mail is useless if you cannot tell who it was meant for.
+  it('keeps the intended recipient traceable without printing it (NFR-010)', async () => {
+    // Redirected mail is useless if you cannot tell who it was meant for — but
+    // this subject goes to a shared inbox and into every log line that quotes a
+    // subject, so it carries the redacted form rather than the address. The
+    // domain survives, which is the half a "why is this bouncing" question needs.
     const inner = new InMemoryEmailProvider();
     const provider = new RedirectingEmailProvider(inner, 'inbox@test.com');
 
-    return provider
-      .send(RECIPIENT, { subject: 'Offer', html: '', text: '' })
-      .then(() => {
-        expect(inner.sent[0].message.subject).toBe(`[to: ${RECIPIENT}] Offer`);
-      });
+    await provider.send(RECIPIENT, { subject: 'Offer', html: '', text: '' });
+
+    const { subject } = inner.sent[0].message;
+    expect(subject).toBe(`[to: ${redactEmail(RECIPIENT)}] Offer`);
+    expect(subject).not.toContain(RECIPIENT);
+    expect(subject).toContain('@example.com');
+    // The original subject is still on the end, or the redirect would have
+    // destroyed the thing that makes a redirected inbox readable at all.
+    expect(subject).toMatch(/ Offer$/);
+  });
+
+  it('redacts the recipient in the subject for every provider it wraps', async () => {
+    // Two different addresses at one domain stay distinguishable in the inbox,
+    // which is what makes the redacted form usable rather than merely safe.
+    const inner = new InMemoryEmailProvider();
+    const provider = new RedirectingEmailProvider(inner, 'inbox@test.com');
+
+    for (const to of ['alice@example.com', 'brian@example.com']) {
+      await provider.send(to, { subject: 'Offer', html: '', text: '' });
+    }
+
+    const [first, second] = inner.sent.map((s) => s.message.subject);
+    expect(first).not.toBe(second);
+    expect(`${first} ${second}`).not.toMatch(/alice|brian/);
   });
 });
 
@@ -700,7 +972,7 @@ describe('withNotifications', () => {
     const recorder = newRecorder();
 
     await withNotifications(async (_tx, notify) => {
-      await notify(USER_ID, 'payout_sent', {
+      await notify(USER_ID, 'deliverable_approved', {
         dealId: 'd1',
         campaignTitle: 'C',
         payout: 1000,
@@ -721,7 +993,7 @@ describe('withNotifications', () => {
     const recorder = newRecorder();
 
     await withNotifications(async (_tx, notify) => {
-      await notify(USER_ID, 'payout_sent', {
+      await notify(USER_ID, 'deliverable_approved', {
         dealId: 'd1',
         campaignTitle: 'C',
         payout: 1000,
@@ -737,7 +1009,7 @@ describe('withNotifications', () => {
 
     await expect(
       withNotifications(async (_tx, notify) => {
-        await notify(USER_ID, 'payout_sent', {
+        await notify(USER_ID, 'deliverable_approved', {
           dealId: 'd1',
           campaignTitle: 'C',
           payout: 1000,
@@ -778,7 +1050,7 @@ describe('withNotifications', () => {
     await expect(
       withNotifications(
         async (_tx, notify) => {
-          await notify(USER_ID, 'payout_sent', {
+          await notify(USER_ID, 'deliverable_approved', {
             dealId: 'd1',
             campaignTitle: 'C',
             payout: 1000,
@@ -798,7 +1070,7 @@ describe('withNotifications', () => {
     await expect(
       withNotifications(
         async (_tx, notify) => {
-          await notify(USER_ID, 'payout_sent', {
+          await notify(USER_ID, 'deliverable_approved', {
             dealId: 'd1',
             campaignTitle: 'C',
             payout: 1000,
@@ -847,7 +1119,7 @@ describe('withNotifications', () => {
 
     await expect(
       withNotifications(async (_tx, notify) => {
-        await notify(USER_ID, 'payout_sent', {
+        await notify(USER_ID, 'deliverable_approved', {
           dealId: 'd1',
           campaignTitle: 'C',
           payout: 1000,

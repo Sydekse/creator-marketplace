@@ -63,9 +63,12 @@ function appUrl(path: string): string {
  *
  * The three notifications carrying a `campaignId` deep-link to that campaign
  * rather than the list. They are all about one campaign, and the brand receiving
- * "a creator accepted" has to open that campaign to fund it. The two that carry
- * only a `dealId` land on the list, because there is no brand-side deal route to
- * point at yet.
+ * "a creator accepted" has to open that campaign to fund it.
+ *
+ * KAN-55 made that four: `offer_expired` now carries a `campaignId` too, because
+ * the sweep that writes it already had one. What is left on a list URL is
+ * `dispute_resolved`, and that one is reasoned rather than pending — see its
+ * comment. Every other CTA is a deep link.
  */
 
 /**
@@ -99,6 +102,29 @@ const styles = {
   muted: { color: '#6b7280', fontSize: '13px', lineHeight: '20px', margin: 0 },
   hr: { borderColor: '#e5e7eb', margin: '24px 0' },
   link: { color: '#111827', fontWeight: 600 },
+  // The money breakdown (AC-3, AC-4). Set off from the prose because it is a
+  // receipt rather than a sentence, and a creator checking what they were paid
+  // should find the figures without reading.
+  breakdown: {
+    backgroundColor: '#f9fafb',
+    borderRadius: '8px',
+    margin: '0 0 12px',
+    padding: '16px',
+  },
+  breakdownRow: {
+    color: '#333333',
+    fontSize: '14px',
+    lineHeight: '22px',
+    margin: 0,
+  },
+  breakdownNet: {
+    borderTop: '1px solid #e5e7eb',
+    color: '#111827',
+    fontSize: '15px',
+    lineHeight: '22px',
+    margin: '8px 0 0',
+    paddingTop: '8px',
+  },
 } as const;
 
 function Layout({
@@ -141,6 +167,77 @@ function Cta({ href, label }: { href: string; label: string }) {
   );
 }
 
+/** The three figures a money email must state (AC-3, AC-4). */
+interface Split {
+  totalPrice: number;
+  commission: number;
+  payout: number;
+}
+
+/**
+ * The trio, or `null` when this payload predates KAN-55.
+ *
+ * All three or none: a breakdown missing a line is worse than no breakdown,
+ * because two figures that do not visibly reconcile read as an error in the
+ * arithmetic rather than as an older record. The one thing never done here is
+ * to fill a gap by subtraction — a template that computes `totalPrice -
+ * commission` becomes a second source for a split that `computeSplit` already
+ * owns (`lib/payment/ledger.ts`), and the two could disagree on a rounding.
+ *
+ * Structurally typed on purpose, so the three payloads that carry money satisfy
+ * it whichever of the three fields each one has as required.
+ */
+function splitOf(payload: {
+  totalPrice?: number;
+  commission?: number;
+  payout?: number;
+}): Split | null {
+  const { totalPrice, commission, payout } = payload;
+  if (
+    totalPrice === undefined ||
+    commission === undefined ||
+    payout === undefined
+  ) {
+    return null;
+  }
+  return { totalPrice, commission, payout };
+}
+
+/**
+ * Gross, commission, net — the whole of AC-3's last clause and AC-4.
+ *
+ * Three lines rather than a sentence, because the plain-text render (AC-5) turns
+ * each `Text` into its own line and a creator comparing what they expected
+ * against what arrived is scanning, not reading. `formatEtb` is the only thing
+ * between a value and the screen; there is no arithmetic in this file.
+ *
+ * `netLabel` exists because an offer is conditional and a payment is not. "You
+ * receive" on an offer the creator has not accepted yet would state as settled
+ * something they are still deciding.
+ */
+function Breakdown({
+  totalPrice,
+  commission,
+  payout,
+  netLabel = 'You receive',
+}: Split & { netLabel?: string }) {
+  return (
+    <Section style={styles.breakdown}>
+      <Text style={styles.breakdownRow}>
+        Deal total: {formatEtb(totalPrice)}
+      </Text>
+      <Text style={styles.breakdownRow}>
+        Less platform commission: {formatEtb(commission)}
+      </Text>
+      <Text style={styles.breakdownNet}>
+        <strong>
+          {netLabel}: {formatEtb(payout)}
+        </strong>
+      </Text>
+    </Section>
+  );
+}
+
 /** Subject lines. Kept beside the bodies so the two cannot drift. */
 const subjects: {
   [K in keyof NotificationPayloadMap]: (p: NotificationPayloadMap[K]) => string;
@@ -154,7 +251,6 @@ const subjects: {
   deliverable_submitted: (p) => `A video was submitted for ${p.campaignTitle}`,
   deliverable_approved: (p) => `Your video for ${p.campaignTitle} was approved`,
   revision_requested: (p) => `Changes requested for ${p.campaignTitle}`,
-  payout_sent: (p) => `You have been paid for ${p.campaignTitle}`,
   dispute_resolved: (p) => `A decision was made on ${p.campaignTitle}`,
   offer_expired: (p) => `An offer for ${p.campaignTitle} expired`,
   offer_accepted: (p) => `${p.creatorHandle} accepted your offer`,
@@ -163,7 +259,11 @@ const subjects: {
 
 function Content({ type, payload }: NotificationInput): React.ReactElement {
   switch (type) {
-    case 'offer_received':
+    case 'offer_received': {
+      // AC-3: video count, price, **payout net of commission**, expiry. The net
+      // is the figure the decision actually turns on, and until KAN-55 this
+      // email named the gross and pointed at the offer screen for the rest.
+      const split = splitOf(payload);
       return (
         <Layout
           preview={`${payload.companyName} wants ${payload.videoCount} video(s)`}
@@ -173,11 +273,21 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             <strong>{payload.companyName}</strong> invited you to{' '}
             {payload.campaignTitle}.
           </Text>
-          <Text style={styles.text}>
-            {payload.videoCount} video{payload.videoCount === 1 ? '' : 's'} for{' '}
-            <strong>{formatEtb(payload.totalPrice)}</strong> total, before the
-            platform commission shown on the offer.
-          </Text>
+          {split ? (
+            <>
+              <Text style={styles.text}>
+                The offer is for {payload.videoCount} video
+                {payload.videoCount === 1 ? '' : 's'}.
+              </Text>
+              <Breakdown {...split} netLabel="You would receive" />
+            </>
+          ) : (
+            <Text style={styles.text}>
+              {payload.videoCount} video{payload.videoCount === 1 ? '' : 's'}{' '}
+              for <strong>{formatEtb(payload.totalPrice)}</strong> total, before
+              the platform commission shown on the offer.
+            </Text>
+          )}
           <Text style={styles.text}>
             The offer expires on {formatDate(payload.offerExpiresAt)}. After
             that it is released automatically.
@@ -185,6 +295,7 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
           <Cta href={appUrl('/creator/deals')} label="Review the offer →" />
         </Layout>
       );
+    }
 
     case 'verification_result':
       return payload.outcome === 'approved' ? (
@@ -259,19 +370,39 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
         </Layout>
       );
 
-    case 'deliverable_approved':
+    case 'deliverable_approved': {
+      // AC-4. This is the email a creator actually receives when they are paid —
+      // approval and payout happen in one transaction. A separate `payout_sent`
+      // notice was dropped with its type (KAN-55 review): it had no producer,
+      // and two emails seconds apart would say one thing twice. If a real
+      // processor ever makes settlement async (Q3), add the type back — the
+      // exhaustive case/sample guards will demand its template and subject.
+      const split = splitOf(payload);
       return (
         <Layout
           preview="Your video was approved"
           heading="Your video was approved"
         >
           <Text style={styles.text}>
-            Your video for {payload.campaignTitle} was approved.{' '}
-            <strong>{formatEtb(payload.payout)}</strong> is on its way to you.
+            Your video for {payload.campaignTitle} was approved.
           </Text>
+          {split ? (
+            <>
+              <Text style={styles.text}>
+                <strong>{formatEtb(split.payout)}</strong> is on its way to you.
+              </Text>
+              <Breakdown {...split} />
+            </>
+          ) : (
+            <Text style={styles.text}>
+              <strong>{formatEtb(payload.payout)}</strong> is on its way to you,
+              after the platform commission shown on the deal.
+            </Text>
+          )}
           <Cta href={appUrl('/creator/deals')} label="View the deal →" />
         </Layout>
       );
+    }
 
     case 'revision_requested':
       return (
@@ -291,18 +422,6 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
         </Layout>
       );
 
-    case 'payout_sent':
-      return (
-        <Layout preview="You have been paid" heading="You have been paid">
-          <Text style={styles.text}>
-            <strong>{formatEtb(payload.payout)}</strong> was released to you for{' '}
-            {payload.campaignTitle}, after the platform commission shown on the
-            deal.
-          </Text>
-          <Cta href={appUrl('/creator/deals')} label="View the deal →" />
-        </Layout>
-      );
-
     case 'dispute_resolved':
       return (
         <Layout
@@ -313,6 +432,14 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             An administrator reviewed the deal for {payload.campaignTitle} and{' '}
             {resolutionPhrase(payload.resolution)}.
           </Text>
+          {/* The only CTA here that is deliberately not a deep link, and it must
+              stay that way while one payload serves both parties. A resolution
+              is sent to the brand *and* the creator, whose deal screens are
+              different routes (`/deals/[id]` and `/creator/deals`), and the
+              payload cannot know which of the two is reading. `/dashboard`
+              redirects each role to their own home, so it is right for both;
+              either concrete route would be a 403 for half the recipients.
+              Splitting this into two notifications is the real fix. */}
           <Cta href={appUrl('/dashboard')} label="View the deal →" />
         </Layout>
       );
@@ -328,10 +455,19 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             <strong>{formatEtb(payload.releasedAmount)}</strong> is back in your
             available budget and can be offered to another creator.
           </Text>
-          {/* The list, for `deliverable_submitted`'s reason: this payload carries
-              only a `dealId`. Deep-linking would need `campaignId` on the payload,
-              which is a change to what KAN-38's sweep writes. */}
-          <Cta href={appUrl('/campaigns')} label="Open the campaign →" />
+          {/* Deep-linked from KAN-55: re-offering the released budget happens on
+              the campaign, so the list was one click short of the thing the mail
+              asks for. The sweep already had `campaignId` in hand and dropped it
+              (`expire-offers.ts`). The fallback is for rows written before that,
+              whose payload has no id to link with. */}
+          {payload.campaignId ? (
+            <Cta
+              href={appUrl(`/campaigns/${payload.campaignId}`)}
+              label="Open the campaign →"
+            />
+          ) : (
+            <Cta href={appUrl('/campaigns')} label="Open your campaigns →" />
+          )}
         </Layout>
       );
 

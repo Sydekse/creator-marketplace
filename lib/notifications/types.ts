@@ -39,7 +39,6 @@ export const NOTIFICATION_TYPES = [
   'deliverable_submitted',
   'deliverable_approved',
   'revision_requested',
-  'payout_sent',
   'dispute_resolved',
   'offer_expired',
   'offer_accepted',
@@ -58,6 +57,21 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
  *
  * Money is integer ETB santim (invariant 4) — never a formatted string, so the
  * stored row does not bake in a currency format, and never a float.
+ *
+ * **One vocabulary for the split, everywhere it appears** (KAN-55 AC-3/AC-4).
+ * Two payloads state what a deal is worth and what the creator keeps, and both
+ * use the same three names: `totalPrice` is the gross the brand owes,
+ * `commission` is the platform's cut, `payout` is what reaches the creator.
+ * `payout + commission === totalPrice` exactly, because every producer takes all
+ * three from `computeSplit` rather than doing the arithmetic itself.
+ *
+ * **The added fields are optional, and that is about stored rows rather than
+ * about the producers.** Every notification is also a `notification.payload`
+ * jsonb row, and rows written before this ticket carry only their single figure.
+ * Making the new fields required would not retro-fill them — it would only stop
+ * the type describing what is actually in the table. The templates therefore
+ * fall back to the one-figure sentence when they are absent, and the tests
+ * assert each producer always sets them, which is where "required" belongs.
  */
 export interface NotificationPayloadMap {
   offer_received: {
@@ -68,6 +82,12 @@ export interface NotificationPayloadMap {
     totalPrice: number;
     videoCount: number;
     offerExpiresAt: string;
+    /**
+     * AC-3: a creator decides on what they take home, not on the gross. Absent
+     * on offers sent before KAN-55 — see the note above.
+     */
+    payout?: number;
+    commission?: number;
   };
   verification_result: {
     creatorProfileId: string;
@@ -90,17 +110,18 @@ export interface NotificationPayloadMap {
     dealId: string;
     campaignTitle: string;
     payout: number;
+    /**
+     * AC-4: the payment email states the gross and the deduction, not only the
+     * net. Absent on approvals from before KAN-55.
+     */
+    totalPrice?: number;
+    commission?: number;
   };
   revision_requested: {
     dealId: string;
     campaignTitle: string;
     /** The brand's note explaining what to change. */
     reason: string;
-  };
-  payout_sent: {
-    dealId: string;
-    campaignTitle: string;
-    payout: number;
   };
   dispute_resolved: {
     dealId: string;
@@ -112,6 +133,12 @@ export interface NotificationPayloadMap {
     campaignTitle: string;
     /** Released back to the brand's available budget (AC-018). */
     releasedAmount: number;
+    /**
+     * The campaign the offer belonged to, so the mail can deep-link it (AC-2).
+     * Optional for the reason above: rows written before KAN-55 have no id to
+     * link with, and their CTA falls back to the campaign list.
+     */
+    campaignId?: string;
   };
   offer_accepted: {
     dealId: string;

@@ -210,11 +210,18 @@ export async function approveDeliverable(
   // After the ledger transaction committed, so a failure here cannot roll the
   // payout back — see the module header. The creator is told what actually
   // moved, not a figure re-derived outside the transaction.
+  //
+  // All three figures (KAN-55 AC-4). The email states the gross, the commission
+  // deducted and the net, and every one of them comes from `PayoutResult` — the
+  // values the ledger entries were written from. Computing any of them here
+  // would make this a second source for a split `computeSplit` already owns.
   try {
     await deps.notify(row.creatorUserId, 'deliverable_approved', {
       dealId,
       campaignTitle: row.campaignName,
       payout: result.payout,
+      totalPrice: result.totalPrice,
+      commission: result.commission,
     });
   } catch (error) {
     // The payout and the `completed` status are final at this point, so the

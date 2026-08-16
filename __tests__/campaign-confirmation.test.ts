@@ -13,7 +13,12 @@ import { recordDealsCreated } from '../lib/deals/state-machine';
 import { ForbiddenError } from '../lib/authz';
 import type { Tx } from '../lib/authz';
 import { ErrorCode, ErrorMessage } from '../lib/validation';
-import { OFFER_WINDOW_MS, offerExpiresAt } from '../lib/config/pricing';
+import {
+  COMMISSION_RATE,
+  OFFER_WINDOW_MS,
+  offerExpiresAt,
+} from '../lib/config/pricing';
+import { computeSplit } from '../lib/payment/ledger';
 import {
   CAMPAIGN_NOT_DRAFT_MESSAGE,
   CONFIRM_CAMPAIGN_FAILED,
@@ -646,6 +651,68 @@ describe('confirmCampaign — AC-7: every creator is notified', () => {
       (n) => (n.payload as { dealId: string }).dealId
     );
     expect(new Set(dealIds).size).toBe(CREATORS.length);
+  });
+
+  /**
+   * KAN-55 AC-3: the offer email must state the payout net of commission.
+   *
+   * The net is computed here, at the producer, not in the template. A template
+   * that subtracted its own commission would be a second source for a split
+   * `computeSplit` already owns, and the two could disagree on a rounding —
+   * these are the figures a creator decides on, and the payout will use the
+   * ledger's.
+   */
+  it('tells each creator what they would take home, per their own deal', async () => {
+    const { deps, recorded } = makeDeps();
+
+    await confirmCampaign(CAMPAIGN_ID, BRAND_PROFILE_ID, BRAND_USER_ID, deps);
+
+    for (const creator of CREATORS) {
+      const sent = recorded.notifications.find(
+        (n) => n.userId === creator.creatorUserId
+      );
+      const payload = sent!.payload as {
+        totalPrice: number;
+        commission: number;
+        payout: number;
+      };
+      const expected = computeSplit(creator.totalPrice, creator.commissionRate);
+
+      expect(payload.commission).toBe(expected.commission);
+      expect(payload.payout).toBe(expected.payout);
+      // The three reconcile exactly, so the email cannot show a breakdown that
+      // does not add up.
+      expect(payload.payout + payload.commission).toBe(payload.totalPrice);
+    }
+  });
+
+  it('uses the rate snapshotted on the cart row, not the config default', async () => {
+    // The discriminating case, same shape as the price snapshot test above: a
+    // rate no config value would produce. At 9.5% of 246,912 the commission is
+    // 23,457 and the net 223,455 — figures the provisional 15% cannot yield, so
+    // a module reading `COMMISSION_RATE` instead of the row fails here.
+    const items: ConfirmCampaignItem[] = [
+      {
+        ...CREATORS[0],
+        unitPrice: 123_456,
+        videoCount: 2,
+        totalPrice: 246_912,
+        commissionRate: '9.50',
+      },
+    ];
+    const { deps, recorded } = makeDeps({ items, budget: 246_912 });
+
+    await confirmCampaign(CAMPAIGN_ID, BRAND_PROFILE_ID, BRAND_USER_ID, deps);
+
+    expect(recorded.notifications[0].payload).toMatchObject({
+      totalPrice: 246_912,
+      commission: 23_457,
+      payout: 223_455,
+    });
+    // What the same total would have paid at the config rate. Asserting the
+    // figures differ is what makes the test above discriminating rather than
+    // merely arithmetically true.
+    expect(computeSplit(246_912, COMMISSION_RATE).commission).not.toBe(23_457);
   });
 });
 

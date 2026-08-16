@@ -12,6 +12,7 @@ import { offerExpiresAt } from '@/lib/config/pricing';
 import { recordDealsCreated } from '@/lib/deals/state-machine';
 import { withNotifications } from '@/lib/notifications/notify';
 import type { Notify } from '@/lib/notifications/notify';
+import { computeSplit } from '@/lib/payment/ledger';
 import { getCurrentRightsTerms } from '@/lib/rights-terms/current';
 
 /**
@@ -334,6 +335,16 @@ export async function confirmCampaign(
         );
       }
 
+      // AC-3 of KAN-55: the offer email states what the creator would take
+      // home, not only what the brand is spending. Split here rather than in the
+      // template, from the rate that was just snapshotted onto the deal
+      // (invariant 8) — so the figure quoted to the creator is the one the payout
+      // will actually use, even if config moves before they accept.
+      const { commission, payout } = computeSplit(
+        item.totalPrice,
+        item.commissionRate
+      );
+
       await notify(item.creatorUserId, 'offer_received', {
         dealId,
         campaignTitle: camp.name,
@@ -341,6 +352,8 @@ export async function confirmCampaign(
         totalPrice: item.totalPrice,
         videoCount: item.videoCount,
         offerExpiresAt: expiresAt.toISOString(),
+        payout,
+        commission,
       });
     }
 
