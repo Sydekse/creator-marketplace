@@ -119,6 +119,24 @@ export function canDeliver(status: DealStatus): boolean {
 }
 
 /**
+ * Can the brand approve or reject this deal's deliverable? (KAN-68, AC-023,
+ * AC-024.)
+ *
+ * Exactly `{delivered}`, and read off `LEGAL_TRANSITIONS` rather than written as
+ * `status === 'delivered'` for the reason `canAct` and `canDeliver` give: a
+ * control that restates the rule is free to outlive it. `completed` is the
+ * approve edge; the reject edge (`revision_requested`) is available from the same
+ * single status, so one predicate answers for both buttons.
+ *
+ * A brand may not approve a deal it has already sent back — `revision_requested`
+ * has no `completed` edge — which is what stops the screen offering an approval
+ * the endpoint would refuse with `DEAL_NOT_DELIVERED`.
+ */
+export function canReview(status: DealStatus): boolean {
+  return LEGAL_TRANSITIONS[status].includes('completed');
+}
+
+/**
  * The single, guarded transition function for all deal status changes (KAN-34).
  *
  * It enforces FR-007, re-reads the row under a `FOR UPDATE` lock before judging

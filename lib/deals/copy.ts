@@ -143,3 +143,72 @@ export const SUBMIT_DELIVERABLE_NETWORK_ERROR_MESSAGE =
  */
 export const SUBMIT_DELIVERABLE_FAILED_MESSAGE =
   'Could not submit your video. Reload the page and try again.';
+
+/**
+ * The brand's review surface (KAN-68, AC-023, AC-024).
+ *
+ * Here for the same forcing reason as everything above:
+ * `components/deals/review-actions.tsx` is `'use client'`, and
+ * `lib/deals/brand-detail.ts` imports `@/db` for its query, so importing copy
+ * from there pulls `pg` toward the browser and fails the build.
+ * `brand-detail.ts` re-exports these, so the server-side surface is unchanged.
+ */
+
+/** The two controls on a delivered deal. */
+export const APPROVE_DELIVERABLE_LABEL = 'Approve and pay';
+export const REJECT_DELIVERABLE_LABEL = 'Request changes';
+
+/**
+ * Approve says "and pay" because that is what it does, in one irreversible
+ * transaction: the hold is released to the creator net of commission and the deal
+ * is `completed` (AC-023). A button labelled only "Approve" would understate an
+ * action that moves money and cannot be undone — `LEGAL_TRANSITIONS.completed` is
+ * empty.
+ *
+ * Reject says "request changes" rather than "reject" because the deal goes back
+ * to the creator to re-deliver (AC-024), not to a dead end, and the funds stay
+ * held throughout.
+ */
+export const APPROVE_CONFIRM_MESSAGE =
+  'Approve this video and pay the creator? This cannot be undone — the money leaves escrow immediately, minus the platform commission.';
+
+/** While a request is in flight. Replaces the label, so the button never lies. */
+export const APPROVING_LABEL = 'Approving…';
+export const REJECTING_LABEL = 'Sending back…';
+
+export const APPROVE_SUCCESS_MESSAGE =
+  'Video approved. The creator has been paid and notified.';
+export const REJECT_SUCCESS_MESSAGE =
+  'Sent back to the creator with your notes. The funds stay held.';
+
+/** The field the brand types its reason into (AC-024, AC-3). */
+export const REJECT_REASON_LABEL = 'What needs to change?';
+export const REJECT_REASON_PLACEHOLDER =
+  'Tell the creator what to change before they resubmit…';
+
+/**
+ * The sentence under the field. Says the reason reaches the creator, because it
+ * does — it is stored on the deliverable *and* travels in their notification, so
+ * it is the instruction they act on rather than an internal note.
+ */
+export const REJECT_REASON_HINT =
+  'The creator sees this, so say what to change. The funds stay held while they work on it.';
+
+/**
+ * The browser could not reach the server at all — no response, so no error
+ * envelope and no code to branch on. The `ACCEPT_NETWORK_ERROR_MESSAGE`
+ * reasoning, applied to these controls.
+ */
+export const REVIEW_NETWORK_ERROR_MESSAGE =
+  'Could not reach the server. Check your connection and try again.';
+
+/**
+ * The fallbacks when a response carries no message of its own. Every code these
+ * endpoints return has a sentence in `ErrorMessage` — including
+ * `REASON_REQUIRED`'s and `DEAL_NOT_DELIVERED`'s — and that sentence is what gets
+ * shown; these cover only a response shaped unlike the envelope.
+ */
+export const APPROVE_FAILED_MESSAGE =
+  'Could not approve this video. Reload the page and try again.';
+export const REJECT_FAILED_MESSAGE =
+  'Could not send this video back. Reload the page and try again.';

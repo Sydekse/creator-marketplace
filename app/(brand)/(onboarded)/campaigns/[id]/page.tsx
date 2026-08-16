@@ -15,7 +15,9 @@ import { readCampaignEscrow } from '@/lib/campaigns/escrow';
 import {
   countAcceptedDeals,
   getCampaignForBrand,
+  listCampaignDeals,
 } from '@/lib/campaigns/queries';
+import { labelForStatus } from '@/lib/deals';
 import { formatEtb } from '@/lib/money';
 
 import { ConfirmCampaignButton } from '@/components/campaign/confirm-campaign-button';
@@ -47,14 +49,16 @@ export default async function CampaignCartPage({
   // campaign has left `draft`. A draft has no deals and no ledger entries, so both
   // answers are known to be zero — and running them anyway would put two queries
   // on the page that carries the cart, which is the one a brand loads repeatedly
-  // while shopping.
+  // while shopping. `listCampaignDeals` is gated the same way and for the same
+  // reason: a draft's creators are the cart, which is already being read below.
   const settled = campaign.status !== 'draft';
 
-  const [items, budget, escrowed, acceptedCount] = await Promise.all([
+  const [items, budget, escrowed, acceptedCount, deals] = await Promise.all([
     listCartItems(campaign.id),
     readCampaignBudget(campaign.id),
     settled ? readCampaignEscrow(campaign.id) : Promise.resolve(0),
     settled ? countAcceptedDeals(campaign.id) : Promise.resolve(0),
+    settled ? listCampaignDeals(campaign.id) : Promise.resolve([]),
   ]);
 
   // `getCampaignForBrand` already returned this campaign for this brand, so the
@@ -137,93 +141,176 @@ export default async function CampaignCartPage({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 flex flex-col gap-4">
-          <h2 className="text-xl font-semibold tracking-tight">
-            Cart ({items.length})
-          </h2>
+          {/*
+            The cart and the deals are the same creators at two different stages,
+            so the page shows one or the other rather than both. Before
+            confirmation the cart is the editable thing; after it the cart is
+            frozen and the deals are what actually moves — each with its own
+            status and its own review screen.
 
-          {items.length === 0 ? (
-            <EmptyState
-              title="Your cart is empty"
-              description="Browse the marketplace to find creators and add them to this campaign."
-              action={
-                <Link
-                  href="/discover"
-                  className={buttonVariants({ variant: 'default', size: 'sm' })}
-                >
-                  Browse creators
-                </Link>
-              }
-            />
+            This replaces a placeholder that had outlived its reason. The budget
+            panel below has carried a note since Wave 8 about naming "the live
+            deals once offers exist", and offers have existed since Wave 9; what
+            was still missing until now was anywhere for a row to link to.
+          */}
+          {settled ? (
+            <>
+              <h2 className="text-xl font-semibold tracking-tight">
+                Deals ({deals.length})
+              </h2>
+
+              {deals.length === 0 ? (
+                <EmptyState
+                  title="No deals on this campaign"
+                  description="Every offer was declined or expired, so the budget is back with you."
+                />
+              ) : (
+                <ul className="flex flex-col gap-4">
+                  {deals.map((d) => (
+                    <li key={d.id}>
+                      <Card>
+                        <CardContent className="p-6 flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between">
+                          <div className="flex flex-col gap-1">
+                            {/*
+                              The whole row's purpose: a way into the deal. This
+                              is the link the delivery email's CTA now lands on
+                              too, and the page it opens re-checks ownership in
+                              its own `where` rather than trusting this href.
+                            */}
+                            <Link
+                              href={`/deals/${d.id}`}
+                              className="font-semibold text-lg hover:underline"
+                            >
+                              {d.creatorHandle}
+                            </Link>
+                            <div>
+                              {/*
+                                The shared status vocabulary, so this list and the
+                                deal screen cannot call one state two things.
+                              */}
+                              <Badge variant="secondary">
+                                {labelForStatus(d.status)}
+                              </Badge>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-8 text-right">
+                            <div className="flex flex-col">
+                              <span className="text-sm text-muted-foreground">
+                                Videos
+                              </span>
+                              <span className="font-medium">
+                                x{d.videoCount}
+                              </span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-muted-foreground">
+                                Total
+                              </span>
+                              <span className="font-semibold text-primary">
+                                {formatEtb(d.totalPrice)}
+                              </span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           ) : (
-            <ul className="flex flex-col gap-4">
-              {items.map((item) => (
-                <li key={item.id}>
-                  <Card>
-                    <CardContent className="p-6 flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          <Link
-                            href={`/discover/${item.creatorId}`}
-                            className="font-semibold text-lg hover:underline"
-                          >
-                            {item.creator.tiktokHandle}
-                          </Link>
-                          {item.tier?.id && (
-                            <Badge variant="outline" className="text-xs">
-                              {item.tier.name} Tier
-                            </Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground capitalize">
-                          {item.creator.niche} creator
-                        </p>
-                      </div>
+            <>
+              <h2 className="text-xl font-semibold tracking-tight">
+                Cart ({items.length})
+              </h2>
 
-                      <div className="flex items-center gap-8 text-right">
-                        <div className="flex flex-col">
-                          <span className="text-sm text-muted-foreground">
-                            Rate
-                          </span>
-                          <span className="font-medium">
-                            {formatEtb(item.unitPrice)}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-sm text-muted-foreground">
-                            Videos
-                          </span>
-                          <span className="font-medium">
-                            x{item.videoCount}
-                          </span>
-                        </div>
-                        <div className="flex flex-col">
-                          <span className="text-sm text-muted-foreground">
-                            Total
-                          </span>
-                          <span className="font-semibold text-primary">
-                            {formatEtb(item.totalPrice)}
-                          </span>
-                        </div>
-                        {/*
-                          Draft only (AC-015): once the campaign is confirmed
-                          the offers exist, and withdrawing one is the
-                          decline/cancel path, not this. The endpoint refuses
-                          it either way — hiding the button is the courtesy,
-                          the 409 is the rule.
-                        */}
-                        {campaign.status === 'draft' && (
-                          <RemoveFromCartButton
-                            campaignId={campaign.id}
-                            creatorId={item.creatorId}
-                            creatorHandle={item.creator.tiktokHandle}
-                          />
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </li>
-              ))}
-            </ul>
+              {items.length === 0 ? (
+                <EmptyState
+                  title="Your cart is empty"
+                  description="Browse the marketplace to find creators and add them to this campaign."
+                  action={
+                    <Link
+                      href="/discover"
+                      className={buttonVariants({
+                        variant: 'default',
+                        size: 'sm',
+                      })}
+                    >
+                      Browse creators
+                    </Link>
+                  }
+                />
+              ) : (
+                <ul className="flex flex-col gap-4">
+                  {items.map((item) => (
+                    <li key={item.id}>
+                      <Card>
+                        <CardContent className="p-6 flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <Link
+                                href={`/discover/${item.creatorId}`}
+                                className="font-semibold text-lg hover:underline"
+                              >
+                                {item.creator.tiktokHandle}
+                              </Link>
+                              {item.tier?.id && (
+                                <Badge variant="outline" className="text-xs">
+                                  {item.tier.name} Tier
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground capitalize">
+                              {item.creator.niche} creator
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-8 text-right">
+                            <div className="flex flex-col">
+                              <span className="text-sm text-muted-foreground">
+                                Rate
+                              </span>
+                              <span className="font-medium">
+                                {formatEtb(item.unitPrice)}
+                              </span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-muted-foreground">
+                                Videos
+                              </span>
+                              <span className="font-medium">
+                                x{item.videoCount}
+                              </span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-sm text-muted-foreground">
+                                Total
+                              </span>
+                              <span className="font-semibold text-primary">
+                                {formatEtb(item.totalPrice)}
+                              </span>
+                            </div>
+                            {/*
+                              Draft only (AC-015): once the campaign is confirmed
+                              the offers exist, and withdrawing one is the
+                              decline/cancel path, not this. The endpoint refuses
+                              it either way — hiding the button is the courtesy,
+                              the 409 is the rule.
+                            */}
+                            <RemoveFromCartButton
+                              campaignId={campaign.id}
+                              creatorId={item.creatorId}
+                              creatorHandle={item.creator.tiktokHandle}
+                            />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
           )}
         </div>
 

@@ -5,6 +5,7 @@ export {
   getErrorCodeForInvalidTransition,
   canAct,
   canDeliver,
+  canReview,
 } from './state-machine';
 
 export { getDealHistory } from './queries';
@@ -15,5 +16,6 @@ export {
   GROUP_LABELS,
   groupForStatus,
   groupDeals,
+  labelForStatus,
 } from './groups';
 export type { DealGroup } from './groups';
