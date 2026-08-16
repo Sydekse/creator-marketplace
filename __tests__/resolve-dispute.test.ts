@@ -127,7 +127,7 @@ function makeDeps(
     pay: async (dealId, actorId) => {
       recorded.pays.push({ dealId, actorId });
       if (overrides.failPay) throw overrides.failPay;
-      return { payout: 85_000, commission: 15_000 };
+      return { payout: 85_000, commission: 15_000, totalPrice: 100_000 };
     },
     refund: async (dealId, actorId) => {
       recorded.refunds.push({ dealId, actorId });

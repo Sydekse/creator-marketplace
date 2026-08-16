@@ -14,6 +14,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx db/seed.ts",
     "db:push": "drizzle-kit push",
+    "email:preview": "tsx scripts/preview-emails.ts",
     "vercel-build": "if [ -n \"$DATABASE_URL\" ]; then if [ \"$USE_DRIZZLE_PUSH\" = \"true\" ]; then npx drizzle-kit push --force || exit 1; else npm run db:migrate || exit 1; fi; fi && next build"
   },
   "overrides": {

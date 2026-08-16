@@ -94,12 +94,19 @@ function statusOf(error: unknown): number | null {
 }
 
 /**
- * Rewrites every recipient to one inbox, keeping the real address in the
- * subject so a redirected mail is still traceable (AC-6).
+ * Rewrites every recipient to one inbox, keeping a *redacted* form of the real
+ * address in the subject so a redirected mail is still traceable (AC-6).
  *
  * This is the "routed to a test inbox" half of the AC — useful in preview
  * deploys, where the templates need real rendering through Resend but the
  * addresses belong to seeded demo users.
+ *
+ * **Redacted, because a subject line travels further than a body** (NFR-010).
+ * This used to interpolate `to` verbatim, which put a creator's full address in
+ * the one field that shows up in every inbox list, every notification preview,
+ * and every provider-side delivery log. `redactEmail` keeps the domain and the
+ * ends of the local part, which is all "still traceable" ever needed: it is
+ * enough to tell two seeded demo users apart at a glance.
  */
 export class RedirectingEmailProvider implements EmailProvider {
   readonly name: string;
@@ -114,7 +121,7 @@ export class RedirectingEmailProvider implements EmailProvider {
   async send(to: string, message: EmailMessage): Promise<EmailSendResult> {
     return this.inner.send(this.inbox, {
       ...message,
-      subject: `[to: ${to}] ${message.subject}`,
+      subject: `[to: ${redactEmail(to)}] ${message.subject}`,
     });
   }
 }

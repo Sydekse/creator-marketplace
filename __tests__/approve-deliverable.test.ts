@@ -9,6 +9,7 @@ import {
 import { ErrorCode, ErrorMessage } from '../lib/validation';
 import { PaymentError } from '../lib/payment';
 import { LedgerError } from '../lib/payment/ledger';
+import type { PayoutResult } from '../lib/payment/ledger';
 import type { DealStatus } from '../db/schema';
 
 /**
@@ -86,7 +87,7 @@ interface Overrides {
   dealMissing?: boolean;
   status?: DealStatus;
   payError?: Error;
-  payResult?: { payout: number; commission: number };
+  payResult?: PayoutResult;
   failNotify?: boolean;
 }
 
@@ -124,7 +125,13 @@ function makeDeps(overrides: Overrides = {}): {
       recorded.calls.push('pay');
       recorded.pays.push({ dealId, actorId });
       if (overrides.payError) throw overrides.payError;
-      return overrides.payResult ?? { payout: PAYOUT, commission: COMMISSION };
+      return (
+        overrides.payResult ?? {
+          payout: PAYOUT,
+          commission: COMMISSION,
+          totalPrice: TOTAL,
+        }
+      );
     },
     notify: async (userId, type, payload) => {
       recorded.calls.push('notify');
@@ -214,12 +221,18 @@ describe('AC-023 — approving pays the creator net of commission', () => {
     // import COMMISSION_RATE or the rate, and the figures it returns and
     // notifies with would disagree with what the entries were written from.
     const { result, recorded } = await approve({
-      payResult: { payout: 75_000, commission: 25_000 },
+      payResult: { payout: 75_000, commission: 25_000, totalPrice: 100_000 },
     });
 
     expect(result).toMatchObject({ payout: 75_000, commission: 25_000 });
+    // All three figures reach the email (KAN-55 AC-4), and all three are the
+    // ledger's. The template falls back to a one-figure sentence when the gross
+    // and the commission are absent — a fallback meant for rows written before
+    // KAN-55, which would be invisible if it silently became the live path here.
     expect(recorded.notifications[0].payload).toMatchObject({
       payout: 75_000,
+      commission: 25_000,
+      totalPrice: 100_000,
     });
   });
 

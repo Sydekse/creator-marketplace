@@ -240,6 +240,11 @@ async function expireOne(
         dealId,
         campaignTitle: row.campaignName,
         releasedAmount: row.totalPrice,
+        // So the mail can link the campaign rather than the list (KAN-55 AC-2).
+        // `loadDeal` already selected this and threw it away — re-offering the
+        // released budget happens on the campaign page, which is the one place
+        // the email is asking the brand to go.
+        campaignId: row.campaignId,
       });
 
       return 'expired';

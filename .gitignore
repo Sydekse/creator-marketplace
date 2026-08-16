@@ -42,6 +42,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# rendered email previews (`npm run email:preview`) — build output, not source
+.email-preview/
+
 CLAUDE.md 
 AGENTS.md 
 project_context/
