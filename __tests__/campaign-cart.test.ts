@@ -966,25 +966,26 @@ describe('remove-from-cart button (AC-015 — the brand-facing half)', () => {
   });
 
   it('shows the control only on a draft campaign', () => {
-    // The guard moved from a condition on the button to the branch that decides
-    // whether a cart is rendered at all (KAN-68). `settled` is
-    // `status !== 'draft'`, the deals list is its first arm and the cart its
-    // second, so a confirmed campaign never reaches the remove control — the two
-    // lists are the same creators at different stages and showing both would
-    // duplicate them.
+    // The guard lives in the branch that decides whether a cart is rendered at
+    // all, not on the button. `settled` is `status !== 'draft'`; its first arm is
+    // the performance section and its second is the cart, so a confirmed campaign
+    // never reaches the remove control.
     //
-    // Asserted as structure rather than as the old inline `&&` so this test stays
-    // about the rule instead of its spelling.
+    // Rewritten twice now, both times because the arm changed rather than the
+    // rule: KAN-68 moved the guard off the button, and KAN-49 replaced the deals
+    // list in the first arm with `<VideoPerformance>` (the same rows plus
+    // engagement counts). Asserted as structure so the test stays about the rule
+    // instead of whichever component currently occupies the settled branch.
     expect(PAGE).toContain("const settled = campaign.status !== 'draft'");
 
     const ternary = PAGE.search(/settled \? \(/);
-    const dealsBranch = PAGE.indexOf('Deals ({deals.length})');
+    const settledBranch = PAGE.indexOf('<VideoPerformance');
     const cartBranch = PAGE.indexOf('Cart ({items.length})');
     const button = PAGE.indexOf('<RemoveFromCartButton');
 
     expect(ternary).toBeGreaterThan(-1);
-    expect(dealsBranch).toBeGreaterThan(ternary);
-    expect(cartBranch).toBeGreaterThan(dealsBranch);
+    expect(settledBranch).toBeGreaterThan(ternary);
+    expect(cartBranch).toBeGreaterThan(settledBranch);
     expect(button).toBeGreaterThan(cartBranch);
   });
 

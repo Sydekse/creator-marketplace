@@ -4,8 +4,13 @@ import { ledgerEntry } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
 
 /**
- * How much is held for a campaign — the `escrowed` view of the spike §6 identity
- * `budget = available + escrowed + spent` (KAN-43).
+ * Campaign-level reads over `ledger_entry` — the `escrowed` and `spent` views of
+ * the spike §6 identity `budget = available + escrowed + spent` (KAN-43, KAN-49).
+ *
+ * `sumEscrowedByCampaign` answers what is *held*; `sumSettledByCampaign` answers
+ * what has *left*, split into the creator's payout and the platform's commission.
+ * Both are un-guarded leaves; their guarded, request-scoped counterparts live in
+ * `lib/campaigns/`.
  *
  * **Why this is its own module rather than a private method on the service.** It
  * was `EscrowLedgerService.sumBalance`, and it is the number the non-negativity
@@ -63,4 +68,49 @@ export async function sumEscrowedByCampaign(
   // keeps invariant 4's integers integers rather than letting a string reach
   // `formatEtb` or the arithmetic in `holdForCampaign`.
   return Number(row?.balance ?? 0);
+}
+
+/**
+ * What has *left* escrow for a campaign, split by where it went (KAN-49).
+ *
+ * The `spent` half of the spike §6 identity `budget = available + escrowed +
+ * spent`, which nothing read until the campaign dashboard needed it. Both
+ * figures are integer santim (invariant 4), and both are non-negative.
+ *
+ * **Summed from the ledger, never recomputed.** AC-026 asks the dashboard to show
+ * what was paid out and what commission was taken, and the honest source is the
+ * rows the payout transaction actually wrote — `computeSplit` is deliberately not
+ * imported here. Re-deriving `total × rate` on the read side would be a second
+ * implementation of the arithmetic that pays people, and the two would disagree
+ * the first time a rate changed or a rounding rule moved. `lib/creators/dashboard.ts`
+ * makes the same argument for the creator's side of the same numbers.
+ *
+ * **Both sums negate.** `release_payout` and `commission` are written negative —
+ * positive is into escrow, negative is out (`db/schema.ts`) — so a raw `SUM`
+ * returns a negative and would render as `−12,750.00 ETB` paid out. The `CASE
+ * WHEN … THEN -amount` shape is `earningsQuery`'s, for the same reason.
+ *
+ * **One query, two aggregates.** They come off the same index scan of the same
+ * rows, so two round trips would read `ledger_entry_campaign_created_idx` twice to
+ * answer one question (NFR-001).
+ *
+ * `::int` is not optional — see the note above. A campaign with no settled deals
+ * sums to 0 rather than null, so no call site needs a branch.
+ */
+export async function sumSettledByCampaign(
+  campaignId: string,
+  client: typeof db | Tx = db
+): Promise<{ paidOut: number; commission: number }> {
+  const [row] = await client
+    .select({
+      paidOut: sql<number>`coalesce(sum(case when ${ledgerEntry.entryType} = 'release_payout' then -${ledgerEntry.amount} else 0 end), 0)::int`,
+      commission: sql<number>`coalesce(sum(case when ${ledgerEntry.entryType} = 'commission' then -${ledgerEntry.amount} else 0 end), 0)::int`,
+    })
+    .from(ledgerEntry)
+    .where(eq(ledgerEntry.campaignId, campaignId));
+
+  return {
+    paidOut: Number(row?.paidOut ?? 0),
+    commission: Number(row?.commission ?? 0),
+  };
 }
