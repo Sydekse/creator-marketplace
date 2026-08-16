@@ -137,6 +137,21 @@ export function canReview(status: DealStatus): boolean {
 }
 
 /**
+ * Can this deal's creator be asked for engagement metrics? (KAN-57, AC-027.)
+ *
+ * Exactly `{completed}` — the one status where a video is owed metrics: the
+ * brand approved and the creator was paid, and nothing after that moves the
+ * machine (`LEGAL_TRANSITIONS.completed` is empty). This is the same set the
+ * metric-reminder predicate names (`pending-metrics.ts`), and deriving it here
+ * rather than restating `status === 'completed'` at the page keeps the two from
+ * drifting: an edge added out of `completed` fails the suite's terminality
+ * assertion and points at this gate in the same edit.
+ */
+export function canReportMetrics(status: DealStatus): boolean {
+  return status === 'completed';
+}
+
+/**
  * The single, guarded transition function for all deal status changes (KAN-34).
  *
  * It enforces FR-007, re-reads the row under a `FOR UPDATE` lock before judging

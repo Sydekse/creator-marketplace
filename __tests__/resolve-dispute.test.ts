@@ -131,7 +131,12 @@ function makeDeps(
           throw overrides.failNotifications;
         }
         recorded.rows.push(row);
-        return Promise.resolve();
+        // `insertRow` chains `.returning()` off `values` to read the generated
+        // id (the `delivered_at` stamp, KAN-57 F3), so the fake must return the
+        // next link in the builder chain.
+        return {
+          returning: async () => [{ id: `n-${insertCount}` }],
+        };
       }),
     })),
     update: vi.fn(() => ({

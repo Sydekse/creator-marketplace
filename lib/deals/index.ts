@@ -6,6 +6,7 @@ export {
   canAct,
   canDeliver,
   canReview,
+  canReportMetrics,
 } from './state-machine';
 
 export { getDealHistory } from './queries';

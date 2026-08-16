@@ -427,6 +427,17 @@ export const notification = pgTable('notification', {
   type: text('type').notNull(),
   payload: jsonb('payload').notNull(),
   readAt: timestamp('read_at', { withTimezone: true }),
+  /**
+   * When the provider accepted the email (KAN-57 review, F3).
+   *
+   * Null until dispatch succeeds, and written *after* the transaction
+   * commits — so it is delivery bookkeeping, never part of the money path.
+   * Its consumer is the metric-reminder idempotency guard: only a
+   * *delivered* reminder suppresses the next one, so a dispatch failure
+   * (or a crash before flush) leaves the row undelivered and the next run
+   * tries again instead of believing a mail the creator never saw.
+   */
+  deliveredAt: timestamp('delivered_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

@@ -48,6 +48,16 @@ type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
  * row is the source of truth and the email is the courtesy copy. Making
  * delivery durable means an outbox table drained by cron; that is a follow-up,
  * not this ticket (the 13-table schema is fixed, and KAN-55/56 own the cron).
+ *
+ * **Delivery is still recorded.** A successful dispatch stamps
+ * `notification.delivered_at` (a post-commit write, so it can never roll back
+ * a domain transaction — it is bookkeeping about mail, not part of the money
+ * path). The stamp's consumer is the metric-reminder guard (KAN-57 F3): only
+ * a *delivered* reminder suppresses the next one, so a dispatch failure is
+ * retried on the next run instead of being believed delivered. A crash between
+ * commit and stamp leaves the row undelivered and the next run re-reminds —
+ * the mirror of the crash-loss above, and the safe direction: it may send one
+ * mail twice, never believe one was sent.
  */
 
 /** The single entry point named by AC-1, in both its bound and unbound forms. */
@@ -84,6 +94,8 @@ function defaultDeps(): NotifyDeps {
 
 /** A queued email, waiting for its transaction to commit. */
 interface Pending {
+  /** The inserted row — what gets stamped `deliveredAt` once dispatch succeeds. */
+  rowId: string;
   userId: string;
   input: NotificationInput;
 }
@@ -110,8 +122,12 @@ export async function withNotifications<T>(
     // transaction. There is no form of it that exists without one, and so no
     // way for a caller to get hold of one that writes outside the transaction.
     const scoped: Notify = async (userId, type, payload) => {
-      await insertRow(deps.db, userId, type, payload, tx);
-      pending.push({ userId, input: { type, payload } as NotificationInput });
+      const rowId = await insertRow(deps.db, userId, type, payload, tx);
+      pending.push({
+        rowId,
+        userId,
+        input: { type, payload } as NotificationInput,
+      });
     };
 
     return fn(tx, scoped);
@@ -143,9 +159,9 @@ export async function notifyWith<K extends NotificationType>(
   type: K,
   payload: NotificationPayloadMap[K]
 ): Promise<void> {
-  await insertRow(deps.db, userId, type, payload);
+  const rowId = await insertRow(deps.db, userId, type, payload);
   await flush(
-    [{ userId, input: { type, payload } as NotificationInput }],
+    [{ rowId, userId, input: { type, payload } as NotificationInput }],
     deps
   );
 }
@@ -156,12 +172,16 @@ async function insertRow<K extends NotificationType>(
   type: K,
   payload: NotificationPayloadMap[K],
   tx?: Tx
-): Promise<void> {
-  await (tx ?? db).insert(schema.notification).values({
-    userId,
-    type,
-    payload,
-  });
+): Promise<string> {
+  const [row] = await (tx ?? db)
+    .insert(schema.notification)
+    .values({
+      userId,
+      type,
+      payload,
+    })
+    .returning({ id: schema.notification.id });
+  return row.id;
 }
 
 /**
@@ -188,11 +208,33 @@ async function flush(pending: Pending[], deps: NotifyDeps): Promise<void> {
       }
 
       const message = await deps.render(item.input);
-      await dispatchWithRetry(recipient, message, {
+      const outcome = await dispatchWithRetry(recipient, message, {
         provider: deps.provider,
         sleep: deps.sleep,
         log: deps.log,
       });
+
+      // Only a delivered mail gets the stamp. A failure (or a crash before
+      // this line) leaves `delivered_at` null, which is the metric-reminder
+      // guard's signal to try again next run — and for every other type it is
+      // inert bookkeeping. This write is post-commit and never throws to the
+      // caller: its failure degrades to "undelivered", the safe direction.
+      if (outcome.ok) {
+        try {
+          await deps.db
+            .update(schema.notification)
+            .set({ deliveredAt: new Date() })
+            .where(eq(schema.notification.id, item.rowId));
+        } catch (error) {
+          deps.log.error(
+            `[email] delivered stamp failed for user=${item.userId} type=${item.input.type} reason=${
+              error instanceof Error
+                ? JSON.stringify(error.message)
+                : '"unknown"'
+            }`
+          );
+        }
+      }
     } catch (error) {
       // Reached only if rendering or the lookup itself throws; dispatch handles
       // its own. Still swallowed — same reason.

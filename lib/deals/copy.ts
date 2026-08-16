@@ -145,6 +145,55 @@ export const SUBMIT_DELIVERABLE_FAILED_MESSAGE =
   'Could not submit your video. Reload the page and try again.';
 
 /**
+ * The creator's metrics-entry form (KAN-57 review fix — F2).
+ *
+ * KAN-48 built `PUT /api/deliverables/{id}/metrics` but no UI ever called it:
+ * a creator reminded to "Submit your metrics" had nowhere to submit them. The
+ * form on the completed deal page is that place. Copy lives here for the same
+ * forcing reason as the deliverable form's — `components/deals/metrics-form.tsx`
+ * is `'use client'`, and importing from `detail.ts` would drag `pg` toward the
+ * browser.
+ */
+
+/** The heading over the form's field group, on the completed deal page. */
+export const METRICS_TITLE = 'Report your engagement numbers';
+
+/**
+ * The sentence under the heading. Names the reader's own stake the way the
+ * reminder email does: the brand's dashboard reads "Metrics pending" until
+ * these arrive, and the reminder's promise is only actionable here.
+ */
+export const METRICS_DESCRIPTION =
+  'The brand sees “Metrics pending” until you record views, likes, shares and comments for this video.';
+
+export const METRIC_VIEWS_LABEL = 'Views';
+export const METRIC_LIKES_LABEL = 'Likes';
+export const METRIC_SHARES_LABEL = 'Shares';
+export const METRIC_COMMENTS_LABEL = 'Comments';
+
+/**
+ * The hint under the four fields. Tells the truth about zeros — a recorded `0`
+ * is a measurement and clears the pending state; the KAN-50 distinction null ≠
+ * zero is exactly the one this form has to preserve.
+ */
+export const METRICS_HINT =
+  'Enter the numbers as they stand now. A recorded 0 is a real measurement — missing is what keeps the dashboard pending.';
+
+/** While the request is in flight. Replaces the label, so the button never lies. */
+export const SUBMITTING_METRICS_LABEL = 'Submitting…';
+
+export const SUBMIT_METRICS_LABEL = 'Submit metrics';
+
+export const SUBMIT_METRICS_SUCCESS_MESSAGE =
+  'Metrics submitted. The campaign dashboard will show them now.';
+
+export const SUBMIT_METRICS_NETWORK_ERROR_MESSAGE =
+  'Could not reach the server. Check your connection and try again.';
+
+export const SUBMIT_METRICS_FAILED_MESSAGE =
+  'Could not submit your metrics. Reload the page and try again.';
+
+/**
  * The brand's review surface (KAN-68, AC-023, AC-024).
  *
  * Here for the same forcing reason as everything above:
