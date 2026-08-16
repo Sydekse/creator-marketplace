@@ -265,7 +265,7 @@ type DemoDealSpec = {
 };
 
 /**
- * Seven campaigns, one deal each, covering all five dashboard groups (AC-2).
+ * Demo campaigns, one deal each, covering all five dashboard groups (AC-2).
  *
  * One campaign per deal, which looks redundant and is not: `holdForCampaign`
  * funds *every* accepted deal in a campaign at once, and `deal` is unique on
@@ -284,6 +284,16 @@ const DEMO_DEALS: readonly DemoDealSpec[] = [
     campaignName: 'Ramadan Beauty Push',
     goal: 'Drive awareness for the seasonal gift set.',
     videoCount: 2,
+    target: 'pending',
+  },
+  {
+    // KAN-60 flow 3 fixture: a pending offer the e2e can walk the decline
+    // through the real UI on. 'Ramadan Beauty Push' is reserved for flow 1
+    // (which accepts it), so the decline walk needs its own campaign. Only
+    // e2e/decline-expiry.spec.ts touches this one.
+    campaignName: 'Spring Style Drop',
+    goal: 'Preview the spring capsule before launch.',
+    videoCount: 1,
     target: 'pending',
   },
   {
