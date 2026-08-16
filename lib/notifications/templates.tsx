@@ -255,6 +255,7 @@ const subjects: {
   offer_expired: (p) => `An offer for ${p.campaignTitle} expired`,
   offer_accepted: (p) => `${p.creatorHandle} accepted your offer`,
   offer_declined: (p) => `${p.creatorHandle} declined your offer`,
+  metric_reminder: (p) => `Metrics still pending for ${p.campaignTitle}`,
 };
 
 function Content({ type, payload }: NotificationInput): React.ReactElement {
@@ -518,6 +519,29 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             href={appUrl(`/campaigns/${payload.campaignId}`)}
             label="Open the campaign →"
           />
+        </Layout>
+      );
+
+    case 'metric_reminder':
+      // KAN-57: the scheduler's second pass found this video still unmeasured
+      // past its window (AC-027). The email names the deal and the one next
+      // action; the numbers the brand sees stay "Metrics pending" until the
+      // creator submits them (KAN-50).
+      return (
+        <Layout
+          preview={`Metrics still pending for ${payload.campaignTitle}`}
+          heading="Your engagement metrics are still pending"
+        >
+          <Text style={styles.text}>
+            Your video for {payload.campaignTitle} was approved, but the
+            engagement numbers have not been submitted yet.
+          </Text>
+          <Text style={styles.text}>
+            The brand sees <strong>Metrics pending</strong> until you record
+            views, likes, shares and comments. Submitting them keeps the
+            campaign dashboard accurate.
+          </Text>
+          <Cta href={appUrl('/creator/deals')} label="Submit your metrics →" />
         </Layout>
       );
   }

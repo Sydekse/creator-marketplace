@@ -119,6 +119,13 @@ export const SAMPLE_NOTIFICATIONS: {
       releasedAmount: 450_000,
     },
   },
+  metric_reminder: {
+    type: 'metric_reminder',
+    payload: {
+      dealId: 'd1',
+      campaignTitle: 'Spring Coffee Push',
+    },
+  },
 };
 
 /**

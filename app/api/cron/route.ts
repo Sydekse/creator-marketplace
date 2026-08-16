@@ -8,6 +8,7 @@ import {
 } from '@/lib/scheduler/harness';
 import type { Job, SchedulerRunResult } from '@/lib/scheduler/harness';
 import { expireOffersJob } from '@/lib/deals/expire-offers';
+import { metricRemindersJob } from '@/lib/deals/metric-reminders';
 import { ErrorCode, ErrorHttpStatus, errorResponse } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
@@ -29,10 +30,11 @@ const CRON_TIMEOUT_ABORT_REASON = 'Internal execution timeout';
  * so a failure here does not reach the next one (KAN-56 AC-003).
  *
  * `expire-offers` (KAN-38) is first because it releases brand budget, which is
- * the one thing in this run a person is waiting on. KAN-57's metric reminders
- * join it later.
+ * the one thing in this run a person is waiting on. `metric-reminders` (KAN-57)
+ * follows: it only sends a notification, so a budget release failing before it
+ * does not cost the reminders anything either.
  */
-const jobsToRun: Job[] = [expireOffersJob];
+const jobsToRun: Job[] = [expireOffersJob, metricRemindersJob];
 
 /** Injectable for tests — the only seam the route exposes. */
 export interface CronRouteDeps {

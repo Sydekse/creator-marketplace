@@ -140,10 +140,13 @@ describe('notification types', () => {
    * the order the AC gives them, and named here so the next person reads the
    * change as a deliberate addition rather than drift.
    */
-  it('covers every AC-2 point except payout_sent, plus the two the deal wave adds', () => {
+  it('covers every AC-2 point except payout_sent, plus the deal-wave adds and KAN-57', () => {
     // `payout_sent` was dropped (KAN-55 review): it had no producer, and the
     // approval email already carries the money because payout is instant. Named
     // here so re-adding it (Q3 async settlement) reads as a deliberate change.
+    // `metric_reminder` is the scheduler's second pass (KAN-57) — a new wave's
+    // addition, so it is named at the end rather than reordered into the AC-2
+    // nine.
     expect([...NOTIFICATION_TYPES]).toEqual([
       'offer_received',
       'verification_result',
@@ -155,6 +158,7 @@ describe('notification types', () => {
       'offer_expired',
       'offer_accepted',
       'offer_declined',
+      'metric_reminder',
     ]);
   });
 

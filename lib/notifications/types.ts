@@ -43,6 +43,7 @@ export const NOTIFICATION_TYPES = [
   'offer_expired',
   'offer_accepted',
   'offer_declined',
+  'metric_reminder',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -164,6 +165,10 @@ export interface NotificationPayloadMap {
      * fact, so the same word.
      */
     releasedAmount: number;
+  };
+  metric_reminder: {
+    dealId: string;
+    campaignTitle: string;
   };
 }
 
