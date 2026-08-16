@@ -14,5 +14,16 @@ export default defineConfig({
     // leave a mock (e.g. a silenced `console.error`) leaking into the rest of
     // the file — the run that matters is the one where something failed.
     restoreMocks: true,
+
+    // KAN-60's Playwright specs run under their own runner (`test:e2e`) and
+    // need a built app plus browsers. The plain unit run must not collect
+    // them — Playwright's `test()` throws outside its own runner.
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/cypress/**',
+      '**/.{idea,git,cache,output,temp}/**',
+      'e2e/**',
+    ],
   },
 });
