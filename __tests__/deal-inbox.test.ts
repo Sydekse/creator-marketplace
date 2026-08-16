@@ -1014,12 +1014,14 @@ describe('every path to the inbox names the same route', () => {
       (m) => m[1]
     );
 
-    // Four of them — offer received, deliverable approved, revision requested,
-    // and KAN-57's metric reminder — all naming a route that now exists. (A
-    // fifth, payout sent, was dropped with its type in the KAN-55 review.) The
-    // exact count rather than "at least one": a regression that dropped two of
-    // them would still pass a `> 0` assertion.
-    expect(ctas.filter((href) => href === ROUTE)).toHaveLength(4);
+    // Three of them — offer received, deliverable approved, revision requested
+    // — all naming a route that now exists. (A fourth, payout sent, was dropped
+    // with its type in the KAN-55 review, and KAN-57's metric reminder deep-
+    // links to the specific deal instead of the list — the regex above matches
+    // only single-quoted `appUrl('...')`, so the template-literal deep link is
+    // not counted here.) The exact count rather than "at least one": a
+    // regression that dropped two of them would still pass a `> 0` assertion.
+    expect(ctas.filter((href) => href === ROUTE)).toHaveLength(3);
     expect(ctas).not.toContain('/deals');
   });
 

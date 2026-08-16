@@ -541,7 +541,14 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             views, likes, shares and comments. Submitting them keeps the
             campaign dashboard accurate.
           </Text>
-          <Cta href={appUrl('/creator/deals')} label="Submit your metrics →" />
+          {/* Deep-linked, the way the deal's own emails are: the pass names
+              this creator's oldest overdue video, so the CTA lands on that
+              deal rather than the inbox list they would have to search. The
+              payload's `dealId` exists for exactly this. */}
+          <Cta
+            href={appUrl(`/creator/deals/${payload.dealId}`)}
+            label="Submit your metrics →"
+          />
         </Layout>
       );
   }
