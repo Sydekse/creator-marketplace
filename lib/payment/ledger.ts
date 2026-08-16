@@ -89,12 +89,6 @@ export function computeSplit(
 }
 
 /**
- * What one funding run put into escrow (KAN-43).
- *
- * The figures the `campaign_funded` notification states, taken from the
- * transaction that wrote the entries rather than re-derived afterwards.
- */
-/**
  * What one approval released to the creator and kept as commission (KAN-45).
  *
  * The figures the `release_payout`/`commission` entries were written from,
@@ -108,13 +102,24 @@ export interface PayoutResult {
   commission: number;
 }
 
+/**
+ * What one funding run put into escrow (KAN-43).
+ *
+ * The figures the `campaign_funded` notification states, taken from the
+ * transaction that wrote the entries rather than re-derived afterwards.
+ *
+ * There is deliberately **no `providerRef`** here. Funding places one hold per
+ * deal (KAN-68, F20), so there are N references and no single one describes the
+ * run — the field this type used to carry documented itself as "shared by every
+ * entry in the run", which is exactly the property that made refunding one deal
+ * release every deal's money. Each `hold` ledger row carries its own ref, which
+ * is where a reconciliation should read them from.
+ */
 export interface HoldForCampaignResult {
   /** How many deals moved `accepted -> funded`. */
   dealCount: number;
   /** The sum held, in integer santim (invariant 4). */
   totalHeld: number;
-  /** The provider's reference for the hold, shared by every entry in the run. */
-  providerRef: string;
 }
 
 /** Spike §5.3: 3 retries on serialization failure, exponential backoff. */
@@ -163,8 +168,19 @@ export class EscrowLedgerService {
   /**
    * Hold funds for every accepted deal in a confirmed campaign (KAN-43, AC-019).
    *
-   * One `provider.hold()` for the campaign total, then one `hold` ledger entry
-   * per deal so each deal's escrow can be released or refunded independently.
+   * **One `provider.hold()` per deal**, each with its own `providerRef` on its
+   * own `hold` ledger entry, so a deal's escrow can genuinely be released or
+   * refunded independently.
+   *
+   * This reverses spike §5.2, which says to call `provider.hold()` once for the
+   * campaign total (KAN-68, F20). The spike's own design forces the reversal: it
+   * defines `refundDeal(dealId)` as a per-deal operation while `releaseHold`
+   * takes no amount and is documented as releasing the *entire* hold. With one
+   * campaign-wide reference, refunding one deal of five told the processor to let
+   * go of all five — our ledger recorded a single refund, the PSP released
+   * everything, and the next payout failed against a reference that was no longer
+   * `held`. The PRD is silent on granularity (AC-019 says "captured/held"), so
+   * nothing above the spike had to change.
    *
    * Returns what it held rather than `void`, so the caller can say so without
    * asking the database a second question after the transaction has closed. A
@@ -235,11 +251,21 @@ export class EscrowLedgerService {
 
       const total = deals.reduce((sum, d) => sum + d.totalPrice, 0);
 
-      const held = await this.provider.hold(total, idempotencyKey);
-
       let balance = await this.sumBalance(tx, campaignId);
 
       for (const d of deals) {
+        // One hold per deal, keyed per deal. The suffix is not decoration:
+        // `MockPaymentProvider.hold` deduplicates on `{ amount }` alone, so two
+        // equal-priced deals sharing one key would silently receive the *same*
+        // `providerRef` with no error raised — reproducing the very bug this
+        // loop exists to fix. Deriving the key from the method-level UUID rather
+        // than generating one here keeps the retry-replay property above: the
+        // same deal asks for the same key on every attempt.
+        const held = await this.provider.hold(
+          d.totalPrice,
+          `${idempotencyKey}:${d.id}`
+        );
+
         balance += d.totalPrice;
 
         await tx.insert(schema.ledgerEntry).values({
@@ -266,7 +292,6 @@ export class EscrowLedgerService {
       return {
         dealCount: deals.length,
         totalHeld: total,
-        providerRef: held.providerRef,
       };
     });
   }
@@ -277,6 +302,12 @@ export class EscrowLedgerService {
    * `payout` is derived by subtraction from integer basis points (spike §3.3),
    * which is what guarantees `release_payout + commission === total_price`
    * exactly rather than to within a rounding error.
+   *
+   * **Two provider legs, one per ledger row** (KAN-68, F21): the creator's payout
+   * and the platform's commission. Together they draw the deal's hold down to
+   * zero, which is what takes it to `captured` — the terminal state the provider
+   * contract documents. Capturing only the payout, which is what this used to do,
+   * left the commission slice outstanding at the processor forever.
    *
    * Returns what it moved, like `holdForCampaign` returns what it held: the
    * figures the entries were actually written from, captured inside the
@@ -323,8 +354,37 @@ export class EscrowLedgerService {
         payout,
         deal.creatorId,
         holdRef,
-        idempotencyKey
+        `${idempotencyKey}:payout`
       );
+
+      // The platform's leg (KAN-68, F21). Until this existed the `commission`
+      // row below said the platform took its cut and the processor was never
+      // told, so the hold sat at `held` with the commission slice outstanding
+      // forever and the platform was never actually paid.
+      //
+      // Skipped at zero, which is a real and ordinary case rather than a guard
+      // against nonsense: `computeSplit(3, '15.00')` is 0, and so is any deal at
+      // a 0% rate, while the provider refuses a zero amount. Nothing is stranded
+      // by the skip — `payout + commission === total_price` exactly, and the hold
+      // is for `total_price`, so a zero commission means the payout leg alone
+      // drew the remaining amount to zero and the hold is already `captured`.
+      //
+      // Distinct keys per leg. Two legs sharing one key throw
+      // `DUPLICATE_IDEMPOTENCY` the moment their amounts differ, and would
+      // replay the first leg's cached result in the case where they matched.
+      //
+      // Both calls are inside the transaction, so a failure here rolls back the
+      // payout leg's rows with everything else (invariant 1, NFR-003). It costs
+      // a second provider round-trip on approve, which is an NFR-002 latency
+      // consideration rather than a correctness one — free against the in-process
+      // mock, and a real processor under Q3 would want them batched.
+      if (commission > 0) {
+        await this.provider.captureCommission(
+          commission,
+          holdRef,
+          `${idempotencyKey}:commission`
+        );
+      }
 
       await tx.insert(schema.ledgerEntry).values([
         {

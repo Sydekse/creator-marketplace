@@ -707,17 +707,38 @@ describe('NFR-002 — the work is bounded', () => {
     expect(recorded.calls).toHaveLength(3);
   });
 
-  it('sums the balance once and captures the payout once inside the ledger', () => {
-    // Both in `payoutForDeal`: one `sumBalance` under the campaign lock and one
-    // `provider.capturePayout`, with the two ledger inserts derived in memory
-    // from the same computed split — no re-summing and no second capture for
-    // any input shape.
+  it('sums the balance once and captures exactly the two legs inside the ledger', () => {
+    // Both in `payoutForDeal`: one `sumBalance` under the campaign lock, and two
+    // provider calls — the creator's payout and the platform's commission — with
+    // the two ledger inserts derived in memory from the same computed split.
+    //
+    // This asserted **one** provider call until KAN-68. The bound was right about
+    // the shape and wrong about the number: capturing only the payout left the
+    // commission slice of the hold outstanding at the processor forever, so the
+    // platform was never actually paid (F21). Two is now the correct fixed count.
+    //
+    // NFR-002 is what this guard is for, and it is a *latency* requirement —
+    // "core API actions respond within 1 second" (PRD:211), not a rule about how
+    // many captures a payout may make. What it forbids is a fan-out that scales
+    // with a table's size, and the count below is still fixed: two legs per
+    // approval regardless of input. The cost is one extra round-trip, free
+    // against the in-process mock and worth batching if a real processor lands
+    // under Q3.
     const payoutBody = LEDGER_MODULE.slice(
       LEDGER_MODULE.indexOf('async payoutForDeal'),
       LEDGER_MODULE.indexOf('async refundDeal')
     );
     expect(payoutBody).toContain('this.sumBalance(tx, deal.campaignId)');
     expect(payoutBody.match(/this\.sumBalance/g)).toHaveLength(1);
-    expect(payoutBody.match(/this\.provider\./g)).toHaveLength(1);
+    expect(payoutBody.match(/this\.provider\./g)).toHaveLength(2);
+    // Named rather than counted, so a second *payout* leg cannot pass as the
+    // commission one.
+    expect(payoutBody).toContain('this.provider.capturePayout(');
+    expect(payoutBody).toContain('this.provider.captureCommission(');
+    expect(payoutBody.match(/this\.provider\.capturePayout\(/g)).toHaveLength(
+      1
+    );
+    // No loop around either call — the fan-out NFR-002 actually cares about.
+    expect(payoutBody).not.toMatch(/for\s*\(/);
   });
 });

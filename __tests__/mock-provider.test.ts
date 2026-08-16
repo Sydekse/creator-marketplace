@@ -349,6 +349,123 @@ describe('MockPaymentProvider', () => {
     });
   });
 
+  describe('captureCommission', () => {
+    // The platform's leg (KAN-68, F21). Every guard mirrors `capturePayout`
+    // because both draw against the same remaining balance — the difference is
+    // only that the platform needs no recipient.
+
+    it('reduces the remaining amount and leaves the hold held', async () => {
+      const hold = await provider.hold(3000, 'com-1');
+      await provider.captureCommission(450, hold.providerRef, 'com-2');
+
+      const status = await provider.getStatus(hold.providerRef);
+      expect(status.amount).toBe(2550);
+      expect(status.state).toBe('held');
+    });
+
+    it('takes a hold to captured together with the payout leg', async () => {
+      // The property F21 exists for: the two legs between them drain the hold, so
+      // it reaches the terminal state the contract documents instead of sitting at
+      // `held` with the commission outstanding forever.
+      const hold = await provider.hold(100_000, 'both-1');
+      await provider.capturePayout(
+        85_000,
+        'creator_abc',
+        hold.providerRef,
+        'both-payout'
+      );
+      expect(await provider.getStatus(hold.providerRef)).toMatchObject({
+        state: 'held',
+        amount: 15_000,
+      });
+
+      await provider.captureCommission(15_000, hold.providerRef, 'both-comm');
+      expect(await provider.getStatus(hold.providerRef)).toMatchObject({
+        state: 'captured',
+        amount: 0,
+      });
+    });
+
+    it('throws on an unknown ref', async () => {
+      await expect(
+        provider.captureCommission(100, 'unknown', 'com-unknown')
+      ).rejects.toMatchObject({ code: 'INVALID_REFERENCE' });
+    });
+
+    it('refuses a hold that is not held', async () => {
+      const hold = await provider.hold(1000, 'com-rel-1');
+      await provider.releaseHold(hold.providerRef, 'com-rel-2');
+      await expect(
+        provider.captureCommission(100, hold.providerRef, 'com-rel-3')
+      ).rejects.toThrow(/expected 'held'/);
+    });
+
+    it('refuses more than the remaining amount', async () => {
+      const hold = await provider.hold(1000, 'com-exc-1');
+      await provider.capturePayout(
+        900,
+        'creator_abc',
+        hold.providerRef,
+        'com-exc-2'
+      );
+      // 200 is under the original hold and over what is left of it.
+      await expect(
+        provider.captureCommission(200, hold.providerRef, 'com-exc-3')
+      ).rejects.toThrow('INSUFFICIENT_FUNDS');
+    });
+
+    it('refuses a zero amount', async () => {
+      // Which is why the ledger skips this leg when the commission rounds to
+      // zero — reachable at a 0% rate or a very small total.
+      const hold = await provider.hold(1000, 'com-zero-1');
+      await expect(
+        provider.captureCommission(0, hold.providerRef, 'com-zero-2')
+      ).rejects.toThrow('INVALID_AMOUNT');
+    });
+
+    it('deduplicates an identical retry by idempotency key', async () => {
+      const hold = await provider.hold(1000, 'com-dup-1');
+      const first = await provider.captureCommission(
+        150,
+        hold.providerRef,
+        'com-dup-2'
+      );
+      const second = await provider.captureCommission(
+        150,
+        hold.providerRef,
+        'com-dup-2'
+      );
+
+      expect(second).toEqual(first);
+      // The replay did not move money a second time.
+      expect(await provider.getStatus(hold.providerRef)).toMatchObject({
+        amount: 850,
+      });
+    });
+
+    it('rejects the same key with a different amount', async () => {
+      const hold = await provider.hold(1000, 'com-arg-1');
+      await provider.captureCommission(150, hold.providerRef, 'com-arg-2');
+      await expect(
+        provider.captureCommission(200, hold.providerRef, 'com-arg-2')
+      ).rejects.toThrow('DUPLICATE_IDEMPOTENCY');
+    });
+
+    it('surfaces an injected failure without touching the hold', async () => {
+      const hold = await provider.hold(1000, 'com-fail-1');
+      provider.setFailNext('captureCommission');
+
+      await expect(
+        provider.captureCommission(150, hold.providerRef, 'com-fail-2')
+      ).rejects.toMatchObject({ code: 'PROVIDER_UNAVAILABLE' });
+
+      expect(await provider.getStatus(hold.providerRef)).toMatchObject({
+        state: 'held',
+        amount: 1000,
+      });
+    });
+  });
+
   describe('idempotency cross-method', () => {
     it('does not deduplicate across different methods with same key', async () => {
       const hold = await provider.hold(5000, 'cross-1');
@@ -361,6 +478,25 @@ describe('MockPaymentProvider', () => {
       const secondHold = await provider.hold(3000, 'cross-key');
       expect(secondHold.status).toBe('held');
       expect(secondHold.providerRef).not.toBe(hold.providerRef);
+    });
+
+    it('keeps the two capture legs in separate key spaces', async () => {
+      // A deal's two legs are keyed off one method-level UUID, so they differ
+      // only by suffix today — but if a caller ever handed both the same key,
+      // neither may replay the other's cached result.
+      const hold = await provider.hold(1000, 'legs-1');
+      await provider.capturePayout(
+        850,
+        'creator_abc',
+        hold.providerRef,
+        'same-key'
+      );
+      await provider.captureCommission(150, hold.providerRef, 'same-key');
+
+      expect(await provider.getStatus(hold.providerRef)).toMatchObject({
+        state: 'captured',
+        amount: 0,
+      });
     });
   });
 
