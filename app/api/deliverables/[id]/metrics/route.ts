@@ -5,7 +5,6 @@ import type { RecordMetricsDeps } from '@/lib/deals/record-metrics';
 import {
   ErrorCode,
   ErrorHttpStatus,
-  ErrorMessage,
   UUID_REGEX,
   errorResponse,
   updateMetricsSchema,
@@ -91,16 +90,12 @@ export async function handleRecordMetrics(
 
   const parsed = updateMetricsSchema.safeParse(body);
   if (!parsed.success) {
-    return Response.json(
-      {
-        error: {
-          code: ErrorCode.VALIDATION_ERROR,
-          message: ErrorMessage[ErrorCode.VALIDATION_ERROR],
-          details: zodIssuesToDetails(parsed.error),
-        },
-      },
-      { status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR] }
-    );
+    // KAN-69 (R1): `validationError` produces exactly this envelope — the code
+    // is plain VALIDATION_ERROR here (unlike `/reject`, which needs a different
+    // code the helper cannot express), so the hand-built copy is gone.
+    return Response.json(validationError(zodIssuesToDetails(parsed.error)), {
+      status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR],
+    });
   }
 
   const result = await recordMetrics(
