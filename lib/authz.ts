@@ -336,7 +336,14 @@ export interface AuditEntry<T = unknown> {
    */
   action: AuditAction;
   targetType: AuditTargetType;
-  targetId: string;
+  /**
+   * The id of the target row, named before the mutation runs. Accepts a
+   * function of the result for the one case where the mutation itself creates
+   * the row it must log: `metric.edit`'s first write *creates* the
+   * `video_metric` row, whose id only exists once the transaction has run.
+   * The same mechanism `detail` uses, and for the same reason.
+   */
+  targetId: string | ((result: T) => string);
   /**
    * Before/after or context, redacted before it is written — see
    * `lib/audit/redact.ts`. Callers do not need to pre-sanitise it, and should
@@ -414,12 +421,16 @@ export async function withAdminAudit<T>(
 
     const detail =
       typeof entry.detail === 'function' ? entry.detail(result) : entry.detail;
+    const targetId =
+      typeof entry.targetId === 'function'
+        ? entry.targetId(result)
+        : entry.targetId;
 
     await tx.insert(auditLog).values({
       actorId: ctx.user.id,
       action: entry.action,
       targetType: entry.targetType,
-      targetId: entry.targetId,
+      targetId,
       // Redaction is here, not at the call site, so that no caller can skip it
       // (NFR-010). `redactDetail` returns null for an absent or empty detail,
       // which is what the nullable column wants — `undefined` would make

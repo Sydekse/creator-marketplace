@@ -568,15 +568,19 @@ describe('rejectDeliverableSchema', () => {
 // ---------------------------------------------------------------------------
 
 describe('updateMetricsSchema', () => {
-  it('accepts all metrics as optional', () => {
-    const result = updateMetricsSchema.parse({});
-    expect(result).toEqual({});
-  });
-
   it('accepts partial metrics', () => {
     const result = updateMetricsSchema.parse({ views: 1000, likes: 500 });
     expect(result.views).toBe(1000);
     expect(result.likes).toBe(500);
+  });
+
+  it('accepts a genuine zero', () => {
+    const result = updateMetricsSchema.parse({ views: 0 });
+    expect(result.views).toBe(0);
+  });
+
+  it('rejects an empty body — a no-op PUT would re-stamp last_updated_at with nothing measured', () => {
+    expect(() => updateMetricsSchema.parse({})).toThrow();
   });
 
   it('rejects negative values', () => {
@@ -585,6 +589,22 @@ describe('updateMetricsSchema', () => {
 
   it('rejects non-integer values', () => {
     expect(() => updateMetricsSchema.parse({ views: 100.5 })).toThrow();
+  });
+
+  it('rejects counts beyond the Postgres integer range', () => {
+    expect(() => updateMetricsSchema.parse({ views: 2_147_483_648 })).toThrow();
+  });
+
+  it('accepts the top of the Postgres integer range', () => {
+    expect(updateMetricsSchema.parse({ views: 2_147_483_647 }).views).toBe(
+      2_147_483_647
+    );
+  });
+
+  it('rejects unknown fields instead of stripping them', () => {
+    expect(() =>
+      updateMetricsSchema.parse({ views: 100, veiws: 200 })
+    ).toThrow();
   });
 });
 
