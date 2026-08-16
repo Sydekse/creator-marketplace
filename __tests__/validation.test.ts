@@ -404,11 +404,63 @@ describe('submitDeliverableSchema', () => {
     expect(result.tiktokUrl).toContain('tiktok.com');
   });
 
-  it('accepts a valid vm.tiktok.com short URL', () => {
+  it('accepts the mobile host, which the TikTok app hands out (m.tiktok.com)', () => {
+    // The mobile app's share sheet produces `m.tiktok.com/@user/video/<id>`;
+    // a valid public video link on the `m.` host is still a valid public
+    // video link.
     const result = submitDeliverableSchema.parse({
-      tiktokUrl: 'https://vm.tiktok.com/abc123/',
+      tiktokUrl: 'https://m.tiktok.com/@user/video/1234567890123456789',
     });
-    expect(result.tiktokUrl).toContain('vm.tiktok.com');
+    expect(result.tiktokUrl).toContain('m.tiktok.com');
+  });
+
+  it('rejects a host that stacks the mobile prefix onto the shortener', () => {
+    // The `m.`/`www.` prefix is only legal in front of `tiktok.com` — a host
+    // like `m.vm.tiktok.com` does not exist and must not be admitted by
+    // accident of the alternation.
+    expect(() =>
+      submitDeliverableSchema.parse({
+        tiktokUrl: 'https://m.vm.tiktok.com/abc123',
+      })
+    ).toThrow('Enter a valid public TikTok video link.');
+  });
+
+  it('rejects a URL longer than the storage bound', () => {
+    const long = `https://www.tiktok.com/@${'a'.repeat(3000)}/video/123`;
+    expect(() => submitDeliverableSchema.parse({ tiktokUrl: long })).toThrow(
+      'Enter a valid public TikTok video link.'
+    );
+  });
+
+  it('accepts a vm.tiktok.com short URL with or without a trailing slash', () => {
+    expect(
+      submitDeliverableSchema.parse({
+        tiktokUrl: 'https://vm.tiktok.com/abc123/',
+      }).tiktokUrl
+    ).toBe('https://vm.tiktok.com/abc123/');
+    expect(
+      submitDeliverableSchema.parse({
+        tiktokUrl: 'https://vm.tiktok.com/abc123',
+      }).tiktokUrl
+    ).toBe('https://vm.tiktok.com/abc123');
+  });
+
+  it('accepts a share URL carrying its query string', () => {
+    // TikTok share links arrive with `?is_from_webapp=1&…`; bouncing them
+    // would reject the exact strings a creator copies out of the app.
+    const result = submitDeliverableSchema.parse({
+      tiktokUrl:
+        'https://www.tiktok.com/@user/video/1234567890123456789?is_from_webapp=1&sender_device=pc',
+    });
+    expect(result.tiktokUrl).toContain('is_from_webapp=1');
+  });
+
+  it('accepts a protocol-less link and trims paste whitespace', () => {
+    expect(
+      submitDeliverableSchema.parse({
+        tiktokUrl: '  www.tiktok.com/@user/video/123  ',
+      }).tiktokUrl
+    ).toBe('www.tiktok.com/@user/video/123');
   });
 
   it('rejects a non-TikTok URL (AC-025)', () => {
@@ -419,8 +471,51 @@ describe('submitDeliverableSchema', () => {
     ).toThrow('Enter a valid public TikTok video link.');
   });
 
-  it('rejects an empty URL', () => {
+  it('rejects an arbitrary host that contains tiktok.com (AC-025)', () => {
+    // An unanchored pattern would match `tiktok.com` inside this. The allowlist
+    // is the authority, not a substring search.
+    expect(() =>
+      submitDeliverableSchema.parse({
+        tiktokUrl: 'https://tiktok.com.example.net/@user/video/123',
+      })
+    ).toThrow('Enter a valid public TikTok video link.');
+  });
+
+  it('rejects a non-video TikTok page (AC-025)', () => {
+    expect(() =>
+      submitDeliverableSchema.parse({
+        tiktokUrl: 'https://www.tiktok.com/@user',
+      })
+    ).toThrow('Enter a valid public TikTok video link.');
+    expect(() =>
+      submitDeliverableSchema.parse({
+        tiktokUrl: 'https://www.tiktok.com/@user/photo/123',
+      })
+    ).toThrow('Enter a valid public TikTok video link.');
+  });
+
+  it('rejects trailing garbage after a valid video id', () => {
+    expect(() =>
+      submitDeliverableSchema.parse({
+        tiktokUrl: 'https://www.tiktok.com/@user/video/123/evil',
+      })
+    ).toThrow('Enter a valid public TikTok video link.');
+  });
+
+  it('rejects javascript: and other non-http schemes', () => {
+    expect(() =>
+      submitDeliverableSchema.parse({ tiktokUrl: 'javascript:alert(1)' })
+    ).toThrow();
+    expect(() =>
+      submitDeliverableSchema.parse({
+        tiktokUrl: 'ftp://tiktok.com/@user/video/123',
+      })
+    ).toThrow();
+  });
+
+  it('rejects an empty or blank URL', () => {
     expect(() => submitDeliverableSchema.parse({ tiktokUrl: '' })).toThrow();
+    expect(() => submitDeliverableSchema.parse({ tiktokUrl: '   ' })).toThrow();
   });
 });
 

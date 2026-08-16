@@ -88,3 +88,58 @@ export const DECLINE_SUCCESS_MESSAGE =
  */
 export const DECLINE_FAILED_MESSAGE =
   'Could not decline this offer. Reload the page and try again.';
+
+/**
+ * The deliverable surface (KAN-46, AC-022, AC-025).
+ *
+ * These strings belong here for the same forcing reason the accept strings do:
+ * `components/deals/deliverable-form.tsx` is `'use client'`, and importing copy
+ * from `lib/deals/detail.ts` — which imports `@/db` for its query — pulls `pg`
+ * toward the browser and fails the build. `detail.ts` re-exports them, so the
+ * server-side surface is unchanged.
+ *
+ * `SUBMIT_DELIVERABLE_LABEL` moved here on KAN-46: it was defined directly in
+ * `detail.ts` when the button was a server-rendered disabled control, and the
+ * working form is client-side.
+ */
+
+/** The button on the funded deal's submission form. */
+export const SUBMIT_DELIVERABLE_LABEL = 'Submit your video';
+
+/** The field the creator pastes the public link into. */
+export const SUBMIT_DELIVERABLE_URL_LABEL = 'Live TikTok post URL';
+
+/**
+ * The sentence under the field. Says "public" in the platform's own words, the
+ * same phrase AC-025 uses for the rejection message — a private link would be
+ * rejected server-side, and the sentence is what keeps a creator from learning
+ * that the hard way.
+ */
+export const SUBMIT_DELIVERABLE_URL_HINT =
+  'Paste the link to the public TikTok video you posted. The link is stored so the brand can review it — it is never fetched by the platform.';
+
+export const SUBMIT_DELIVERABLE_URL_PLACEHOLDER =
+  'https://www.tiktok.com/@you/video/…';
+
+/** While the request is in flight. Replaces the label, so the button never lies. */
+export const SUBMITTING_DELIVERABLE_LABEL = 'Submitting…';
+
+export const SUBMIT_DELIVERABLE_SUCCESS_MESSAGE =
+  'Video submitted. The brand has been notified and will review it.';
+
+/**
+ * The browser could not reach the server at all — no response, so no error
+ * envelope and no code to branch on. The `ACCEPT_NETWORK_ERROR_MESSAGE`
+ * reasoning, applied to this control.
+ */
+export const SUBMIT_DELIVERABLE_NETWORK_ERROR_MESSAGE =
+  'Could not reach the server. Check your connection and try again.';
+
+/**
+ * The fallback when a response carries no message of its own. Every code this
+ * endpoint returns has a sentence in `ErrorMessage` — including AC-025's
+ * "Enter a valid public TikTok video link." — and that sentence is what gets
+ * shown; this covers only a response shaped unlike the envelope.
+ */
+export const SUBMIT_DELIVERABLE_FAILED_MESSAGE =
+  'Could not submit your video. Reload the page and try again.';
