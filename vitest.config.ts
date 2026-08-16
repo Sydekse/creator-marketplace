@@ -14,5 +14,16 @@ export default defineConfig({
     // leave a mock (e.g. a silenced `console.error`) leaking into the rest of
     // the file — the run that matters is the one where something failed.
     restoreMocks: true,
+
+    // KAN-59's integration suite needs a real Postgres and runs under its own
+    // config (`test:integration`) with its own global setup. The plain unit
+    // run stays hermetic and DB-free, so it must not collect those files.
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/cypress/**',
+      '**/.{idea,git,cache,output,temp}/**',
+      'tests/integration/**',
+    ],
   },
 });
