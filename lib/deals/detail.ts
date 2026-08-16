@@ -127,6 +127,13 @@ export interface CreatorDealDetail {
 
 /** The one deliverable row a deal can have, as the creator is allowed to see it. */
 export interface DeliverableView {
+  /**
+   * The row's own id — the target of `PUT /api/deliverables/{id}/metrics`
+   * (KAN-48), which the metrics-entry form on this page needs and the old
+   * view did not carry. The URL is not enough: the API keys the upsert by
+   * deliverable, not by deal.
+   */
+  id: string;
   tiktokUrl: string;
   submittedAt: Date;
 }
@@ -161,6 +168,7 @@ export interface CreatorDealJoinRow {
   rightsTerms: DealRightsTerms | null;
   /** Nullable columns: a missing row arrives as all-nulls, not a joined null. */
   deliverable: {
+    id: string | null;
     tiktokUrl: string | null;
     submittedAt: Date | null;
   } | null;
@@ -194,6 +202,7 @@ export function creatorDealQuery(where: SQL) {
         offerExpiresAt: deal.offerExpiresAt,
         rightsTerms: rightsTerms,
         deliverable: {
+          id: deliverable.id,
           tiktokUrl: deliverable.tiktokUrl,
           submittedAt: deliverable.submittedAt,
         },
@@ -237,6 +246,7 @@ export function toDealDetail(row: CreatorDealJoinRow): CreatorDealDetail {
     // page ask one question — "has the creator submitted?" — instead of two.
     deliverable: row.deliverable?.tiktokUrl
       ? {
+          id: row.deliverable.id as string,
           tiktokUrl: row.deliverable.tiktokUrl,
           submittedAt: row.deliverable.submittedAt as Date,
         }

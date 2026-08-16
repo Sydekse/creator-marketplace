@@ -32,7 +32,11 @@ import {
   withCurrentTerms,
 } from '../lib/deals/detail';
 import type { CreatorDealDeps, CreatorDealJoinRow } from '../lib/deals/detail';
-import { canAct, canDeliver } from '../lib/deals/state-machine';
+import {
+  canAct,
+  canDeliver,
+  canReportMetrics,
+} from '../lib/deals/state-machine';
 import { DEAL_GROUPS, labelForStatus } from '../lib/deals/groups';
 import {
   INBOX_DESCRIPTION,
@@ -346,12 +350,39 @@ describe('the detail read returns every field AC-2 names', () => {
     expect(Number.isInteger(odd.commission)).toBe(true);
     expect(odd.commission + odd.expectedPayout).toBe(333_333);
   });
+
+  it('carries the deliverable id, for the metrics-entry form (KAN-57 F2)', () => {
+    // The creator's metrics form posts to `/api/deliverables/{id}/metrics`,
+    // which keys the upsert by deliverable — the URL is not enough. The fold
+    // must bring the id through with the view.
+    const withDeliverable = toDealDetail(
+      joinRow({
+        deliverable: {
+          id: 'dl-9',
+          tiktokUrl: 'https://www.tiktok.com/@selam/video/1',
+          submittedAt: new Date('2026-08-01T00:00:00.000Z'),
+        },
+      })
+    );
+
+    expect(withDeliverable.deliverable).toEqual({
+      id: 'dl-9',
+      tiktokUrl: 'https://www.tiktok.com/@selam/video/1',
+      submittedAt: new Date('2026-08-01T00:00:00.000Z'),
+    });
+  });
 });
 
 describe('the detail query', () => {
   const { sql } = creatorDealQuery(
     buildCreatorDealWhere(DEAL_ID, CREATOR_PROFILE_ID)
   ).toSQL();
+
+  it('selects the deliverable id, so the metrics form can target the row', () => {
+    // The F2 form needs the deliverable's own id (the metrics endpoint keys by
+    // deliverable, not deal); the creator's view would be useless without it.
+    expect(sql).toMatch(/"deliverable"\."id"/);
+  });
 
   it('left-joins the rights terms', () => {
     // `deal.rights_terms_id` is nullable; an inner join would make an older deal
@@ -615,6 +646,15 @@ describe('canDeliver is exactly funded and revision_requested', () => {
   it('is derived from the transition table', () => {
     const source = src('lib/deals/state-machine.ts');
     expect(source).toMatch(/canDeliver[\s\S]{0,160}LEGAL_TRANSITIONS/);
+  });
+});
+
+describe('canReportMetrics is exactly completed (KAN-57 F2)', () => {
+  it.each(ALL_STATUSES)('%s', (status) => {
+    // The metrics-entry form must render on the one status the reminder sweep
+    // selects — completed — and nowhere else. A machine change fails here
+    // rather than silently moving the form.
+    expect(canReportMetrics(status)).toBe(status === 'completed');
   });
 });
 

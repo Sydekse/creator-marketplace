@@ -254,6 +254,17 @@ describe('metric-reminders source guards', () => {
     expect(CODE).not.toMatch(/\.delete\(/);
   });
 
+  it('suppresses only delivered reminders (F3)', () => {
+    // A row whose email failed dispatch must not silence the next run for the
+    // whole interval: the guard requires the notify service's `delivered_at`
+    // stamp, so an undelivered row reads as "never told" and the next run
+    // reminds again. The stamp itself is written by `notify.ts` and asserted
+    // there; this pins that the guard demands it.
+    expect(CODE).toMatch(/isNotNull\(notification\.deliveredAt\)/);
+    expect(CODE).toMatch(/eq\(notification\.type, METRIC_REMINDER_TYPE\)/);
+    expect(CODE).toMatch(/gte\(notification\.createdAt, since\)/);
+  });
+
   it('has no guard(), like every cron-owned sweep', () => {
     // Same exemption expire-offers documents: the boundary is the cron secret,
     // one layer out; this module is not request-scoped.
@@ -290,6 +301,12 @@ describe('the source guards are not vacuous', () => {
     const writes = /\.insert\(|\.update\(|\.delete\(/;
     expect('await db.insert(notification).values({})').toMatch(writes);
     expect('await deps.run(async (tx, notify) => {').not.toMatch(writes);
+  });
+
+  it('would catch the guard dropping the delivered requirement', () => {
+    const withStamp = /isNotNull\(notification\.deliveredAt\)/;
+    expect('isNotNull(notification.deliveredAt)').toMatch(withStamp);
+    expect('gte(notification.createdAt, since)').not.toMatch(withStamp);
   });
 
   it('would catch a job dropped from the registry', () => {

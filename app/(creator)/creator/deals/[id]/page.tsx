@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DealHistory } from '@/components/deals/deal-history';
+import { MetricsForm } from '@/components/deals/metrics-form';
 import { DeliverableForm } from '@/components/deals/deliverable-form';
 import { OfferActions } from '@/components/deals/offer-actions';
 import { UsageRightsCard } from '@/components/deals/usage-rights';
 import { NO_EXPIRY_LABEL, expiryLabel, formatDeadlineUtc } from '@/lib/dates';
-import { canAct, canDeliver } from '@/lib/deals';
+import { canAct, canDeliver, canReportMetrics } from '@/lib/deals';
 import {
   COMMISSION_LABEL,
   DEAL_TERMS_TITLE,
@@ -196,6 +197,20 @@ export default async function CreatorDealDetailPage({
             {SUBMITTED_AT_LABEL}:{' '}
             {formatDeadlineUtc(deal.deliverable.submittedAt)}
           </p>
+        </section>
+      ) : null}
+
+      {/* The KAN-57 review's F2 fix — the reminder's promise, made real. The
+          metrics API (KAN-48) had no UI caller anywhere in the app; this is
+          where a creator acts on the "Submit your metrics" email. Gated on
+          `canReportMetrics` — exactly the `{completed}` set the reminder
+          sweep selects from — and on a deliverable existing, since the
+          endpoint keys the upsert by deliverable and a completed deal without
+          one has nothing to measure (the same reason the reminder predicate
+          left-joins `video_metric` rather than assuming a row). */}
+      {canReportMetrics(deal.status) && deal.deliverable ? (
+        <section className="flex flex-col gap-4 rounded-md border border-border p-4">
+          <MetricsForm deliverableId={deal.deliverable.id} />
         </section>
       ) : null}
 

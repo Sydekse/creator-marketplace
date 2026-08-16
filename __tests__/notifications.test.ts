@@ -62,9 +62,17 @@ function fakeDb(
   const { recipient = RECIPIENT } = options;
 
   const insert = (viaTx: boolean) => () => ({
-    values: async (row: { userId: string; type: string; payload: unknown }) => {
+    // Synchronous on purpose: drizzle's builder chains `.values().returning()`
+    // without awaiting `values`, so the fake must return the next link in the
+    // chain rather than a promise of it.
+    values: (row: { userId: string; type: string; payload: unknown }) => {
       recorder.events.push(viaTx ? 'insert(tx)' : 'insert(db)');
       recorder.rows.push(row);
+      // `insertRow` reads the generated id back through `.returning()`, and
+      // `flush` stamps `delivered_at` through that id.
+      return {
+        returning: async () => [{ id: `row-${recorder.rows.length}` }],
+      };
     },
   });
 
@@ -76,12 +84,23 @@ function fakeDb(
     }),
   });
 
+  // The post-dispatch `delivered_at` stamp (KAN-57 F3). Recorded as an event
+  // so a test can assert the ordering: after `send`, and only on success.
+  const update = () => ({
+    set: () => ({
+      where: async () => {
+        recorder.events.push('stamp(deliveredAt)');
+      },
+    }),
+  });
+
   return {
     insert: insert(false),
     select,
+    update,
     transaction: async (cb: (tx: unknown) => Promise<unknown>) => {
       recorder.events.push('begin');
-      const tx = { insert: insert(true), select };
+      const tx = { insert: insert(true), select, update };
       try {
         const result = await cb(tx);
         recorder.events.push('commit');
@@ -1004,7 +1023,70 @@ describe('withNotifications', () => {
       });
     }, deps({ recorder }));
 
-    expect(recorder.events).toEqual(['begin', 'insert(tx)', 'commit', 'send']);
+    expect(recorder.events).toEqual([
+      'begin',
+      'insert(tx)',
+      'commit',
+      'send',
+      'stamp(deliveredAt)',
+    ]);
+  });
+
+  /**
+   * The F3 fix, stated as an ordering. A successful dispatch stamps
+   * `delivered_at` *after* commit — delivery bookkeeping that can never roll
+   * back the domain transaction it belongs to.
+   */
+  it('stamps delivered_at after a successful dispatch', async () => {
+    const recorder = newRecorder();
+
+    await withNotifications(async (_tx, notify) => {
+      await notify(USER_ID, 'deliverable_approved', {
+        dealId: 'd1',
+        campaignTitle: 'C',
+        payout: 1000,
+      });
+    }, deps({ recorder }));
+
+    expect(recorder.events).toEqual([
+      'begin',
+      'insert(tx)',
+      'commit',
+      'send',
+      'stamp(deliveredAt)',
+    ]);
+  });
+
+  /**
+   * F3's other direction. A failed dispatch leaves the row unstamped, so the
+   * metric-reminder guard reads "never told" and the next run tries again —
+   * the creator is not silenced for a whole interval by a mail they never got.
+   * The caller still succeeds: the stamp is bookkeeping, not part of the
+   * domain result (AC-3).
+   */
+  it('leaves delivered_at unstamped when dispatch fails', async () => {
+    const recorder = newRecorder();
+    const failing = {
+      name: 'failing',
+      send: vi.fn().mockRejectedValue(new EmailDeliveryError('503', false)),
+    };
+
+    await expect(
+      withNotifications(
+        async (_tx, notify) => {
+          await notify(USER_ID, 'deliverable_approved', {
+            dealId: 'd1',
+            campaignTitle: 'C',
+            payout: 1000,
+          });
+          return 'domain result';
+        },
+        deps({ recorder, provider: failing })
+      )
+    ).resolves.toBe('domain result');
+
+    expect(recorder.events).toContain('commit');
+    expect(recorder.events).not.toContain('stamp(deliveredAt)');
   });
 
   it('sends nothing when the domain transaction fails (AC-4)', async () => {
@@ -1160,7 +1242,11 @@ describe('notify (no transaction)', () => {
       outcome: 'approved',
     });
 
-    expect(recorder.events).toEqual(['insert(db)', 'send']);
+    expect(recorder.events).toEqual([
+      'insert(db)',
+      'send',
+      'stamp(deliveredAt)',
+    ]);
     expect(recorder.rows[0].type).toBe('verification_result');
   });
 

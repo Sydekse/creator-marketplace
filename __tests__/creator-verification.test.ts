@@ -132,7 +132,12 @@ describe('decideVerification', () => {
       insert: vi.fn(() => ({
         values: vi.fn((row) => {
           recorded.rows.push(row);
-          return Promise.resolve();
+          // `insertRow` chains `.returning()` off `values` to read the
+          // generated id (the `delivered_at` stamp, KAN-57 F3), so the fake
+          // must return the next link in the builder chain.
+          return {
+            returning: async () => [{ id: 'n-1' }],
+          };
         }),
       })),
     } as unknown as Tx;
@@ -848,7 +853,9 @@ describe('POST /api/admin/creators/:id/verify', () => {
                   }),
                 }),
                 insert: () => ({
-                  values: () => Promise.resolve(),
+                  values: () => ({
+                    returning: async () => [{ id: 'n-1' }],
+                  }),
                 }),
               } as unknown as Tx,
               async () => {}

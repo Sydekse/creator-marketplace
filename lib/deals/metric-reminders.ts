@@ -1,4 +1,4 @@
-import { and, eq, gte } from 'drizzle-orm';
+import { and, eq, gte, isNotNull } from 'drizzle-orm';
 import { notification } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
 import { METRICS_REMINDER_MS } from '@/lib/config/pricing';
@@ -33,6 +33,17 @@ import type { Job, JobRunOutput } from '@/lib/scheduler/harness';
  * interval has passed and the metrics are still missing, the row is no longer
  * younger than the window and the creator is reminded again — reconciliation,
  * not bookkeeping, exactly like the sweep that selected them.
+ *
+ * **The guard counts delivered reminders, not rows (KAN-57 review, F3).** A
+ * row is written when the transaction commits; the email goes out after. If
+ * dispatch fails — or the process dies before flush — the row exists but the
+ * creator never saw it, and suppressing on the bare row would lose the reminder
+ * for the whole interval. `hasReminderSince` therefore requires
+ * `notification.delivered_at` to be set: an undelivered row is "never told",
+ * and the next run reminds again. The `delivered_at` stamp is written by the
+ * notify service after a successful send (see `notify.ts`), and the failure
+ * direction is safe — a lost stamp means one mail twice at worst, never a
+ * reminder believed sent.
  *
  * **The check and the notify share a transaction.** `withNotifications` writes
  * the row inside the caller's transaction and flushes the email only after it
@@ -74,11 +85,13 @@ export interface MetricRemindersDeps {
    */
   selectAwaiting: (now: Date) => Promise<PendingMetricRow[]>;
   /**
-   * True when this creator was already reminded within the interval.
+   * True when this creator was already **delivered** a reminder within the
+   * interval.
    *
    * Runs inside the same transaction as the notify it guards, so the check and
    * the row commit together — the whole reason re-running inside the interval
-   * resends nothing (AC-5).
+   * resends nothing (AC-5). The delivered-at requirement is the F3 fix: a row
+   * whose email failed dispatch must not suppress the next run.
    */
   hasReminderSince: (
     tx: Tx,
@@ -101,7 +114,11 @@ const defaultDeps: MetricRemindersDeps = {
         and(
           eq(notification.userId, creatorUserId),
           eq(notification.type, METRIC_REMINDER_TYPE),
-          gte(notification.createdAt, since)
+          gte(notification.createdAt, since),
+          // F3: only a delivered reminder has served the interval. An
+          // undelivered one (dispatch failed, or the process died before
+          // flush) is "never told", so the next run may remind again.
+          isNotNull(notification.deliveredAt)
         )
       )
       .limit(1);
