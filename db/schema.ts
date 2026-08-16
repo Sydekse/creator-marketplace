@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  bigserial,
   boolean,
   check,
   index,
@@ -353,6 +354,13 @@ export const ledgerEntry = pgTable(
     entryType: text('entry_type').$type<LedgerEntryType>().notNull(),
     amount: integer('amount').notNull(),
     balanceAfter: integer('balance_after').notNull(),
+    // KAN-53 (review): monotonic write order. `created_at` is transaction
+    // start, so entries written in one transaction share it and `id` is a
+    // random uuid — neither can order rows written together. `seq` is the
+    // insertion order (bigserial, assigned per row in a multi-row `values`),
+    // which is what makes "the last entry" a well-defined question for the
+    // reconciliation check on the admin ledger view.
+    seq: bigserial('seq', { mode: 'number' }).notNull().unique(),
     providerRef: text('provider_ref'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()

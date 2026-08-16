@@ -372,7 +372,10 @@ async function resolveWithLedger(
               : {}),
           }),
         },
-        async (auditTx) => {
+        // No `auditTx` here: the ledger has already committed this resolution,
+        // so these rows land in a fresh transaction — the trace-and-swallow
+        // tradeoff the module header documents.
+        async () => {
           const payload = {
             dealId: row.id,
             campaignTitle: row.campaignName,

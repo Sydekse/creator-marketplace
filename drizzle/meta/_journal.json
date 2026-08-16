@@ -43,6 +43,13 @@
       "when": 1786379380069,
       "tag": "0005_slow_winter_soldier",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786891318743,
+      "tag": "0006_strong_scrambler",
+      "breakpoints": true
     }
   ]
 }
