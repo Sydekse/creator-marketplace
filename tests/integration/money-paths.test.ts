@@ -105,6 +105,44 @@ describe('money-path atomicity (NFR-003)', () => {
     expect(row.status).toBe('confirmed');
     expect(await escrowed(campaignId)).toBe(0);
   });
+
+  it('a refund that fails mid-transaction leaves deal, ledger and balance unchanged', async () => {
+    // The seeded funded deal — the same fixture the happy-path refund test
+    // below uses, so the rollback must leave it refundable for that test: a
+    // refund that half-wrote would surface as a second refund entry there.
+    const { dealId, campaignId } = await seededDeal('Tech Review Series');
+
+    const beforeDeal = await db
+      .select({ status: deal.status })
+      .from(deal)
+      .where(eq(deal.id, dealId));
+    const beforeEntries = await entriesFor(campaignId);
+    const beforeEscrow = await escrowed(campaignId);
+
+    // The refund's provider call is `releaseHold` (ledger.ts) — failing it
+    // throws inside the transaction, which must roll back everything.
+    const provider = getPaymentProvider() as MockPaymentProvider;
+    provider.setFailNext('releaseHold');
+
+    const ledger = new EscrowLedgerService(db, provider);
+    await expect(ledger.refundDeal(dealId)).rejects.toThrow();
+
+    // Deal untouched — still funded, not refunded.
+    const afterDeal = await db
+      .select({ status: deal.status })
+      .from(deal)
+      .where(eq(deal.id, dealId));
+    expect(afterDeal[0].status).toBe('funded');
+    expect(afterDeal[0].status).toBe(beforeDeal[0].status);
+
+    // No refund entry appeared.
+    const afterEntries = await entriesFor(campaignId);
+    expect(afterEntries).toEqual(beforeEntries);
+    expect(afterEntries.filter((e) => e.type !== 'hold')).toHaveLength(0);
+
+    // The campaign's escrowed total is exactly what it was.
+    expect(await escrowed(campaignId)).toBe(beforeEscrow);
+  });
 });
 
 describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {

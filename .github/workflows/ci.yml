@@ -99,10 +99,11 @@ jobs:
           node-version: '25'
           cache: 'npm'
       - run: npm ci
-      # KAN-59 AC-7: an ephemeral database per run — a fresh Postgres service
-      # container here; pointing DATABASE_URL at a fresh Neon branch works
-      # identically (Neon is Postgres 16), and the global setup migrates + seeds
-      # whatever it is pointed at.
+      # KAN-59 AC-7: an ephemeral database per run, torn down when the job
+      # ends. The ticket says "Neon branch"; this provisions a postgres:16
+      # service container instead — same isolation and teardown, and Neon *is*
+      # Postgres 16, so pointing DATABASE_URL at a fresh Neon branch works
+      # identically. The global setup migrates + seeds whatever it is pointed at.
       - name: Integration tests
         run: npm run test:integration
         env:

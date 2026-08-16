@@ -265,7 +265,7 @@ type DemoDealSpec = {
 };
 
 /**
- * Seven campaigns, one deal each, covering all five dashboard groups (AC-2).
+ * Demo campaigns, one deal each, covering all five dashboard groups (AC-2).
  *
  * One campaign per deal, which looks redundant and is not: `holdForCampaign`
  * funds *every* accepted deal in a campaign at once, and `deal` is unique on
@@ -303,7 +303,20 @@ const DEMO_DEALS: readonly DemoDealSpec[] = [
     goal: 'Sign-ups for the new-year membership offer.',
     videoCount: 2,
     target: 'delivered',
-    // The one demo dispute: delivered, money held, awaiting admin resolution.
+    // The money-path fixture for the KAN-59 integration suite (payout-fail and
+    // release run against this deal). Kept flagged so the disputed worklist has
+    // a row, but the dispute *resolution* test uses its own fixture below —
+    // two suites mutating one deal would make either order of execution fail.
+    flagged: true,
+  },
+  {
+    campaignName: 'Summer Kickoff',
+    goal: 'Launch the warm-weather campaign block.',
+    videoCount: 2,
+    target: 'delivered',
+    // The dedicated dispute fixture (KAN-59 AC-030/AC-031): delivered, money
+    // held, flagged. Only tests/integration/dispute.test.ts touches it, so the
+    // suite is order-independent regardless of which file runs first.
     flagged: true,
   },
   {

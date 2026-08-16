@@ -10,14 +10,16 @@ import { guardForCookie, seededDeal, signInCookie } from './helpers';
  * KAN-60 flow 6 — admin dispute resolution (AC-030, AC-031): the refund path
  * returns the funds and writes the audit log.
  *
- * The seeded 'Fitness January' campaign is the demo dispute — delivered,
- * money held, flagged. There is no admin dispute *UI* yet (that is KAN-78),
- * so the flow is exercised through the real resolve endpoint with a real
- * admin session, which is where the money and the audit trail live.
+ * The seeded 'Summer Kickoff' campaign is the dedicated dispute fixture —
+ * delivered, money held, flagged. It is used by this file alone, so the suite
+ * stays order-independent: money-paths.test.ts mutates 'Fitness January', and
+ * the two files must never share a deal. There is no admin dispute *UI* yet
+ * (that is KAN-78), so the flow is exercised through the real resolve endpoint
+ * with a real admin session, which is where the money and the audit trail live.
  */
 describe('admin dispute resolution (AC-030, AC-031)', () => {
   it('refund path returns the funds, writes the audit log, and clears the flag', async () => {
-    const { dealId, campaignId } = await seededDeal('Fitness January');
+    const { dealId, campaignId } = await seededDeal('Summer Kickoff');
     const adminCookie = await signInCookie('admin@demo.com');
 
     const [dealRow] = await db
