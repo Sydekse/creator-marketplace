@@ -140,7 +140,10 @@ describe('notification types', () => {
    * the order the AC gives them, and named here so the next person reads the
    * change as a deliberate addition rather than drift.
    */
-  it('covers the nine points AC-2 names, plus the two the deal wave adds', () => {
+  it('covers every AC-2 point except payout_sent, plus the two the deal wave adds', () => {
+    // `payout_sent` was dropped (KAN-55 review): it had no producer, and the
+    // approval email already carries the money because payout is instant. Named
+    // here so re-adding it (Q3 async settlement) reads as a deliberate change.
     expect([...NOTIFICATION_TYPES]).toEqual([
       'offer_received',
       'verification_result',
@@ -148,7 +151,6 @@ describe('notification types', () => {
       'deliverable_submitted',
       'deliverable_approved',
       'revision_requested',
-      'payout_sent',
       'dispute_resolved',
       'offer_expired',
       'offer_accepted',
@@ -265,12 +267,13 @@ const COMMISSION_LINE = '675.00 ETB';
 const NET = '3,825.00 ETB';
 
 /**
- * The emails a creator can be paid by. `deliverable_approved` is the one that is
- * actually sent — approval releases the money in the same transaction — and
- * `payout_sent` has a payload, a subject and a body but no producer. AC-4 is
- * asserted on both so it holds whichever a reader takes to be "the payout email".
+ * The email a creator is paid by. `deliverable_approved` is the one actually
+ * sent — approval releases the money in the same transaction — so it is the
+ * payout email and AC-4 is asserted on it. A separate `payout_sent` type was
+ * dropped (KAN-55 review): it had no producer, and two emails seconds apart
+ * would say one thing twice.
  */
-const PAYMENT_TYPES = ['deliverable_approved', 'payout_sent'] as const;
+const PAYMENT_TYPES = ['deliverable_approved'] as const;
 
 /**
  * Every figure is checked in the **HTML and the plain text separately**.
@@ -383,7 +386,6 @@ describe('a payload written before the breakdown existed', () => {
   const ONLY_FIGURE: Record<string, string> = {
     offer_received: GROSS,
     deliverable_approved: NET,
-    payout_sent: NET,
   };
 
   it.each(['offer_received', ...PAYMENT_TYPES] as const)(
@@ -970,7 +972,7 @@ describe('withNotifications', () => {
     const recorder = newRecorder();
 
     await withNotifications(async (_tx, notify) => {
-      await notify(USER_ID, 'payout_sent', {
+      await notify(USER_ID, 'deliverable_approved', {
         dealId: 'd1',
         campaignTitle: 'C',
         payout: 1000,
@@ -991,7 +993,7 @@ describe('withNotifications', () => {
     const recorder = newRecorder();
 
     await withNotifications(async (_tx, notify) => {
-      await notify(USER_ID, 'payout_sent', {
+      await notify(USER_ID, 'deliverable_approved', {
         dealId: 'd1',
         campaignTitle: 'C',
         payout: 1000,
@@ -1007,7 +1009,7 @@ describe('withNotifications', () => {
 
     await expect(
       withNotifications(async (_tx, notify) => {
-        await notify(USER_ID, 'payout_sent', {
+        await notify(USER_ID, 'deliverable_approved', {
           dealId: 'd1',
           campaignTitle: 'C',
           payout: 1000,
@@ -1048,7 +1050,7 @@ describe('withNotifications', () => {
     await expect(
       withNotifications(
         async (_tx, notify) => {
-          await notify(USER_ID, 'payout_sent', {
+          await notify(USER_ID, 'deliverable_approved', {
             dealId: 'd1',
             campaignTitle: 'C',
             payout: 1000,
@@ -1068,7 +1070,7 @@ describe('withNotifications', () => {
     await expect(
       withNotifications(
         async (_tx, notify) => {
-          await notify(USER_ID, 'payout_sent', {
+          await notify(USER_ID, 'deliverable_approved', {
             dealId: 'd1',
             campaignTitle: 'C',
             payout: 1000,
@@ -1117,7 +1119,7 @@ describe('withNotifications', () => {
 
     await expect(
       withNotifications(async (_tx, notify) => {
-        await notify(USER_ID, 'payout_sent', {
+        await notify(USER_ID, 'deliverable_approved', {
           dealId: 'd1',
           campaignTitle: 'C',
           payout: 1000,

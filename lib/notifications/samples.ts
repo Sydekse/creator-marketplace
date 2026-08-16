@@ -82,16 +82,6 @@ export const SAMPLE_NOTIFICATIONS: {
       reason: 'Please show the packaging in the first three seconds.',
     },
   },
-  payout_sent: {
-    type: 'payout_sent',
-    payload: {
-      dealId: 'd1',
-      campaignTitle: 'Spring Coffee Push',
-      payout: 382_500,
-      totalPrice: 450_000,
-      commission: 67_500,
-    },
-  },
   dispute_resolved: {
     type: 'dispute_resolved',
     payload: {
@@ -157,14 +147,6 @@ export const LEGACY_SAMPLE_NOTIFICATIONS: readonly NotificationInput[] = [
   },
   {
     type: 'deliverable_approved',
-    payload: {
-      dealId: 'd1',
-      campaignTitle: 'Spring Coffee Push',
-      payout: 382_500,
-    },
-  },
-  {
-    type: 'payout_sent',
     payload: {
       dealId: 'd1',
       campaignTitle: 'Spring Coffee Push',

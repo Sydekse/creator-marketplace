@@ -39,7 +39,6 @@ export const NOTIFICATION_TYPES = [
   'deliverable_submitted',
   'deliverable_approved',
   'revision_requested',
-  'payout_sent',
   'dispute_resolved',
   'offer_expired',
   'offer_accepted',
@@ -60,8 +59,8 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
  * stored row does not bake in a currency format, and never a float.
  *
  * **One vocabulary for the split, everywhere it appears** (KAN-55 AC-3/AC-4).
- * Three payloads state what a deal is worth and what the creator keeps, and all
- * three now use the same three names: `totalPrice` is the gross the brand owes,
+ * Two payloads state what a deal is worth and what the creator keeps, and both
+ * use the same three names: `totalPrice` is the gross the brand owes,
  * `commission` is the platform's cut, `payout` is what reaches the creator.
  * `payout + commission === totalPrice` exactly, because every producer takes all
  * three from `computeSplit` rather than doing the arithmetic itself.
@@ -123,14 +122,6 @@ export interface NotificationPayloadMap {
     campaignTitle: string;
     /** The brand's note explaining what to change. */
     reason: string;
-  };
-  payout_sent: {
-    dealId: string;
-    campaignTitle: string;
-    payout: number;
-    /** AC-4, as on `deliverable_approved` — the same email, the same figures. */
-    totalPrice?: number;
-    commission?: number;
   };
   dispute_resolved: {
     dealId: string;

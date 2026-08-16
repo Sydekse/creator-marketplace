@@ -251,7 +251,6 @@ const subjects: {
   deliverable_submitted: (p) => `A video was submitted for ${p.campaignTitle}`,
   deliverable_approved: (p) => `Your video for ${p.campaignTitle} was approved`,
   revision_requested: (p) => `Changes requested for ${p.campaignTitle}`,
-  payout_sent: (p) => `You have been paid for ${p.campaignTitle}`,
   dispute_resolved: (p) => `A decision was made on ${p.campaignTitle}`,
   offer_expired: (p) => `An offer for ${p.campaignTitle} expired`,
   offer_accepted: (p) => `${p.creatorHandle} accepted your offer`,
@@ -373,9 +372,11 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
 
     case 'deliverable_approved': {
       // AC-4. This is the email a creator actually receives when they are paid —
-      // approval and payout happen in one transaction, so `payout_sent` below
-      // has no producer. Both state the same three figures, so the AC holds
-      // whichever one a reader takes to be "the payout email".
+      // approval and payout happen in one transaction. A separate `payout_sent`
+      // notice was dropped with its type (KAN-55 review): it had no producer,
+      // and two emails seconds apart would say one thing twice. If a real
+      // processor ever makes settlement async (Q3), add the type back — the
+      // exhaustive case/sample guards will demand its template and subject.
       const split = splitOf(payload);
       return (
         <Layout
@@ -420,37 +421,6 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
           <Cta href={appUrl('/creator/deals')} label="Submit a new video →" />
         </Layout>
       );
-
-    case 'payout_sent': {
-      // AC-4, and **nothing emits this today**. `approve-deliverable.ts` sends
-      // `deliverable_approved` instead, because the money moves in the same
-      // transaction that records the approval and two emails seconds apart would
-      // say one thing twice. Kept correct rather than deleted: the type is part
-      // of AC-2's list, and a separate payout notice is what a real processor
-      // under Q3 would need once settlement stops being instant.
-      const split = splitOf(payload);
-      return (
-        <Layout preview="You have been paid" heading="You have been paid">
-          <Text style={styles.text}>
-            Your payment for {payload.campaignTitle} has been released.
-          </Text>
-          {split ? (
-            <>
-              <Text style={styles.text}>
-                <strong>{formatEtb(split.payout)}</strong> is on its way to you.
-              </Text>
-              <Breakdown {...split} />
-            </>
-          ) : (
-            <Text style={styles.text}>
-              <strong>{formatEtb(payload.payout)}</strong> was released to you,
-              after the platform commission shown on the deal.
-            </Text>
-          )}
-          <Cta href={appUrl('/creator/deals')} label="View the deal →" />
-        </Layout>
-      );
-    }
 
     case 'dispute_resolved':
       return (
