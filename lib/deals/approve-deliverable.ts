@@ -8,6 +8,7 @@ import { getPaymentProvider, PaymentError } from '@/lib/payment';
 import { EscrowLedgerService, LedgerError } from '@/lib/payment/ledger';
 import type { PayoutResult } from '@/lib/payment/ledger';
 import { logPaymentFailure } from '@/lib/payment/log';
+import { extractSafeErrorDetails, toLogString } from '@/lib/logging';
 
 /**
  * Brand approves a delivered video; the creator is paid net of commission
@@ -36,6 +37,12 @@ import { logPaymentFailure } from '@/lib/payment/log';
  * fail in — the alternative is rolling back a captured payout to save an
  * email — and the creator still sees the completed state and the payout on
  * their deal page, which is where AC-7's substance lives.
+ *
+ * Because the money and the status are already final, that failure is
+ * **traced and swallowed**: the response still reports the completed payout
+ * rather than a 500 that would tell the brand their approval failed when it
+ * succeeded. The trace is the operator's only evidence that a paid creator
+ * was never told, so it is a seam (`logNotifyFailure`), not a console.log.
  */
 
 /**
@@ -87,6 +94,17 @@ export interface ApproveDeliverableDeps {
   notify: typeof notify;
   /** A seam, so a test can assert *what* was logged — see `fund-campaign.ts`. */
   logFailure: typeof logPaymentFailure;
+  /**
+   * Trace for a notification that could not be written after the payout
+   * committed. The action swallows that failure (money and status are already
+   * final — see the module header), but a swallowed failure must still leave a
+   * line for the operator who has to explain a paid creator who was never
+   * told.
+   */
+  logNotifyFailure: (
+    error: unknown,
+    context: { dealId: string; actorId: string }
+  ) => void;
 }
 
 const defaultDeps: ApproveDeliverableDeps = {
@@ -117,6 +135,21 @@ const defaultDeps: ApproveDeliverableDeps = {
     ),
   notify,
   logFailure: logPaymentFailure,
+  logNotifyFailure: (error, context) => {
+    const { name, code, message } = extractSafeErrorDetails(error);
+    // The event names the failure; the deal id is the join key back to the
+    // completed payout. No PII reaches this line: `extractSafeErrorDetails`
+    // scrubs emails (NFR-010), and the payload carries no row content.
+    console.error(
+      toLogString({
+        level: 'error',
+        event: 'approve_deliverable.notify_failed',
+        message: `[Approve] notification could not be written for paid deal ${context.dealId}: [${name}] ${code} - ${message}`,
+        dealId: context.dealId,
+        actorId: context.actorId,
+      })
+    );
+  },
 };
 
 /**
@@ -177,11 +210,18 @@ export async function approveDeliverable(
   // After the ledger transaction committed, so a failure here cannot roll the
   // payout back — see the module header. The creator is told what actually
   // moved, not a figure re-derived outside the transaction.
-  await deps.notify(row.creatorUserId, 'deliverable_approved', {
-    dealId,
-    campaignTitle: row.campaignName,
-    payout: result.payout,
-  });
+  try {
+    await deps.notify(row.creatorUserId, 'deliverable_approved', {
+      dealId,
+      campaignTitle: row.campaignName,
+      payout: result.payout,
+    });
+  } catch (error) {
+    // The payout and the `completed` status are final at this point, so the
+    // failure is traced and swallowed: a 500 here would tell the brand their
+    // approval failed when it succeeded (F2).
+    deps.logNotifyFailure(error, { dealId, actorId: actorUserId });
+  }
 
   return {
     ok: true,

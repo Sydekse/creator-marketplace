@@ -41,7 +41,10 @@ import type { DealStatus } from '../db/schema';
  * opens its own serializable transaction (and retries it), so wrapping it in
  * `withNotifications` would nest transactions and re-queue emails per retry
  * — the `fund-campaign.ts` header documents why. The honest failure mode is
- * a paid creator nobody told, which is the right direction to fail in.
+ * a paid creator nobody told, which is the right direction to fail in — and
+ * because the money and the status are already final, that failure is traced
+ * and swallowed: the response still reports the completed payout instead of
+ * a 500 that would lie about an approval that succeeded.
  *
  * **The endpoint takes no body.** The amounts are derived from the deal
  * under the ledger's lock, so there is nothing for a client to vary except
@@ -76,6 +79,7 @@ interface Recorded {
   pays: Array<{ dealId: string; actorId: string }>;
   notifications: Array<{ userId: string; type: string; payload: unknown }>;
   logs: Array<{ operation: string; dealId: string; actorId: string }>;
+  notifyLogs: Array<{ dealId: string; actorId: string }>;
 }
 
 interface Overrides {
@@ -96,6 +100,7 @@ function makeDeps(overrides: Overrides = {}): {
     pays: [],
     notifications: [],
     logs: [],
+    notifyLogs: [],
   };
 
   const deps: ApproveDeliverableDeps = {
@@ -134,6 +139,13 @@ function makeDeps(overrides: Overrides = {}): {
         actorId: context.actorId ?? '',
       });
     },
+    logNotifyFailure: async (_error, context) => {
+      recorded.calls.push('logNotifyFailure');
+      recorded.notifyLogs.push({
+        dealId: context.dealId,
+        actorId: context.actorId,
+      });
+    },
   };
 
   return { deps, recorded };
@@ -163,6 +175,7 @@ function read(path: string): string {
 
 const APPROVE_MODULE = read('lib/deals/approve-deliverable.ts');
 const APPROVE_ROUTE = read('app/api/deals/[id]/approve/route.ts');
+const LEDGER_MODULE = read('lib/payment/ledger.ts');
 
 const NON_APPROVABLE = (Object.keys(LEGAL_TRANSITIONS) as DealStatus[]).filter(
   (s) => !LEGAL_TRANSITIONS[s].includes('completed')
@@ -365,6 +378,46 @@ describe('AC-7 — the creator is notified of approval and payout', () => {
     });
 
     expect(recorded.notifications).toHaveLength(0);
+  });
+});
+
+// -- F2: a failed notification never undoes the payout -----------------------
+
+describe('a failed notification does not undo the payout', () => {
+  it('still reports ok:true with the written figures when notify throws', async () => {
+    const { result, recorded } = await approve({ failNotify: true });
+
+    // The money and the status were final before the notification ran, so a
+    // failure there cannot roll either back — and the brand must not be told
+    // their approval failed when it succeeded. The trace is the only casualty.
+    expect(result).toEqual({
+      ok: true,
+      dealId: DEAL_ID,
+      status: 'completed',
+      payout: PAYOUT,
+      commission: COMMISSION,
+    });
+    expect(recorded.pays).toEqual([
+      { dealId: DEAL_ID, actorId: BRAND_USER_ID },
+    ]);
+    // Ordering is the proof the payout committed first: pay runs, then notify,
+    // then the trace — there is no rollback between them to undo the payout.
+    expect(recorded.calls).toEqual([
+      'getDeal',
+      'pay',
+      'notify',
+      'logNotifyFailure',
+    ]);
+  });
+
+  it('traces the swallowed notification failure', async () => {
+    const { recorded } = await approve({ failNotify: true });
+
+    // The trace is the operator's only evidence that a paid creator was never
+    // told, so the seam must fire with the join keys back to the payout.
+    expect(recorded.notifyLogs).toEqual([
+      { dealId: DEAL_ID, actorId: BRAND_USER_ID },
+    ]);
   });
 });
 
@@ -627,5 +680,44 @@ describe('POST /api/deals/[id]/approve', () => {
 
   it('runs on the Node runtime, because pg cannot run on the edge', () => {
     expect(APPROVE_ROUTE).toContain("export const runtime = 'nodejs'");
+  });
+});
+
+/**
+ * NFR-002 (KAN-45 AC bullet 9) — approval answers within a second under
+ * normal load.
+ *
+ * Asserted structurally rather than on the clock, for the reason the funding
+ * suite documents (campaign-funding.test.ts): a wall-clock assertion against a
+ * fake database measures the fake, and one against a real instance measures the
+ * network. What actually decides whether this is a sub-second endpoint is the
+ * query shape — one ownership read, one ledger transaction (one balance sum,
+ * one provider capture), one notification — with nothing that grows with the
+ * input.
+ */
+describe('NFR-002 — the work is bounded', () => {
+  it('runs one ownership read, one payout, and one notification', async () => {
+    const { recorded } = await approve();
+
+    // The whole payout is a fixed sequence, not a per-deal or per-row fan-out:
+    // the only input is a deal id, and nothing scales with any table's size.
+    expect(recorded.calls.filter((c) => c === 'getDeal')).toHaveLength(1);
+    expect(recorded.calls.filter((c) => c === 'pay')).toHaveLength(1);
+    expect(recorded.calls.filter((c) => c === 'notify')).toHaveLength(1);
+    expect(recorded.calls).toHaveLength(3);
+  });
+
+  it('sums the balance once and captures the payout once inside the ledger', () => {
+    // Both in `payoutForDeal`: one `sumBalance` under the campaign lock and one
+    // `provider.capturePayout`, with the two ledger inserts derived in memory
+    // from the same computed split — no re-summing and no second capture for
+    // any input shape.
+    const payoutBody = LEDGER_MODULE.slice(
+      LEDGER_MODULE.indexOf('async payoutForDeal'),
+      LEDGER_MODULE.indexOf('async refundDeal')
+    );
+    expect(payoutBody).toContain('this.sumBalance(tx, deal.campaignId)');
+    expect(payoutBody.match(/this\.sumBalance/g)).toHaveLength(1);
+    expect(payoutBody.match(/this\.provider\./g)).toHaveLength(1);
   });
 });
