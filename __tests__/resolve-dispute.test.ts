@@ -86,13 +86,13 @@ interface Recorded {
   }>;
   committed: boolean;
 }
-
 function makeDeps(
   overrides: {
     deal?: ResolveDeal | null;
     failPay?: Error;
     failRefund?: Error;
     failTransition?: Error;
+    failPostLedger?: Error;
   } = {}
 ): { deps: ResolveDisputeDeps; recorded: Recorded; fakeTx: Tx } {
   const recorded: Recorded = {
@@ -112,6 +112,7 @@ function makeDeps(
   const fakeTx = {
     insert: vi.fn(() => ({
       values: vi.fn((row: Record<string, unknown>) => {
+        if (overrides.failPostLedger) throw overrides.failPostLedger;
         recorded.rows.push(row);
         return Promise.resolve();
       }),
@@ -301,6 +302,39 @@ describe('release — the same ledger path as brand approval (AC-2)', () => {
     expect(deps.logFailure).toHaveBeenCalledWith(
       expect.any(PaymentError),
       expect.objectContaining({ operation: 'resolve_dispute', dealId: DEAL_ID })
+    );
+  });
+
+  it('swallows a post-ledger audit/notification failure and still reports the resolution', async () => {
+    // Money and status are already final once the ledger has committed; the
+    // audit + notification write failing afterwards must not turn the response
+    // into a 500 that tells the admin their resolution failed when it
+    // succeeded. The failure is traced instead (module header).
+    const { deps, recorded } = makeDeps({
+      failPostLedger: new Error('db unavailable'),
+    });
+
+    const result = await resolve(deps, { resolution: 'release' });
+
+    expect(result).toEqual({
+      ok: true,
+      dealId: DEAL_ID,
+      status: 'completed',
+      resolution: 'release',
+      payout: 85_000,
+      commission: 15_000,
+    });
+    expect(recorded.pays).toHaveLength(1);
+    // Nothing reached the post-ledger transaction, and the swallow left a trace
+    // naming the deal, the actor, and the resolution.
+    expect(recorded.rows).toHaveLength(0);
+    expect(deps.logPostLedgerFailure).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        dealId: DEAL_ID,
+        actorId: ACTOR_USER_ID,
+        resolution: 'release',
+      })
     );
   });
 });
