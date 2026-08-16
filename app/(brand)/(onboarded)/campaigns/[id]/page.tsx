@@ -13,24 +13,37 @@ import {
 } from '@/lib/campaigns/constants';
 import { readCampaignEscrow } from '@/lib/campaigns/escrow';
 import {
+  COMMISSION_LABEL,
+  EMPTY_PERFORMANCE,
+  PAID_OUT_LABEL,
+  SETTLEMENT_NOTE,
+  readCampaignPerformance,
+} from '@/lib/campaigns/performance';
+import {
   countAcceptedDeals,
   getCampaignForBrand,
-  listCampaignDeals,
 } from '@/lib/campaigns/queries';
-import { labelForStatus } from '@/lib/deals';
 import { formatEtb } from '@/lib/money';
 
 import { ConfirmCampaignButton } from '@/components/campaign/confirm-campaign-button';
 import { FundCampaignButton } from '@/components/campaign/fund-campaign-button';
 import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-button';
+import { VideoPerformance } from '@/components/campaign/video-performance';
 import { EmptyState } from '@/components/feedback/empty-state';
 
 export const runtime = 'nodejs';
 
 /**
- * Campaign detail and cart view (KAN-30).
+ * Campaign detail: the cart while it is a draft, the live deals and their
+ * performance once it is not (KAN-30, KAN-68, KAN-49).
  *
- * Shows the campaign's budget, running total, and cart items (pending deals).
+ * Shows the campaign's budget and what has happened to it — committed, held in
+ * escrow, paid out, and taken as commission — beside either the cart being built
+ * or the videos that were delivered against it.
+ *
+ * **No money is computed here.** Every figure arrives summed from the ledger or
+ * from `readCampaignBudget`, and `formatEtb` is the only arithmetic-shaped call in
+ * the file (AC-026, invariant 4).
  */
 export default async function CampaignCartPage({
   params,
@@ -45,21 +58,23 @@ export default async function CampaignCartPage({
   const campaign = await getCampaignForBrand(id, profile.id);
   if (!campaign) notFound();
 
-  // `readCampaignEscrow` and `countAcceptedDeals` are only asked for once the
-  // campaign has left `draft`. A draft has no deals and no ledger entries, so both
-  // answers are known to be zero — and running them anyway would put two queries
-  // on the page that carries the cart, which is the one a brand loads repeatedly
-  // while shopping. `listCampaignDeals` is gated the same way and for the same
-  // reason: a draft's creators are the cart, which is already being read below.
+  // `readCampaignEscrow`, `countAcceptedDeals` and `readCampaignPerformance` are
+  // only asked for once the campaign has left `draft`. A draft has no deals and no
+  // ledger entries, so every answer is known to be zero or empty — and running them
+  // anyway would put three queries on the page that carries the cart, which is the
+  // one a brand loads repeatedly while shopping.
   const settled = campaign.status !== 'draft';
 
-  const [items, budget, escrowed, acceptedCount, deals] = await Promise.all([
-    listCartItems(campaign.id),
-    readCampaignBudget(campaign.id),
-    settled ? readCampaignEscrow(campaign.id) : Promise.resolve(0),
-    settled ? countAcceptedDeals(campaign.id) : Promise.resolve(0),
-    settled ? listCampaignDeals(campaign.id) : Promise.resolve([]),
-  ]);
+  const [items, budget, escrowed, acceptedCount, performance] =
+    await Promise.all([
+      listCartItems(campaign.id),
+      readCampaignBudget(campaign.id),
+      settled ? readCampaignEscrow(campaign.id) : Promise.resolve(0),
+      settled ? countAcceptedDeals(campaign.id) : Promise.resolve(0),
+      settled
+        ? readCampaignPerformance(campaign.id)
+        : Promise.resolve(EMPTY_PERFORMANCE),
+    ]);
 
   // `getCampaignForBrand` already returned this campaign for this brand, so the
   // guarded read above cannot miss. Falling back to the campaign's own ceiling
@@ -142,83 +157,22 @@ export default async function CampaignCartPage({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 flex flex-col gap-4">
           {/*
-            The cart and the deals are the same creators at two different stages,
-            so the page shows one or the other rather than both. Before
-            confirmation the cart is the editable thing; after it the cart is
-            frozen and the deals are what actually moves — each with its own
-            status and its own review screen.
+            The cart and the delivered videos are the same creators at two
+            different stages, so the page shows one or the other rather than both.
+            Before confirmation the cart is the editable thing; after it the cart
+            is frozen and the videos are what actually happened.
 
-            This replaces a placeholder that had outlived its reason. The budget
-            panel below has carried a note since Wave 8 about naming "the live
-            deals once offers exist", and offers have existed since Wave 9; what
-            was still missing until now was anywhere for a row to link to.
+            KAN-49 replaced the deals list that stood here with the performance
+            section: it renders the same rows — creator, status, video count, price,
+            a link into each deal — plus the four engagement counts and the campaign
+            total AC-026 asks for. Two lists of the same creators, one with numbers
+            and one without, is the duplication this ternary exists to prevent.
           */}
           {settled ? (
-            <>
-              <h2 className="text-xl font-semibold tracking-tight">
-                Deals ({deals.length})
-              </h2>
-
-              {deals.length === 0 ? (
-                <EmptyState
-                  title="No deals on this campaign"
-                  description="Every offer was declined or expired, so the budget is back with you."
-                />
-              ) : (
-                <ul className="flex flex-col gap-4">
-                  {deals.map((d) => (
-                    <li key={d.id}>
-                      <Card>
-                        <CardContent className="p-6 flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between">
-                          <div className="flex flex-col gap-1">
-                            {/*
-                              The whole row's purpose: a way into the deal. This
-                              is the link the delivery email's CTA now lands on
-                              too, and the page it opens re-checks ownership in
-                              its own `where` rather than trusting this href.
-                            */}
-                            <Link
-                              href={`/deals/${d.id}`}
-                              className="font-semibold text-lg hover:underline"
-                            >
-                              {d.creatorHandle}
-                            </Link>
-                            <div>
-                              {/*
-                                The shared status vocabulary, so this list and the
-                                deal screen cannot call one state two things.
-                              */}
-                              <Badge variant="secondary">
-                                {labelForStatus(d.status)}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-8 text-right">
-                            <div className="flex flex-col">
-                              <span className="text-sm text-muted-foreground">
-                                Videos
-                              </span>
-                              <span className="font-medium">
-                                x{d.videoCount}
-                              </span>
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="text-sm text-muted-foreground">
-                                Total
-                              </span>
-                              <span className="font-semibold text-primary">
-                                {formatEtb(d.totalPrice)}
-                              </span>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
+            <VideoPerformance
+              videos={performance.videos}
+              totals={performance.totals}
+            />
           ) : (
             <>
               <h2 className="text-xl font-semibold tracking-tight">
@@ -362,6 +316,43 @@ export default async function CampaignCartPage({
                   {/* AC-021, stated rather than left to be inferred from a label. */}
                   <p className="text-xs text-muted-foreground">
                     {HELD_IN_ESCROW_NOTE}
+                  </p>
+                </div>
+              )}
+              {/*
+                AC-026's money half: what has actually left escrow, and where it
+                went. Both figures are summed from `ledger_entry` by
+                `sumSettledByCampaign` — the rows the payout transaction wrote —
+                never re-derived from a rate here. `computeSplit` is deliberately
+                not imported into this file.
+
+                Shown together and only once something has been paid, on the same
+                reasoning as the escrow row above: a "0.00 ETB paid out" pair on a
+                campaign nobody has approved reads as a fact rather than the absence
+                of one. They appear as a pair because either alone invites the wrong
+                sum — the commission is a slice of the same money, not a charge on
+                top of it, which is what the note says.
+              */}
+              {performance.settlement.paidOut > 0 && (
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">
+                      {PAID_OUT_LABEL}
+                    </span>
+                    <span className="font-medium">
+                      {formatEtb(performance.settlement.paidOut)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">
+                      {COMMISSION_LABEL}
+                    </span>
+                    <span className="font-medium">
+                      {formatEtb(performance.settlement.commission)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {SETTLEMENT_NOTE}
                   </p>
                 </div>
               )}

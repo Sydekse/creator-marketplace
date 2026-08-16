@@ -511,14 +511,20 @@ describe('ReviewActions posts to the endpoints and re-reads the server', () => {
 // -- Reachability -------------------------------------------------------------
 
 describe('the surface is reachable', () => {
-  it('is linked from the campaign’s deal list', () => {
+  it('is linked from the campaign’s video list', () => {
+    // KAN-49 replaced the deals list this used to assert on with the performance
+    // section — the same rows plus engagement counts — so the link moved from the
+    // page into `video-performance.tsx`. The claim is unchanged and is the one that
+    // matters: a brand can reach this screen from their campaign.
     const page = src(CAMPAIGN_PAGE);
+    const list = src('components/campaign/video-performance.tsx');
 
-    expect(page).toContain('listCampaignDeals');
-    expect(page).toMatch(/href=\{`\/deals\/\$\{d\.id\}`\}/);
+    expect(page).toContain('VideoPerformance');
+    expect(page).toContain('readCampaignPerformance');
+    expect(list).toMatch(/href=\{`\/deals\/\$\{video\.dealId\}`\}/);
     // The shared status vocabulary, so the list and the deal screen cannot call
     // one state two different things.
-    expect(page).toContain('labelForStatus(d.status)');
+    expect(list).toContain('labelForStatus(video.status)');
   });
 
   it('is where the delivery notification now points', () => {

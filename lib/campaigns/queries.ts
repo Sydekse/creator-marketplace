@@ -1,6 +1,6 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { campaign, creatorProfile, deal } from '@/db/schema';
+import { campaign, deal } from '@/db/schema';
 import { UUID_REGEX } from '@/lib/validation';
 
 /**
@@ -92,41 +92,4 @@ export async function countAcceptedDeals(campaignId: string): Promise<number> {
     .where(and(eq(deal.campaignId, campaignId), eq(deal.status, 'accepted')));
 
   return Number(row?.count ?? 0);
-}
-
-/**
- * A campaign's live deals, for the brand's own campaign page (KAN-68, AC-6).
- *
- * The campaign page had a placeholder here since Wave 8 — its budget panel
- * carried a comment about naming "the live deals once offers exist", and offers
- * have existed since Wave 9. Until this ticket there was also nowhere for a row
- * to link *to*, which is why the placeholder outlived the data.
- *
- * Ordered by handle rather than by status or creation time: a brand scanning for
- * one creator wants a stable place to look, and a status-ordered list reshuffles
- * itself under them as deals progress.
- *
- * Un-guarded, matching `countAcceptedDeals` and every other function in this
- * module: the only caller reaches it after `getCampaignForBrand` has already
- * scoped the campaign to the session's brand, and it is only ever called with an
- * id that read returned rather than one from a URL. The per-deal review screen
- * gates itself properly — `readBrandDeal` puts the brand id in its own `where` —
- * so following one of these links is checked again on arrival.
- *
- * No contact column is selected from `creator_profile` (NFR-010); the handle is
- * all a brand needs to recognise whose video it is looking at.
- */
-export async function listCampaignDeals(campaignId: string) {
-  return db
-    .select({
-      id: deal.id,
-      status: deal.status,
-      videoCount: deal.videoCount,
-      totalPrice: deal.totalPrice,
-      creatorHandle: creatorProfile.tiktokHandle,
-    })
-    .from(deal)
-    .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
-    .where(eq(deal.campaignId, campaignId))
-    .orderBy(asc(creatorProfile.tiktokHandle));
 }
