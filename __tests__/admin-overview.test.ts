@@ -345,6 +345,38 @@ describe('the disputed worklist', () => {
   });
 });
 
+// -- AC-5: read-only by construction -----------------------------------------
+
+describe('the admin views are read-only (AC-5)', () => {
+  it('contains no write primitives anywhere in the read path', async () => {
+    // Mutations live in the audited verify/resolve stories; these views must
+    // never grow a write. AC-5 is structural, so the test pins the absence
+    // that makes it hold — the mirror of the `REFUNDABLE_FROM` guard above.
+    const { readFileSync } = await import('fs');
+    const files = [
+      'lib/admin/overview.ts',
+      'app/api/admin/campaigns/route.ts',
+      'app/api/admin/campaigns/[id]/ledger/route.ts',
+      'app/api/admin/disputes/route.ts',
+      'app/api/admin/deals/[id]/history/route.ts',
+    ];
+    const writePrimitives = [
+      '.insert(',
+      '.update(',
+      '.delete(',
+      'db.transaction',
+    ];
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      for (const primitive of writePrimitives) {
+        expect(source, `${file} must not contain ${primitive}`).not.toContain(
+          primitive
+        );
+      }
+    }
+  });
+});
+
 // -- The endpoints ----------------------------------------------------------
 
 const guardMock = vi.hoisted(() => vi.fn());
