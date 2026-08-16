@@ -482,6 +482,26 @@ describe('withAdminAudit', () => {
     expect(recorded.rows[0].detail).toBeNull();
   });
 
+  it('resolves a function targetId from the mutation result', async () => {
+    // KAN-48's metric.edit can create the very row it must log: the
+    // `video_metric` id does not exist until the upsert has run. A function
+    // targetId defers resolution to the result, exactly like `detail` does.
+    const { deps, recorded } = txDeps();
+    await withAdminAudit(
+      {
+        action: 'metric.edit',
+        targetType: 'video_metric',
+        targetId: (result: { id: string }) => result.id,
+      },
+      async () => ({ id: 'm-9' }),
+      deps
+    );
+
+    // The audit row names the very row the transaction made — the resolved
+    // value, never the unresolved function.
+    expect(recorded.rows[0].targetId).toBe('m-9');
+  });
+
   it('writes the audit row inside the same transaction as the mutation', async () => {
     const { deps, recorded } = txDeps();
     const seen: Tx[] = [];

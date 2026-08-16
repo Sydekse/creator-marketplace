@@ -423,12 +423,37 @@ export const rejectDeliverableSchema = z.object({
     }),
 });
 
-export const updateMetricsSchema = z.object({
-  views: z.number().int().min(0).optional(),
-  likes: z.number().int().min(0).optional(),
-  shares: z.number().int().min(0).optional(),
-  comments: z.number().int().min(0).optional(),
-});
+/**
+ * Largest count the `video_metric` columns can hold.
+ *
+ * The columns are Postgres `integer` (4 bytes, max 2_147_483_647) while zod's
+ * `.int()` admits any safe JS integer up to 2^53 — a count that fits
+ * JavaScript would overflow the column and turn a PUT into a 500 from the
+ * driver. The bound mirrors `MAX_TIKTOK_URL_LENGTH`: the schema refuses what
+ * the storage cannot, so the caller gets a 422 they can fix, never a database
+ * error.
+ */
+export const MAX_METRIC_COUNT = 2_147_483_647;
+
+export const updateMetricsSchema = z
+  .object({
+    views: z.number().int().min(0).max(MAX_METRIC_COUNT).optional(),
+    likes: z.number().int().min(0).max(MAX_METRIC_COUNT).optional(),
+    shares: z.number().int().min(0).max(MAX_METRIC_COUNT).optional(),
+    comments: z.number().int().min(0).max(MAX_METRIC_COUNT).optional(),
+  })
+  // Refused rather than stripped, so a typo'd `veiws` fails loudly instead of
+  // silently dropping the number the creator thought they submitted — the
+  // same hardening the KAN-52 review-fix applied to query filters.
+  .strict()
+  // Every field is optional so a client can send just `views` (AC-6), but a
+  // body with *no* field must be refused: a no-op PUT would re-stamp
+  // `last_updated_at` while all four counts stay null — a row that claims
+  // fresh data and measures nothing (KAN-50 renders null as "Metrics
+  // pending").
+  .refine((values) => Object.keys(values).length > 0, {
+    message: 'Provide at least one metric value.',
+  });
 
 /**
  * Longest rejection note accepted, deliberately the same bound `audit_log`
