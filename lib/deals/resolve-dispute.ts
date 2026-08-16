@@ -12,7 +12,11 @@ import { withNotifications } from '@/lib/notifications/notify';
 import type { NotifyDeps } from '@/lib/notifications/notify';
 import { getPaymentProvider, PaymentError } from '@/lib/payment';
 import { EscrowLedgerService, LedgerError } from '@/lib/payment/ledger';
-import type { PayoutResult } from '@/lib/payment/ledger';
+import type {
+  PayoutForDealOptions,
+  PayoutResult,
+  RefundDealOptions,
+} from '@/lib/payment/ledger';
 import { logPaymentFailure } from '@/lib/payment/log';
 import { extractSafeErrorDetails, toLogString } from '@/lib/logging';
 
@@ -38,24 +42,22 @@ import { extractSafeErrorDetails, toLogString } from '@/lib/logging';
  * no outgoing edges, so a re-resolve of either is refused by the ledger before
  * any money moves.
  *
- * **Audit and notifications ride the same transaction as the state change
- * where one exists, and follow the ledger where it does not.** For `revision`
- * the whole resolution is one transaction: state machine + `deal.resolve_dispute`
- * audit row + both parties' `dispute_resolved` rows (AC-030 "both parties are
- * notified", AC-031, NFR-003), with emails flushed only after commit (AC-3/4).
- * For `release`/`refund` the ledger transaction has already committed by the
- * time the audit row could be written — the same shape `approve-deliverable.ts`
- * documents for its notification, and for the same reason: `payoutForDeal` and
- * `refundDeal` open and retry their own serializable transactions, so nesting
- * them would hold two pool connections and re-queue emails per retry. The
- * honest consequence is the one approve accepts: an audit/notification write
- * that fails after the ledger has committed leaves the money moved and the
- * admin resolution unlogged — **traced and swallowed**, not a 500 that would
- * tell the admin their resolution failed when it succeeded. The `deal_event`
- * the ledger wrote still records the state change and the acting admin
- * (`transitionDeal`'s `actorId`), so the trail has an entry even in that
- * failure; the trace line is the operator's evidence that the `audit_log` row
- * is missing.
+ * **The audit row is atomic with the money; notifications are not (KAN-69
+ * F39).** For `revision` the whole resolution is one transaction: state
+ * machine + `deal.resolve_dispute` audit row + both parties' `dispute_resolved`
+ * rows (AC-030 "both parties are notified", AC-031, NFR-003), with emails
+ * flushed only after commit (AC-3/4). For `release`/`refund` the audit row
+ * runs inside the ledger's own serializable transaction via its `onCommit`
+ * callback, so AC-6 holds: a resolution cannot complete with money moved and
+ * no audit row — an audit write failure rolls the money back (invariant 1).
+ * Only the two notification rows remain post-ledger, the shape
+ * `approve-deliverable.ts` documents and for the same reason: emails must not
+ * be queued inside a retrying transaction (they would re-send per retry) and
+ * the ledger must not hold a second pool connection. A notification failure is
+ * **traced and swallowed**, not a 500 that would tell the admin their
+ * resolution failed when it succeeded — the `deal_event` and the audit row
+ * already record the resolution; the trace line is the operator's evidence
+ * that an email did not go out.
  *
  * **The route's gate decides who this runs as; this module decides what it
  * runs on.** `withAdminAudit` re-checks the admin role under its own session
@@ -119,10 +121,23 @@ export interface ResolveDisputeDeps {
    * `lib/authz.ts`) because notifications address a user, never a profile id.
    */
   loadDeal: (dealId: string) => Promise<ResolveDeal | null>;
-  /** `EscrowLedgerService.payoutForDeal` — the same money path brand approval uses. */
-  pay: (dealId: string, actorId: string) => Promise<PayoutResult>;
+  /**
+   * `EscrowLedgerService.payoutForDeal` — the same money path brand approval
+   * uses. `opts.onCommit` runs inside the ledger's transaction; the action
+   * uses it to write the audit row and clear the flagged state atomically with
+   * the money (KAN-69 F32/F39/F40).
+   */
+  pay: (
+    dealId: string,
+    actorId: string,
+    opts?: PayoutForDealOptions
+  ) => Promise<PayoutResult>;
   /** `EscrowLedgerService.refundDeal` — the decline/expire money path. */
-  refund: (dealId: string, actorId: string) => Promise<void>;
+  refund: (
+    dealId: string,
+    actorId: string,
+    opts?: RefundDealOptions
+  ) => Promise<void>;
   /**
    * The state-machine transition for the `revision` path, run inside the audit
    * transaction. A seam because tests must stay off Postgres; the default is
@@ -142,10 +157,12 @@ export interface ResolveDisputeDeps {
   /** The KAN-44 rule: a money-path failure must leave a trace. */
   logFailure: typeof logPaymentFailure;
   /**
-   * Trace for an audit/notification write that failed after the ledger
-   * committed. The action swallows that failure — money and status are already
-   * final (see the module header) — but a swallowed failure must still leave a
-   * line for the operator who has to explain an unlogged admin resolution.
+   * Trace for a **notification** write that failed after the ledger committed.
+   * The audit row is atomic with the money now (F39), so the only post-ledger
+   * write that can still fail is the courtesy email. The action swallows that
+   * failure — money, status and audit are already final (see the module
+   * header) — but a swallowed failure must still leave a line for the
+   * operator who has to explain an email that never went out.
    */
   logPostLedgerFailure: (
     error: unknown,
@@ -176,15 +193,17 @@ const defaultDeps: ResolveDisputeDeps = {
   // no state between calls, and a module-level instance would call
   // `getPaymentProvider()` at import time, binding the provider before any test
   // could swap it.
-  pay: (dealId, actorId) =>
+  pay: (dealId, actorId, opts) =>
     new EscrowLedgerService(db, getPaymentProvider()).payoutForDeal(
       dealId,
-      actorId
+      actorId,
+      opts
     ),
-  refund: (dealId, actorId) =>
+  refund: (dealId, actorId, opts) =>
     new EscrowLedgerService(db, getPaymentProvider()).refundDeal(
       dealId,
-      actorId
+      actorId,
+      opts
     ),
   transition: (tx, dealId, toStatus, actorId, opts) =>
     transitionDeal(tx, dealId, toStatus, actorId, opts),
@@ -276,6 +295,10 @@ async function resolveRevision(
             { reason: input.note }
           );
 
+          // F40: a resolution is the attention a flag asked for — the flag has
+          // no reason to outlive it, and flag and status share this transaction.
+          await clearFlag(auditTx, row.id);
+
           // AC-030: both parties are told, in the same transaction as the
           // state change; the emails go out only after it commits (AC-3/4).
           const payload = {
@@ -314,8 +337,22 @@ async function resolveWithLedger(
   try {
     if (input.resolution === 'release') {
       // The same money path brand approval uses (AC-2), guarded by the ledger's
-      // own `delivered` requirement — no parallel payout exists.
-      const result = await deps.pay(row.id, actorUserId);
+      // own `delivered` requirement — no parallel payout exists. F32: the
+      // reason the `deal_event` carries is this resolution's, not brand
+      // approval's. F39: the audit row (and the flag clear, F40) run inside the
+      // ledger's transaction via `onCommit`.
+      const result = await deps.pay(row.id, actorUserId, {
+        reason: 'Dispute resolved: released to creator',
+        onCommit: (tx, figures) =>
+          writeResolutionAudit(row, input, actorUserId, deps, tx, {
+            ok: true,
+            dealId: row.id,
+            status: 'completed',
+            resolution: 'release',
+            payout: figures.payout,
+            commission: figures.commission,
+          }),
+      });
       success = {
         ok: true,
         dealId: row.id,
@@ -325,7 +362,16 @@ async function resolveWithLedger(
         commission: result.commission,
       };
     } else {
-      await deps.refund(row.id, actorUserId);
+      await deps.refund(row.id, actorUserId, {
+        reason: 'Dispute resolved: refunded to brand',
+        onCommit: (tx) =>
+          writeResolutionAudit(row, input, actorUserId, deps, tx, {
+            ok: true,
+            dealId: row.id,
+            status: 'refunded',
+            resolution: 'refund',
+          }),
+      });
       success = {
         ok: true,
         dealId: row.id,
@@ -351,42 +397,20 @@ async function resolveWithLedger(
     return failure;
   }
 
-  // The ledger has committed: status and money are final. The audit row and
-  // both notification rows go in one post-ledger transaction, and a failure
-  // there is traced and swallowed rather than reported as a failed resolution
-  // — see the module header for the failure direction.
+  // The ledger has committed: money, status and the audit row are final (F39).
+  // Only the two notification rows remain, in one post-ledger transaction — the
+  // courtesy emails, flushed after commit. A failure there is traced and
+  // swallowed rather than reported as a failed resolution (module header).
   try {
-    await withNotifications(async (tx, notify) => {
-      return withAdminAudit<Extract<ResolveDisputeResult, { ok: true }>>(
-        {
-          action: AUDIT_ACTIONS.DEAL_RESOLVE_DISPUTE,
-          targetType: AUDIT_TARGET_TYPES.DEAL,
-          targetId: row.id,
-          detail: (result) => ({
-            resolution: input.resolution,
-            note: input.note,
-            before: row.status,
-            after: result.status,
-            ...(result.resolution === 'release'
-              ? { payout: result.payout, commission: result.commission }
-              : {}),
-          }),
-        },
-        // No `auditTx` here: the ledger has already committed this resolution,
-        // so these rows land in a fresh transaction — the trace-and-swallow
-        // tradeoff the module header documents.
-        async () => {
-          const payload = {
-            dealId: row.id,
-            campaignTitle: row.campaignName,
-            resolution: NOTIFICATION_RESOLUTION[input.resolution],
-          } as const;
-          await notify(row.brandUserId, 'dispute_resolved', payload);
-          await notify(row.creatorUserId, 'dispute_resolved', payload);
-          return success;
-        },
-        { ...deps?.adminAuditDeps, transaction: (fn) => fn(tx) }
-      );
+    await withNotifications(async (_tx, notify) => {
+      const payload = {
+        dealId: row.id,
+        campaignTitle: row.campaignName,
+        resolution: NOTIFICATION_RESOLUTION[input.resolution],
+      } as const;
+      await notify(row.brandUserId, 'dispute_resolved', payload);
+      await notify(row.creatorUserId, 'dispute_resolved', payload);
+      return success;
     }, deps?.notifyDeps);
   } catch (error) {
     deps.logPostLedgerFailure(error, {
@@ -397,6 +421,55 @@ async function resolveWithLedger(
   }
 
   return success;
+}
+
+/**
+ * The audit row for a `release`/`refund` resolution, written inside the
+ * ledger's own transaction (KAN-69 F39) together with the flag clear (F40).
+ *
+ * `tx` is the ledger's serializable transaction, handed in via the
+ * `withAdminAudit` transaction seam — the same hinge `resolveRevision` uses,
+ * inverted: there the audit owns the transaction, here the ledger does.
+ * `success` is built by the caller from the figures the ledger computed, so
+ * the audit `detail` carries the *actual* payout/commission the entries were
+ * written from (the `PayoutResult` handed to `onCommit`).
+ */
+async function writeResolutionAudit(
+  row: ResolveDeal,
+  input: { resolution: 'release' | 'refund'; note: string },
+  actorUserId: string,
+  deps: ResolveDisputeDeps,
+  tx: Tx,
+  success: Extract<ResolveDisputeResult, { ok: true }>
+): Promise<void> {
+  await withAdminAudit<Extract<ResolveDisputeResult, { ok: true }>>(
+    {
+      action: AUDIT_ACTIONS.DEAL_RESOLVE_DISPUTE,
+      targetType: AUDIT_TARGET_TYPES.DEAL,
+      targetId: row.id,
+      detail: (result) => ({
+        resolution: input.resolution,
+        note: input.note,
+        before: row.status,
+        after: result.status,
+        ...(result.resolution === 'release'
+          ? { payout: result.payout, commission: result.commission }
+          : {}),
+      }),
+    },
+    async () => {
+      // F40: the resolution is the attention the flag asked for.
+      await clearFlag(tx, row.id);
+      return success;
+    },
+    // The transaction seam: the ledger's tx, not a fresh one.
+    { ...deps?.adminAuditDeps, transaction: (fn) => fn(tx) }
+  );
+}
+
+/** F40: the flag is attention metadata — a resolution clears it (same tx). */
+async function clearFlag(tx: Tx, dealId: string): Promise<void> {
+  await tx.update(deal).set({ flagged: false }).where(eq(deal.id, dealId));
 }
 
 /**

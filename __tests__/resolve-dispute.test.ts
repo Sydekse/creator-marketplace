@@ -75,9 +75,11 @@ const DEAL: ResolveDeal = {
 interface Recorded {
   /** Rows the fake transaction saw — audit row and notification rows. */
   rows: Record<string, unknown>[];
+  /** `deal` updates the fake transaction saw — the F40 flag clears. */
+  updates: Record<string, unknown>[];
   loads: string[];
-  pays: Array<{ dealId: string; actorId: string }>;
-  refunds: Array<{ dealId: string; actorId: string }>;
+  pays: Array<{ dealId: string; actorId: string; reason?: string }>;
+  refunds: Array<{ dealId: string; actorId: string; reason?: string }>;
   transitions: Array<{
     dealId: string;
     toStatus: string;
@@ -92,11 +94,15 @@ function makeDeps(
     failPay?: Error;
     failRefund?: Error;
     failTransition?: Error;
-    failPostLedger?: Error;
+    /** Thrown by the in-ledger audit/flag writes — must fail the resolution (F39). */
+    failAudit?: Error;
+    /** Thrown by the post-ledger notification writes — traced and swallowed. */
+    failNotifications?: Error;
   } = {}
 ): { deps: ResolveDisputeDeps; recorded: Recorded; fakeTx: Tx } {
   const recorded: Recorded = {
     rows: [],
+    updates: [],
     loads: [],
     pays: [],
     refunds: [],
@@ -105,16 +111,34 @@ function makeDeps(
   };
 
   // The one transaction the action's own writes land in — the same object the
-  // audit row and both notification rows must share to prove atomicity. Only
-  // `insert` is needed: the ledger and the state machine are seamed, so the
-  // only rows that reach this transaction are the audit row (withAdminAudit)
-  // and the notification rows (the scoped notify).
+  // audit row (inside the ledger's onCommit, F39), the flag clear (F40) and
+  // both notification rows (the post-ledger scoped notify) must share to prove
+  // atomicity. The ledger and the state machine are seamed, so the only rows
+  // that reach this transaction are the audit row, the notification rows, and
+  // the flag-clear update.
+  let insertCount = 0;
   const fakeTx = {
     insert: vi.fn(() => ({
       values: vi.fn((row: Record<string, unknown>) => {
-        if (overrides.failPostLedger) throw overrides.failPostLedger;
+        insertCount += 1;
+        // The first insert is the in-ledger audit row; everything after it is
+        // a post-ledger notification row — which is how the two failure modes
+        // below are told apart without a real transaction.
+        if (overrides.failAudit && insertCount === 1) {
+          throw overrides.failAudit;
+        }
+        if (overrides.failNotifications && insertCount > 1) {
+          throw overrides.failNotifications;
+        }
         recorded.rows.push(row);
         return Promise.resolve();
+      }),
+    })),
+    update: vi.fn(() => ({
+      set: vi.fn((values: Record<string, unknown>) => {
+        if (overrides.failAudit) throw overrides.failAudit;
+        recorded.updates.push(values);
+        return { where: vi.fn(async () => Promise.resolve()) };
       }),
     })),
   } as unknown as Tx;
@@ -124,14 +148,26 @@ function makeDeps(
       recorded.loads.push(id);
       return overrides.deal === undefined ? DEAL : overrides.deal;
     },
-    pay: async (dealId, actorId) => {
-      recorded.pays.push({ dealId, actorId });
+    pay: async (dealId, actorId, opts) => {
+      recorded.pays.push({ dealId, actorId, reason: opts?.reason });
       if (overrides.failPay) throw overrides.failPay;
+      // The ledger seam: the resolve action's `onCommit` (audit + flag clear,
+      // F39/F40) runs inside what pretends to be the serializable transaction.
+      if (opts?.onCommit) {
+        await opts.onCommit(fakeTx, {
+          payout: 85_000,
+          commission: 15_000,
+          totalPrice: 100_000,
+        });
+      }
       return { payout: 85_000, commission: 15_000, totalPrice: 100_000 };
     },
-    refund: async (dealId, actorId) => {
-      recorded.refunds.push({ dealId, actorId });
+    refund: async (dealId, actorId, opts) => {
+      recorded.refunds.push({ dealId, actorId, reason: opts?.reason });
       if (overrides.failRefund) throw overrides.failRefund;
+      if (opts?.onCommit) {
+        await opts.onCommit(fakeTx);
+      }
     },
     transition: async (_tx, dealId, toStatus, actorId, opts) => {
       recorded.transitions.push({
@@ -141,7 +177,24 @@ function makeDeps(
         reason: opts?.reason,
       });
       if (overrides.failTransition) throw overrides.failTransition;
-      return { ...DEAL, status: toStatus } as unknown as DealRow;
+      // H2: a structurally complete `DealRow` via `satisfies` — the transition
+      // result is never read by the action, but the fake no longer needs the
+      // `as unknown as` hop to satisfy the seam's type.
+      return {
+        id: dealId,
+        campaignId: '',
+        creatorId: '',
+        videoCount: 1,
+        unitPrice: 0,
+        totalPrice: 0,
+        commissionRate: '0',
+        status: toStatus,
+        rightsTermsId: null,
+        rightsAcceptedAt: null,
+        offerExpiresAt: null,
+        createdAt: new Date(),
+        flagged: false,
+      } satisfies DealRow;
     },
     notifyDeps: {
       db: {
@@ -230,8 +283,14 @@ describe('release — the same ledger path as brand approval (AC-2)', () => {
       commission: 15_000,
     });
     expect(recorded.loads).toEqual([DEAL_ID]);
+    // F32: the deal_event reason this resolution writes is its own, not brand
+    // approval's — a losing brand must not read "Deliverable approved".
     expect(recorded.pays).toEqual([
-      { dealId: DEAL_ID, actorId: ACTOR_USER_ID },
+      {
+        dealId: DEAL_ID,
+        actorId: ACTOR_USER_ID,
+        reason: 'Dispute resolved: released to creator',
+      },
     ]);
     expect(recorded.refunds).toHaveLength(0);
     expect(recorded.transitions).toHaveLength(0);
@@ -242,8 +301,13 @@ describe('release — the same ledger path as brand approval (AC-2)', () => {
 
     await resolve(deps, { resolution: 'release', note: 'Both sides heard.' });
 
-    // Audit row + two notification rows all landed in the same transaction.
+    // The audit row was written inside the ledger's own transaction (F39) —
+    // money, status and audit share one commit — while the two notification
+    // rows landed in the post-ledger one, emails after commit.
     expect(recorded.committed).toBe(true);
+    // F40: the resolution is the attention the flag asked for — cleared in the
+    // same transaction as the audit row and the money.
+    expect(recorded.updates).toContainEqual({ flagged: false });
     const audit = auditRow(recorded);
     expect(audit).toMatchObject({
       actorId: ACTOR_USER_ID,
@@ -305,13 +369,13 @@ describe('release — the same ledger path as brand approval (AC-2)', () => {
     );
   });
 
-  it('swallows a post-ledger audit/notification failure and still reports the resolution', async () => {
-    // Money and status are already final once the ledger has committed; the
-    // audit + notification write failing afterwards must not turn the response
-    // into a 500 that tells the admin their resolution failed when it
-    // succeeded. The failure is traced instead (module header).
+  it('swallows a notification failure after the ledger commits and still reports the resolution', async () => {
+    // Money, status and the audit row are final once the ledger has committed
+    // (F39); only the courtesy emails remain. A notification write failing
+    // afterwards must not turn the response into a 500 that tells the admin
+    // their resolution failed when it succeeded — it is traced instead.
     const { deps, recorded } = makeDeps({
-      failPostLedger: new Error('db unavailable'),
+      failNotifications: new Error('email db down'),
     });
 
     const result = await resolve(deps, { resolution: 'release' });
@@ -325,9 +389,11 @@ describe('release — the same ledger path as brand approval (AC-2)', () => {
       commission: 15_000,
     });
     expect(recorded.pays).toHaveLength(1);
-    // Nothing reached the post-ledger transaction, and the swallow left a trace
-    // naming the deal, the actor, and the resolution.
-    expect(recorded.rows).toHaveLength(0);
+    // The audit row was written with the money; only the notifications were
+    // lost — and the swallow left a trace naming the deal, the actor, and the
+    // resolution.
+    expect(recorded.rows).toHaveLength(1);
+    expect(auditRow(recorded)).toBeDefined();
     expect(deps.logPostLedgerFailure).toHaveBeenCalledWith(
       expect.any(Error),
       expect.objectContaining({
@@ -336,6 +402,23 @@ describe('release — the same ledger path as brand approval (AC-2)', () => {
         resolution: 'release',
       })
     );
+  });
+
+  it('fails the resolution as a whole if the audit write cannot commit (F39)', async () => {
+    // AC-6: a resolution cannot complete with money moved and no audit row.
+    // The audit write shares the ledger's transaction, so its failure rolls
+    // the money back — the admin sees an error, and nothing is half-recorded.
+    const { deps, recorded } = makeDeps({
+      failAudit: new Error('audit db down'),
+    });
+
+    await expect(resolve(deps, { resolution: 'release' })).rejects.toThrow(
+      'audit db down'
+    );
+    expect(recorded.pays).toHaveLength(1);
+    expect(recorded.rows).toHaveLength(0);
+    expect(recorded.updates).toHaveLength(0);
+    expect(deps.logPostLedgerFailure).not.toHaveBeenCalled();
   });
 });
 
@@ -353,10 +436,18 @@ describe('refund — returns the held amount to the brand (AC-3)', () => {
       status: 'refunded',
       resolution: 'refund',
     });
+    // F32: the refund's deal_event carries the resolution reason, not the
+    // decline/expire default.
     expect(recorded.refunds).toEqual([
-      { dealId: DEAL_ID, actorId: ACTOR_USER_ID },
+      {
+        dealId: DEAL_ID,
+        actorId: ACTOR_USER_ID,
+        reason: 'Dispute resolved: refunded to brand',
+      },
     ]);
     expect(recorded.pays).toHaveLength(0);
+    // F40: the flag is cleared with the refund.
+    expect(recorded.updates).toContainEqual({ flagged: false });
 
     const audit = auditRow(recorded);
     expect(audit?.detail).toMatchObject({
@@ -415,6 +506,9 @@ describe('revision — returns the deal to revision_requested, funds held (AC-4)
         reason: 'Reshoot the outro.',
       },
     ]);
+    // F40: the revision is a resolution too — the flag is cleared in the same
+    // transaction as the transition and the audit row.
+    expect(recorded.updates).toContainEqual({ flagged: false });
     const audit = auditRow(recorded);
     expect(audit?.detail).toMatchObject({
       resolution: 'revision',
