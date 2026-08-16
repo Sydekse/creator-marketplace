@@ -12,9 +12,13 @@ import {
   NO_VIDEOS_DESCRIPTION,
   NO_VIDEOS_TITLE,
   PERFORMANCE_TITLE,
+  STALE_LABEL,
+  STALE_NOTE,
+  SUBMITTED_LABEL,
   VIEW_POST_LABEL,
   coverageNote,
   formatMetricCount,
+  metricsUpdatedLabel,
 } from '@/lib/campaigns/performance';
 import type {
   CampaignTotals,
@@ -23,7 +27,8 @@ import type {
 import { formatEtb } from '@/lib/money';
 
 /**
- * Per-video engagement and the campaign total (KAN-49, US-009, AC-026).
+ * Per-video engagement and the campaign total (KAN-49, KAN-50, US-009, AC-026,
+ * AC-027, NFR-011).
  *
  * A **server** component: nothing here is interactive, so it stays off the client
  * bundle and can import its copy straight from `lib/campaigns/performance.ts`
@@ -39,11 +44,20 @@ import { formatEtb } from '@/lib/money';
  * mobile and go columnar from `sm:` up, with `tabular-nums` so a column of numbers
  * lines up.
  *
- * **There is no arithmetic in this file.** Both the totals and the money arrive
- * summed — the totals from `toCampaignTotals`, the money from the ledger — and
- * `formatMetricCount` and `formatEtb` are the only things between a number and the
- * screen. AC-026 asks the money figures to be read rather than recomputed, and the
- * way to make that true of a component is to give it nothing to compute with.
+ * **There is no arithmetic in this file, and no wording decisions either.** Both
+ * the totals and the money arrive summed — the totals from `toCampaignTotals`, the
+ * money from the ledger — and `formatMetricCount`, `metricsUpdatedLabel`,
+ * `coverageNote` and `formatEtb` are the only things between a value and the
+ * screen. AC-026 asks the money figures to be read rather than recomputed and
+ * AC-027 asks absence to be stated rather than rendered as a number; the way to
+ * make both true of a component is to give it nothing to compute and no sentence
+ * to compose.
+ *
+ * **A stale row keeps its numbers.** NFR-011 says clearly-marked stale metrics
+ * render "instead of failing or hiding the row", so the marker is additive: the
+ * counts stay, the timestamp relabels itself as the last confirmed one, and a
+ * sentence explains which way the figures are wrong. Nothing in the MVP sets that
+ * flag — see `metricsUpdatedLabel`.
  *
  * **One row per deal**, which is what the data supports. See `performance.ts` and
  * **F38**: a deal can only ever carry one submitted video and one set of counts,
@@ -63,6 +77,11 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function VideoRow({ video }: { video: CampaignVideoRow }) {
+  // Composed in the module that owns the copy, so this file decides where the
+  // sentence goes and never what it says. Null means nothing has been measured,
+  // which the counts above already say — see `metricsUpdatedLabel`.
+  const updated = metricsUpdatedLabel(video.lastUpdatedAt, video.stale);
+
   return (
     <Card>
       <CardContent className="flex flex-col gap-4 p-6">
@@ -80,6 +99,14 @@ function VideoRow({ video }: { video: CampaignVideoRow }) {
               {/* The shared vocabulary from `lib/deals/groups.ts`, so this list
                   and the deal screen cannot call one state two things. */}
               <Badge variant="secondary">{labelForStatus(video.status)}</Badge>
+              {/* AC-027 bullet 4. Beside the deal's status rather than over the
+                  counts, because it qualifies the whole row and a brand scanning
+                  the list needs to see it without reading four numbers first.
+                  `destructive` outline rather than a colour alone — the word is
+                  what carries it. */}
+              {video.stale ? (
+                <Badge variant="destructive">{STALE_LABEL}</Badge>
+              ) : null}
               {/* AC-026's "tier price paid": the rate and what it came to. Both,
                   not just the total — the rate is the tier's price snapshotted onto
                   the deal at offer time (invariant 8), and it is the figure a brand
@@ -127,9 +154,26 @@ function VideoRow({ video }: { video: CampaignVideoRow }) {
           ))}
         </dl>
 
-        {video.submittedAt ? (
-          <p className="text-xs text-muted-foreground">
-            Submitted {formatDeadlineUtc(video.submittedAt)}
+        {/* AC-027 bullet 4's second half: why the row still shows numbers it
+            cannot vouch for. Above the timestamps, because it changes how the
+            "Last confirmed" one should be read. */}
+        {video.stale ? (
+          <p className="text-xs text-muted-foreground">{STALE_NOTE}</p>
+        ) : null}
+
+        {/* Both timestamps on one line: when the video went up, and when its
+            numbers were written (AC-027 bullet 3). Each is omitted rather than
+            placeholdered when absent — a video with no metrics already says
+            `Metrics pending` four times above, and a fifth empty field would add
+            nothing. */}
+        {video.submittedAt || updated ? (
+          <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            {video.submittedAt ? (
+              <span>
+                {SUBMITTED_LABEL} {formatDeadlineUtc(video.submittedAt)}
+              </span>
+            ) : null}
+            {updated ? <span>{updated}</span> : null}
           </p>
         ) : null}
       </CardContent>
