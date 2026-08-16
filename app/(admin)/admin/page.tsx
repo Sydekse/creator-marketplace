@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { requireRole } from '@/lib/auth';
-import { listWorklistForAdmin } from '@/lib/admin/overview';
+import {
+  listCampaignsForAdmin,
+  listWorklistForAdmin,
+} from '@/lib/admin/overview';
 import { countAwaitingTier } from '@/lib/creators/awaiting-tier';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
@@ -19,6 +22,10 @@ export default async function AdminConsolePage() {
   // admin should see without a click, because money is sitting on every row.
   const disputed = await listWorklistForAdmin();
 
+  // KAN-78: the campaign count is the read layer's own list — the console card
+  // links to it, and the number is the same query the list page runs.
+  const campaigns = await listCampaignsForAdmin();
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
@@ -35,6 +42,20 @@ export default async function AdminConsolePage() {
           <h2 className="font-semibold">Verification queue</h2>
           <p className="text-sm text-muted-foreground">
             Review pending creator profiles
+          </p>
+        </Link>
+        <Link
+          href="/admin/campaigns"
+          className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50"
+        >
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-semibold">Campaigns</h2>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              {campaigns.length}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Budgets, escrow held, payouts, commission and refunds
           </p>
         </Link>
         <Link

@@ -26,6 +26,17 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   await expect(row.getByText(/Flagged/i)).toBeVisible();
   await expect(row.getByText(/delivered/i)).toBeVisible();
 
+  // KAN-78 deal drill-down: the row links to the append-only event trail,
+  // which the resolution is about to extend. Asserted *before* the refund so
+  // the drill-down works however the specs order themselves.
+  await row.getByRole('link', { name: 'View deal history' }).click();
+  await expect(admin.getByRole('heading', { name: 'Deal history' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(admin.getByText('Delivered')).toBeVisible();
+  await admin.goBack();
+  await expect(row).toBeVisible();
+
   // Resolve: refund the brand, with the required audit note.
   await row.getByRole('button', { name: 'Resolve dispute' }).click();
   await row.getByLabel('Resolution').selectOption('refund');

@@ -71,11 +71,19 @@ export default async function AdminWorklistPage() {
                     {row.status} · {formatEtb(row.totalPrice)} held
                   </p>
                 </div>
-                <ResolveDisputeForm
-                  dealId={row.id}
-                  status={row.status}
-                  campaignName={row.campaignName}
-                />
+                <div className="flex flex-col items-end gap-2">
+                  <ResolveDisputeForm
+                    dealId={row.id}
+                    status={row.status}
+                    campaignName={row.campaignName}
+                  />
+                  <Link
+                    href={`/admin/deals/${row.id}`}
+                    className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                  >
+                    View deal history
+                  </Link>
+                </div>
               </div>
             </li>
           ))}
