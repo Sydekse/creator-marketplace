@@ -24,10 +24,18 @@ export const runtime = 'nodejs';
  */
 export default async function AdminDealPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ campaign?: string | string[] | undefined }>;
 }) {
   const { id } = await params;
+  // F2: the worklist links carry the campaign name so a drill-down has
+  // context; a raw deep link (bookmark, pasted URL) still renders the trail,
+  // just without the name — the read contract is untouched either way.
+  const rawCampaign = (await searchParams).campaign;
+  const campaignName =
+    typeof rawCampaign === 'string' ? rawCampaign : undefined;
 
   let events;
   try {
@@ -48,7 +56,8 @@ export default async function AdminDealPage({
         </Link>
         <h1 className="text-2xl font-semibold tracking-tight">Deal history</h1>
         <p className="text-sm text-muted-foreground">
-          Every state transition this deal has been through, oldest first —
+          {campaignName ? `Campaign: ${campaignName} — ` : ''}
+          every state transition this deal has been through, oldest first —
           the append-only audit trail.
         </p>
       </div>

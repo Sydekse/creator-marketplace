@@ -78,7 +78,7 @@ export default async function AdminWorklistPage() {
                     campaignName={row.campaignName}
                   />
                   <Link
-                    href={`/admin/deals/${row.id}`}
+                    href={`/admin/deals/${row.id}?campaign=${encodeURIComponent(row.campaignName)}`}
                     className="text-sm text-muted-foreground underline-offset-4 hover:underline"
                   >
                     View deal history
