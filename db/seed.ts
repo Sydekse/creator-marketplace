@@ -260,6 +260,8 @@ type DemoDealSpec = {
   goal: string;
   videoCount: number;
   target: DealStatus;
+  /** KAN-69 (F40): raise the attention flag, so the disputed worklist has one. */
+  flagged?: boolean;
 };
 
 /**
@@ -301,6 +303,8 @@ const DEMO_DEALS: readonly DemoDealSpec[] = [
     goal: 'Sign-ups for the new-year membership offer.',
     videoCount: 2,
     target: 'delivered',
+    // The one demo dispute: delivered, money held, awaiting admin resolution.
+    flagged: true,
   },
   {
     campaignName: 'Holiday Fashion',
@@ -626,6 +630,7 @@ async function seedDemoDeals(
         commissionRate: COMMISSION_RATE,
         rightsTermsId: terms.id,
         offerExpiresAt,
+        ...(spec.flagged ? { flagged: true } : {}),
       })
       .returning({ id: deal.id });
 

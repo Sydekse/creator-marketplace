@@ -235,6 +235,12 @@ export const deal = pgTable(
       scale: 2,
     }).notNull(),
     status: text('status').$type<DealStatus>().notNull().default('pending'),
+    // KAN-69 (F40): the disputed/flagged state AC-030 and KAN-53 AC-4
+    // presuppose. Deliberately a boolean, not a status: the machine's statuses
+    // drive legal transitions and terminal-state guarantees, while a flag is
+    // attention metadata an admin raises and a resolution clears — orthogonal
+    // to status by design, so it cannot break REFUNDABLE_FROM or AC-9.
+    flagged: boolean('flagged').notNull().default(false),
     rightsTermsId: uuid('rights_terms_id').references(() => rightsTerms.id),
     rightsAcceptedAt: timestamp('rights_accepted_at', { withTimezone: true }),
     offerExpiresAt: timestamp('offer_expires_at', { withTimezone: true }),

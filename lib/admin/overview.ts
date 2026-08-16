@@ -1,4 +1,4 @@
-import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   brandProfile,
@@ -40,15 +40,18 @@ import type { LedgerEntryType } from '@/db/schema';
  * stored running `balance_after` must equal the sum of the entries that
  * produced it, or the chain is corrupt.
  *
- * **The worklist is the refundable set, defined by the ledger.** There is no
- * `flagged`/`disputed` column — the machine models dispute as the `refunded`
- * edges — so "deals an admin may need to resolve" is exactly the set the
- * resolve endpoint can act on: `REFUNDABLE_FROM` (money held, not yet paid
- * out or refunded). Imported from the ledger rather than typed out, so the
- * worklist and the money path agree by construction the way
- * `LEGAL_TRANSITIONS` and `REFUNDABLE_FROM` already do. The endpoint is named
+ * **The worklist is `flagged OR refundable` (KAN-69, F40).** AC-4 says
+ * "flagged or disputed" — and now that a flag exists (`deal.flagged`, set by
+ * `POST /api/admin/deals/{id}/flag`), the worklist is exactly that union: an
+ * explicitly flagged deal, or a deal whose money is held and unresolved
+ * (`REFUNDABLE_FROM`, imported from the ledger so the worklist and the money
+ * path agree by construction). Flagged deals that have reached a terminal
+ * status still appear — the flag says "an admin decided this needs eyes",
+ * which does not expire with the state machine — and the resolve endpoint
+ * remains the judge of what it can act on. The endpoint is named
  * `/worklist`, not `/disputes`: a list labelled "disputes" would read as
- * though every row were disputed, when the deals here are merely in flight.
+ * though every row were disputed, when most of these deals are merely in
+ * flight.
  *
  * Deal history is deliberately not here: `getDealHistory` in
  * `lib/deals/queries.ts` already serves both parties *and* the admin
@@ -124,12 +127,14 @@ export interface AdminCampaignLedger {
 export interface AdminWorklistRow {
   id: string;
   /**
-   * One of `REFUNDABLE_FROM` at runtime — the query filters the worklist to
-   * exactly that set — but typed as the full `DealStatus` because drizzle
-   * cannot narrow a column through `inArray`. The where-clause is the
-   * guarantee, and a source-level test pins it.
+   * `flagged` or one of `REFUNDABLE_FROM` at runtime — the query filters the
+   * worklist to exactly that union — but typed as the full `DealStatus`
+   * because drizzle cannot narrow a column through `inArray`. The where-clause
+   * is the guarantee, and a source-level test pins it.
    */
   status: DealStatus;
+  /** KAN-69 (F40): whether an admin explicitly raised the attention flag. */
+  flagged: boolean;
   totalPrice: number;
   videoCount: number;
   campaignId: string;
@@ -217,6 +222,7 @@ const defaultDeps: AdminOverviewDeps = {
         .select({
           id: deal.id,
           status: deal.status,
+          flagged: deal.flagged,
           totalPrice: deal.totalPrice,
           videoCount: deal.videoCount,
           campaignId: campaign.id,
@@ -229,7 +235,8 @@ const defaultDeps: AdminOverviewDeps = {
         .innerJoin(campaign, eq(deal.campaignId, campaign.id))
         .innerJoin(brandProfile, eq(campaign.brandId, brandProfile.id))
         .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
-        .where(inArray(deal.status, REFUNDABLE_FROM))
+        // KAN-69 (F40): the AC-4 union — flagged, or money held and unresolved.
+        .where(or(deal.flagged, inArray(deal.status, REFUNDABLE_FROM)))
         // Oldest unresolved first: the worklist is an age-ordered queue.
         .orderBy(asc(deal.createdAt))
     );
