@@ -30,13 +30,14 @@ import { metricsOverdueBefore } from '@/lib/config/pricing';
  *
  * **Overdue is measured from the deal's completion event, not from the
  * deliverable row.** `deliverable.reviewed_at` looks like the natural anchor and
- * is not one: **nothing in the codebase sets it on approval.** `submit-deliverable.ts`
- * writes `review_status = 'pending'` and `reject-deliverable.ts` writes
- * `'rejected'`, but the approval path (`approve-deliverable.ts` →
- * `EscrowLedgerService.payoutForDeal`) moves the deal to `completed`, pays the
- * creator, and never touches the deliverable row at all. A predicate written
- * against `review_status = 'approved'` would match no row ever, silently — the
- * same species of quiet nothing as an offer issued with no expiry.
+ * is not one: **not every completed deal has it.** `submit-deliverable.ts`
+ * writes `review_status = 'pending'`, `reject-deliverable.ts` writes `'rejected'`
+ * with `reviewed_at`, and the approval path sets `'approved'` inside
+ * `EscrowLedgerService.payoutForDeal`'s transaction (KAN-55) — but deals
+ * completed before that fix were never marked, and no back-fill can recover which
+ * of them were approved. A predicate written against `review_status = 'approved'`
+ * would silently skip every one of those rows — the same species of quiet
+ * nothing as an offer issued with no expiry.
  *
  * `deal_event` is the honest source and arguably the better one. It is
  * append-only (invariant 5), every transition writes one as it happens (invariant

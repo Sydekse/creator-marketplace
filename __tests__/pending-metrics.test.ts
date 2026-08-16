@@ -37,12 +37,14 @@ import { deal } from '../db/schema';
  * at all.
  *
  * **Overdue is measured from the deal's completion event.** Not from
- * `deliverable.reviewed_at`, which looks like the obvious anchor and is never set:
+ * `deliverable.reviewed_at`, which looks like the obvious anchor but is not one:
  * `submit-deliverable.ts` writes `review_status = 'pending'`,
- * `reject-deliverable.ts` writes `'rejected'`, and the approval path pays the
- * creator without touching the deliverable row at all. A predicate on
- * `review_status = 'approved'` would match nothing, forever, with nothing failing —
- * so one test below pins the anchor that does exist and says why.
+ * `reject-deliverable.ts` writes `'rejected'`, and the approval path sets
+ * `'approved'` inside `payoutForDeal`'s transaction (KAN-55) — but deals
+ * completed before that fix have no `reviewed_at`, and no back-fill can recover
+ * which of them were approved. A predicate on `review_status = 'approved'` would
+ * skip every one of them, with nothing failing — so one test below pins the
+ * anchor that does exist and says why.
  *
  * **Two shapes of missing.** No `video_metric` row, or a row holding four nulls.
  * The second is reachable because `updateMetricsSchema` accepts any subset, and it
@@ -164,11 +166,11 @@ describe('buildAwaitingMetricsWhere — the predicate', () => {
     expect(params.filter((p) => p === 'completed')).toHaveLength(2);
   });
 
-  it('does not anchor on review_status, which nothing ever sets to approved', () => {
-    // The trap this module exists on the far side of. `approve-deliverable.ts`
-    // moves the deal to `completed` and pays the creator without writing to the
-    // deliverable, so `review_status = 'approved'` matches no row that has ever
-    // existed — a sweep that would find nothing forever and never fail.
+  it('does not anchor on review_status, which not every completed deal has', () => {
+    // The trap this module exists on the far side of. `payoutForDeal` has set
+    // `review_status = 'approved'` since KAN-55, but deals completed before that
+    // fix were never marked — so a predicate on 'approved' silently skips every
+    // older completed deal instead of finding it.
     expect(compiled().params).not.toContain('approved');
     expect(CODE).not.toContain('reviewStatus');
     expect(CODE).not.toContain('reviewedAt');
@@ -403,10 +405,11 @@ describe('structural guards', () => {
 
   it('says in prose why the anchor is the event and not the deliverable', () => {
     // The one thing a reader needs and cannot see from the code: the obvious
-    // column is never written. Asserted so the explanation cannot be dropped by an
-    // edit that leaves the query working.
+    // column is not reliably present — written on approval and rejection, but
+    // missing for deals completed before KAN-55. Asserted so the explanation
+    // cannot be dropped by an edit that leaves the query working.
     expect(SOURCE).toContain('reviewed_at');
-    expect(SOURCE).toMatch(/nothing in the codebase sets it/i);
+    expect(SOURCE).toMatch(/not every completed deal has it/i);
   });
 });
 
