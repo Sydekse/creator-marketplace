@@ -48,3 +48,7 @@ next-env.d.ts
 CLAUDE.md 
 AGENTS.md 
 project_context/
+
+# Playwright (KAN-60)
+/playwright-report
+/test-results

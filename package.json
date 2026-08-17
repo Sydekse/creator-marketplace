@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:integration": "vitest run --config vitest.config.integration.ts",
     "format:check": "prettier --check .",
     "db:generate": "drizzle-kit generate",

@@ -75,6 +75,91 @@ jobs:
       - name: Check dependency licenses
         run: npx license-checker --failOn "GPL-2.0;GPL-3.0;AGPL-3.0"
 
+  e2e:
+    name: End-to-End (Playwright, Chrome + Safari)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: marketplace
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '25'
+          cache: 'npm'
+      - run: npm ci
+      - name: Install Playwright browsers (chromium + webkit)
+        run: npx playwright install --with-deps chromium webkit
+      - name: Migrate and seed
+        run: npx drizzle-kit migrate && npx tsx db/seed.ts
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
+          SEED_DEMO_PASSWORD: demo-Passw0rd!
+          # Better Auth is instantiated during migrate/seed; without the secret
+          # and base URL it logs "default secret" errors and "Base URL is not
+          # set" warnings on every step.
+          BETTER_AUTH_SECRET: e2e-test-secret-8f3a9c2e6d1b4a7f
+          BETTER_AUTH_URL: http://localhost:3000
+      # The Playwright webServers only `start` — they share this build, so the
+      # two servers (normal + payment-failure) cannot race each other.
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
+          SEED_DEMO_PASSWORD: demo-Passw0rd!
+          BETTER_AUTH_SECRET: e2e-test-secret-8f3a9c2e6d1b4a7f
+          BETTER_AUTH_URL: http://localhost:3000
+      # Each browser project runs against a *fresh* database. The seeded
+      # fixtures are consumed by the flows (accepted, funded, delivered), the
+      # four projects share one Postgres service, and the :3002 failure server's
+      # provider arms its fail-once flag at process boot — so state can never
+      # carry from one project's run into the next. Every project therefore
+      # drops the schema, re-migrates, re-seeds, and boots its own webServers.
+      - name: Run e2e suite (per browser project)
+        run: |
+          failures=0
+          for project in chromium-desktop chromium-mobile webkit-desktop webkit-mobile; do
+            echo "=== $project ==="
+            npx tsx -e "void (async () => { const m = await import('pg'); const Client = m.Client ?? m.default.Client; const c = new Client({ connectionString: process.env.DATABASE_URL }); await c.connect(); await c.query('DROP SCHEMA IF EXISTS drizzle CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;'); await c.end(); })().catch((e) => { console.error(e); process.exit(1); })"
+            npx drizzle-kit migrate
+            npx tsx db/seed.ts
+            # Run every project even if one fails — each project gets its own
+            # fresh seed above, so a red project must not hide the next one's
+            # verdict (each re-run cycle is minutes long).
+            if ! npx playwright test --project="$project"; then
+              echo "::error::e2e failed on $project"
+              failures=1
+            fi
+          done
+          exit "$failures"
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
+          SEED_DEMO_PASSWORD: demo-Passw0rd!
+          # Better Auth refuses to serve the default secret (it throws on
+          # every request), and .env.local is not present in CI. The built
+          # server inherits this through the Playwright webServer env.
+          BETTER_AUTH_SECRET: e2e-test-secret-8f3a9c2e6d1b4a7f
+          BETTER_AUTH_URL: http://localhost:3000
+      # KAN-60 AC-10: failures upload the trace and screenshots as artifacts.
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   integration:
     name: Integration Tests (Postgres)
     runs-on: ubuntu-latest

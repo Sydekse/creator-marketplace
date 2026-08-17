@@ -537,7 +537,9 @@ describe('AC-001 — one function owns every deal.status write', () => {
     expect(files).not.toContain(join(root, 'lib/deals/state-machine.ts'));
     expect(
       readFileSync(join(root, 'lib/deals/state-machine.ts'), 'utf8')
-    ).toMatch(/update\(deal\)\.set\(\{ status: toStatus \}\)/);
+    ).toMatch(
+      /update\(deal\)\s*\.set\(\{ status: toStatus, \.\.\.opts\?\.set \}\)/
+    );
   });
 
   it('has no other drizzle write to deal.status', () => {
