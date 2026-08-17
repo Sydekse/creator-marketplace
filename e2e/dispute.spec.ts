@@ -86,7 +86,7 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
 
   // Resolve: refund the brand, with the required audit note.
   await row.getByRole('button', { name: 'Resolve dispute' }).click();
-  await row.getByLabel('Resolution').selectOption('refund');
+  await row.getByLabel('Resolution', { exact: true }).selectOption('refund');
   await row
     .getByLabel('Resolution note')
     .fill('Brand and creator agreed to cancel (e2e).');
