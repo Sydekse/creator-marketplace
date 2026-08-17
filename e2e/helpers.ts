@@ -31,11 +31,17 @@ export async function signIn(page: Page, email: string): Promise<void> {
 /** Open the creator's deal detail page by campaign name. */
 export async function openCreatorDeal(page: Page, campaignName: string) {
   await page.goto('/creator/deals');
-  await page.getByRole('link', { name: new RegExp(campaignName) }).first().click();
+  await page
+    .getByRole('link', { name: new RegExp(campaignName) })
+    .first()
+    .click();
 }
 
 /** Open the brand's campaign page by name. */
 export async function openCampaign(page: Page, campaignName: string) {
   await page.goto('/campaigns');
-  await page.getByRole('link', { name: new RegExp(campaignName) }).first().click();
+  await page
+    .getByRole('link', { name: new RegExp(campaignName) })
+    .first()
+    .click();
 }

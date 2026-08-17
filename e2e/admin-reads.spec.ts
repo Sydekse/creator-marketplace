@@ -19,13 +19,13 @@ test('KAN-78: the campaign list shows every campaign with its ledger position', 
   await signIn(admin, DEMO.admin);
 
   await admin.goto('/admin/campaigns');
-  await expect(
-    admin.getByRole('heading', { name: 'Campaigns' })
-  ).toBeVisible();
+  await expect(admin.getByRole('heading', { name: 'Campaigns' })).toBeVisible();
   await expect(
     admin.getByRole('link', { name: 'Holiday Fashion' })
   ).toBeVisible();
-  await expect(admin.getByRole('link', { name: 'Ramadan Beauty Push' })).toBeVisible();
+  await expect(
+    admin.getByRole('link', { name: 'Ramadan Beauty Push' })
+  ).toBeVisible();
   // A funded campaign shows money held; the completed one shows paid out.
   await expect(admin.getByText('Paid out')).toBeVisible();
   await admin.close();

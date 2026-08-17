@@ -27,8 +27,8 @@ export default async function AdminCampaignsPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold tracking-tight">Campaigns</h1>
         <p className="text-sm text-muted-foreground">
-          Every campaign and its ledger position — budget, escrow held, and
-          what has left it.
+          Every campaign and its ledger position — budget, escrow held, and what
+          has left it.
         </p>
       </div>
 
@@ -37,7 +37,10 @@ export default async function AdminCampaignsPage() {
           title="No campaigns yet"
           description="Campaigns appear here the moment a brand creates one."
           action={
-            <Link href="/admin" className={buttonVariants({ variant: 'outline' })}>
+            <Link
+              href="/admin"
+              className={buttonVariants({ variant: 'outline' })}
+            >
               Back to the console
             </Link>
           }

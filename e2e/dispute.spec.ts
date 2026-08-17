@@ -31,7 +31,9 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   // context (F2). Asserted *before* the refund so the drill-down works however
   // the specs order themselves.
   await row.getByRole('link', { name: 'View deal history' }).click();
-  await expect(admin.getByRole('heading', { name: 'Deal history' })).toBeVisible({
+  await expect(
+    admin.getByRole('heading', { name: 'Deal history' })
+  ).toBeVisible({
     timeout: 15_000,
   });
   await expect(admin.getByText(/Campaign: Fitness January/i)).toBeVisible();

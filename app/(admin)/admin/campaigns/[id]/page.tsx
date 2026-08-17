@@ -104,7 +104,9 @@ export default async function AdminCampaignLedgerPage({
               <th className="px-4 py-3 font-medium">#</th>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 text-right font-medium">Amount</th>
-              <th className="px-4 py-3 text-right font-medium">Balance after</th>
+              <th className="px-4 py-3 text-right font-medium">
+                Balance after
+              </th>
               <th className="px-4 py-3 font-medium">Provider ref</th>
               <th className="px-4 py-3 font-medium">When</th>
             </tr>

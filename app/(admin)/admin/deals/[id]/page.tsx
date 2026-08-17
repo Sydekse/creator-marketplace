@@ -57,8 +57,8 @@ export default async function AdminDealPage({
         <h1 className="text-2xl font-semibold tracking-tight">Deal history</h1>
         <p className="text-sm text-muted-foreground">
           {campaignName ? `Campaign: ${campaignName} — ` : ''}
-          every state transition this deal has been through, oldest first —
-          the append-only audit trail.
+          every state transition this deal has been through, oldest first — the
+          append-only audit trail.
         </p>
       </div>
 
