@@ -272,8 +272,7 @@ function Chip({
         tone === 'dark' && 'bg-neutral-900 text-neutral-50',
         tone === 'gray' && 'bg-neutral-100 text-neutral-600',
         tone === 'line' && 'border border-neutral-200 text-neutral-600',
-        tone === 'teal' &&
-          'bg-[oklch(0.93_0.045_185)] text-[oklch(0.38_0.09_185)]',
+        tone === 'teal' && 'bg-brand-tint text-brand-ink',
         tone === 'amber' &&
           'bg-[oklch(0.95_0.045_85)] text-[oklch(0.5_0.09_70)]',
         className
@@ -325,7 +324,7 @@ function AppFrame({
           <span className="h-2 w-2 rounded-full bg-[oklch(0.8_0.09_160)]" />
         </span>
         <span className="absolute left-1/2 top-1/2 hidden max-w-[70%] -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-500 sm:flex">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[oklch(0.55_0.12_185)]" />
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-soft" />
           <span className="truncate">creator-marketplace.et</span>
         </span>
         <span className="ml-auto w-14" aria-hidden />
@@ -402,9 +401,7 @@ export default function HomePage() {
             <h1 className="animate-rise-in font-display text-5xl font-medium leading-[1.08] tracking-tight text-neutral-900 sm:text-6xl lg:text-[72px]">
               Brands fund.
               <br />
-              <em className="not-italic text-[oklch(0.44_0.11_185)]">
-                Creators deliver.
-              </em>
+              <em className="not-italic text-brand">Creators deliver.</em>
             </h1>{' '}
             <p className="animate-rise-in-1 mx-auto mt-6 max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
               Brief a campaign, fund it in escrow, and pay for deliverables you
@@ -457,7 +454,7 @@ export default function HomePage() {
                       className={cn(
                         'flex items-center gap-2 rounded-md px-2 py-2 text-[11px]',
                         item.active
-                          ? 'bg-[oklch(0.32_0.07_185)] font-medium text-neutral-50'
+                          ? 'bg-brand-strong font-medium text-neutral-50'
                           : 'text-neutral-600'
                       )}
                     >
@@ -507,7 +504,7 @@ export default function HomePage() {
                         />
                         Search campaigns
                       </span>
-                      <span className="rounded-full bg-[oklch(0.35_0.08_185)] px-3 py-2 text-[11px] font-medium text-neutral-50">
+                      <span className="rounded-full bg-brand-deep px-3 py-2 text-[11px] font-medium text-neutral-50">
                         New campaign
                       </span>
                     </div>
@@ -602,15 +599,13 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-8 lg:grid-cols-2">
               <Reveal>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.44_0.11_185)]">
+                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
                   How it works
                 </p>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
                   From brief to payout
                   <br />
-                  <em className="not-italic text-[oklch(0.44_0.11_185)]">
-                    in four steps.
-                  </em>
+                  <em className="not-italic text-brand">in four steps.</em>
                 </h2>
               </Reveal>
               <Reveal delay={120} className="lg:self-end">
@@ -653,15 +648,13 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-8 lg:grid-cols-2">
               <Reveal>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.44_0.11_185)]">
+                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
                   Why it works
                 </p>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
                   Replace the patchwork,
                   <br />
-                  <em className="not-italic text-[oklch(0.44_0.11_185)]">
-                    not your process.
-                  </em>
+                  <em className="not-italic text-brand">not your process.</em>
                 </h2>
               </Reveal>
               <Reveal delay={120} className="lg:self-end">
@@ -686,15 +679,13 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-8 lg:grid-cols-2">
               <Reveal>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.44_0.11_185)]">
+                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
                   The brand workspace
                 </p>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
                   Run the campaign in
                   <br />
-                  <em className="not-italic text-[oklch(0.44_0.11_185)]">
-                    one workspace.
-                  </em>
+                  <em className="not-italic text-brand">one workspace.</em>
                 </h2>
               </Reveal>
               <Reveal delay={120} className="lg:self-end">
@@ -715,15 +706,15 @@ export default function HomePage() {
                       className={cn(
                         'group border-l pl-6 transition-colors duration-300 ease-out',
                         f.active
-                          ? 'border-[oklch(0.44_0.11_185)]'
-                          : 'border-neutral-200 hover:border-[oklch(0.44_0.11_185_/_0.4)]'
+                          ? 'border-brand'
+                          : 'border-neutral-200 hover:border-brand/40'
                       )}
                     >
                       <h3
                         className={cn(
                           'font-display text-lg font-medium leading-snug transition-colors duration-300 ease-out sm:text-xl',
                           f.active
-                            ? 'text-[oklch(0.44_0.11_185)]'
+                            ? 'text-brand'
                             : 'text-neutral-500 group-hover:text-neutral-900'
                         )}
                       >
@@ -793,9 +784,7 @@ export default function HomePage() {
                               <span
                                 className={cn(
                                   'h-1.5 w-1.5 rounded-full',
-                                  t.done
-                                    ? 'bg-[oklch(0.55_0.12_185)]'
-                                    : 'bg-neutral-300'
+                                  t.done ? 'bg-brand-soft' : 'bg-neutral-300'
                                 )}
                               />
                               <span
@@ -821,7 +810,7 @@ export default function HomePage() {
                         <span className="text-[11px] text-neutral-500">
                           Escrow-held &middot; auditable
                         </span>
-                        <span className="text-[11px] font-medium text-[oklch(0.44_0.11_185)]">
+                        <span className="text-[11px] font-medium text-brand">
                           View audit trail &rarr;
                         </span>
                       </div>
@@ -839,7 +828,7 @@ export default function HomePage() {
                         <Chip tone="gray">1 of 1 video</Chip>
                       </div>
                       <div className="mx-auto grid aspect-[9/16] w-full max-w-[160px] place-items-center rounded-lg border border-neutral-200 bg-neutral-100">
-                        <span className="grid h-10 w-10 place-items-center rounded-full bg-[oklch(0.35_0.08_185)]">
+                        <span className="grid h-10 w-10 place-items-center rounded-full bg-brand-deep">
                           <Play
                             className="ml-0.5 h-3 w-3 fill-white text-white"
                             aria-hidden
@@ -850,7 +839,7 @@ export default function HomePage() {
                         tiktok.com/@laylah/posts/84
                       </p>
                       <div className="flex gap-2">
-                        <span className="flex-1 rounded-full bg-[oklch(0.35_0.08_185)] px-4 py-2 text-center text-[11px] font-medium text-neutral-50">
+                        <span className="flex-1 rounded-full bg-brand-deep px-4 py-2 text-center text-[11px] font-medium text-neutral-50">
                           Approve &amp; pay
                         </span>
                         <span className="flex-1 rounded-full border border-neutral-300 px-4 py-2 text-center text-[11px] font-medium text-neutral-600">
@@ -878,15 +867,13 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-8 lg:grid-cols-2">
               <Reveal>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.44_0.11_185)]">
+                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
                   For creators
                 </p>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
                   Get paid for what you
                   <br />
-                  <em className="not-italic text-[oklch(0.44_0.11_185)]">
-                    already do.
-                  </em>
+                  <em className="not-italic text-brand">already do.</em>
                 </h2>
               </Reveal>
               <Reveal delay={120} className="lg:self-end">
@@ -979,13 +966,13 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-8 lg:grid-cols-2">
               <Reveal>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.44_0.11_185)]">
+                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
                   Pricing
                 </p>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
                   No subscription.
                   <br />
-                  <em className="not-italic text-[oklch(0.44_0.11_185)]">
+                  <em className="not-italic text-brand">
                     One transparent fee.
                   </em>
                 </h2>
