@@ -37,6 +37,12 @@ export default defineConfig({
       timeout: 60_000,
       env: {
         ...process.env,
+        // Better Auth needs an explicit base URL: without it the production
+        // server derives the origin per request and sign-in redirects and
+        // cookies break (the "Base URL is not set" warning). `.env.local`
+        // supplies this locally; CI has no `.env.local`, so it must be set
+        // here — per server, so each signs in against its own origin.
+        BETTER_AUTH_URL: 'http://localhost:3000',
         // The payment provider stays the in-memory mock; email stays console.
         EMAIL_SEND: '',
       },
@@ -48,6 +54,7 @@ export default defineConfig({
       timeout: 60_000,
       env: {
         ...process.env,
+        BETTER_AUTH_URL: 'http://localhost:3002',
         EMAIL_SEND: '',
         // Flow 5: the first funding hold of this server fails, so the UI can
         // walk the AC-020 path (campaign stays unfunded) for real.
