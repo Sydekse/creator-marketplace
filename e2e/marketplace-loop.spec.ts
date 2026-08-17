@@ -37,9 +37,9 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const submitter = await browser.newPage();
   await signIn(submitter, DEMO.creator);
   await openCreatorDeal(submitter, 'Ramadan Beauty Push');
-  await submitter.locator('#tiktokUrl').fill(
-    'https://www.tiktok.com/@creator.demo/video/e2e-loop-1'
-  );
+  await submitter
+    .locator('#tiktokUrl')
+    .fill('https://www.tiktok.com/@creator.demo/video/e2e-loop-1');
   await submitter.getByRole('button', { name: 'Submit your video' }).click();
   await expect(submitter.getByText(/submitted/i).first()).toBeVisible({
     timeout: 15_000,
@@ -50,7 +50,10 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const approver = await browser.newPage();
   await signIn(approver, DEMO.brand);
   await approver.goto('/deals');
-  await approver.getByRole('link', { name: /Ramadan Beauty Push/i }).first().click();
+  await approver
+    .getByRole('link', { name: /Ramadan Beauty Push/i })
+    .first()
+    .click();
   // The approve control confirms with a window.dialog — accept it, registered
   // before the click so the handler is live when the dialog fires.
   approver.on('dialog', (d) => d.accept());
@@ -112,8 +115,8 @@ test('flow 2: budget ceiling blocks adding an over-budget creator (AC-014)', asy
   await brand.getByRole('button', { name: /add/i }).click();
 
   // The refusal surfaces on the page (toast or inline) — never a silent add.
-  await expect(brand.getByText(/budget|exceed|insufficient/i).first()).toBeVisible(
-    { timeout: 15_000 }
-  );
+  await expect(
+    brand.getByText(/budget|exceed|insufficient/i).first()
+  ).toBeVisible({ timeout: 15_000 });
   await brand.close();
 });

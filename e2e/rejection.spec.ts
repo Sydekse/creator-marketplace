@@ -17,9 +17,9 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   const creator = await browser.newPage();
   await signIn(creator, DEMO.creator);
   await openCreatorDeal(creator, 'Tech Review Series');
-  await creator.locator('#tiktokUrl').fill(
-    'https://www.tiktok.com/@creator.demo/video/e2e-reject-1'
-  );
+  await creator
+    .locator('#tiktokUrl')
+    .fill('https://www.tiktok.com/@creator.demo/video/e2e-reject-1');
   await creator.getByRole('button', { name: 'Submit your video' }).click();
   await expect(creator.getByText(/submitted/i).first()).toBeVisible({
     timeout: 15_000,
@@ -30,12 +30,18 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await brand.goto('/deals');
-  await brand.getByRole('link', { name: /Tech Review Series/i }).first().click();
+  await brand
+    .getByRole('link', { name: /Tech Review Series/i })
+    .first()
+    .click();
   await brand.getByRole('button', { name: 'Request changes' }).click();
   // The reject form asks for a reason (AC-024) — fill it and confirm.
   const reasonField = brand.locator('textarea, input[type="text"]').last();
   await reasonField.fill('Please include the actual engagement numbers.');
-  await brand.getByRole('button', { name: /request changes|send|reject/i }).last().click();
+  await brand
+    .getByRole('button', { name: /request changes|send|reject/i })
+    .last()
+    .click();
   await brand.close();
 
   // The campaign still holds its funds — rejection does not release money.

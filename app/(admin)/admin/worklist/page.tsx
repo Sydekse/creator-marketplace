@@ -41,7 +41,10 @@ export default async function AdminWorklistPage() {
           title="Nothing awaiting resolution"
           description="Every deal is either resolved, or money is not held on it."
           action={
-            <Link href="/admin" className={buttonVariants({ variant: 'outline' })}>
+            <Link
+              href="/admin"
+              className={buttonVariants({ variant: 'outline' })}
+            >
               Back to the console
             </Link>
           }

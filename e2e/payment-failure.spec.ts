@@ -17,7 +17,9 @@ test('flow 5: a failed payment leaves the campaign unfunded (AC-020)', async ({
   // Absolute URL — this test targets the failure-injected server.
   await brand.goto('http://localhost:3002/sign-in');
   await brand.locator('#email').fill(DEMO.brand);
-  await brand.locator('#password').fill(process.env.SEED_DEMO_PASSWORD ?? 'demo-Passw0rd!');
+  await brand
+    .locator('#password')
+    .fill(process.env.SEED_DEMO_PASSWORD ?? 'demo-Passw0rd!');
   await brand.getByRole('button', { name: 'Sign In' }).click();
   await expect(brand).not.toHaveURL(/sign-in/);
 
@@ -30,7 +32,9 @@ test('flow 5: a failed payment leaves the campaign unfunded (AC-020)', async ({
 
   // The failure surfaces (toast or inline), and the campaign is not funded —
   // no escrow row, and the button is offered again rather than a funded state.
-  await expect(brand.getByText(/fail|unable|could not|error/i).first()).toBeVisible({
+  await expect(
+    brand.getByText(/fail|unable|could not|error/i).first()
+  ).toBeVisible({
     timeout: 15_000,
   });
   await brand.close();
