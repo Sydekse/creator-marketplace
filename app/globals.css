@@ -8,6 +8,8 @@
   --font-sans: var(--font-dm-sans);
   --font-mono: var(--font-dm-mono);
   --font-display: var(--font-noto-serif);
+  /* The one easing (design doc §8): ease-out, decelerating. */
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
   /* The one brand accent (KAN-83). Registered as real theme colours so the
      landing page and the app share the same teal; status tints stay
      separate (status-*). */
