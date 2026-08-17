@@ -26,6 +26,12 @@ export async function signIn(page: Page, email: string): Promise<void> {
   await page.getByRole('button', { name: 'Sign In' }).click();
   // Landing on a role home is the sign-in succeeding.
   await expect(page).not.toHaveURL(/sign-in/);
+  // The sign-in flow router.push()es to /dashboard, which middleware rewrites
+  // to the role home — a client-side navigation. Let it fully settle before
+  // the caller navigates again: webkit aborts a page.goto that races the
+  // in-flight redirect with "Navigation ... is interrupted by another
+  // navigation".
+  await page.waitForLoadState('networkidle');
 }
 
 /** Open the creator's deal detail page by campaign name. */
