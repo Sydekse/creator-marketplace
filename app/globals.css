@@ -7,9 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  --font-sans: var(--font-dm-sans);
+  --font-mono: var(--font-dm-mono);
+  --font-heading: var(--font-outfit);
+  --font-display: var(--font-noto-serif);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -150,5 +151,153 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/*  Landing-page entrance motion                                       */
+/*  Restrained: opacity + translate only, ease-out, and gated behind  */
+/*  prefers-reduced-motion so users who opt out get the static layout. */
+/* ------------------------------------------------------------------ */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-rise-in {
+    animation: rise-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .animate-rise-in-1 {
+    animation: rise-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
+  }
+
+  .animate-rise-in-2 {
+    animation: rise-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.16s both;
+  }
+
+  .animate-rise-in-3 {
+    animation: rise-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.24s both;
+  }
+
+  .animate-rise-in-4 {
+    animation: rise-in 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.32s both;
+  }
+
+  /* Shine sweep across a primary button on hover — the classic premium
+     micro-interaction, done with a gradient translate so nothing needs a
+     JS listener. */
+  .btn-shine {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-shine::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 40%,
+      oklch(1 0 0 / 0.35) 50%,
+      transparent 60%
+    );
+    transform: translateX(-160%);
+    transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .btn-shine:hover::after {
+    transform: translateX(160%);
+  }
+
+  /* Underline that draws in from the left on hover — for the nav links. */
+  .nav-underline {
+    position: relative;
+  }
+
+  .nav-underline::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -3px;
+    height: 1px;
+    background: currentColor;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .nav-underline:hover::after,
+  .nav-underline:focus-visible::after {
+    transform: scaleX(1);
+  }
+
+  /* Slow teal sweep around the hero platform notice — a quiet shimmer that
+     catches the eye without the pill shouting. */
+  .shimmer-border {
+    animation: shimmer 4.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+
+  @keyframes shimmer {
+    from {
+      background-position: 100% 50%;
+    }
+    to {
+      background-position: -100% 50%;
+    }
+  }
+}
+
+/* Static shimmering border (the sweep above is motion-gated). */
+.shimmer-border {
+  border-radius: 9999px;
+  background: linear-gradient(
+    100deg,
+    oklch(0.8 0.08 185),
+    oklch(0.92 0.07 185) 25%,
+    oklch(0.55 0.12 185) 50%,
+    oklch(0.92 0.07 185) 75%,
+    oklch(0.8 0.08 185)
+  );
+  background-size: 200% 100%;
+}
+
+/* Landing-page niceties that are not motion: smooth anchor scrolling and a
+   low-saturation selection tint (robes: no pure colors, nothing harsh). */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+::selection {
+  background-color: oklch(0.44 0.11 185 / 0.22);
+  color: oklch(0.2 0 0);
+}
+
+/* Scroll-reveal graceful degradation: with scripting disabled (or motion
+   reduced) the content must be visible immediately, not parked at opacity 0
+   waiting for an observer. */
+@media (scripting: none) {
+  .reveal-target {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-target {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
   }
 }
