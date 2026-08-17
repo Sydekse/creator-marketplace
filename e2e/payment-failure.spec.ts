@@ -9,6 +9,12 @@ import { DEMO } from './helpers';
  * `PAYMENT_FAIL_METHOD=hold`: the first funding attempt of that process fails
  * at the provider, exactly the outage the AC describes. The brand walks the
  * real fund UI and must land on the failure state, not a funded campaign.
+ *
+ * The fixture is the seeded 'Coffee Launch' campaign — accepted, awaiting
+ * funding, and touched by no other spec. 'Ramadan Beauty Push' is reserved
+ * for flow 1, which funds it first: if this spec shared it, the funding
+ * attempt would be refused as "already funded" before ever reaching the
+ * provider and the failure would be untested.
  */
 test('flow 5: a failed payment leaves the campaign unfunded (AC-020)', async ({
   browser,
@@ -25,7 +31,7 @@ test('flow 5: a failed payment leaves the campaign unfunded (AC-020)', async ({
 
   await brand.goto('http://localhost:3002/campaigns');
   await brand
-    .getByRole('link', { name: /Ramadan Beauty Push/i })
+    .getByRole('link', { name: /Coffee Launch/i })
     .first()
     .click();
   await brand.getByRole('button', { name: 'Fund campaign' }).click();

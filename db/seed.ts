@@ -297,6 +297,17 @@ const DEMO_DEALS: readonly DemoDealSpec[] = [
     target: 'pending',
   },
   {
+    // KAN-60 flow 6 fixture: a pending offer the e2e walks to *delivered*
+    // through the real UI (accept → fund → submit), so the hold the admin
+    // refunds was placed by the server process — a seeded hold dies with the
+    // seed process, and the refund would fail on a dead provider ref. Only
+    // e2e/dispute.spec.ts touches this one.
+    campaignName: 'Summer Dispute',
+    goal: 'Exercise the admin dispute resolution walk.',
+    videoCount: 1,
+    target: 'pending',
+  },
+  {
     campaignName: 'Coffee Launch',
     goal: 'Introduce the single-origin line to Addis.',
     videoCount: 1,
