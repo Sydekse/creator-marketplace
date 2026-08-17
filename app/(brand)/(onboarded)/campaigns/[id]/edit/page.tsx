@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { CampaignBriefForm } from '@/components/campaign/campaign-brief-form';
+import { PageHeader } from '@/components/layout/page-header';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { buttonVariants } from '@/components/ui/button';
 import { requireRole } from '@/lib/auth';
@@ -31,16 +32,11 @@ export default async function EditCampaignPage({
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
-      <header className="flex flex-col gap-3">
-        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-          Campaign brief
-        </p>
-        <h1 className="page-title">Edit campaign brief</h1>
-        <p className="text-sm text-muted-foreground">
-          Update the budget, target video count, or brief details for this
-          campaign.
-        </p>
-      </header>
+      <PageHeader
+        label="Campaign brief"
+        title="Edit campaign brief"
+        description="Update the budget, target video count, or brief details for this campaign."
+      />
 
       {!isEditable ? (
         <div className="flex flex-col gap-8">

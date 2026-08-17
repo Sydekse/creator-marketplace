@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/feedback/empty-state';
-import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/layout/page-header';
 import { buttonVariants } from '@/components/ui/button';
 import {
   Card,
@@ -13,6 +14,10 @@ import {
 } from '@/components/ui/card';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
+import {
+  campaignStatusLabel,
+  campaignStatusTone,
+} from '@/lib/campaigns/status';
 import { listCampaignsByBrand } from '@/lib/campaigns/queries';
 import { formatEtb } from '@/lib/money';
 
@@ -34,20 +39,18 @@ export default async function CampaignsPage() {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 py-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="page-title">Campaigns</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage your campaign briefs and review creator commitments.
-          </p>
-        </div>
-        <Link
-          href="/campaigns/new"
-          className={buttonVariants({ variant: 'default', size: 'default' })}
-        >
-          New campaign
-        </Link>
-      </div>
+      <PageHeader
+        title="Campaigns"
+        description="Manage your campaign briefs and review creator commitments."
+        action={
+          <Link
+            href="/campaigns/new"
+            className={buttonVariants({ variant: 'default', size: 'default' })}
+          >
+            New campaign
+          </Link>
+        }
+      />
 
       {campaigns.length === 0 ? (
         <EmptyState
@@ -66,7 +69,7 @@ export default async function CampaignsPage() {
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {campaigns.map((camp) => (
             <li key={camp.id}>
-              <Card className="h-full transition-shadow hover:shadow-md">
+              <Card className="h-full transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]">
                 <CardHeader>
                   <CardTitle className="text-lg">{camp.name}</CardTitle>
                   <CardDescription>
@@ -78,9 +81,12 @@ export default async function CampaignsPage() {
                     })}
                   </CardDescription>
                   <CardAction>
-                    <Badge variant="secondary" className="capitalize">
-                      {camp.status}
-                    </Badge>
+                    <Chip
+                      tone={campaignStatusTone[camp.status] ?? 'gray'}
+                      className="capitalize"
+                    >
+                      {campaignStatusLabel(camp.status)}
+                    </Chip>
                   </CardAction>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">

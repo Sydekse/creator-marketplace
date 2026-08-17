@@ -1,10 +1,11 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
 import {
   ApproveDealButton,
   RejectVideoForm,
 } from '@/components/deals/review-actions';
+import { Chip } from '@/components/ui/chip';
+import { PageHeader } from '@/components/layout/page-header';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { canReview, labelForStatus } from '@/lib/deals';
 import {
@@ -86,16 +87,18 @@ export default async function BrandDealReviewPage({
         ← Back to {deal.campaignName}
       </Link>
 
-      <div className="flex flex-col gap-3">
-        <h1 className="page-title">{deal.creatorHandle}</h1>
-        {/* The shared vocabulary from `lib/deals/groups.ts`, not a second set of
-            words for the same nine statuses — its own docstring anticipates this
-            screen, and two views naming one state differently is the kind of
-            drift that is hard to notice. */}
-        <div>
-          <Badge variant="secondary">{labelForStatus(deal.status)}</Badge>
-        </div>
-      </div>
+      <PageHeader
+        title={deal.creatorHandle}
+        description={
+          /* The shared vocabulary from `lib/deals/groups.ts`, not a second set
+             of words for the same nine statuses — its own docstring anticipates
+             this screen, and two views naming one state differently is the kind
+             of drift that is hard to notice. */
+          <Chip tone="gray" size="md">
+            {labelForStatus(deal.status)}
+          </Chip>
+        }
+      />
 
       <section className="flex flex-col gap-4">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3">
