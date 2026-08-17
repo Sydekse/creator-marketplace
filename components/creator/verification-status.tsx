@@ -1,6 +1,8 @@
 import { cn } from '@/lib/utils';
 import type { CreatorStatus } from '@/db/schema';
 
+import { Chip, type ChipTone } from '@/components/ui/chip';
+
 /**
  * What a creator sees about their own verification (US-001's "awaiting
  * verification" state, and the two states KAN-22 can move them to).
@@ -11,10 +13,10 @@ import type { CreatorStatus } from '@/db/schema';
  * hour and then email support.
  */
 
-const STATUS_CHIP: Record<CreatorStatus, string> = {
-  pending_verification: 'bg-status-pending text-status-pending-foreground',
-  verified: 'bg-status-verified text-status-verified-foreground',
-  rejected: 'bg-destructive/10 text-destructive',
+const STATUS_TONE: Record<CreatorStatus, ChipTone> = {
+  pending_verification: 'amber',
+  verified: 'success',
+  rejected: 'red',
 };
 
 const STATUS_LABEL: Record<CreatorStatus, string> = {
@@ -31,15 +33,9 @@ export function StatusChip({
   className?: string;
 }) {
   return (
-    <span
-      className={cn(
-        'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium',
-        STATUS_CHIP[status],
-        className
-      )}
-    >
+    <Chip tone={STATUS_TONE[status]} size="md" className={className}>
       {STATUS_LABEL[status]}
-    </span>
+    </Chip>
   );
 }
 
