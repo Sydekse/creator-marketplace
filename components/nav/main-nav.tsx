@@ -21,7 +21,7 @@ export function MainNav({ user }: MainNavProps) {
             key={link.href}
             href={link.href}
             data-active={isActive || undefined}
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground data-[active]:text-foreground"
+            className="nav-underline text-sm font-medium text-muted-foreground transition-colors duration-300 ease-out hover:text-neutral-900 data-[active]:text-brand"
           >
             {link.label}
           </a>

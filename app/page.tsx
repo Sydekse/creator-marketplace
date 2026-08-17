@@ -12,6 +12,7 @@ import {
   Settings,
   Users,
 } from 'lucide-react';
+import { Mark } from '@/components/brand/mark';
 import { Reveal } from '@/components/marketing/reveal';
 import { Chip } from '@/components/ui/chip';
 import { cn } from '@/lib/utils';
@@ -209,40 +210,6 @@ const CREATOR_DEALS = [
 /* -------------------------------------------------------------------------- */
 /*  Presentational helpers                                                    */
 /* -------------------------------------------------------------------------- */
-
-function Mark({
-  tone = 'light',
-  className,
-}: {
-  tone?: 'light' | 'dark';
-  className?: string;
-}) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        'grid h-6 w-6 shrink-0 place-items-center rounded-lg',
-        tone === 'light' ? 'bg-neutral-50' : 'bg-neutral-900',
-        className
-      )}
-    >
-      <span className="relative block h-3 w-3">
-        <span
-          className={cn(
-            'absolute left-0 top-0 h-2 w-2 rounded-[4px]',
-            tone === 'light' ? 'bg-neutral-900' : 'bg-neutral-50'
-          )}
-        />
-        <span
-          className={cn(
-            'absolute bottom-0 right-0 h-2 w-2 rounded-[4px]',
-            tone === 'light' ? 'bg-neutral-300' : 'bg-neutral-500'
-          )}
-        />
-      </span>
-    </span>
-  );
-}
 
 function TikTokIcon({ className }: { className?: string }) {
   return (

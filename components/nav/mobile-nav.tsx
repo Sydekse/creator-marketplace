@@ -55,7 +55,7 @@ export function MobileNav({ user }: MobileNavProps) {
                 href={link.href}
                 onClick={() => setOpen(false)}
                 data-active={isActive || undefined}
-                className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground data-[active]:text-foreground"
+                className="text-sm font-medium text-muted-foreground transition-colors hover:text-neutral-900 data-[active]:text-brand"
               >
                 {link.label}
               </a>
