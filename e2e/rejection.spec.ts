@@ -19,21 +19,20 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   await openCreatorDeal(creator, 'Tech Review Series');
   await creator
     .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/e2e-reject-1');
+    .fill('https://www.tiktok.com/@creator.demo/video/1112223334445556667');
   await creator.getByRole('button', { name: 'Submit your video' }).click();
   await expect(creator.getByText(/submitted/i).first()).toBeVisible({
     timeout: 15_000,
   });
   await creator.close();
 
-  // Brand rejects with a reason.
+  // Brand rejects with a reason. There is no standalone `/deals` list — the
+  // brand reaches the deal review screen through the campaign page, whose
+  // performance rows link into `/deals/[id]` by creator handle.
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
-  await brand.goto('/deals');
-  await brand
-    .getByRole('link', { name: /Tech Review Series/i })
-    .first()
-    .click();
+  await openCampaign(brand, 'Tech Review Series');
+  await brand.getByRole('link', { name: '@demo_creator' }).click();
   await brand.getByRole('button', { name: 'Request changes' }).click();
   // The reject form asks for a reason (AC-024) — fill it and confirm.
   const reasonField = brand.locator('textarea, input[type="text"]').last();

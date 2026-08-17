@@ -25,6 +25,8 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   const creator = await browser.newPage();
   await signIn(creator, DEMO.creator);
   await openCreatorDeal(creator, 'Summer Dispute');
+  // AC-3: acceptance is gated on agreeing to the usage-rights terms.
+  await creator.getByRole('checkbox', { name: /Usage Rights terms/i }).check();
   await creator.getByRole('button', { name: 'Accept offer' }).click();
   await expect(creator).toHaveURL(/\/creator\/deals\/[0-9a-f-]+/);
   await creator.close();
@@ -32,6 +34,9 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Summer Dispute');
+  // Funding confirms via `window.confirm` — accept it (Playwright would
+  // otherwise auto-dismiss the dialog and cancel the funding).
+  brand.on('dialog', (d) => d.accept());
   await brand.getByRole('button', { name: 'Fund campaign' }).click();
   // Funding places the hold in this server process — the escrow row is the
   // proof it landed (same signal flow 1 uses).
@@ -45,7 +50,7 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   await openCreatorDeal(submitter, 'Summer Dispute');
   await submitter
     .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/e2e-dispute-1');
+    .fill('https://www.tiktok.com/@creator.demo/video/9876543210987654321');
   await submitter.getByRole('button', { name: 'Submit your video' }).click();
   await expect(submitter.getByText(/submitted/i).first()).toBeVisible({
     timeout: 15_000,

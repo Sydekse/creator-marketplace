@@ -66,7 +66,13 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
         } else if (data?.error?.code === 'CAMPAIGN_NOT_DRAFT') {
           toast.error(CAMPAIGN_NOT_DRAFT_MESSAGE);
         } else {
-          toast.error('Failed to add creator to campaign.');
+          // Any other refusal — `BUDGET_EXCEEDED` is the live one (AC-014),
+          // and the server's own sentence is the authority, so it is shown
+          // rather than a paraphrase that could drift from it. The fallback
+          // only covers a response shaped unlike the error envelope.
+          toast.error(
+            data?.error?.message ?? 'Failed to add creator to campaign.'
+          );
         }
         return;
       }

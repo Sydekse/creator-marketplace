@@ -40,8 +40,9 @@ export async function openCreatorDeal(page: Page, campaignName: string) {
 /** Open the brand's campaign page by name. */
 export async function openCampaign(page: Page, campaignName: string) {
   await page.goto('/campaigns');
-  await page
-    .getByRole('link', { name: new RegExp(campaignName) })
-    .first()
-    .click();
+  // The list renders the campaign name as the card title and the action as a
+  // "View campaign" / "Edit brief" link — the name itself is not a link. So
+  // the card is found by its text and the action link inside it is clicked.
+  const card = page.locator('li').filter({ hasText: campaignName });
+  await card.getByRole('link', { name: /View campaign|Edit brief/i }).click();
 }
