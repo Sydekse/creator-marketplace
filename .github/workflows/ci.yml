@@ -74,3 +74,38 @@ jobs:
       - run: npm ci
       - name: Check dependency licenses
         run: npx license-checker --failOn "GPL-2.0;GPL-3.0;AGPL-3.0"
+
+  integration:
+    name: Integration Tests (Postgres)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: marketplace
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '25'
+          cache: 'npm'
+      - run: npm ci
+      # KAN-59 AC-7: an ephemeral database per run, torn down when the job
+      # ends. The ticket says "Neon branch"; this provisions a postgres:16
+      # service container instead — same isolation and teardown, and Neon *is*
+      # Postgres 16, so pointing DATABASE_URL at a fresh Neon branch works
+      # identically. The global setup migrates + seeds whatever it is pointed at.
+      - name: Integration tests
+        run: npm run test:integration
+        env:
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
+          SEED_DEMO_PASSWORD: demo-Passw0rd!
