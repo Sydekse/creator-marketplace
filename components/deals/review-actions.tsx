@@ -14,11 +14,11 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  APPROVE_CONFIRM_MESSAGE,
   APPROVE_DELIVERABLE_LABEL,
   APPROVE_FAILED_MESSAGE,
   APPROVE_SUCCESS_MESSAGE,
   APPROVING_LABEL,
+  approveConfirmMessage,
   REJECT_DELIVERABLE_LABEL,
   REJECT_FAILED_MESSAGE,
   REJECT_REASON_HINT,
@@ -36,34 +36,54 @@ import {
 import type { FieldErrorMap } from '@/lib/validation';
 
 /**
- * Approve or send back a delivered video (KAN-68, US-008, AC-023, AC-024).
+ * Approve a delivered deal, or send one of its videos back (KAN-68, US-008,
+ * AC-023, AC-024, F38).
  *
- * `'use client'` because it holds the rejection reason and two in-flight flags.
- * It is the smallest thing that has to be one — the page above renders it only
+ * **Two components, because the two actions have different subjects.** Approval
+ * is per **deal** — AC-023 releases "the held funds for that deal", one payout
+ * against one hold, so there is exactly one Approve on the page no matter how many
+ * videos it covers. Rejection is per **video**: with three on a deal, "request
+ * changes" has to say which one, or the creator is left guessing which of three to
+ * redo. So `RejectVideoForm` is rendered once per video and carries its
+ * `deliverableId`; `ApproveDealButton` is rendered once.
+ *
+ * They were a single `ReviewActions` while a deal could only hold one video, where
+ * the distinction did not exist yet. Kept in one file because they share this
+ * surface's copy and its two failure paths, not because they are one control.
+ *
+ * `'use client'` because they hold the rejection reason and the in-flight flags.
+ * These are the smallest things that have to be — the page above renders them only
  * where `canReview(status)` is true and keeps everything else server-rendered.
  *
- * **Neither endpoint changes here.** `POST /approve` takes no body at all (the
- * amounts are derived under the ledger's lock, so there is nothing for a client
- * to vary except which deal, and that is in the path) and `POST /reject` takes
- * only `{ reason }`. Both re-check the role, the ownership and the status
- * server-side; these buttons are a courtesy, and disabling one stops an accident
- * rather than an attacker (NFR-005).
+ * **Neither endpoint trusts these.** `POST /approve` takes no body at all (the
+ * amounts are derived under the ledger's lock, so there is nothing for a client to
+ * vary except which deal, and that is in the path) and `POST /reject` re-checks
+ * that the deliverable belongs to the deal. Both re-check the role, the ownership
+ * and the status server-side; these controls are a courtesy, and disabling one
+ * stops an accident rather than an attacker (NFR-005).
  *
  * **The reason is validated twice, on purpose.** `rejectDeliverableSchema` parses
  * here first and the endpoint answers 422 `REASON_REQUIRED` regardless — one copy
  * of the rule, rendered by whichever side caught the empty field first, through
  * the same `fieldErrorsAt` path every other form in this repo uses.
  */
-export function ReviewActions({ dealId }: { dealId: string }) {
+
+/**
+ * Approve every video on the deal and pay the creator (AC-023).
+ *
+ * Rendered once per deal. The page gates it on `canReview(status)`, which is
+ * `{delivered}` — and a deal only reaches `delivered` once every video it was paid
+ * for is in (F38), so this button cannot appear over a partial delivery.
+ */
+export function ApproveDealButton({
+  dealId,
+  videoCount,
+}: {
+  dealId: string;
+  videoCount: number;
+}) {
   const router = useRouter();
-
-  const [reason, setReason] = useState('');
-  const [errors, setErrors] = useState<FieldErrorMap>({});
   const [approving, setApproving] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
-
-  const reasonErrors = fieldErrorsAt(errors, 'reason');
-  const busy = approving || rejecting;
 
   async function handleApprove() {
     // Re-entry guard, the shape `offer-actions.tsx` and `deliverable-form.tsx`
@@ -71,7 +91,7 @@ export function ReviewActions({ dealId }: { dealId: string }) {
     // same tick still fire twice — and the second request arrives as
     // `completed -> completed`, refused with a message about a deal that no
     // longer needs this control.
-    if (busy) return;
+    if (approving) return;
 
     // Irreversible, and it moves money: the hold is released to the creator net
     // of commission and `LEGAL_TRANSITIONS.completed` is empty, so there is no
@@ -79,7 +99,7 @@ export function ReviewActions({ dealId }: { dealId: string }) {
     // installed and adding one for a yes/no would widen the ticket —
     // `remove-from-cart-button.tsx` set that precedent and `offer-actions.tsx`
     // followed it for decline.
-    if (!window.confirm(APPROVE_CONFIRM_MESSAGE)) return;
+    if (!window.confirm(approveConfirmMessage(videoCount))) return;
 
     setApproving(true);
 
@@ -90,7 +110,7 @@ export function ReviewActions({ dealId }: { dealId: string }) {
         { method: 'POST' }
       );
     } catch {
-      // Transport, not approval-specific — one sentence serves both buttons
+      // Transport, not approval-specific — one sentence serves both controls
       // rather than a near-duplicate free to drift.
       toast.error(REVIEW_NETWORK_ERROR_MESSAGE);
       setApproving(false);
@@ -115,19 +135,62 @@ export function ReviewActions({ dealId }: { dealId: string }) {
 
     toast.success(APPROVE_SUCCESS_MESSAGE);
 
-    // Whether these controls render at all is server-rendered from
-    // `deal.status`; the refresh is what replaces them with the completed view.
+    // Whether this control renders at all is server-rendered from `deal.status`;
+    // the refresh is what replaces it with the completed view.
     setApproving(false);
     router.refresh();
   }
 
+  return (
+    <Button type="button" onClick={handleApprove} disabled={approving}>
+      {approving && <Spinner />}
+      {approving ? APPROVING_LABEL : APPROVE_DELIVERABLE_LABEL}
+    </Button>
+  );
+}
+
+/**
+ * Send one video back to the creator with a reason (AC-024, F38).
+ *
+ * Rendered once per video, each with its own reason field and its own in-flight
+ * flag — one shared field would make the brand's note ambiguous about which video
+ * it described, which is the whole thing this ticket set out to fix at the data
+ * level.
+ *
+ * `videoLabel` is the same "Video 2" the page renders as that video's heading, so
+ * the field's accessible name says which video the reason is about rather than
+ * repeating a generic label three times down the page.
+ */
+export function RejectVideoForm({
+  dealId,
+  deliverableId,
+  videoLabel,
+}: {
+  dealId: string;
+  deliverableId: string;
+  videoLabel: string;
+}) {
+  const router = useRouter();
+
+  const [reason, setReason] = useState('');
+  const [errors, setErrors] = useState<FieldErrorMap>({});
+  const [rejecting, setRejecting] = useState(false);
+
+  const reasonErrors = fieldErrorsAt(errors, 'reason');
+  // Scoped to this video, so three forms on one page cannot collide on `id` or on
+  // the `aria-describedby` they point at.
+  const fieldId = `reason-${deliverableId}`;
+
   async function handleReject(event: React.FormEvent) {
     event.preventDefault();
-    if (busy) return;
+    if (rejecting) return;
 
     setErrors({});
 
-    const parsed = rejectDeliverableSchema.safeParse({ reason });
+    const parsed = rejectDeliverableSchema.safeParse({
+      deliverableId,
+      reason,
+    });
     if (!parsed.success) {
       setErrors(zodIssuesToDetails(parsed.error));
       return;
@@ -179,49 +242,44 @@ export function ReviewActions({ dealId }: { dealId: string }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <form onSubmit={handleReject} noValidate>
-        <FieldGroup className="gap-4">
-          <Field data-invalid={reasonErrors !== undefined || undefined}>
-            <FieldLabel htmlFor="reason">{REJECT_REASON_LABEL}</FieldLabel>
-            <Textarea
-              id="reason"
-              name="reason"
-              rows={3}
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              placeholder={REJECT_REASON_PLACEHOLDER}
-              aria-invalid={reasonErrors !== undefined || undefined}
-              aria-describedby={reasonErrors ? 'reason-error' : 'reason-hint'}
-            />
-            {reasonErrors ? (
-              <FieldError id="reason-error" errors={reasonErrors} />
-            ) : (
-              <FieldDescription id="reason-hint">
-                {REJECT_REASON_HINT}
-              </FieldDescription>
-            )}
-          </Field>
-
-          {fieldErrorsAt(errors, '_root') && (
-            <FieldError errors={fieldErrorsAt(errors, '_root')} />
+    <form onSubmit={handleReject} noValidate>
+      <FieldGroup className="gap-4">
+        <Field data-invalid={reasonErrors !== undefined || undefined}>
+          <FieldLabel htmlFor={fieldId}>
+            {REJECT_REASON_LABEL} <span className="sr-only">{videoLabel}</span>
+          </FieldLabel>
+          <Textarea
+            id={fieldId}
+            name="reason"
+            rows={3}
+            value={reason}
+            onChange={(event) => setReason(event.target.value)}
+            placeholder={REJECT_REASON_PLACEHOLDER}
+            aria-invalid={reasonErrors !== undefined || undefined}
+            aria-describedby={
+              reasonErrors ? `${fieldId}-error` : `${fieldId}-hint`
+            }
+          />
+          {reasonErrors ? (
+            <FieldError id={`${fieldId}-error`} errors={reasonErrors} />
+          ) : (
+            <FieldDescription id={`${fieldId}-hint`}>
+              {REJECT_REASON_HINT}
+            </FieldDescription>
           )}
+        </Field>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Approve is `type="button"`: it is not this form's submit, and
-                leaving it as the default would make Enter in the reason field
-                pay the creator. */}
-            <Button type="button" onClick={handleApprove} disabled={busy}>
-              {approving && <Spinner />}
-              {approving ? APPROVING_LABEL : APPROVE_DELIVERABLE_LABEL}
-            </Button>
-            <Button type="submit" variant="outline" disabled={busy}>
-              {rejecting && <Spinner />}
-              {rejecting ? REJECTING_LABEL : REJECT_DELIVERABLE_LABEL}
-            </Button>
-          </div>
-        </FieldGroup>
-      </form>
-    </div>
+        {fieldErrorsAt(errors, '_root') && (
+          <FieldError errors={fieldErrorsAt(errors, '_root')} />
+        )}
+
+        <div>
+          <Button type="submit" variant="outline" disabled={rejecting}>
+            {rejecting && <Spinner />}
+            {rejecting ? REJECTING_LABEL : REJECT_DELIVERABLE_LABEL}
+          </Button>
+        </div>
+      </FieldGroup>
+    </form>
   );
 }

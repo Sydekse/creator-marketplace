@@ -25,15 +25,13 @@ import { UUID_REGEX } from '@/lib/validation';
  * (`coverageNote`). A recorded `0` is a measurement and renders as `0`; null and
  * zero never render alike.
  *
- * **One row per deal, not per video, and that is a known gap rather than a
- * choice.** AC-026 says "each video shows views, likes, shares, and comments", and
- * the schema cannot express it: `deliverable.deal_id` is unique and
- * `video_metric.deliverable_id` is unique, so a deal for three videos has one
- * submitted URL and one set of counts. **F38** records the whole of it — a brand
- * can pay for three videos and receive one — and the interim decision is that
- * campaigns use one video per creator, which makes a per-deal row exactly a
- * per-video row. Nothing here works around it; the rendering is accurate about the
- * data that exists.
+ * **One row per video, grouped by deal** — which is what AC-026 asks for and, until
+ * F38 was fixed, what the schema could not express. `deliverable.deal_id` was unique,
+ * so a deal for three videos held one URL and one set of counts, and this module's
+ * header used to record that gap. It no longer exists: a deal delivers every video it
+ * was paid for, each with its own `video_metric` row. The deal's money is stated once
+ * per group and the counts once per video — see `CampaignDealGroup` for why the two
+ * cannot be flattened together.
  *
  * **Ownership is in the guard, and the guard is inside this module.** Gated before
  * the argument is looked at, with `resource` so `guard` resolves `campaign.brand_id`
@@ -55,9 +53,19 @@ import { UUID_REGEX } from '@/lib/validation';
  * module is one campaign's and brand-gated.
  */
 
-/** One deal's row on the dashboard: what it cost, and what the video did. */
+/** One submitted video's row on the dashboard, or a deal with nothing submitted. */
 export interface CampaignVideoRow {
   dealId: string;
+  /**
+   * The video this row is about, or null for a deal with nothing submitted yet
+   * (F38).
+   *
+   * The identity of a row. Before this ticket a row *was* a deal, because a deal
+   * could hold only one video; now a three-video deal produces three rows and
+   * `dealId` no longer distinguishes them — which matters as far up as the React
+   * key the list renders with.
+   */
+  deliverableId: string | null;
   status: DealStatus;
   /** The creator's public handle. No contact column is read (NFR-010). */
   creatorHandle: string;
@@ -104,6 +112,34 @@ export interface CampaignVideoRow {
 }
 
 /**
+ * One deal and the videos delivered against it (F38).
+ *
+ * The dashboard groups because the money does. `unit_price × video_count =
+ * total_price` describes the **deal**, and a three-video deal that emitted three
+ * flat rows would print that equation three times — a brand scanning the column
+ * would read three times the money the campaign actually owes. So the deal's
+ * figures are stated once per group and the engagement counts once per video,
+ * which is exactly the split AC-026 asks for ("each video … plus a campaign
+ * total").
+ */
+export interface CampaignDealGroup {
+  dealId: string;
+  status: DealStatus;
+  creatorHandle: string;
+  /** Videos this deal was paid for — the denominator the group reports against. */
+  videoCount: number;
+  unitPrice: number;
+  totalPrice: number;
+  /**
+   * The submitted videos, oldest first. **Empty** for a deal with nothing
+   * delivered yet, which still renders: a funded deal awaiting delivery is part
+   * of the campaign's story, and hiding it would make the dashboard read as
+   * "videos we happen to have numbers for".
+   */
+  videos: CampaignVideoRow[];
+}
+
+/**
  * The campaign's engagement totals, and how much of the campaign they cover.
  *
  * Each figure is `null` when **no** video recorded that metric, so the total
@@ -118,9 +154,17 @@ export interface CampaignTotals {
   likes: number | null;
   shares: number | null;
   comments: number | null;
-  /** Rows with at least one recorded count. */
+  /** Videos with at least one recorded count. */
   measuredVideos: number;
-  /** Rows in total, measured or not. */
+  /**
+   * Videos the campaign was paid for, measured or not.
+   *
+   * The sum of `video_count` across the campaign's deals — **not** the number of
+   * rows (F38). A three-video deal with nothing submitted is one row, and counting
+   * rows would report a campaign of five videos as a campaign of two while
+   * `coverageNote` cheerfully said the totals covered all of them. The denominator
+   * has to be what was ordered, because that is what a brand is waiting on.
+   */
   totalVideos: number;
 }
 
@@ -133,7 +177,8 @@ export interface CampaignSettlement {
 }
 
 export interface CampaignPerformance {
-  videos: CampaignVideoRow[];
+  /** One entry per deal, each carrying its own videos (F38). */
+  deals: CampaignDealGroup[];
   totals: CampaignTotals;
   settlement: CampaignSettlement;
 }
@@ -147,7 +192,7 @@ export interface CampaignPerformance {
  * rather than a `null` that every consumer would then have to defend against.
  */
 export const EMPTY_PERFORMANCE: CampaignPerformance = {
-  videos: [],
+  deals: [],
   totals: {
     views: null,
     likes: null,
@@ -178,15 +223,22 @@ export { METRIC_KEYS };
  * "videos we happen to have numbers for", which is the failure AC-026 bullet 3 is
  * about seen from the other side.
  *
+ * **One row per video** (F38). The `deliverable` join has never had a `limit`, so
+ * this already emitted a row per deliverable — there simply could not be more than
+ * one until now. A deal with nothing submitted still emits its one all-null row.
+ *
  * No brand predicate here: this is called only after `readCampaignPerformance`'s
  * guard has resolved `campaign.brand_id` for the id, which is where ownership
  * lives. Ordered by handle so a brand looking for one creator has a stable place
- * to look, matching the list this replaces.
+ * to look, then by submission time so a deal's videos read in the order they
+ * happened and "Video 2" means the same video on two page loads — the same
+ * ordering the two deal detail screens use.
  */
 export function campaignVideosQuery(campaignId: string) {
   return db
     .select({
       dealId: deal.id,
+      deliverableId: deliverable.id,
       status: deal.status,
       creatorHandle: creatorProfile.tiktokHandle,
       videoCount: deal.videoCount,
@@ -217,45 +269,98 @@ export function campaignVideosQuery(campaignId: string) {
     .leftJoin(deliverable, eq(deliverable.dealId, deal.id))
     .leftJoin(videoMetric, eq(videoMetric.deliverableId, deliverable.id))
     .where(eq(deal.campaignId, campaignId))
-    .orderBy(asc(creatorProfile.tiktokHandle));
+    .orderBy(asc(creatorProfile.tiktokHandle), asc(deliverable.submittedAt));
+}
+
+/**
+ * Folds the flat rows into one entry per deal, preserving order (F38).
+ *
+ * Pure and exported for the reason `toCampaignTotals` is: it is a decision, and
+ * testing a decision through a database proves less and costs more. The decision
+ * is that the deal's money is stated once and its videos listed under it — see
+ * `CampaignDealGroup` for why printing `unit_price × video_count` on each of three
+ * rows would misstate what the campaign owes.
+ *
+ * A deal with nothing submitted arrives as a single all-null row and becomes a
+ * group with an empty `videos` array — the row is the deal announcing itself, not
+ * a video, and `deliverableId` is what tells the two apart. Insertion order is
+ * kept, so the query's `ORDER BY` is what the screen renders.
+ */
+export function toDealGroups(rows: CampaignVideoRow[]): CampaignDealGroup[] {
+  const groups = new Map<string, CampaignDealGroup>();
+
+  for (const row of rows) {
+    let group = groups.get(row.dealId);
+    if (!group) {
+      group = {
+        dealId: row.dealId,
+        status: row.status,
+        creatorHandle: row.creatorHandle,
+        videoCount: row.videoCount,
+        unitPrice: row.unitPrice,
+        totalPrice: row.totalPrice,
+        videos: [],
+      };
+      groups.set(row.dealId, group);
+    }
+
+    // The all-null placeholder for an undelivered deal is not a video. Every
+    // other column on it is the deal's, already captured above.
+    if (row.deliverableId !== null) group.videos.push(row);
+  }
+
+  return [...groups.values()];
 }
 
 /**
  * Sums each metric across the campaign, counting only what was measured.
  *
- * AC-026 bullet 3, and the only decision in this module worth testing on its own.
- * Per column: `null` when no row recorded it, otherwise the sum of the rows that
- * did. A recorded `0` counts — it is data, and treating it as absence would be the
- * same mistake in the other direction.
+ * AC-026 bullet 3, and the only arithmetic in this module. Per column: `null` when
+ * no video recorded it, otherwise the sum of those that did. A recorded `0` counts
+ * — it is data, and treating it as absence would be the same mistake in the other
+ * direction.
  *
- * Pure, and takes rows rather than a campaign id, for the reason `toDealDetail` is
+ * **Takes the grouped deals, not the flat rows** (F38), because the two counters
+ * it produces have different denominators and only the groups carry both.
+ * `measuredVideos` counts *videos* with numbers; `totalVideos` sums each deal's
+ * `video_count` — what the campaign was paid for. Counting rows for the second, as
+ * this did when a deal could hold one video, reports a five-video campaign as a
+ * two-video one the moment two of its deals have nothing submitted, and
+ * `coverageNote` then claims the totals cover everything.
+ *
+ * Pure, and takes data rather than a campaign id, for the reason `toDealDetail` is
  * pure: this is the arithmetic, and testing arithmetic through a database proves
  * less and costs more.
  */
-export function toCampaignTotals(rows: CampaignVideoRow[]): CampaignTotals {
+export function toCampaignTotals(deals: CampaignDealGroup[]): CampaignTotals {
   const totals: CampaignTotals = {
     views: null,
     likes: null,
     shares: null,
     comments: null,
     measuredVideos: 0,
-    totalVideos: rows.length,
+    totalVideos: 0,
   };
 
-  for (const row of rows) {
-    let rowMeasured = false;
+  for (const group of deals) {
+    // What was ordered, whether or not it arrived.
+    totals.totalVideos += group.videoCount;
 
-    for (const key of METRIC_KEYS) {
-      const value = row[key];
-      if (value === null) continue;
+    for (const video of group.videos) {
+      let videoMeasured = false;
 
-      rowMeasured = true;
-      // `?? 0` rather than `|| 0`: the running total may legitimately be 0 from a
-      // recorded zero, and `||` would restart the sum from that point.
-      totals[key] = (totals[key] ?? 0) + value;
+      for (const key of METRIC_KEYS) {
+        const value = video[key];
+        if (value === null) continue;
+
+        videoMeasured = true;
+        // `?? 0` rather than `|| 0`: the running total may legitimately be 0 from
+        // a recorded zero, and `||` would restart the sum from that point.
+        totals[key] = (totals[key] ?? 0) + value;
+      }
+
+      if (videoMeasured) totals.measuredVideos += 1;
     }
-
-    if (rowMeasured) totals.measuredVideos += 1;
   }
 
   return totals;
@@ -320,7 +425,9 @@ export async function readCampaignPerformance(
     deps.selectSettlement(campaignId),
   ]);
 
-  return { videos, totals: toCampaignTotals(videos), settlement };
+  const deals = toDealGroups(videos);
+
+  return { deals, totals: toCampaignTotals(deals), settlement };
 }
 
 /**

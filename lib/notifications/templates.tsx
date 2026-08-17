@@ -415,6 +415,11 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             The brand asked for changes to your video for{' '}
             {payload.campaignTitle}.
           </Text>
+          {/* Which video (F38). A deal can hold several, and the note below is
+              about one of them — as plain text, because nothing in an email
+              should invite a click through to a link the platform never
+              fetched (Tech Spec §6.3). */}
+          <Text style={styles.text}>{payload.tiktokUrl}</Text>
           <Text style={styles.text}>{payload.reason}</Text>
           <Text style={styles.text}>
             Your payment stays in escrow while you re-submit.

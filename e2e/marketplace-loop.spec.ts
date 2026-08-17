@@ -9,6 +9,11 @@ import { DEMO, openCampaign, openCreatorDeal, signIn } from './helpers';
  * Built on the seeded 'Ramadan Beauty Push' campaign: a confirmed campaign
  * with one pending offer to creator@demo.com. Every step is real UI against
  * the real database — no fakes, no shortcuts through the API.
+ *
+ * **The campaign is for two videos, deliberately** (F38). A deal delivers every
+ * video it was paid for, so this walk submits both — and asserts that after the
+ * first the brand has nothing to approve. That intermediate assertion is the one
+ * that would have caught the original bug, where one link released all the money.
  */
 test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   browser,
@@ -41,7 +46,7 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   ).toBeVisible({ timeout: 15_000 });
   await brand.close();
 
-  // -- Creator submits the video -------------------------------------------
+  // -- Creator submits the first of two videos ------------------------------
   const submitter = await browser.newPage();
   await signIn(submitter, DEMO.creator);
   await openCreatorDeal(submitter, 'Ramadan Beauty Push');
@@ -49,10 +54,39 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
     .locator('#tiktokUrl')
     .fill('https://www.tiktok.com/@creator.demo/video/1234567890123456789');
   await submitter.getByRole('button', { name: 'Submit your video' }).click();
-  await expect(submitter.getByText(/submitted/i).first()).toBeVisible({
+  // One of two: the page reports the progress and the form is still there.
+  await expect(submitter.getByText('1 of 2 videos submitted')).toBeVisible({
     timeout: 15_000,
   });
   await submitter.close();
+
+  // -- The brand has nothing to approve yet (F38) ---------------------------
+  // The assertion the original bug would have failed: one submitted video on a
+  // two-video deal must not unlock a payout for both.
+  const early = await browser.newPage();
+  await signIn(early, DEMO.brand);
+  await openCampaign(early, 'Ramadan Beauty Push');
+  await early.getByRole('link', { name: '@demo_creator' }).click();
+  await expect(early.getByText('1 of 2 videos submitted')).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(
+    early.getByRole('button', { name: 'Approve and pay' })
+  ).toHaveCount(0);
+  await early.close();
+
+  // -- Creator submits the second video ------------------------------------
+  const finisher = await browser.newPage();
+  await signIn(finisher, DEMO.creator);
+  await openCreatorDeal(finisher, 'Ramadan Beauty Push');
+  await finisher
+    .locator('#tiktokUrl')
+    .fill('https://www.tiktok.com/@creator.demo/video/2234567890123456789');
+  await finisher.getByRole('button', { name: 'Submit your video' }).click();
+  await expect(finisher.getByText('2 of 2 videos submitted')).toBeVisible({
+    timeout: 15_000,
+  });
+  await finisher.close();
 
   // -- Brand approves (payout net of commission) ----------------------------
   // The brand reaches the deal review screen through the campaign page: there
@@ -69,21 +103,29 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   await expect(approver).toHaveURL(/\/deals\/[0-9a-f-]+/, { timeout: 15_000 });
   await approver.close();
 
-  // -- Creator submits metrics; the brand dashboard shows them --------------
+  // -- Creator submits metrics for each video; the dashboard shows them ------
+  // One form per video (AC-026's "each video"), so the first is filled and the
+  // dashboard is asserted on its numbers.
   const metrics = await browser.newPage();
   await signIn(metrics, DEMO.creator);
   await openCreatorDeal(metrics, 'Ramadan Beauty Push');
-  await metrics.locator('#metric-views').fill('12500');
-  await metrics.locator('#metric-likes').fill('840');
-  await metrics.locator('#metric-shares').fill('90');
-  await metrics.locator('#metric-comments').fill('37');
-  await metrics.getByRole('button', { name: 'Submit metrics' }).click();
+  await metrics.locator('#metric-views').first().fill('12500');
+  await metrics.locator('#metric-likes').first().fill('840');
+  await metrics.locator('#metric-shares').first().fill('90');
+  await metrics.locator('#metric-comments').first().fill('37');
+  await metrics.getByRole('button', { name: 'Submit metrics' }).first().click();
   await metrics.close();
 
   const dashboard = await browser.newPage();
   await signIn(dashboard, DEMO.brand);
   await openCampaign(dashboard, 'Ramadan Beauty Push');
   await expect(dashboard.getByText('12,500').first()).toBeVisible({
+    timeout: 15_000,
+  });
+  // AC-027's coverage line, now that a deal really can be part-measured: one of
+  // the two videos has numbers and the total says so rather than reading as
+  // complete.
+  await expect(dashboard.getByText(/Totals cover 1 of 2 videos/)).toBeVisible({
     timeout: 15_000,
   });
   await dashboard.close();

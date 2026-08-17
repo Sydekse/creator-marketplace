@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '@/db';
 import {
@@ -44,8 +44,14 @@ import { UUID_REGEX } from '@/lib/validation';
  * unstyled 500 where a 404 belongs.
  */
 
-/** The one deliverable row a deal can have, as the reviewing brand sees it. */
+/** One submitted video, as the reviewing brand sees it. */
 export interface BrandDeliverableView {
+  /**
+   * The row's own id — the target of `POST /api/deals/{id}/reject`, which now
+   * names which video is being sent back (F38). The URL is not enough: two
+   * videos on one deal are distinguished by id, not by link.
+   */
+  id: string;
   tiktokUrl: string;
   submittedAt: Date;
   /**
@@ -93,8 +99,16 @@ export interface BrandDealDetail {
    * than rendering a blank label.
    */
   rightsTermsVersion: string | null;
-  /** Null until the creator has submitted (KAN-46). */
-  deliverable: BrandDeliverableView | null;
+  /**
+   * Every video submitted so far, oldest first (F38).
+   *
+   * An **array**, and empty rather than null before the creator has submitted
+   * anything — a deal priced for three videos can have one, two or three, and the
+   * count against `videoCount` is what tells the brand whether there is anything
+   * to approve. `deliverables.length < videoCount` means the delivery is still in
+   * progress, which is also why `canReview(status)` is false there.
+   */
+  deliverables: BrandDeliverableView[];
 }
 
 /**
@@ -111,7 +125,7 @@ export function buildBrandDealWhere(
   return and(eq(deal.id, dealId), eq(campaign.brandId, brandProfileId)) as SQL;
 }
 
-/** One joined row, before the deliverable pair is folded. */
+/** One joined row from the deal query. */
 export interface BrandDealJoinRow {
   id: string;
   status: DealStatus;
@@ -122,14 +136,6 @@ export interface BrandDealJoinRow {
   unitPrice: number;
   totalPrice: number;
   rightsTermsVersion: string | null;
-  /** Nullable columns: a missing row arrives as all-nulls, not a joined null. */
-  deliverable: {
-    tiktokUrl: string | null;
-    submittedAt: Date | null;
-    reviewStatus: ReviewStatus | null;
-    reviewedAt: Date | null;
-    rejectionReason: string | null;
-  } | null;
 }
 
 /**
@@ -138,10 +144,14 @@ export interface BrandDealJoinRow {
  *
  * `campaign` and `creator_profile` are inner joins: both foreign keys are
  * `not null`, so neither can miss, and the `campaign` join is what the ownership
- * predicate reads. The other two are **left** joins, for the reason
- * `creatorDealQuery` gives — a deal with no deliverable yet, or no recorded
- * terms version, must come back and say so rather than vanish from its owner's
- * own review screen.
+ * predicate reads. `rights_terms` is **left**, for the reason `creatorDealQuery`
+ * gives — a deal with no recorded terms version must come back and say so rather
+ * than vanish from its owner's own review screen.
+ *
+ * **The deliverable join is gone** (F38). A deal can hold several videos, and a
+ * one-row query with a left join returned one arbitrary one while silently
+ * multiplying the deal's own columns. The videos are a second read
+ * (`brandDealDeliverablesQuery`), which is also what lets them be ordered.
  */
 export function brandDealQuery(where: SQL) {
   return db
@@ -155,62 +165,73 @@ export function brandDealQuery(where: SQL) {
       unitPrice: deal.unitPrice,
       totalPrice: deal.totalPrice,
       rightsTermsVersion: rightsTerms.version,
-      deliverable: {
-        tiktokUrl: deliverable.tiktokUrl,
-        submittedAt: deliverable.submittedAt,
-        reviewStatus: deliverable.reviewStatus,
-        reviewedAt: deliverable.reviewedAt,
-        rejectionReason: deliverable.rejectionReason,
-      },
     })
     .from(deal)
     .innerJoin(campaign, eq(deal.campaignId, campaign.id))
     .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
     .leftJoin(rightsTerms, eq(deal.rightsTermsId, rightsTerms.id))
-    .leftJoin(deliverable, eq(deliverable.dealId, deal.id))
     .where(where)
     .limit(1);
 }
 
 /**
- * Folds the joined nullable columns into one nullable object.
+ * Every video submitted against one deal, oldest first (F38).
  *
- * Exported and pure for the reason `toDealDetail` is: it is the only part of this
- * read with a decision in it. The pair comes from a single left join, so a URL
- * present guarantees the timestamp and review status are too (`submitted_at` and
- * `review_status` are both `not null` in the table) — which is what lets the page
- * ask one question, "has the creator submitted?", instead of five.
+ * Ordered by `submitted_at` so the list reads as the delivery happened, and so
+ * "video 1" means the same thing on two page loads — an unordered list would
+ * renumber itself between renders and make the brand's rejection note ambiguous.
+ *
+ * Takes the deal id alone: it is issued only after `brandDealQuery` has already
+ * proved this brand owns that deal, which is where ownership lives.
  */
-export function toBrandDealDetail(row: BrandDealJoinRow): BrandDealDetail {
-  return {
-    ...row,
-    deliverable: row.deliverable?.tiktokUrl
-      ? {
-          tiktokUrl: row.deliverable.tiktokUrl,
-          submittedAt: row.deliverable.submittedAt as Date,
-          reviewStatus: row.deliverable.reviewStatus as ReviewStatus,
-          reviewedAt: row.deliverable.reviewedAt,
-          rejectionReason: row.deliverable.rejectionReason,
-        }
-      : null,
-  };
+export function brandDealDeliverablesQuery(dealId: string) {
+  return db
+    .select({
+      id: deliverable.id,
+      tiktokUrl: deliverable.tiktokUrl,
+      submittedAt: deliverable.submittedAt,
+      reviewStatus: deliverable.reviewStatus,
+      reviewedAt: deliverable.reviewedAt,
+      rejectionReason: deliverable.rejectionReason,
+    })
+    .from(deliverable)
+    .where(eq(deliverable.dealId, dealId))
+    .orderBy(asc(deliverable.submittedAt));
 }
+
+/*
+ * There is no `toBrandDealDetail` any more, and its absence is the point.
+ *
+ * It existed to fold a left join's all-nullable columns into one nullable object
+ * — the decision "has the creator submitted?" expressed over five columns that
+ * were null together. With the videos read as their own rows
+ * (`brandDealDeliverablesQuery`) there is nothing nullable to fold: every column
+ * is `not null` in the table, so a row that came back is a submission that
+ * happened, and "how many videos so far" is `deliverables.length`. A pure
+ * function wrapping a spread would be a seam with no decision behind it.
+ */
 
 /** Seam for tests, matching the shape the rest of `lib/` uses. */
 export interface BrandDealDeps {
   requireBrand: () => Promise<{ brandProfileId: string | null }>;
-  select: (where: SQL) => Promise<BrandDealDetail | null>;
-}
-
-async function selectBrandDeal(where: SQL): Promise<BrandDealDetail | null> {
-  const [row] = await brandDealQuery(where);
-  if (!row) return null;
-  return toBrandDealDetail(row);
+  select: (where: SQL) => Promise<BrandDealJoinRow | null>;
+  /**
+   * The deal's videos, read only once the deal itself came back.
+   *
+   * A second query, and deliberately behind the ownership check — the seam exists
+   * so a test can prove the videos are never fetched for a deal this brand does
+   * not own.
+   */
+  selectDeliverables: (dealId: string) => Promise<BrandDeliverableView[]>;
 }
 
 const defaultDeps: BrandDealDeps = {
   requireBrand: () => guard({ roles: ['brand'] }),
-  select: selectBrandDeal,
+  select: async (where) => {
+    const [row] = await brandDealQuery(where);
+    return row ?? null;
+  },
+  selectDeliverables: (dealId) => brandDealDeliverablesQuery(dealId),
 };
 
 /**
@@ -222,6 +243,12 @@ const defaultDeps: BrandDealDeps = {
  * comes second and short-circuits the query entirely: Postgres answers a non-uuid
  * compared against a `uuid` column with `22P02`, which would turn a mistyped link
  * into a 500 rather than a not-found.
+ *
+ * **Two reads, in order** (F38). The deal proves ownership; only then are its
+ * videos fetched. Sequential rather than concurrent for the same reason the
+ * creator's deal page awaits its two reads in order: the second is scoped by an
+ * id the first had to validate, and issuing them together would fetch videos for
+ * a deal the caller may not own.
  */
 export async function readBrandDeal(
   dealId: string,
@@ -232,7 +259,10 @@ export async function readBrandDeal(
 
   if (!UUID_REGEX.test(dealId)) return null;
 
-  return deps.select(buildBrandDealWhere(dealId, brandProfileId));
+  const row = await deps.select(buildBrandDealWhere(dealId, brandProfileId));
+  if (!row) return null;
+
+  return { ...row, deliverables: await deps.selectDeliverables(row.id) };
 }
 
 /**
@@ -255,6 +285,37 @@ export const VIDEO_COUNT_LABEL = 'Videos';
 export const UNIT_PRICE_LABEL = 'Price per video';
 export const TOTAL_PRICE_LABEL = 'Deal total';
 
+/**
+ * The heading over the list of submitted videos, and how one video is named
+ * within it (F38).
+ *
+ * `videoHeading` is a function because the number is part of the name: with
+ * several videos on one deal, "Video 2" is how the brand and the creator refer
+ * to the same thing, and the rejection note the brand writes is about one of
+ * them. The ordinal comes from the list's own order — `brandDealDeliverablesQuery`
+ * sorts by `submitted_at` so it is stable across page loads.
+ */
+export const DELIVERABLES_TITLE = 'Submitted videos';
+export function videoHeading(index: number): string {
+  return `Video ${index + 1}`;
+}
+
+/**
+ * How much of the delivery has arrived (F38).
+ *
+ * Stated on the brand's screen as well as the creator's, because it is the answer
+ * to "why is there no Approve button" — a deal one video short is not a deal
+ * nobody has looked at. Reads `2 of 3 videos submitted`, and the singular case
+ * still says `1 of 1` rather than dropping the fraction: the brand ordered a
+ * number and is entitled to see it accounted for.
+ */
+export function deliveryProgress(
+  submitted: number,
+  videoCount: number
+): string {
+  return `${submitted} of ${videoCount} video${videoCount === 1 ? '' : 's'} submitted`;
+}
+
 /** AC-6's version string, when a deal has one and when it does not. */
 export const NO_RIGHTS_TERMS_MESSAGE =
   'No usage-rights version was recorded for this deal.';
@@ -267,6 +328,19 @@ export const NO_RIGHTS_TERMS_MESSAGE =
  */
 export const AWAITING_DELIVERABLE_MESSAGE =
   'The creator has not submitted a video for this deal yet. You will be emailed when they do.';
+
+/**
+ * Why the review controls are absent while the delivery is still in progress
+ * (F38).
+ *
+ * Distinct from `AWAITING_DELIVERABLE_MESSAGE`, which covers a deal with nothing
+ * submitted at all. This one is for a deal with some videos in and some
+ * outstanding: there is something on screen to look at, and the brand needs to
+ * know that judging it is not yet the thing to do. Approval is per deal (AC-023
+ * releases "the held funds for that deal"), so it waits for the whole delivery.
+ */
+export const AWAITING_REMAINING_VIDEOS_MESSAGE =
+  'You can approve or send back this deal once the creator has submitted every video it covers.';
 
 /**
  * Why the review controls are absent, when a deliverable exists but the deal is
@@ -295,11 +369,11 @@ export const REJECTION_REASON_LABEL = 'Changes you asked for';
  * header.
  */
 export {
-  APPROVE_CONFIRM_MESSAGE,
   APPROVE_DELIVERABLE_LABEL,
   APPROVE_FAILED_MESSAGE,
   APPROVE_SUCCESS_MESSAGE,
   APPROVING_LABEL,
+  approveConfirmMessage,
   REJECT_DELIVERABLE_LABEL,
   REJECT_FAILED_MESSAGE,
   REJECT_REASON_HINT,

@@ -3,7 +3,12 @@ import type { SQL } from 'drizzle-orm';
 import { campaign, creatorProfile, deal, deliverable } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
-import { transitionDeal, TransitionError } from '@/lib/deals/state-machine';
+import {
+  canReview,
+  getErrorCodeForInvalidTransition,
+  transitionDeal,
+  TransitionError,
+} from '@/lib/deals/state-machine';
 import { withNotifications } from '@/lib/notifications/notify';
 import type { Notify } from '@/lib/notifications/notify';
 import type { ErrorCode } from '@/lib/validation/errors';
@@ -87,18 +92,26 @@ export interface RejectDeliverableDeps {
     reason: string
   ) => Promise<unknown>;
   /**
-   * Stores the rejection on the deliverable row (AC-3): `rejected`, the
-   * review timestamp, and the brand's reason. Throws if the deal has no
-   * deliverable row at all — a `delivered` deal is guaranteed one by KAN-46,
-   * so a miss here is corrupted data, and rejecting without recording the
-   * note would strand the creator with a revision and no instructions.
+   * Stores the rejection on the one video being sent back (AC-3, F38).
+   *
+   * Scoped by **both** ids. A deal can hold several videos, so the deliverable id
+   * arrives from the client — and a client-supplied id checked only against its
+   * own table would let a brand reject a video on somebody else's deal. ANDing
+   * `deal_id` makes the ownership already established for the deal cover the
+   * video too, which is layer two of NFR-005 in the shape
+   * `buildRejectDeliverableWhere` uses one level up.
+   *
+   * Returns whether a row matched. A miss is a real refusal, not a no-op: it
+   * means the id names no video on this deal, and rejecting without recording
+   * the note would strand the creator with a revision and no instructions.
    */
   recordRejection: (
     tx: Tx,
     dealId: string,
+    deliverableId: string,
     reason: string,
     reviewedAt: Date
-  ) => Promise<void>;
+  ) => Promise<{ tiktokUrl: string } | null>;
   run: <T>(fn: (tx: Tx, notify: Notify) => Promise<T>) => Promise<T>;
 }
 
@@ -147,47 +160,60 @@ const defaultDeps: RejectDeliverableDeps = {
   // re-reads the row under its own lock before judging legality (invariant 6).
   transition: (tx, dealId, actorId, reason) =>
     transitionDeal(tx, dealId, 'revision_requested', actorId, { reason }),
-  recordRejection: async (tx, dealId, reason, reviewedAt) => {
-    const [existing] = await tx
-      .select({ id: deliverable.id })
-      .from(deliverable)
-      .where(eq(deliverable.dealId, dealId))
-      .limit(1);
-
-    if (!existing) {
-      throw new Error(`No deliverable to reject for deal ${dealId}`);
-    }
-
-    await tx
+  recordRejection: async (tx, dealId, deliverableId, reason, reviewedAt) => {
+    // One statement, and the `and` is the security half: an id naming a video on
+    // another brand's deal matches nothing and returns null, without this module
+    // needing a second read to check who owns it.
+    const [updated] = await tx
       .update(deliverable)
       .set({
         reviewStatus: 'rejected',
         reviewedAt,
         rejectionReason: reason,
       })
-      .where(eq(deliverable.id, existing.id));
+      .where(
+        and(eq(deliverable.id, deliverableId), eq(deliverable.dealId, dealId))
+      )
+      // The URL travels into the creator's notification, so they are told which
+      // of their videos to redo rather than just that one of them was refused.
+      .returning({ tiktokUrl: deliverable.tiktokUrl });
+
+    return updated ?? null;
   },
   run: (fn) => withNotifications(fn),
 };
 
 /**
- * Rejects a delivered deliverable on behalf of the brand that owns its
- * campaign (AC-024).
+ * Rejects one delivered video on behalf of the brand that owns its campaign
+ * (AC-024).
  *
  * `brandProfileId` and `actorUserId` come from `guard()`, never from the
- * request body. `reason` is the only value the client supplies, and it has
- * already survived `rejectDeliverableSchema` (non-empty, bounded) before this
- * function is called.
+ * request body. `deliverableId` and `reason` are the client-supplied values, and
+ * both have already survived `rejectDeliverableSchema` (a uuid, and a non-empty
+ * bounded string) before this function is called.
  *
- * The state machine is the status guard: only a `delivered` deal can reach
- * `revision_requested`, so every other status surfaces the machine's own
- * code — `DEAL_NOT_DELIVERED` for a video that was never submitted, and the
- * idempotency answer for a double-reject arriving as `revision_requested →
- * revision_requested`.
+ * **The status guard runs before the write**, and answers with the state
+ * machine's own code — `canReview` is exactly `{delivered}` read off
+ * `LEGAL_TRANSITIONS`, so rejecting a video that was never delivered reports
+ * `DEAL_NOT_DELIVERED` and a double-reject reports whatever the machine says for
+ * `revision_requested → revision_requested`. Checked here rather than left to the
+ * transition because the rejection is written first: a client-supplied
+ * deliverable id that names nothing must not move the deal on its way to being
+ * refused.
+ *
+ * **A deliverable id that matches nothing on this deal is `not_found`**, which
+ * the route answers as 403 like every other owner-scoped miss. The brand already
+ * proved they own the deal; an id naming a video on somebody else's is not a
+ * reason to confirm that video exists.
  */
 export async function rejectDeliverable(
   dealId: string,
-  input: { brandProfileId: string; actorUserId: string; reason: string },
+  input: {
+    brandProfileId: string;
+    actorUserId: string;
+    deliverableId: string;
+    reason: string;
+  },
   deps: RejectDeliverableDeps = defaultDeps
 ): Promise<RejectDeliverableResult> {
   return deps.run(async (tx, notify) => {
@@ -196,10 +222,37 @@ export async function rejectDeliverable(
       return { ok: false, reason: 'not_found' };
     }
 
+    // AC-024 and AC-5. `delivered` is the only status a rejection is legal from,
+    // and the code for every other one is the machine's rather than one this
+    // module invents.
+    if (!canReview(row.status)) {
+      return {
+        ok: false,
+        reason: 'illegal',
+        code: getErrorCodeForInvalidTransition(
+          row.status,
+          'revision_requested'
+        ),
+      };
+    }
+
+    // AC-3, in the same transaction as the status change below: a rejection note
+    // must never exist for a deal that is not `revision_requested`, and a deal
+    // the brand sent back must always carry one.
+    const reviewedAt = new Date();
+    const rejected = await deps.recordRejection(
+      tx,
+      dealId,
+      input.deliverableId,
+      input.reason,
+      reviewedAt
+    );
+
+    if (!rejected) {
+      return { ok: false, reason: 'not_found' };
+    }
+
     try {
-      // AC-024 and AC-5 together. `delivered → revision_requested` is the
-      // only legal edge; the machine refuses everything else with its own
-      // code rather than one this module invents.
       await deps.transition(
         tx,
         dealId,
@@ -213,20 +266,16 @@ export async function rejectDeliverable(
       throw error;
     }
 
-    // AC-3, in the same transaction as the status change: a rejection note
-    // must never exist for a deal that is not `revision_requested`, and a
-    // deal the brand sent back must always carry one.
-    const reviewedAt = new Date();
-    await deps.recordRejection(tx, dealId, input.reason, reviewedAt);
-
     // AC-1. The creator's `user.id`, resolved through `creator_profile` in
     // the load above. Inside the transaction, so a rollback takes the row
     // with it and the email is never queued. The reason travels with the
-    // notification, which is what the creator acts on (AC-3).
+    // notification, which is what the creator acts on (AC-3), and so does the
+    // URL — with several videos on one deal, the note alone would not say which.
     await notify(row.creatorUserId, 'revision_requested', {
       dealId,
       campaignTitle: row.campaignName,
       reason: input.reason,
+      tiktokUrl: rejected.tiktokUrl,
     });
 
     return {

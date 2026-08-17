@@ -170,7 +170,7 @@ export default async function CampaignCartPage({
           */}
           {settled ? (
             <VideoPerformance
-              videos={performance.videos}
+              deals={performance.deals}
               totals={performance.totals}
             />
           ) : (

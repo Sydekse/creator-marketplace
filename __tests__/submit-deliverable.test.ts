@@ -23,35 +23,41 @@ import type { DealStatus } from '../db/schema';
 
 /**
  * KAN-46 — the creator submits the live TikTok post URL (US-008, AC-022,
- * AC-025, FR-007, Tech Spec §4.4).
+ * AC-025, FR-007, Tech Spec §4.4), as amended by **F38**.
  *
- * Five claims carry the weight here.
+ * Six claims carry the weight here.
  *
- * **The status change and the deliverable row are one transaction, and the
- * deliverable write is an upsert** (AC-5). One deliverable per deal is a
- * database constraint (`deliverable.deal_id` is unique) — this is a code path
- * that satisfies it, and the source guards assert the default upsert reads
- * first and updates in place on resubmission rather than inserting a second
- * row that the constraint would then have to reject.
+ * **A deal delivers every video it was paid for** (F38). `deliverable.deal_id`
+ * used to be unique, so a deal priced for three videos held one URL and
+ * approving it released all three videos' money. Now the deal accepts
+ * `video_count` submissions and the rule is one line:
  *
- * **The status guard is the state machine, which answers AC-4 on its own.**
- * Only `funded` and `revision_requested` can reach `delivered`, so every other
- * status surfaces `getErrorCodeForInvalidTransition(status, 'delivered')` —
- * `DEAL_NOT_FUNDED` for work submitted before the money was held, and the
- * machine's own code for a double-tap. This module invents no status of its
- * own.
+ * > `delivered` ⟺ exactly `video_count` rows exist and none is `rejected`.
  *
- * **A refusal leaves no history behind.** `deal_event` is append-only, so
- * every refusal path asserts the transition seam was not reached, and an
- * upsert failure rolls the transition back with it — a deliverable row must
- * never exist for a deal that is not `delivered`.
+ * Both halves are asserted — a partial submission leaves the status alone and
+ * writes no event, and the last one transitions.
+ *
+ * **The status guard is explicit now, and still the machine's answer.** The
+ * transition used to supply it as a side effect; skipping the transition for
+ * video 1 of 3 would have lost it. So `canDeliver` is checked first and refusals
+ * carry `getErrorCodeForInvalidTransition(status, 'delivered')` — this module
+ * invents no code of its own.
+ *
+ * **The write comes first and the transition last**, the reverse of the original
+ * order, because the transition is conditional on what the write found. The seam
+ * order is asserted directly rather than read off the source.
+ *
+ * **A refusal leaves no history behind.** `deal_event` is append-only, so every
+ * refusal path asserts the transition seam was not reached, and a write failure
+ * rolls everything back.
  *
  * **The URL is stored and validated, never fetched** (AC-8, §6.3). The
  * allowlist check lives in `submitDeliverableSchema` before this action runs;
  * the module has no network call to point at.
  *
- * **The brand is told inside the transaction** (AC-6), addressed by `user.id`
- * through `brand_profile` — the two-hop rule from `lib/authz.ts`.
+ * **The brand is told once, on the last video** (AC-6), addressed by `user.id`
+ * through `brand_profile` — the two-hop rule from `lib/authz.ts`. Three emails
+ * for one deal would train a brand to ignore the one that can be acted on.
  *
  * The UI assertions are source guards. There is no DOM environment in this
  * repo — see the header of `ui-primitives.test.ts` — so they assert what a
@@ -87,7 +93,12 @@ interface Recorded {
   /** Seam names in call order — ordering asserted without reading source. */
   calls: string[];
   transitions: Array<{ dealId: string; actorId: string; reason: string }>;
-  upserts: Array<{ dealId: string; tiktokUrl: string; submittedAt: Date }>;
+  submissions: Array<{
+    dealId: string;
+    videoCount: number;
+    tiktokUrl: string;
+    submittedAt: Date;
+  }>;
   notifications: Array<{ userId: string; type: string; payload: unknown }>;
   loads: Array<{ dealId: string; creatorProfileId: string }>;
   committed: boolean;
@@ -98,7 +109,13 @@ interface Overrides {
   dealMissing?: boolean;
   failNotify?: boolean;
   transitionError?: Error;
-  upsertError?: Error;
+  submissionError?: Error;
+  /** What the deal was priced for. One unless a test is about F38. */
+  videoCount?: number;
+  /** Rows already stored for this deal before the submission under test. */
+  alreadySubmitted?: number;
+  /** Whether one of those rows is the video the brand sent back. */
+  hasRejected?: boolean;
 }
 
 function makeDeps(overrides: Overrides = {}): {
@@ -108,13 +125,15 @@ function makeDeps(overrides: Overrides = {}): {
   const recorded: Recorded = {
     calls: [],
     transitions: [],
-    upserts: [],
+    submissions: [],
     notifications: [],
     loads: [],
     committed: false,
   };
 
   const status = overrides.status ?? 'funded';
+  const videoCount = overrides.videoCount ?? 1;
+  const alreadySubmitted = overrides.alreadySubmitted ?? 0;
   const tx = {} as Tx;
 
   const deps: SubmitDeliverableDeps = {
@@ -130,6 +149,7 @@ function makeDeps(overrides: Overrides = {}): {
       return {
         id: dealId,
         status,
+        videoCount,
         campaignName: CAMPAIGN_NAME,
         brandUserId: BRAND_USER_ID,
       } satisfies SubmitDeliverableRow;
@@ -146,13 +166,30 @@ function makeDeps(overrides: Overrides = {}): {
       }
       recorded.transitions.push({ dealId, actorId, reason });
     },
-    upsertDeliverable: async (_tx, dealId, tiktokUrl, submittedAt) => {
-      recorded.calls.push('upsertDeliverable');
-      if (overrides.upsertError) throw overrides.upsertError;
-      recorded.upserts.push({ dealId, tiktokUrl, submittedAt });
-      // The seam owns what gets recorded, the same way the real upsert returns
-      // the row's own `submitted_at` rather than the caller's argument.
-      return { id: DELIVERABLE_ID, submittedAt: RECORDED_SUBMITTED_AT };
+    recordSubmission: async (_tx, dealId, count, tiktokUrl, submittedAt) => {
+      recorded.calls.push('recordSubmission');
+      if (overrides.submissionError) throw overrides.submissionError;
+      recorded.submissions.push({
+        dealId,
+        videoCount: count,
+        tiktokUrl,
+        submittedAt,
+      });
+
+      // Mirrors the real dep's two branches: replacing a rejected row leaves the
+      // count alone, and anything else adds one.
+      const submitted = overrides.hasRejected
+        ? alreadySubmitted
+        : alreadySubmitted + 1;
+
+      // The seam owns what gets recorded, the same way the real one returns the
+      // row's own `submitted_at` rather than the caller's argument.
+      return {
+        id: DELIVERABLE_ID,
+        submittedAt: RECORDED_SUBMITTED_AT,
+        submitted,
+        remaining: count - submitted,
+      };
     },
     run: async (fn) => {
       const notify = (async (
@@ -241,6 +278,8 @@ describe('AC-022 — submitting moves the deal and records the deliverable', () 
       deliverableId: DELIVERABLE_ID,
       submittedAt: RECORDED_SUBMITTED_AT,
       status: 'delivered',
+      submitted: 1,
+      videoCount: 1,
     });
     expect(recorded.transitions).toEqual([
       {
@@ -256,23 +295,136 @@ describe('AC-022 — submitting moves the deal and records the deliverable', () 
 
     await submit(deps);
 
-    expect(recorded.upserts).toHaveLength(1);
-    expect(recorded.upserts[0]).toMatchObject({
+    expect(recorded.submissions).toHaveLength(1);
+    expect(recorded.submissions[0]).toMatchObject({
       dealId: DEAL_ID,
       tiktokUrl: TIKTOK_URL,
     });
-    expect(recorded.upserts[0].submittedAt).toBeInstanceOf(Date);
+    expect(recorded.submissions[0].submittedAt).toBeInstanceOf(Date);
   });
 
   it('returns the submission time the row recorded (AC-6)', async () => {
-    // The response echoes the upsert's own value rather than the action's
-    // clock, so the client is told what is actually stored.
+    // The response echoes the write's own value rather than the action's clock,
+    // so the client is told what is actually stored.
     const { deps } = makeDeps();
 
     const result = await submit(deps);
 
     expect(result).toMatchObject({ submittedAt: RECORDED_SUBMITTED_AT });
-    expect(SUBMIT_MODULE).toContain('submittedAt: stored.submittedAt');
+    expect(SUBMIT_MODULE).toContain('submittedAt: progress.submittedAt');
+  });
+});
+
+// -- F38: a deal delivers every video it was paid for -------------------------
+
+describe('F38 — the deal waits for every video it was paid for', () => {
+  it('takes the ceiling from the deal, never from the caller', () => {
+    // `video_count` is snapshotted at offer time (invariant 8). A client-supplied
+    // count would let a creator decide when their own deal is complete.
+    expect(SUBMIT_MODULE).toContain('videoCount: deal.videoCount');
+    expect(SUBMIT_MODULE).toContain('row.videoCount');
+  });
+
+  it('leaves a part-delivered deal exactly where it was', async () => {
+    // Video 1 of 3: the row is stored, the status does not move, and nothing is
+    // appended to the history — a partial delivery is not a lifecycle event.
+    const { deps, recorded } = makeDeps({ videoCount: 3 });
+
+    const result = await submit(deps);
+
+    expect(result).toEqual({
+      ok: true,
+      dealId: DEAL_ID,
+      deliverableId: DELIVERABLE_ID,
+      submittedAt: RECORDED_SUBMITTED_AT,
+      status: 'funded',
+      submitted: 1,
+      videoCount: 3,
+    });
+    expect(recorded.submissions).toHaveLength(1);
+    expect(recorded.transitions).toHaveLength(0);
+    expect(recorded.calls).not.toContain('transition');
+  });
+
+  it('says nothing to the brand until there is something to review', async () => {
+    // The `deliverable_submitted` email's CTA opens the review screen, which has
+    // no Approve button over a partial delivery. Three emails for one deal would
+    // train a brand to ignore the one that matters.
+    const { deps, recorded } = makeDeps({ videoCount: 3 });
+
+    await submit(deps);
+
+    expect(recorded.notifications).toHaveLength(0);
+    expect(recorded.calls).not.toContain('notify');
+  });
+
+  it('transitions on the last video, and only then', async () => {
+    // Video 3 of 3 — the one submission that completes the delivery.
+    const { deps, recorded } = makeDeps({
+      videoCount: 3,
+      alreadySubmitted: 2,
+    });
+
+    const result = await submit(deps);
+
+    expect(result).toMatchObject({
+      status: 'delivered',
+      submitted: 3,
+      videoCount: 3,
+    });
+    expect(recorded.transitions).toHaveLength(1);
+    expect(recorded.notifications).toHaveLength(1);
+  });
+
+  it('notifies the brand exactly once across a whole three-video delivery', async () => {
+    // The three submissions, walked in order against one shared tally.
+    const emails: number[] = [];
+    for (let already = 0; already < 3; already += 1) {
+      const { deps, recorded } = makeDeps({
+        videoCount: 3,
+        alreadySubmitted: already,
+      });
+      await submit(deps);
+      emails.push(recorded.notifications.length);
+    }
+
+    expect(emails).toEqual([0, 0, 1]);
+  });
+
+  it('completes the delivery again when a rejected video is replaced', async () => {
+    // `revision_requested` with all three rows present and one sent back:
+    // replacing it is not an addition, so the count stays full and the deal
+    // returns to `delivered` (AC-5).
+    const { deps, recorded } = makeDeps({
+      status: 'revision_requested',
+      videoCount: 3,
+      alreadySubmitted: 3,
+      hasRejected: true,
+    });
+
+    const result = await submit(deps);
+
+    expect(result).toMatchObject({
+      status: 'delivered',
+      submitted: 3,
+      videoCount: 3,
+    });
+    expect(recorded.transitions).toHaveLength(1);
+  });
+
+  it('writes first and transitions last, because the transition is conditional', async () => {
+    // The reverse of the original order. The action cannot know whether to move
+    // the status until the write reports how many rows now exist.
+    const { deps, recorded } = makeDeps();
+
+    await submit(deps);
+
+    expect(recorded.calls).toEqual([
+      'loadDeal',
+      'recordSubmission',
+      'transition',
+      'notify',
+    ]);
   });
 });
 
@@ -300,12 +452,24 @@ describe('AC-4 — submitting before the money is held is refused', () => {
         reason: 'illegal',
         code: getErrorCodeForInvalidTransition(status, 'delivered'),
       });
-      // Append-only: a refusal must leave no event, no row and no email.
+      // Append-only: a refusal must leave no row, no event and no email. The
+      // guard now runs *before* the write, so none of the three seams is reached.
+      expect(recorded.submissions).toHaveLength(0);
       expect(recorded.transitions).toHaveLength(0);
-      expect(recorded.upserts).toHaveLength(0);
       expect(recorded.notifications).toHaveLength(0);
+      expect(recorded.calls).toEqual(['loadDeal']);
     }
   );
+
+  it('gates on canDeliver rather than restating the status set', () => {
+    // Read off `LEGAL_TRANSITIONS`, so the gate cannot outlive the edge that
+    // permits it — and the code still comes from the machine.
+    expect(SUBMIT_MODULE).toContain('if (!canDeliver(row.status))');
+    expect(SUBMIT_MODULE).toContain(
+      "getErrorCodeForInvalidTransition(row.status, 'delivered')"
+    );
+    expect(SUBMIT_MODULE).not.toMatch(/status === 'funded'/);
+  });
 
   it('answers an unfunded accepted deal with DEAL_NOT_FUNDED', async () => {
     // AC-4's named code. `accepted` is the deal that got as far as agreeing
@@ -317,7 +481,7 @@ describe('AC-4 — submitting before the money is held is refused', () => {
     expect(result).toMatchObject({ code: ErrorCode.DEAL_NOT_FUNDED });
   });
 
-  it('refuses a second submission rather than writing a second event', async () => {
+  it('refuses a submission on a fully delivered deal', async () => {
     // Idempotency and the concurrent-tap answer: the row is locked, so the
     // loser reads `delivered` and arrives here as `delivered → delivered`.
     const { deps, recorded } = makeDeps({ status: 'delivered' });
@@ -329,51 +493,90 @@ describe('AC-4 — submitting before the money is held is refused', () => {
       reason: 'illegal',
       code: getErrorCodeForInvalidTransition('delivered', 'delivered'),
     });
-    expect(recorded.upserts).toHaveLength(0);
+    expect(recorded.submissions).toHaveLength(0);
     expect(recorded.notifications).toHaveLength(0);
   });
 });
 
-// -- AC-5: one deliverable per deal ------------------------------------------
+// -- F38: one row per video, and the ceiling ---------------------------------
 
-describe('AC-5 — exactly one deliverable exists per deal', () => {
-  it('is a database constraint, not just a code path', () => {
-    // The unique on `deliverable.deal_id` is the backstop; the upsert below is
-    // the path that satisfies it without ever tripping it.
-    expect(SCHEMA).toMatch(
+describe('one row per video, bounded by video_count', () => {
+  it('no longer constrains the table to one deliverable per deal', () => {
+    // The unique that caused F38 is gone, replaced by a plain index — every read
+    // of this table is "the videos for this deal" and was free under the unique.
+    expect(SCHEMA).not.toMatch(
       /dealId: uuid\('deal_id'\)[\s\S]{0,120}\.unique\(\)/
     );
+    expect(SCHEMA).toContain("index('deliverable_deal_id_idx').on(t.dealId)");
   });
 
-  it('reads the row first and updates in place on resubmission', () => {
-    // The default upsert must not be a blind insert: on `revision_requested`
-    // the row already exists and AC-5 says it is *updated*, not duplicated.
-    const upsert = SUBMIT_MODULE.slice(
-      SUBMIT_MODULE.indexOf('upsertDeliverable:')
+  it('drops the constraint in a migration rather than only in the schema', () => {
+    const migration = read('drizzle/0009_needy_veda.sql');
+    expect(migration).toContain('DROP CONSTRAINT "deliverable_deal_id_unique"');
+    expect(migration).toContain('CREATE INDEX "deliverable_deal_id_idx"');
+  });
+
+  it('reads the rows first, then replaces a rejected one or adds the next', () => {
+    // The two branches F38 turns on. A blind insert would exceed `video_count`;
+    // a blind update would overwrite video 1 with video 2, which is the original
+    // bug wearing different clothes.
+    const record = SUBMIT_MODULE.slice(
+      SUBMIT_MODULE.indexOf('recordSubmission:')
     );
-    expect(upsert).toContain('.from(deliverable)');
-    expect(upsert).toMatch(/if \(existing\)/);
-    expect(upsert).toMatch(/\.update\(deliverable\)/);
-    expect(upsert).toContain('.insert(deliverable)');
-    expect(upsert).toContain("reviewStatus: 'pending'");
+    expect(record).toContain('.from(deliverable)');
+    expect(record).toMatch(/reviewStatus === 'rejected'/);
+    expect(record).toMatch(/if \(rejected\)/);
+    expect(record).toMatch(/\.update\(deliverable\)/);
+    expect(record).toContain('.insert(deliverable)');
+    expect(record).toContain("reviewStatus: 'pending'");
+  });
+
+  it('refuses to write past the ceiling', () => {
+    // Unreachable through the action, and a throw rather than a refusal for that
+    // reason: reaching it means the rows and the status disagree, and quietly
+    // adding video four to a three-video deal is what this ticket removed.
+    const record = SUBMIT_MODULE.slice(
+      SUBMIT_MODULE.indexOf('recordSubmission:')
+    );
+    expect(record).toMatch(/if \(rows\.length >= videoCount\)/);
+    expect(record).toMatch(/throw new Error/);
+  });
+
+  it('counts under the lock the action already holds', () => {
+    // "At most `video_count` rows" spans two tables, so no CHECK can express it.
+    // The `FOR UPDATE` on the deal is what stops two concurrent submissions both
+    // seeing room for the last video. Only the lock can be guarded here — the
+    // schema explains the absent constraint in a comment, and this suite strips
+    // comments precisely so prose cannot satisfy a guard.
+    expect(SUBMIT_MODULE).toMatch(/\.for\('update'/);
   });
 
   it('resets the review state so a fresh submission reads as pending', () => {
     // A stale rejection note must not follow a new video around.
-    const upsert = SUBMIT_MODULE.slice(
-      SUBMIT_MODULE.indexOf('upsertDeliverable:')
+    const record = SUBMIT_MODULE.slice(
+      SUBMIT_MODULE.indexOf('recordSubmission:')
     );
-    expect(upsert).toContain('reviewedAt: null');
-    expect(upsert).toContain('rejectionReason: null');
+    expect(record).toContain('reviewedAt: null');
+    expect(record).toContain('rejectionReason: null');
   });
 
-  it('upserts through a seam, so the write is observable', async () => {
+  it('orders the rows it counts, so a replacement is deterministic', () => {
+    // Oldest first, the same order both detail screens render — otherwise
+    // "the rejected one" could be a different row between two reads.
+    const record = SUBMIT_MODULE.slice(
+      SUBMIT_MODULE.indexOf('recordSubmission:')
+    );
+    expect(record).toContain('asc(deliverable.submittedAt)');
+  });
+
+  it('writes through a seam, so the write is observable', async () => {
     const { deps, recorded } = makeDeps();
 
     await submit(deps);
 
-    expect(recorded.calls).toContain('upsertDeliverable');
-    expect(recorded.upserts).toHaveLength(1);
+    expect(recorded.calls).toContain('recordSubmission');
+    expect(recorded.submissions).toHaveLength(1);
+    expect(recorded.submissions[0].videoCount).toBe(1);
   });
 });
 
@@ -415,8 +618,8 @@ describe('AC-6 — the brand is notified that a video awaits review', () => {
 
     expect(recorded.calls).toEqual([
       'loadDeal',
+      'recordSubmission',
       'transition',
-      'upsertDeliverable',
       'notify',
     ]);
   });
@@ -460,15 +663,16 @@ describe('the submission is one transaction', () => {
   });
 
   it('rolls the transition back when the deliverable write fails', async () => {
-    // A deliverable row must never exist for a deal that is not `delivered`
-    // — and, the other way, a deal must never be told it delivered a video
-    // the transaction then lost.
+    // The write comes first now, so this is the other direction: a failed write
+    // means no transition was ever attempted, and a deal must never be told it
+    // delivered a video the transaction then lost.
     const { deps, recorded } = makeDeps({
-      upsertError: new Error('unique violation'),
+      submissionError: new Error('constraint violation'),
     });
 
-    await expect(submit(deps)).rejects.toThrow('unique violation');
+    await expect(submit(deps)).rejects.toThrow('constraint violation');
     expect(recorded.committed).toBe(false);
+    expect(recorded.transitions).toHaveLength(0);
     expect(recorded.notifications).toHaveLength(0);
   });
 });
@@ -502,7 +706,7 @@ describe('AC-7 — only the creator on the deal can submit', () => {
 
     expect(result).toEqual({ ok: false, reason: 'not_found' });
     expect(recorded.transitions).toHaveLength(0);
-    expect(recorded.upserts).toHaveLength(0);
+    expect(recorded.submissions).toHaveLength(0);
     expect(recorded.notifications).toHaveLength(0);
   });
 
@@ -621,6 +825,29 @@ describe('POST /api/deals/[id]/deliverable', () => {
       deliverable_id: DELIVERABLE_ID,
       status: 'delivered',
       submitted_at: RECORDED_SUBMITTED_AT.toISOString(),
+      submitted: 1,
+      video_count: 1,
+    });
+  });
+
+  it('reports a partial delivery as a success that did not move the deal', async () => {
+    // The status alone no longer says what happened (F38). A client that could
+    // not tell "1 of 3 stored" from "nothing happened" would have to re-read the
+    // deal to find out whether its own request worked.
+    const { deps } = makeDeps({ videoCount: 3 });
+
+    const response = await handleSubmitDeliverable(
+      post({ tiktokUrl: TIKTOK_URL }),
+      DEAL_ID,
+      { submitDeliverableDeps: deps }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      status: 'funded',
+      submitted: 1,
+      video_count: 3,
     });
   });
 
@@ -769,7 +996,7 @@ describe('POST /api/deals/[id]/deliverable', () => {
       { submitDeliverableDeps: deps }
     );
 
-    expect(recorded.upserts[0].tiktokUrl).toBe(TIKTOK_URL);
+    expect(recorded.submissions[0].tiktokUrl).toBe(TIKTOK_URL);
   });
 
   it('returns 409 DEAL_NOT_FUNDED for an unfunded deal', async () => {
@@ -889,32 +1116,69 @@ describe('the deliverable form', () => {
 
 describe('the deal detail page mounts the submission surface', () => {
   it('renders the form under canDeliver and nowhere else', () => {
-    expect(DETAIL_PAGE).toMatch(
-      /canDeliver\(deal\.status\) \? <DeliverableForm/
-    );
+    expect(DETAIL_PAGE).toMatch(/canDeliver\(deal\.status\) \?/);
+    expect(DETAIL_PAGE).toContain('<DeliverableForm dealId={deal.id} />');
   });
 
-  it('shows what was submitted once a deliverable exists', () => {
-    // The submitted URL and timestamp are facts the creator is entitled to
-    // read back (AC-6) — on `revision_requested` this is what they are
-    // replacing.
-    expect(DETAIL_PAGE).toMatch(/deal\.deliverable \?/);
-    expect(DETAIL_PAGE).toContain('SUBMITTED_DELIVERABLE_LABEL');
+  it('lists every submitted video, not just one', () => {
+    // F38's read half. The submitted URLs and timestamps are facts the creator is
+    // entitled to read back (AC-6) — on `revision_requested` one of them is what
+    // they are replacing.
+    expect(DETAIL_PAGE).toMatch(/deal\.deliverables\.length > 0/);
+    expect(DETAIL_PAGE).toMatch(/deal\.deliverables\.map\(/);
+    expect(DETAIL_PAGE).toContain('DELIVERABLES_TITLE');
     expect(DETAIL_PAGE).toContain('SUBMITTED_AT_LABEL');
   });
 
-  it('shows the URL as text, never as a link or embed', () => {
+  it('says how much of the delivery is in', () => {
+    // A creator who submitted one of three and saw nothing change would
+    // reasonably think it failed.
+    expect(DETAIL_PAGE).toContain(
+      'deliveryProgress(deal.deliverables.length, deal.videoCount)'
+    );
+    expect(DETAIL_PAGE).toContain('REMAINING_VIDEOS_MESSAGE');
+  });
+
+  it('numbers the videos the same way the brand’s screen does', () => {
+    // "Video 2" has to mean the same video on both sides of a rejection, so the
+    // heading comes from one shared helper rather than two format strings.
+    expect(DETAIL_PAGE).toContain('videoHeading(index)');
+  });
+
+  it('renders one metrics form per video', () => {
+    // The metrics API keys its upsert by deliverable, so a deal covering three
+    // videos owes three sets of counts (AC-026).
+    expect(DETAIL_PAGE).toContain('<MetricsForm deliverableId={video.id} />');
+    expect(DETAIL_PAGE).toContain('canReportMetrics(deal.status)');
+  });
+
+  it('shows the URLs as text, never as links or embeds', () => {
     // Nothing on the creator side navigates to or fetches the link (AC-8);
     // the brand-side "links to the live post" requirement is KAN-49's.
-    expect(DETAIL_PAGE).toMatch(/deal\.deliverable\.tiktokUrl}/);
-    expect(DETAIL_PAGE).not.toMatch(/<a[^>]*deal\.deliverable/);
+    expect(DETAIL_PAGE).toMatch(/\{video\.tiktokUrl\}/);
+    expect(DETAIL_PAGE).not.toMatch(/<a[^>]*video\.tiktokUrl/);
     expect(DETAIL_PAGE).not.toMatch(/<img|<iframe/);
   });
 
-  it('carries the deliverable on the detail read', () => {
-    expect(DETAIL_MODULE).toContain('deliverable: DeliverableView | null');
-    expect(DETAIL_MODULE).toContain(
+  it('carries the videos as a list on the detail read', () => {
+    // An array, and empty rather than null before the first submission — the
+    // count against `videoCount` is what the page turns into "2 of 3".
+    expect(DETAIL_MODULE).toContain('deliverables: DeliverableView[]');
+    expect(DETAIL_MODULE).toContain('creatorDealDeliverablesQuery');
+    // The old single left join returned one arbitrary video and multiplied the
+    // deal's own columns across the rest.
+    expect(DETAIL_MODULE).not.toContain(
       '.leftJoin(deliverable, eq(deliverable.dealId, deal.id))'
+    );
+  });
+
+  it('reads the videos only after the deal proved ownership', () => {
+    // A read protected only by its callers is protected as well as the least
+    // careful one, and the seam exists so a test can prove the videos are never
+    // fetched for a deal this creator does not own.
+    expect(DETAIL_MODULE).toContain('selectDeliverables');
+    expect(DETAIL_MODULE.indexOf('if (!row) return null;')).toBeLessThan(
+      DETAIL_MODULE.indexOf('await deps.selectDeliverables(row.id)')
     );
   });
 });
