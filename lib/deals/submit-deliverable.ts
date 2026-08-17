@@ -1,9 +1,14 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { brandProfile, campaign, deal, deliverable } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
-import { transitionDeal, TransitionError } from '@/lib/deals/state-machine';
+import {
+  canDeliver,
+  getErrorCodeForInvalidTransition,
+  transitionDeal,
+  TransitionError,
+} from '@/lib/deals/state-machine';
 import { withNotifications } from '@/lib/notifications/notify';
 import type { Notify } from '@/lib/notifications/notify';
 import type { ErrorCode } from '@/lib/validation/errors';
@@ -15,21 +20,48 @@ import type { ErrorCode } from '@/lib/validation/errors';
  * The first action in the app that *creates content against a deal* rather
  * than moving a status: the status change to `delivered` and the
  * `deliverable` row land together or not at all, inside the transaction
- * `withNotifications` owns — a creator is never told \"submitted\" about a
+ * `withNotifications` owns — a creator is never told "submitted" about a
  * deal whose deliverable did not survive, and the brand's notification cannot
  * outlive a rolled-back submission.
  *
- * **Only two writes, and the deliverable write is an upsert.** AC-5 says
- * exactly one deliverable exists per deal — the schema's unique constraint on
- * `deliverable.deal_id` is the backstop — and that resubmitting after a
- * revision request updates the existing row rather than creating a second.
- * So the default `upsertDeliverable` reads first: a row already there is
- * updated in place (new URL, submission clock re-stamped, review state reset
- * so a fresh submission is `pending` again), and only a deal with no row yet
- * gets an insert. The deal row is held `FOR UPDATE` from the load through the
- * transition, so two concurrent submissions of the same deal cannot race the
- * read-then-write: the loser reads `delivered` and is refused by the state
- * machine before it ever reaches the upsert.
+ * **One row per video, and a deal delivers every video it was paid for (F38).**
+ * A deal priced for three videos accepts three submissions. Until the third
+ * lands the deal stays `funded`, so there is nothing for the brand to approve —
+ * which is the whole bug this replaced: one URL used to unlock all three videos'
+ * money. The rule, stated once:
+ *
+ * > A deal is `delivered` ⟺ it holds exactly `video_count` deliverable rows and
+ * > none of them is `rejected`.
+ *
+ * **So the write comes first and the transition last**, the reverse of the
+ * original order. Partially-submitted rows on a `funded` deal are the ordinary
+ * case now, not corruption — the old invariant "a deliverable row must never
+ * exist for a deal that is not `delivered`" is deliberately gone.
+ *
+ * **Which loses the transition's implicit status guard, so the guard is now
+ * explicit.** `canDeliver` is checked before anything is written, and a refusal
+ * carries `getErrorCodeForInvalidTransition`'s code rather than one this module
+ * invents — the same answer the state machine would have given, including
+ * `DEAL_NOT_FUNDED` for work submitted before the money was held and for a
+ * double-tap arriving on an already-`delivered` deal.
+ *
+ * **At most one row can be `rejected` at any time**, which is what lets a
+ * resubmission find its target without being told which video. The brand can
+ * only reject from `delivered`, and rejecting moves the deal to
+ * `revision_requested` where `canReview` is false — so a second rejection cannot
+ * be issued until the first is replaced. A rejected row present means "replace
+ * this one"; none means "add the next one".
+ *
+ * **The ceiling is enforced here, not by a constraint.** "At most `video_count`
+ * rows" spans two tables and no per-row CHECK can express it. The count is taken
+ * under the `FOR UPDATE` lock this action already holds on the deal, so two
+ * concurrent submissions cannot both see room for the last video: the loser waits
+ * at the load, then counts a full deal.
+ *
+ * **The brand is notified once, on the last video.** A `deliverable_submitted`
+ * email whose CTA opens a review screen with no Approve button is worse than no
+ * email — the brand cannot act on a partial delivery, and three emails for one
+ * deal train them to ignore the one that matters.
  *
  * **Why no clock seam.** `accept-offer.ts` injects `now()` because its AC
  * names a deadline boundary worth asserting against a frozen clock. Nothing
@@ -46,6 +78,15 @@ import type { ErrorCode } from '@/lib/validation/errors';
 export interface SubmitDeliverableRow {
   id: string;
   status: DealStatus;
+  /**
+   * How many videos this deal was priced for — the ceiling on submissions and
+   * the trigger for `delivered` (F38).
+   *
+   * Read from the deal rather than passed in: it is snapshotted at offer time
+   * alongside `unit_price` (invariant 8), and a client-supplied count would let
+   * a creator decide when their own deal is complete.
+   */
+  videoCount: number;
   campaignName: string;
   /**
    * `user.id`, not `brand_profile.id`.
@@ -58,6 +99,17 @@ export interface SubmitDeliverableRow {
   brandUserId: string;
 }
 
+/** What one submission did to the deal's set of videos. */
+export interface SubmissionProgress {
+  /** The row written — inserted, or the rejected one replaced. */
+  id: string;
+  submittedAt: Date;
+  /** Rows now present for this deal, after the write. */
+  submitted: number;
+  /** `video_count − submitted`. Zero is what fires the transition. */
+  remaining: number;
+}
+
 export type SubmitDeliverableResult =
   | {
       ok: true;
@@ -65,7 +117,16 @@ export type SubmitDeliverableResult =
       deliverableId: string;
       /** When the submission landed — the value the row recorded (AC-6). */
       submittedAt: Date;
-      status: 'delivered';
+      /**
+       * The deal's status **after** this submission.
+       *
+       * No longer always `delivered`: a partial delivery leaves the deal where it
+       * was, and the client needs to know which happened to say something true.
+       */
+      status: 'funded' | 'revision_requested' | 'delivered';
+      /** Videos submitted so far, and how many the deal was priced for. */
+      submitted: number;
+      videoCount: number;
     }
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'illegal'; code: ErrorCode };
@@ -81,8 +142,8 @@ export interface SubmitDeliverableDeps {
    * forgets the first.
    *
    * The lock is what serialises concurrent submissions of the same deal: the
-   * loser waits here, then reads `delivered` and is refused by the state
-   * machine instead of racing the deliverable upsert.
+   * loser waits here, then counts a deal whose last slot the winner already
+   * took, so two submissions cannot both believe they are the third of three.
    */
   loadDeal: (
     tx: Tx,
@@ -97,16 +158,26 @@ export interface SubmitDeliverableDeps {
     reason: string
   ) => Promise<unknown>;
   /**
-   * One deliverable per deal (AC-5): insert the first time, update in place on
-   * resubmission. Returns the row's id and the recorded submission time, which
-   * is what the response echoes so the client never re-reads to learn them.
+   * Writes one video and reports where the deal now stands (F38).
+   *
+   * Replaces `upsertDeliverable`, which could only ever hold one row. Reads
+   * first, under the caller's lock: a `rejected` row is replaced in place (new
+   * URL, clock re-stamped, review state cleared so the fresh submission reads as
+   * `pending` again), and otherwise a new row is inserted while the deal is
+   * below its `video_count`.
+   *
+   * Throws past the ceiling rather than returning a refusal. It is unreachable —
+   * a full deal is `delivered`, which `canDeliver` already rejected — so getting
+   * here means the row set and the status disagree, and inserting an extra video
+   * would make a brand owe money for it.
    */
-  upsertDeliverable: (
+  recordSubmission: (
     tx: Tx,
     dealId: string,
+    videoCount: number,
     tiktokUrl: string,
     submittedAt: Date
-  ) => Promise<{ id: string; submittedAt: Date }>;
+  ) => Promise<SubmissionProgress>;
   run: <T>(fn: (tx: Tx, notify: Notify) => Promise<T>) => Promise<T>;
 }
 
@@ -135,6 +206,7 @@ const defaultDeps: SubmitDeliverableDeps = {
       .select({
         id: deal.id,
         status: deal.status,
+        videoCount: deal.videoCount,
         campaignName: campaign.name,
         brandUserId: brandProfile.userId,
       })
@@ -155,17 +227,23 @@ const defaultDeps: SubmitDeliverableDeps = {
   // re-reads the row under its own lock before judging legality (invariant 6).
   transition: (tx, dealId, actorId, reason) =>
     transitionDeal(tx, dealId, 'delivered', actorId, { reason }),
-  upsertDeliverable: async (tx, dealId, tiktokUrl, submittedAt) => {
-    const [existing] = await tx
-      .select({ id: deliverable.id })
+  recordSubmission: async (tx, dealId, videoCount, tiktokUrl, submittedAt) => {
+    // Every row for the deal, not a count and a separate lookup: the decision
+    // needs both how many there are and whether one was sent back, and two
+    // queries could disagree with each other even under the lock.
+    const rows = await tx
+      .select({ id: deliverable.id, reviewStatus: deliverable.reviewStatus })
       .from(deliverable)
       .where(eq(deliverable.dealId, dealId))
-      .limit(1);
+      .orderBy(asc(deliverable.submittedAt));
 
-    if (existing) {
-      // AC-5: resubmitting after a revision request updates the one row. The
-      // review state is reset so the fresh submission reads as `pending`
-      // again — a stale rejection note must not follow a new video around.
+    const rejected = rows.find((row) => row.reviewStatus === 'rejected');
+
+    if (rejected) {
+      // The revision path (AC-5). The review state is reset so the fresh
+      // submission reads as `pending` again — a stale rejection note must not
+      // follow a new video around — and the count is unchanged, because a
+      // replacement is not an addition.
       await tx
         .update(deliverable)
         .set({
@@ -175,15 +253,38 @@ const defaultDeps: SubmitDeliverableDeps = {
           reviewedAt: null,
           rejectionReason: null,
         })
-        .where(eq(deliverable.id, existing.id));
-      return { id: existing.id, submittedAt };
+        .where(eq(deliverable.id, rejected.id));
+
+      return {
+        id: rejected.id,
+        submittedAt,
+        submitted: rows.length,
+        remaining: videoCount - rows.length,
+      };
+    }
+
+    if (rows.length >= videoCount) {
+      // Unreachable through the action: a full deal is `delivered` and
+      // `canDeliver` refused before this ran. Reaching it means the row set and
+      // the status disagree, and quietly adding video four to a three-video deal
+      // is the failure this whole ticket exists to remove.
+      throw new Error(
+        `Deal ${dealId} already holds ${rows.length} of ${videoCount} videos`
+      );
     }
 
     const [created] = await tx
       .insert(deliverable)
       .values({ dealId, tiktokUrl, submittedAt })
       .returning({ id: deliverable.id, submittedAt: deliverable.submittedAt });
-    return { id: created.id, submittedAt: created.submittedAt };
+
+    const submitted = rows.length + 1;
+    return {
+      id: created.id,
+      submittedAt: created.submittedAt,
+      submitted,
+      remaining: videoCount - submitted,
+    };
   },
   run: (fn) => withNotifications(fn),
 };
@@ -197,12 +298,16 @@ const defaultDeps: SubmitDeliverableDeps = {
  * already survived `submitDeliverableSchema`'s allowlist before this function
  * is called — this module stores it and does not second-guess it.
  *
- * The state machine is the status guard, and it answers AC-4 on its own: only
- * a `funded` (or, on resubmission, `revision_requested`) deal can reach
- * `delivered`, so every other status surfaces the machine's own code —
- * `DEAL_NOT_FUNDED` for work submitted before the money was held, and the
- * idempotency answer for a double-tap that arrives as `delivered →
- * delivered`.
+ * **The status guard runs before the write**, and answers with the state
+ * machine's own code (see the module header for why it is no longer the
+ * transition that supplies it): `DEAL_NOT_FUNDED` for work submitted before the
+ * money was held, and the same code for a double-tap on a deal already
+ * `delivered`.
+ *
+ * **The transition fires only on the last video** (F38). One video short and the
+ * deal stays where it was, with nothing written to `deal_event` — a partial
+ * delivery is not a lifecycle event, and inventing one would put a row in an
+ * append-only table for something that did not change (invariant 6).
  */
 export async function submitDeliverable(
   dealId: string,
@@ -215,11 +320,47 @@ export async function submitDeliverable(
       return { ok: false, reason: 'not_found' };
     }
 
+    // AC-022 and AC-4. `canDeliver` is `{funded, revision_requested}` read off
+    // `LEGAL_TRANSITIONS`, so this gate cannot outlive the edge that permits it,
+    // and the refusal carries the code the machine itself would have produced for
+    // the `→ delivered` attempt rather than one this module chose.
+    if (!canDeliver(row.status)) {
+      return {
+        ok: false,
+        reason: 'illegal',
+        code: getErrorCodeForInvalidTransition(row.status, 'delivered'),
+      };
+    }
+
+    const submittedAt = new Date();
+    const progress = await deps.recordSubmission(
+      tx,
+      dealId,
+      row.videoCount,
+      input.tiktokUrl,
+      submittedAt
+    );
+
+    // One video short: the deal keeps its status, the brand is not told, and
+    // nothing is appended to the history. The creator's own screen reports the
+    // progress, which is where a partial delivery belongs.
+    if (progress.remaining > 0) {
+      return {
+        ok: true,
+        dealId,
+        deliverableId: progress.id,
+        submittedAt: progress.submittedAt,
+        status: row.status as 'funded' | 'revision_requested',
+        submitted: progress.submitted,
+        videoCount: row.videoCount,
+      };
+    }
+
     try {
-      // AC-022 and AC-4 together. `funded → delivered` and
-      // `revision_requested → delivered` are the legal edges, and everything
-      // else is refused here with the machine's own code rather than one this
-      // module invents.
+      // The last video completes the delivery, so now there is a transition to
+      // make. Still inside the same transaction as every row written above: a
+      // refused transition takes the submissions with it rather than leaving a
+      // deal whose videos are all in and whose status says otherwise.
       await deps.transition(
         tx,
         dealId,
@@ -233,32 +374,23 @@ export async function submitDeliverable(
       throw error;
     }
 
-    // After the transition, in the same transaction: a deliverable row must
-    // never exist for a deal that is not `delivered`, and a deal that is
-    // `delivered` must always have one (AC-5).
-    const submittedAt = new Date();
-    const stored = await deps.upsertDeliverable(
-      tx,
-      dealId,
-      input.tiktokUrl,
-      submittedAt
-    );
-
-    // AC-6. The brand's `user.id`, resolved through `brand_profile` in the
-    // load above. Inside the transaction, so a rollback takes the row with it
-    // and the email is never queued.
+    // AC-6, and once per deal rather than once per video. The brand's `user.id`,
+    // resolved through `brand_profile` in the load above. Inside the transaction,
+    // so a rollback takes the row with it and the email is never queued.
     await notify(row.brandUserId, 'deliverable_submitted', {
       dealId,
-      deliverableId: stored.id,
+      deliverableId: progress.id,
       campaignTitle: row.campaignName,
     });
 
     return {
       ok: true,
       dealId,
-      deliverableId: stored.id,
-      submittedAt: stored.submittedAt,
+      deliverableId: progress.id,
+      submittedAt: progress.submittedAt,
       status: 'delivered',
+      submitted: progress.submitted,
+      videoCount: row.videoCount,
     };
   });
 }

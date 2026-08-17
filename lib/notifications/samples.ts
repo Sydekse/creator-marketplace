@@ -80,6 +80,8 @@ export const SAMPLE_NOTIFICATIONS: {
       dealId: 'd1',
       campaignTitle: 'Spring Coffee Push',
       reason: 'Please show the packaging in the first three seconds.',
+      tiktokUrl:
+        'https://www.tiktok.com/@creator.demo/video/1234567890123456789',
     },
   },
   dispute_resolved: {

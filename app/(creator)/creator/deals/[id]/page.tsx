@@ -10,17 +10,20 @@ import { canAct, canDeliver, canReportMetrics } from '@/lib/deals';
 import {
   COMMISSION_LABEL,
   DEAL_TERMS_TITLE,
+  DELIVERABLES_TITLE,
+  deliveryProgress,
   EXPECTED_PAYOUT_LABEL,
   FUNDS_HELD_LABEL,
   FUNDS_HELD_MESSAGE,
   NO_RIGHTS_TERMS_MESSAGE,
   OFFER_EXPIRY_LABEL,
   PAYOUT_ESTIMATE_NOTE,
+  REMAINING_VIDEOS_MESSAGE,
   SUBMITTED_AT_LABEL,
-  SUBMITTED_DELIVERABLE_LABEL,
   TOTAL_PRICE_LABEL,
   UNIT_PRICE_LABEL,
   VIDEO_COUNT_LABEL,
+  videoHeading,
   readCreatorDeal,
 } from '@/lib/deals/detail';
 import { getDealHistory } from '@/lib/deals/queries';
@@ -73,6 +76,13 @@ export default async function CreatorDealDetailPage({
   const history = await getDealHistory(id);
 
   const isPending = canAct(deal.status);
+
+  /**
+   * Videos still owed on this deal (F38). Drives the sentence above the
+   * submission form, and only that — whether the form appears at all is
+   * `canDeliver`, read off the transition table.
+   */
+  const remaining = deal.videoCount - deal.deliverables.length;
 
   /*
    * The verb is only correct while the offer is still open. On an accepted or
@@ -178,39 +188,66 @@ export default async function CreatorDealDetailPage({
           the accept controls: a funded deal is what the creator may deliver
           against, and a rejected one is what they may re-deliver against. The
           form is client-side — it holds the URL field and posts to
-          `/api/deals/{id}/deliverable`. */}
-      {canDeliver(deal.status) ? <DeliverableForm dealId={deal.id} /> : null}
+          `/api/deals/{id}/deliverable`.
 
-      {/* What the creator submitted, once there is something to show. For a
-          `revision_requested` deal this is the submission the brand sent back,
-          sitting above the resubmit form so the creator can see what they are
-          replacing. Shown as text, not a link: nothing here navigates or
-          fetches (AC-8), and the brand-side "links to the live post" is
-          KAN-49's. */}
-      {deal.deliverable ? (
-        <section className="flex flex-col gap-1 rounded-md border border-border p-4">
-          <h2 className="text-sm font-medium">{SUBMITTED_DELIVERABLE_LABEL}</h2>
-          <p className="font-mono text-sm break-all">
-            {deal.deliverable.tiktokUrl}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {SUBMITTED_AT_LABEL}:{' '}
-            {formatDeadlineUtc(deal.deliverable.submittedAt)}
-          </p>
-        </section>
+          It stays on screen for every video the deal covers (F38), so a creator
+          three videos into a three-video deal submits through the same control
+          they used for the first. The sentence beside it says why nothing has
+          reached the brand yet — a submission that changed no visible status
+          would otherwise read as a failure. */}
+      {canDeliver(deal.status) ? (
+        <div className="flex flex-col gap-3">
+          {remaining > 0 && deal.deliverables.length > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {REMAINING_VIDEOS_MESSAGE}
+            </p>
+          ) : null}
+          <DeliverableForm dealId={deal.id} />
+        </div>
       ) : null}
 
-      {/* The KAN-57 review's F2 fix — the reminder's promise, made real. The
-          metrics API (KAN-48) had no UI caller anywhere in the app; this is
-          where a creator acts on the "Submit your metrics" email. Gated on
-          `canReportMetrics` — exactly the `{completed}` set the reminder
-          sweep selects from — and on a deliverable existing, since the
-          endpoint keys the upsert by deliverable and a completed deal without
-          one has nothing to measure (the same reason the reminder predicate
-          left-joins `video_metric` rather than assuming a row). */}
-      {canReportMetrics(deal.status) && deal.deliverable ? (
-        <section className="flex flex-col gap-4 rounded-md border border-border p-4">
-          <MetricsForm deliverableId={deal.deliverable.id} />
+      {/* What the creator submitted, once there is something to show — one
+          section per video (F38), oldest first, numbered the same way the brand's
+          review screen numbers them so a rejection note about "Video 2" finds the
+          same video here. For a `revision_requested` deal one of these is the
+          submission the brand sent back, sitting above the resubmit form so the
+          creator can see what they are replacing.
+
+          Shown as text, not a link: nothing here navigates or fetches (AC-8), and
+          the brand-side "links to the live post" is KAN-49's. */}
+      {deal.deliverables.length > 0 ? (
+        <section className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-medium">{DELIVERABLES_TITLE}</h2>
+            <p className="text-sm text-muted-foreground">
+              {deliveryProgress(deal.deliverables.length, deal.videoCount)}
+            </p>
+          </div>
+
+          {deal.deliverables.map((video, index) => (
+            <div
+              key={video.id}
+              className="flex flex-col gap-1 rounded-md border border-border p-4"
+            >
+              <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
+              <p className="font-mono text-sm break-all">{video.tiktokUrl}</p>
+              <p className="text-sm text-muted-foreground">
+                {SUBMITTED_AT_LABEL}: {formatDeadlineUtc(video.submittedAt)}
+              </p>
+
+              {/* The KAN-57 review's F2 fix — the reminder's promise, made real.
+                  One form per video (F38), because the metrics API keys its
+                  upsert by deliverable: a deal covering three videos owes three
+                  sets of counts, and AC-026 renders them as three rows. Gated on
+                  `canReportMetrics` — exactly the `{completed}` set the reminder
+                  sweep selects from. */}
+              {canReportMetrics(deal.status) ? (
+                <div className="pt-3">
+                  <MetricsForm deliverableId={video.id} />
+                </div>
+              ) : null}
+            </div>
+          ))}
         </section>
       ) : null}
 

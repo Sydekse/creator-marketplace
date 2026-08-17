@@ -38,10 +38,15 @@ export interface RouteDeps {
  * that is not JSON at all stays a plain `VALIDATION_ERROR`, as on every other
  * route.
  *
- * The brand is identified by the session, never by the body. `reason` is the
- * only client-supplied value, and it is stored on the deliverable and sent to
- * the creator verbatim — which is why the schema bounds it rather than this
- * route doing anything clever with it.
+ * **The body names which video** (F38). A deal can hold several, so
+ * `deliverableId` is required alongside the reason. It is scoped to this deal
+ * inside `recordRejection`, not trusted here — an id naming a video on another
+ * brand's deal matches nothing and comes back as the same 403 every other
+ * owner-scoped miss gets.
+ *
+ * The brand is identified by the session, never by the body. `reason` is stored
+ * on the deliverable and sent to the creator verbatim, which is why the schema
+ * bounds it rather than this route doing anything clever with it.
  */
 export async function handleRejectDeliverable(
   request: Request,
@@ -109,6 +114,7 @@ export async function handleRejectDeliverable(
     {
       brandProfileId,
       actorUserId,
+      deliverableId: parsed.data.deliverableId,
       reason: parsed.data.reason,
     },
     deps?.rejectDeliverableDeps

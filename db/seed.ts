@@ -21,6 +21,7 @@ import {
   creatorProfile,
   deal,
   dealEvent,
+  deliverable,
   pricingTier,
   rightsTerms,
   user,
@@ -274,10 +275,15 @@ type DemoDealSpec = {
  * money path. A creator working with several brands is the realistic shape
  * anyway.
  *
- * `revision_requested` is deliberately absent. Reaching it needs a deliverable
- * to reject (KAN-46/47), and faking one would put a `deliverable` row in the
- * database that no deliverable code has ever seen. The group it belongs to is
- * covered by the two deals above it.
+ * **The video counts are deliberate, not incidental** (F38). 'Ramadan Beauty
+ * Push' asks for two so the main walkthrough exercises a multi-video delivery —
+ * one submission leaves the deal `funded` with nothing for the brand to approve,
+ * and the second completes it. Before F38 was fixed these counts were a liability
+ * to be hidden; now they are the thing worth showing.
+ *
+ * `revision_requested` is deliberately absent. Reaching it needs a rejection with
+ * a reason, which is the brand's action (KAN-47), and the group it belongs to is
+ * covered by the two `delivered` deals above it.
  */
 const DEMO_DEALS: readonly DemoDealSpec[] = [
   {
@@ -314,9 +320,15 @@ const DEMO_DEALS: readonly DemoDealSpec[] = [
     target: 'accepted',
   },
   {
+    // KAN-60 flow 4 fixture: funded and awaiting submission, so the e2e can walk
+    // one submission and one rejection through the real UI. **One video**
+    // deliberately — rejection is not about video counts, and a three-video deal
+    // would make that spec submit three links before the brand had anything to
+    // send back. The multi-video path is proved by 'Ramadan Beauty Push' in
+    // flow 1 (F38), where it belongs.
     campaignName: 'Tech Review Series',
     goal: 'Hands-on reviews of the new handset range.',
-    videoCount: 3,
+    videoCount: 1,
     target: 'funded',
   },
   {
@@ -591,6 +603,9 @@ async function seedDemoDeals(
       id: creatorProfile.id,
       tierId: creatorProfile.tierId,
       pricePerVideo: pricingTier.pricePerVideo,
+      // Goes into the seeded video URLs, so a demo deliverable's link names the
+      // creator who supposedly posted it.
+      tiktokHandle: creatorProfile.tiktokHandle,
     })
     .from(creatorProfile)
     .innerJoin(pricingTier, eq(creatorProfile.tierId, pricingTier.id))
@@ -672,6 +687,8 @@ async function seedDemoDeals(
       dealId: created.id,
       campaignId: row.id,
       target: spec.target,
+      videoCount: spec.videoCount,
+      creatorHandle: creator.tiktokHandle,
       brandUserId,
       creatorUserId,
     });
@@ -725,6 +742,20 @@ async function transitionDemoDeal(
  * cascade keeps the seed's path through the machine the same one the real
  * routes will take. Anything the ledger owns goes through the ledger.
  */
+/**
+ * A plausible 19-digit TikTok video id for a seeded deliverable.
+ *
+ * Derived from the deal's uuid and the video's index rather than random, so a
+ * re-seed against a fresh database produces the same URLs — and so no two demo
+ * videos share one, which would make the dashboard's per-video rows
+ * indistinguishable at a glance. 19 digits because that is the length TikTok
+ * uses, and `TIKTOK_VIDEO_URL_PATTERN` requires digits after `/video/`.
+ */
+function demoVideoId(dealId: string, index: number): string {
+  const digits = dealId.replace(/\D/g, '').padEnd(17, '0').slice(0, 17);
+  return `${digits}${String(index).padStart(2, '0')}`;
+}
+
 async function walkDealTo(
   db: (typeof import('./index'))['db'],
   ledger: EscrowLedgerService,
@@ -732,11 +763,22 @@ async function walkDealTo(
     dealId: string;
     campaignId: string;
     target: DealStatus;
+    videoCount: number;
+    /** `@`-prefixed, as stored — it goes straight into the seeded video URLs. */
+    creatorHandle: string;
     brandUserId: string;
     creatorUserId: string;
   }
 ) {
-  const { dealId, campaignId, target, brandUserId, creatorUserId } = opts;
+  const {
+    dealId,
+    campaignId,
+    target,
+    videoCount,
+    creatorHandle,
+    brandUserId,
+    creatorUserId,
+  } = opts;
 
   if (target === 'pending') return;
 
@@ -782,6 +824,27 @@ async function walkDealTo(
     await ledger.refundDeal(dealId, brandUserId);
     return;
   }
+
+  // Every video the deal was paid for, before the status says `delivered` (F38).
+  //
+  // This used to move the status and write nothing else, so a seeded `delivered`
+  // deal had no `deliverable` row at all — the brand's review screen said "the
+  // creator has not submitted a video" under a badge reading Delivered, and
+  // `payoutForDeal`'s approval update matched zero rows. Wrong before this
+  // ticket and unrepresentable after it: `delivered` now *means* every video is
+  // in, so the seed has to make that true rather than assert it.
+  //
+  // Ordered by a distinct `submitted_at` per video so the two detail screens and
+  // the dashboard number them stably — they sort on this column, and rows
+  // sharing an instant would renumber themselves between page loads.
+  const submittedAt = new Date();
+  await db.insert(deliverable).values(
+    Array.from({ length: videoCount }, (_, index) => ({
+      dealId,
+      tiktokUrl: `https://www.tiktok.com/${creatorHandle}/video/${demoVideoId(dealId, index)}`,
+      submittedAt: new Date(submittedAt.getTime() + index * 1000),
+    }))
+  );
 
   await transitionDemoDeal(
     db,

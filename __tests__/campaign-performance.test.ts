@@ -26,8 +26,10 @@ import {
   metricsUpdatedLabel,
   readCampaignPerformance,
   toCampaignTotals,
+  toDealGroups,
 } from '../lib/campaigns/performance';
 import type {
+  CampaignDealGroup,
   CampaignPerformanceDeps,
   CampaignSettlement,
   CampaignVideoRow,
@@ -94,6 +96,7 @@ const CAMPAIGN_PAGE = 'app/(brand)/(onboarded)/campaigns/[id]/page.tsx';
 
 const row = (over: Partial<CampaignVideoRow> = {}): CampaignVideoRow => ({
   dealId: 'd0000000-0000-4000-8000-000000000001',
+  deliverableId: 'e0000000-0000-4000-8000-000000000001',
   status: 'completed' as DealStatus,
   creatorHandle: '@selam',
   videoCount: 1,
@@ -112,6 +115,46 @@ const row = (over: Partial<CampaignVideoRow> = {}): CampaignVideoRow => ({
   lastUpdatedAt: null,
   stale: false,
   ...over,
+});
+
+const dealIdAt = (n: number) => `d0000000-0000-4000-8000-00000000000${n + 1}`;
+const deliverableIdAt = (n: number) =>
+  `e0000000-0000-4000-8000-00000000000${n + 1}`;
+
+/**
+ * One deal per video — the shape every row implied before F38, and what most of
+ * the totals assertions below are about: N measured videos spread across N deals.
+ *
+ * Kept as a helper rather than inlined because `toCampaignTotals` takes grouped
+ * deals now, and the grouping is not what those assertions are testing.
+ */
+const soloDeals = (videos: CampaignVideoRow[]): CampaignDealGroup[] =>
+  videos.map((v, i) => ({
+    dealId: dealIdAt(i),
+    status: v.status,
+    creatorHandle: v.creatorHandle,
+    videoCount: 1,
+    unitPrice: v.unitPrice,
+    totalPrice: v.totalPrice,
+    videos: [{ ...v, dealId: dealIdAt(i), deliverableId: deliverableIdAt(i) }],
+  }));
+
+/** One deal covering several videos — the case F38 made reachable. */
+const multiDeal = (
+  videos: CampaignVideoRow[],
+  videoCount = videos.length
+): CampaignDealGroup => ({
+  dealId: dealIdAt(0),
+  status: 'delivered' as DealStatus,
+  creatorHandle: '@selam',
+  videoCount,
+  unitPrice: 150_000,
+  totalPrice: 150_000 * videoCount,
+  videos: videos.map((v, i) => ({
+    ...v,
+    dealId: dealIdAt(0),
+    deliverableId: deliverableIdAt(i),
+  })),
 });
 
 const okDeps = (
@@ -258,7 +301,7 @@ describe('toCampaignTotals', () => {
   it('is null per column when no video recorded it', () => {
     // Not zero. A campaign total of 0 views claims a measurement nobody took, and
     // the whole point of AC-027's rule is that absence is not a number.
-    const totals = toCampaignTotals([row(), row()]);
+    const totals = toCampaignTotals(soloDeals([row(), row()]));
 
     expect(totals.views).toBeNull();
     expect(totals.likes).toBeNull();
@@ -269,11 +312,13 @@ describe('toCampaignTotals', () => {
   });
 
   it('sums only the rows that recorded a metric', () => {
-    const totals = toCampaignTotals([
-      row({ views: 1_000, likes: 10 }),
-      row(),
-      row({ views: 500, likes: 5 }),
-    ]);
+    const totals = toCampaignTotals(
+      soloDeals([
+        row({ views: 1_000, likes: 10 }),
+        row(),
+        row({ views: 500, likes: 5 }),
+      ])
+    );
 
     expect(totals.views).toBe(1_500);
     expect(totals.likes).toBe(15);
@@ -287,7 +332,9 @@ describe('toCampaignTotals', () => {
   it('treats absence per field, not per row', () => {
     // `updateMetricsSchema` accepts any subset, so this row is reachable: views
     // recorded, comments not. The views must still count.
-    const totals = toCampaignTotals([row({ views: 900, comments: null })]);
+    const totals = toCampaignTotals(
+      soloDeals([row({ views: 900, comments: null })])
+    );
 
     expect(totals.views).toBe(900);
     expect(totals.comments).toBeNull();
@@ -298,7 +345,9 @@ describe('toCampaignTotals', () => {
     // The schema docstring is explicit: null is "not measured", `0` is a real,
     // recorded zero. A video that genuinely got no comments contributes 0 and
     // counts toward coverage.
-    const totals = toCampaignTotals([row({ views: 10, comments: 0 })]);
+    const totals = toCampaignTotals(
+      soloDeals([row({ views: 10, comments: 0 })])
+    );
 
     expect(totals.comments).toBe(0);
     expect(totals.measuredVideos).toBe(1);
@@ -307,7 +356,9 @@ describe('toCampaignTotals', () => {
   it('does not restart the sum when a running total is zero', () => {
     // The `?? 0` rather than `|| 0` case: a recorded 0 followed by a real number
     // must accumulate, not reset.
-    const totals = toCampaignTotals([row({ views: 0 }), row({ views: 7 })]);
+    const totals = toCampaignTotals(
+      soloDeals([row({ views: 0 }), row({ views: 7 })])
+    );
 
     expect(totals.views).toBe(7);
     expect(totals.measuredVideos).toBe(2);
@@ -315,6 +366,111 @@ describe('toCampaignTotals', () => {
 
   it('is empty for an empty campaign', () => {
     expect(toCampaignTotals([])).toEqual(EMPTY_PERFORMANCE.totals);
+  });
+
+  it('counts videos ordered, not rows returned (F38)', () => {
+    // The denominator has to be what the brand paid for. Counting rows reported a
+    // five-video campaign as a two-video one the moment its deals had nothing
+    // submitted, and `coverageNote` then claimed the totals covered everything.
+    const totals = toCampaignTotals([
+      multiDeal([row({ views: 10 })], 3),
+      multiDeal([], 2),
+    ]);
+
+    expect(totals.totalVideos).toBe(5);
+    expect(totals.measuredVideos).toBe(1);
+    expect(totals.views).toBe(10);
+  });
+
+  it('counts each measured video on a multi-video deal separately', () => {
+    // AC-026's "each video": three videos on one deal contribute three
+    // measurements, not one.
+    const totals = toCampaignTotals([
+      multiDeal([
+        row({ views: 100 }),
+        row({ views: 200 }),
+        row({ views: 300 }),
+      ]),
+    ]);
+
+    expect(totals.views).toBe(600);
+    expect(totals.measuredVideos).toBe(3);
+    expect(totals.totalVideos).toBe(3);
+  });
+
+  it('reports a deal with nothing submitted as fully pending', () => {
+    const totals = toCampaignTotals([multiDeal([], 3)]);
+
+    expect(totals.views).toBeNull();
+    expect(totals.measuredVideos).toBe(0);
+    expect(totals.totalVideos).toBe(3);
+    expect(coverageNote(totals.measuredVideos, totals.totalVideos)).toContain(
+      '3 still pending'
+    );
+  });
+});
+
+// -- F38: one row per video, folded into one entry per deal -------------------
+
+describe('toDealGroups', () => {
+  it('folds a deal’s videos under one entry, in order', () => {
+    const first = row({ deliverableId: deliverableIdAt(0), views: 10 });
+    const second = row({ deliverableId: deliverableIdAt(1), views: 20 });
+
+    const groups = toDealGroups([first, second]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].dealId).toBe(first.dealId);
+    expect(groups[0].videos).toEqual([first, second]);
+  });
+
+  it('states the deal’s money once, not once per video', () => {
+    // The reason grouping exists at all: `unit_price × video_count = total_price`
+    // describes the deal, and printing it over three rows would show three times
+    // the money the campaign owes.
+    const groups = toDealGroups([
+      row({
+        videoCount: 3,
+        totalPrice: 450_000,
+        deliverableId: deliverableIdAt(0),
+      }),
+      row({
+        videoCount: 3,
+        totalPrice: 450_000,
+        deliverableId: deliverableIdAt(1),
+      }),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].totalPrice).toBe(450_000);
+    expect(groups[0].videoCount).toBe(3);
+  });
+
+  it('keeps a deal with nothing submitted, with an empty video list', () => {
+    // The all-null placeholder row is the deal announcing itself, not a video —
+    // a funded deal awaiting delivery is part of the campaign's story, and hiding
+    // it is the AC-026 bullet 3 failure seen from the other side.
+    const groups = toDealGroups([
+      row({ deliverableId: null, tiktokUrl: null, submittedAt: null }),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].videos).toEqual([]);
+  });
+
+  it('keeps deals in the order the query returned them', () => {
+    // The query orders by handle then submission time, so the screen renders that
+    // order rather than a Map's insertion accident.
+    const groups = toDealGroups([
+      row({ dealId: dealIdAt(1), creatorHandle: '@aaa' }),
+      row({ dealId: dealIdAt(0), creatorHandle: '@zzz' }),
+    ]);
+
+    expect(groups.map((g) => g.creatorHandle)).toEqual(['@aaa', '@zzz']);
+  });
+
+  it('is empty for an empty campaign', () => {
+    expect(toDealGroups([])).toEqual([]);
   });
 });
 
@@ -329,7 +485,7 @@ describe('readCampaignPerformance', () => {
 
     const result = await readCampaignPerformance(CAMPAIGN_ID, deps);
 
-    expect(result.videos).toHaveLength(1);
+    expect(result.deals).toHaveLength(1);
     expect(result.totals.views).toBe(12);
     expect(result.settlement).toEqual({
       paidOut: 127_500,
@@ -660,17 +816,47 @@ describe('VideoPerformance', () => {
   });
 
   it('uses the shared status vocabulary', () => {
-    expect(source).toContain('labelForStatus(video.status)');
-    expect(source).not.toMatch(/>\{video\.status\}</);
+    // On the deal card, because status is the deal's — three videos on one deal
+    // are not at three different points of the lifecycle.
+    expect(source).toContain('labelForStatus(deal.status)');
+    expect(source).not.toMatch(/>\{deal\.status\}</);
   });
 
-  it('shows the tier price paid, both the rate and the total (AC-026)', () => {
-    // Both, not just the total: the rate is the tier's price snapshotted onto the
-    // deal, and it is what a brand compares between creators. The two coincide
-    // only while deals are one video each (F38).
-    expect(source).toContain('formatEtb(video.unitPrice)');
-    expect(source).toContain('formatEtb(video.totalPrice)');
-    expect(source).toContain('video.videoCount');
+  it('states the deal’s money once per deal, never per video (F38)', () => {
+    // Both figures, not just the total: the rate is the tier's price snapshotted
+    // onto the deal, and it is what a brand compares between creators. Read off
+    // the deal group, because printing `unit_price × video_count = total_price`
+    // over each of three videos would show three times what the campaign owes.
+    expect(source).toContain('formatEtb(deal.unitPrice)');
+    expect(source).toContain('formatEtb(deal.totalPrice)');
+    expect(source).toContain('deal.videoCount');
+
+    // Structural, not just textual: the money is outside the loop over videos.
+    const card = source.slice(
+      source.indexOf('function DealCard'),
+      source.indexOf('export function VideoPerformance')
+    );
+    const perVideo = card.slice(card.indexOf('deal.videos.map('));
+    expect(perVideo).not.toContain('formatEtb(');
+  });
+
+  it('says how much of the delivery arrived, per deal', () => {
+    expect(source).toContain(
+      'deliveryProgress(deal.videos.length, deal.videoCount)'
+    );
+  });
+
+  it('numbers videos only when the number distinguishes something', () => {
+    // A one-video deal has nothing to disambiguate, and "Video 1" over a single
+    // set of counts is noise.
+    expect(source).toMatch(/deal\.videoCount > 1 \?/);
+    expect(source).toContain('videoHeading(index)');
+  });
+
+  it('keys each video block on its own id, not the deal’s', () => {
+    // A three-video deal emits three blocks; keying them on `dealId` would give
+    // React three identical keys.
+    expect(source).toContain('key={video.deliverableId}');
   });
 
   it('shows when the counts were written, beside them (AC-027)', () => {
@@ -696,19 +882,19 @@ describe('VideoPerformance', () => {
     expect(source).toContain('STALE_LABEL');
   });
 
-  it('keeps a stale row’s numbers on screen', () => {
+  it('keeps a stale video’s numbers on screen', () => {
     // NFR-011: clearly-marked stale metrics render "instead of failing or hiding
     // the row". So the flag adds a badge and a sentence and gates nothing else —
-    // the counts, the price and the post link are outside every `stale` branch.
-    const rowBody = source.slice(
-      source.indexOf('function VideoRow'),
-      source.indexOf('export function VideoPerformance')
+    // the counts and the post link are outside every `stale` branch.
+    const videoBody = source.slice(
+      source.indexOf('function VideoMetrics'),
+      source.indexOf('function DealCard')
     );
-    const guarded = rowBody.match(/video\.stale \?/g) ?? [];
+    const guarded = videoBody.match(/video\.stale \?/g) ?? [];
 
     expect(guarded).toHaveLength(2);
-    expect(rowBody).not.toMatch(/video\.stale \?[\s\S]{0,80}METRIC_KEYS/);
-    expect(rowBody).not.toContain('!video.stale');
+    expect(videoBody).not.toMatch(/video\.stale \?[\s\S]{0,80}METRIC_KEYS/);
+    expect(videoBody).not.toContain('!video.stale');
   });
 
   it('explains an absent control in text, never a tooltip', () => {

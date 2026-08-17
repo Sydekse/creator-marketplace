@@ -123,6 +123,14 @@ export interface NotificationPayloadMap {
     campaignTitle: string;
     /** The brand's note explaining what to change. */
     reason: string;
+    /**
+     * Which video was sent back (F38).
+     *
+     * A deal can hold several, so the note alone would not say which one to
+     * redo. The URL rather than the deliverable id: it is the thing the creator
+     * recognises, and an opaque uuid in an email tells them nothing.
+     */
+    tiktokUrl: string;
   };
   dispute_resolved: {
     dealId: string;

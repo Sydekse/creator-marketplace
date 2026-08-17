@@ -1,15 +1,20 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
-import { ReviewActions } from '@/components/deals/review-actions';
+import {
+  ApproveDealButton,
+  RejectVideoForm,
+} from '@/components/deals/review-actions';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { canReview, labelForStatus } from '@/lib/deals';
 import {
   ALREADY_REVIEWED_MESSAGE,
   AWAITING_DELIVERABLE_MESSAGE,
+  AWAITING_REMAINING_VIDEOS_MESSAGE,
   AWAITING_RESUBMISSION_MESSAGE,
   CREATOR_LABEL,
-  DELIVERABLE_TITLE,
+  DELIVERABLES_TITLE,
+  deliveryProgress,
   NO_RIGHTS_TERMS_MESSAGE,
   REJECTION_REASON_LABEL,
   RIGHTS_TERMS_LABEL,
@@ -17,6 +22,7 @@ import {
   TOTAL_PRICE_LABEL,
   UNIT_PRICE_LABEL,
   VIDEO_COUNT_LABEL,
+  videoHeading,
   readBrandDeal,
 } from '@/lib/deals/brand-detail';
 import { formatEtb } from '@/lib/money';
@@ -110,35 +116,68 @@ export default async function BrandDealReviewPage({
         </dl>
       </section>
 
-      {/* The deliverable itself. Shown as text rather than an embed or a preview:
-          nothing on this page fetches the URL, so a hostile link cannot make the
-          brand's browser talk to an arbitrary host (Tech Spec §6.3). The brand
-          opens it deliberately, in a new tab, with `rel` set. */}
-      {deal.deliverable ? (
-        <section className="flex flex-col gap-2 rounded-md border border-border p-4">
-          <h2 className="text-sm font-medium">{DELIVERABLE_TITLE}</h2>
-          <a
-            href={deal.deliverable.tiktokUrl}
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            className="font-mono text-sm break-all underline-offset-4 hover:underline"
-          >
-            {deal.deliverable.tiktokUrl}
-          </a>
-          <p className="text-sm text-muted-foreground">
-            {SUBMITTED_AT_LABEL}:{' '}
-            {formatDeadlineUtc(deal.deliverable.submittedAt)}
-          </p>
-          {/* AC-7 — what the brand asked for last time, so a resubmission can be
-              read against it. Present only once a rejection has been recorded. */}
-          {deal.deliverable.rejectionReason ? (
-            <div className="flex flex-col gap-1 pt-2">
-              <h3 className="text-sm font-medium">{REJECTION_REASON_LABEL}</h3>
+      {/* The submitted videos, one section each (F38). Shown as text rather than
+          an embed or a preview: nothing on this page fetches the URL, so a hostile
+          link cannot make the brand's browser talk to an arbitrary host (Tech Spec
+          §6.3). The brand opens it deliberately, in a new tab, with `rel` set.
+
+          The reject control sits inside each video's own section, so the reason the
+          brand writes is unambiguously about the video above it — with three on a
+          deal, one shared form would put the note on whichever row the server
+          picked. */}
+      {deal.deliverables.length > 0 ? (
+        <section className="flex flex-col gap-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-medium">{DELIVERABLES_TITLE}</h2>
+            <p className="text-sm text-muted-foreground">
+              {deliveryProgress(deal.deliverables.length, deal.videoCount)}
+            </p>
+          </div>
+
+          {deal.deliverables.map((video, index) => (
+            <div
+              key={video.id}
+              className="flex flex-col gap-2 rounded-md border border-border p-4"
+            >
+              <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
+              <a
+                href={video.tiktokUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="font-mono text-sm break-all underline-offset-4 hover:underline"
+              >
+                {video.tiktokUrl}
+              </a>
               <p className="text-sm text-muted-foreground">
-                {deal.deliverable.rejectionReason}
+                {SUBMITTED_AT_LABEL}: {formatDeadlineUtc(video.submittedAt)}
               </p>
+              {/* AC-7 — what the brand asked for last time, so a resubmission can
+                  be read against it. Present only once a rejection has been
+                  recorded, and now on the one video it was about. */}
+              {video.rejectionReason ? (
+                <div className="flex flex-col gap-1 pt-2">
+                  <h4 className="text-sm font-medium">
+                    {REJECTION_REASON_LABEL}
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    {video.rejectionReason}
+                  </p>
+                </div>
+              ) : null}
+              {/* AC-024, per video. Gated on the same `canReview` as the deal-level
+                  approve: a deal the brand has already sent back is with the
+                  creator, so there is nothing to send back a second time. */}
+              {reviewable ? (
+                <div className="pt-2">
+                  <RejectVideoForm
+                    dealId={deal.id}
+                    deliverableId={video.id}
+                    videoLabel={videoHeading(index)}
+                  />
+                </div>
+              ) : null}
             </div>
-          ) : null}
+          ))}
         </section>
       ) : (
         <p className="text-sm text-muted-foreground">
@@ -146,20 +185,30 @@ export default async function BrandDealReviewPage({
         </p>
       )}
 
-      {/* AC-2 and AC-4. `canReview` reads `LEGAL_TRANSITIONS`, so these controls
-          cannot outlive the edge that permits them — a status the machine stops
-          accepting an approval from stops rendering them here with no edit to
-          this file. Where they are absent the reason is a sentence beside them,
-          never a `title=` tooltip, which tells a touch user nothing. */}
+      {/* AC-023, once per deal. `canReview` reads `LEGAL_TRANSITIONS`, so this
+          control cannot outlive the edge that permits it — and because a deal only
+          reaches `delivered` when every video it was paid for is in (F38), the
+          button cannot appear over a partial delivery. Where it is absent the
+          reason is a sentence, never a `title=` tooltip, which tells a touch user
+          nothing.
+
+          Three different absences, three different sentences: nothing submitted at
+          all is covered above; a delivery still in progress says so; and a deal
+          already judged or sent back says which. */}
       {reviewable ? (
-        <ReviewActions dealId={deal.id} />
-      ) : deal.deliverable ? (
+        <ApproveDealButton dealId={deal.id} videoCount={deal.videoCount} />
+      ) : deal.deliverables.length === 0 ? null : deal.deliverables.length <
+        deal.videoCount ? (
+        <p className="text-sm text-muted-foreground">
+          {AWAITING_REMAINING_VIDEOS_MESSAGE}
+        </p>
+      ) : (
         <p className="text-sm text-muted-foreground">
           {deal.status === 'revision_requested'
             ? AWAITING_RESUBMISSION_MESSAGE
             : ALREADY_REVIEWED_MESSAGE}
         </p>
-      ) : null}
+      )}
     </div>
   );
 }

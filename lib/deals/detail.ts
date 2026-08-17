@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '@/db';
 import {
@@ -113,25 +113,30 @@ export interface CreatorDealDetail {
   /** True when `rightsTerms` is the version in effect now, not the stamped one. */
   rightsTermsAreCurrent: boolean;
   /**
-   * The live TikTok post URL the creator submitted, when one exists (KAN-46,
-   * AC-022).
+   * The live TikTok post URLs the creator has submitted, oldest first (KAN-46,
+   * AC-022, F38).
    *
-   * Null until the deal is `delivered`; from then on the row exists — and on
-   * `revision_requested` it is the submission the brand sent back, which the
-   * creator needs to see while they re-submit. Only the URL and its timestamp
-   * are carried: `review_status` and any rejection note are the brand's half
-   * of the review, and no creator-facing sentence on this page reads them.
+   * An **array**, and empty rather than null before the first submission: a deal
+   * priced for three videos accepts three, and `deliverables.length` against
+   * `videoCount` is what the page turns into "2 of 3 submitted". On
+   * `revision_requested` one of these is the submission the brand sent back,
+   * which the creator needs to see while they replace it.
+   *
+   * Only the id, URL and timestamp are carried. `review_status` and any rejection
+   * note are the brand's half of the review — the note reaches the creator
+   * through their notification, which is what they act on, rather than through a
+   * column this page would have to interpret.
    */
-  deliverable: DeliverableView | null;
+  deliverables: DeliverableView[];
 }
 
-/** The one deliverable row a deal can have, as the creator is allowed to see it. */
+/** One submitted video, as the creator is allowed to see it. */
 export interface DeliverableView {
   /**
    * The row's own id — the target of `PUT /api/deliverables/{id}/metrics`
-   * (KAN-48), which the metrics-entry form on this page needs and the old
-   * view did not carry. The URL is not enough: the API keys the upsert by
-   * deliverable, not by deal.
+   * (KAN-48), which the metrics-entry form on this page needs. The URL is not
+   * enough: the API keys the upsert by deliverable, not by deal, and with several
+   * videos on one deal there is one form per row.
    */
   id: string;
   tiktokUrl: string;
@@ -166,12 +171,6 @@ export interface CreatorDealJoinRow {
   commissionRate: string;
   offerExpiresAt: Date | null;
   rightsTerms: DealRightsTerms | null;
-  /** Nullable columns: a missing row arrives as all-nulls, not a joined null. */
-  deliverable: {
-    id: string | null;
-    tiktokUrl: string | null;
-    submittedAt: Date | null;
-  } | null;
 }
 
 /**
@@ -186,38 +185,52 @@ export interface CreatorDealJoinRow {
  * The other two joins are inner: `campaign_id` and `campaign.brand_id` are both
  * `not null` with foreign keys, so neither can miss. No contact column is
  * selected from `brand_profile` (NFR-010).
+ *
+ * **The deliverable join is gone** (F38). A deal can hold several videos, and a
+ * `.limit(1)` query with a left join returned one arbitrary one while multiplying
+ * the deal's own columns across the rest. They are a second read
+ * (`creatorDealDeliverablesQuery`), which is also what lets them be ordered.
  */
 export function creatorDealQuery(where: SQL) {
-  return (
-    db
-      .select({
-        id: deal.id,
-        status: deal.status,
-        campaignName: campaign.name,
-        companyName: brandProfile.companyName,
-        videoCount: deal.videoCount,
-        unitPrice: deal.unitPrice,
-        totalPrice: deal.totalPrice,
-        commissionRate: deal.commissionRate,
-        offerExpiresAt: deal.offerExpiresAt,
-        rightsTerms: rightsTerms,
-        deliverable: {
-          id: deliverable.id,
-          tiktokUrl: deliverable.tiktokUrl,
-          submittedAt: deliverable.submittedAt,
-        },
-      })
-      .from(deal)
-      .innerJoin(campaign, eq(deal.campaignId, campaign.id))
-      .innerJoin(brandProfile, eq(campaign.brandId, brandProfile.id))
-      .leftJoin(rightsTerms, eq(deal.rightsTermsId, rightsTerms.id))
-      // Left for the same reason as `rights_terms`: the join *is* the
-      // deliverable, and a deal with none must come back with nulls rather than
-      // disappear from the creator's own detail view.
-      .leftJoin(deliverable, eq(deliverable.dealId, deal.id))
-      .where(where)
-      .limit(1)
-  );
+  return db
+    .select({
+      id: deal.id,
+      status: deal.status,
+      campaignName: campaign.name,
+      companyName: brandProfile.companyName,
+      videoCount: deal.videoCount,
+      unitPrice: deal.unitPrice,
+      totalPrice: deal.totalPrice,
+      commissionRate: deal.commissionRate,
+      offerExpiresAt: deal.offerExpiresAt,
+      rightsTerms: rightsTerms,
+    })
+    .from(deal)
+    .innerJoin(campaign, eq(deal.campaignId, campaign.id))
+    .innerJoin(brandProfile, eq(campaign.brandId, brandProfile.id))
+    .leftJoin(rightsTerms, eq(deal.rightsTermsId, rightsTerms.id))
+    .where(where)
+    .limit(1);
+}
+
+/**
+ * Every video the creator has submitted against one deal, oldest first (F38).
+ *
+ * The same order the brand's screen uses (`brandDealDeliverablesQuery`), so
+ * "Video 2" means the same video on both sides of a rejection. Takes the deal id
+ * alone: it is issued only after `creatorDealQuery` has proved this creator owns
+ * that deal, which is where ownership lives.
+ */
+export function creatorDealDeliverablesQuery(dealId: string) {
+  return db
+    .select({
+      id: deliverable.id,
+      tiktokUrl: deliverable.tiktokUrl,
+      submittedAt: deliverable.submittedAt,
+    })
+    .from(deliverable)
+    .where(eq(deliverable.dealId, dealId))
+    .orderBy(asc(deliverable.submittedAt));
 }
 
 /**
@@ -228,8 +241,14 @@ export function creatorDealQuery(where: SQL) {
  * honest than reaching it through a database. It is also where AC-2's "expected
  * payout net of commission" actually happens, so it is worth being able to
  * point at.
+ *
+ * Takes the videos as an argument rather than reading them: they arrive from
+ * their own query, and the split has nothing to do with them.
  */
-export function toDealDetail(row: CreatorDealJoinRow): CreatorDealDetail {
+export function toDealDetail(
+  row: CreatorDealJoinRow,
+  deliverables: DeliverableView[]
+): CreatorDealDetail {
   const { commission, payout } = computeSplit(
     row.totalPrice,
     row.commissionRate
@@ -240,17 +259,7 @@ export function toDealDetail(row: CreatorDealJoinRow): CreatorDealDetail {
     commission,
     expectedPayout: payout,
     rightsTermsAreCurrent: false,
-    // The two nullable columns come from the same left join, so a URL present
-    // guarantees the timestamp is too (`submitted_at` is `not null` in the
-    // table). Folding the pair into a single nullable object is what lets the
-    // page ask one question — "has the creator submitted?" — instead of two.
-    deliverable: row.deliverable?.tiktokUrl
-      ? {
-          id: row.deliverable.id as string,
-          tiktokUrl: row.deliverable.tiktokUrl,
-          submittedAt: row.deliverable.submittedAt as Date,
-        }
-      : null,
+    deliverables,
   };
 }
 
@@ -279,7 +288,12 @@ export function withCurrentTerms(
 /** Seam for tests, matching the shape the rest of `lib/` uses. */
 export interface CreatorDealDeps {
   requireCreator: () => Promise<{ creatorProfileId: string | null }>;
-  select: (where: SQL) => Promise<CreatorDealDetail | null>;
+  select: (where: SQL) => Promise<CreatorDealJoinRow | null>;
+  /**
+   * The deal's videos, read only once the deal itself came back — so a test can
+   * prove they are never fetched for a deal this creator does not own.
+   */
+  selectDeliverables: (dealId: string) => Promise<DeliverableView[]>;
   /**
    * The version in effect now, read only when the deal can still be acted on.
    *
@@ -290,17 +304,13 @@ export interface CreatorDealDeps {
   currentTerms: () => Promise<DealRightsTerms | null>;
 }
 
-async function selectCreatorDeal(
-  where: SQL
-): Promise<CreatorDealDetail | null> {
-  const [row] = await creatorDealQuery(where);
-  if (!row) return null;
-  return toDealDetail(row);
-}
-
 const defaultDeps: CreatorDealDeps = {
   requireCreator: () => guard({ roles: ['creator'] }),
-  select: selectCreatorDeal,
+  select: async (where) => {
+    const [row] = await creatorDealQuery(where);
+    return row ?? null;
+  },
+  selectDeliverables: (dealId) => creatorDealDeliverablesQuery(dealId),
   // `CurrentRightsTerms` and the joined `DealRightsTerms` are both
   // `typeof rightsTerms.$inferSelect`, so the two sources are interchangeable
   // and the card cannot tell which one it was handed.
@@ -331,10 +341,12 @@ export async function readCreatorDeal(
 
   if (!UUID_REGEX.test(dealId)) return null;
 
-  const detail = await deps.select(
+  const row = await deps.select(
     buildCreatorDealWhere(dealId, creatorProfileId)
   );
-  if (!detail) return null;
+  if (!row) return null;
+
+  const detail = toDealDetail(row, await deps.selectDeliverables(row.id));
 
   // Only the deals that can still be accepted pay for the second query.
   if (!canAct(detail.status)) return detail;
@@ -436,6 +448,34 @@ export const FUNDS_HELD_MESSAGE =
  */
 export const SUBMITTED_DELIVERABLE_LABEL = 'Submitted video';
 export const SUBMITTED_AT_LABEL = 'Submitted at';
+
+/**
+ * The heading over the creator's list of submitted videos, and the name of one
+ * within it (F38).
+ *
+ * The plural title and the numbered heading are the brand's own
+ * (`DELIVERABLES_TITLE`, `videoHeading` in `brand-detail.ts`) rather than a
+ * second pair of strings: "Video 2" has to mean the same video on both screens,
+ * because the brand's rejection note refers to it and the creator has to find it.
+ * Re-exported here so a creator-side caller still finds its copy in one place.
+ */
+export {
+  DELIVERABLES_TITLE,
+  deliveryProgress,
+  videoHeading,
+} from './brand-detail';
+
+/**
+ * What the creator is being asked for next (F38).
+ *
+ * Sits above the submission form on a deal that is part-delivered, because the
+ * form alone does not say the deal will not reach the brand until the last video
+ * lands — a creator who submitted one of three and saw nothing change would
+ * reasonably think it failed. Says where the money is at the same time: it is the
+ * reason to keep going.
+ */
+export const REMAINING_VIDEOS_MESSAGE =
+  'The brand reviews this deal once every video is in, and your payment stays held until they do.';
 
 export const DEAL_HISTORY_TITLE = 'Deal history';
 export const DEAL_HISTORY_EMPTY = 'Nothing has happened on this deal yet.';

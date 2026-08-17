@@ -7,29 +7,32 @@ import { LEGAL_TRANSITIONS, canReview } from '../lib/deals/state-machine';
 import {
   ALREADY_REVIEWED_MESSAGE,
   AWAITING_DELIVERABLE_MESSAGE,
+  AWAITING_REMAINING_VIDEOS_MESSAGE,
   AWAITING_RESUBMISSION_MESSAGE,
+  DELIVERABLES_TITLE,
   NO_RIGHTS_TERMS_MESSAGE,
   REJECTION_REASON_LABEL,
   buildBrandDealWhere,
+  deliveryProgress,
   readBrandDeal,
-  toBrandDealDetail,
+  videoHeading,
 } from '../lib/deals/brand-detail';
 import type {
   BrandDealDeps,
-  BrandDealDetail,
   BrandDealJoinRow,
+  BrandDeliverableView,
 } from '../lib/deals/brand-detail';
 import {
-  APPROVE_CONFIRM_MESSAGE,
   APPROVE_DELIVERABLE_LABEL,
   REJECT_DELIVERABLE_LABEL,
   REJECT_REASON_HINT,
+  approveConfirmMessage,
 } from '../lib/deals/copy';
 import type { DealStatus } from '../db/schema';
 
 /**
- * KAN-68 — the brand reviews a delivered video and approves or rejects it
- * (US-008, AC-023, AC-024, and KAN-35's orphaned AC-6).
+ * KAN-68 — the brand reviews a delivered deal and approves or rejects it
+ * (US-008, AC-023, AC-024, and KAN-35's orphaned AC-6), as amended by **F38**.
  *
  * Wave 12 shipped both endpoints with nothing that could reach them: no brand
  * deal surface existed, and the delivery notification's CTA landed on
@@ -37,13 +40,14 @@ import type { DealStatus } from '../db/schema';
  * this file is about *reachability* as much as correctness — the loop's
  * second-to-last link having a button at all.
  *
- * Four things carry the weight.
+ * Five things carry the weight.
  *
  * **The read gates itself, before it looks at its arguments.** `readBrandDeal`
  * calls `guard` first and takes the brand id from its answer, never from a
  * parameter, so a caller cannot ask for somebody else's deal. The `deps` seam is
  * what lets the suite prove the query never ran for a denied caller rather than
- * merely that it returned nothing.
+ * merely that it returned nothing — and, since F38, that the deal's *videos* are
+ * never fetched for a deal the caller does not own.
  *
  * **Every kind of miss is the same miss.** A malformed id, an unknown id and a
  * real deal on another brand's campaign all answer `null` and land on the same
@@ -51,9 +55,17 @@ import type { DealStatus } from '../db/schema';
  * deal ids (Tech Spec §6.3) — `readCreatorDetail`'s rule, applied to the other
  * side of the deal.
  *
+ * **Approval is per deal and rejection is per video** (F38), because their
+ * subjects differ. AC-023 releases "the held funds for **that deal**" against one
+ * hold, so there is one Approve however many videos it covers; a rejection has to
+ * name which of three videos to redo or the reason is useless. That asymmetry is
+ * why `ReviewActions` became two components.
+ *
  * **The controls are derived from the state machine, not from a status literal.**
  * `canReview` reads `LEGAL_TRANSITIONS`, so an edge removed from the table removes
- * the buttons from the screen in the same edit.
+ * the buttons from the screen in the same edit. And because a deal only reaches
+ * `delivered` once every video it was paid for is in, the Approve button cannot
+ * appear over a partial delivery — the bug F38 names.
  *
  * **There is no DOM environment here.** Every assertion about the page and the
  * component is a source guard: it proves a thing is referenced, never that it
@@ -66,6 +78,7 @@ import type { DealStatus } from '../db/schema';
 const BRAND_PROFILE_ID = '11111111-1111-4111-8111-111111111111';
 const DEAL_ID = '22222222-2222-4222-8222-222222222222';
 const CAMPAIGN_ID = '33333333-3333-4333-8333-333333333333';
+const DELIVERABLE_ID = '44444444-4444-4444-8444-444444444444';
 
 const src = (file: string) =>
   readFileSync(join(process.cwd(), file), 'utf8')
@@ -94,30 +107,48 @@ const joinRow = (over: Partial<BrandDealJoinRow> = {}): BrandDealJoinRow => ({
   unitPrice: 150_000,
   totalPrice: 300_000,
   rightsTermsVersion: 'v1.0',
-  deliverable: null,
+  ...over,
+});
+
+const video = (
+  over: Partial<BrandDeliverableView> = {}
+): BrandDeliverableView => ({
+  id: DELIVERABLE_ID,
+  tiktokUrl: 'https://www.tiktok.com/@selam/video/123',
+  submittedAt: new Date('2026-08-15T09:00:00Z'),
+  reviewStatus: 'pending',
+  reviewedAt: null,
+  rejectionReason: null,
   ...over,
 });
 
 /** Deps that would answer, so a test asserting "never ran" cannot pass by luck. */
-function okDeps(detail: BrandDealDetail | null): {
+function okDeps(
+  row: BrandDealJoinRow | null,
+  videos: BrandDeliverableView[] = []
+): {
   deps: BrandDealDeps;
   calls: SQL[];
+  videoCalls: string[];
 } {
   const calls: SQL[] = [];
+  const videoCalls: string[] = [];
   return {
     calls,
+    videoCalls,
     deps: {
       requireBrand: async () => ({ brandProfileId: BRAND_PROFILE_ID }),
       select: async (where) => {
         calls.push(where);
-        return detail;
+        return row;
+      },
+      selectDeliverables: async (dealId) => {
+        videoCalls.push(dealId);
+        return videos;
       },
     },
   };
 }
-
-const detailFrom = (over: Partial<BrandDealJoinRow> = {}) =>
-  toBrandDealDetail(joinRow(over));
 
 const renderSql = (where: SQL) => new PgDialect().sqlToQuery(where);
 
@@ -125,7 +156,7 @@ const renderSql = (where: SQL) => new PgDialect().sqlToQuery(where);
 
 describe('readBrandDeal — ownership is the base of the lookup', () => {
   it('returns the brand’s own deal', async () => {
-    const { deps } = okDeps(detailFrom());
+    const { deps } = okDeps(joinRow());
     await expect(readBrandDeal(DEAL_ID, deps)).resolves.toMatchObject({
       id: DEAL_ID,
       creatorHandle: '@selam',
@@ -146,7 +177,7 @@ describe('readBrandDeal — ownership is the base of the lookup', () => {
   });
 
   it('never runs the query when the caller has no brand profile', async () => {
-    const { deps, calls } = okDeps(detailFrom());
+    const { deps, calls } = okDeps(joinRow());
     const denied: BrandDealDeps = {
       ...deps,
       requireBrand: async () => ({ brandProfileId: null }),
@@ -159,7 +190,7 @@ describe('readBrandDeal — ownership is the base of the lookup', () => {
   });
 
   it('never runs the query for a malformed id', async () => {
-    const { deps, calls } = okDeps(detailFrom());
+    const { deps, calls } = okDeps(joinRow());
 
     await expect(readBrandDeal('not-a-uuid', deps)).resolves.toBeNull();
     expect(calls).toHaveLength(0);
@@ -178,6 +209,7 @@ describe('readBrandDeal — ownership is the base of the lookup', () => {
         calls.push(where);
         return null;
       },
+      selectDeliverables: async () => [],
     };
 
     await expect(readBrandDeal('not-a-uuid', deps)).rejects.toThrow(
@@ -221,66 +253,149 @@ describe('readBrandDeal — ownership is the base of the lookup', () => {
   it('left-joins the rows that may legitimately be missing', () => {
     const source = src(READ_MODULE);
 
-    // A deal with no deliverable yet, or no recorded terms version, must come
-    // back and say so rather than vanish from its owner's own review screen.
+    // A deal with no recorded terms version must come back and say so rather than
+    // vanish from its owner's own review screen. The deliverable is no longer
+    // joined here at all (F38) — it is its own read, asserted below.
     expect(source).toMatch(/leftJoin\(rightsTerms/);
-    expect(source).toMatch(/leftJoin\(deliverable/);
     // Ownership rides on the campaign join, so that one cannot be left.
     expect(source).toMatch(/innerJoin\(campaign/);
   });
 });
 
-describe('toBrandDealDetail — folding the deliverable', () => {
-  it('is null when nothing has been submitted', () => {
-    expect(detailFrom({ deliverable: null }).deliverable).toBeNull();
+describe('readBrandDeal — the deal’s videos are a second, gated read (F38)', () => {
+  it('carries every submitted video, oldest first', async () => {
+    const first = video({ id: DELIVERABLE_ID });
+    const second = video({
+      id: '55555555-5555-4555-8555-555555555555',
+      submittedAt: new Date('2026-08-16T09:00:00Z'),
+    });
+    const { deps } = okDeps(joinRow(), [first, second]);
+
+    const detail = await readBrandDeal(DEAL_ID, deps);
+
+    expect(detail?.deliverables).toEqual([first, second]);
   });
 
-  it('is null when the left join produced all-nulls rather than no object', () => {
-    // Drizzle answers a missed left join with an object of nulls, not with null,
-    // so the URL is what decides whether a submission exists.
-    const detail = detailFrom({
-      deliverable: {
-        tiktokUrl: null,
-        submittedAt: null,
-        reviewStatus: null,
-        reviewedAt: null,
-        rejectionReason: null,
-      },
-    });
-    expect(detail.deliverable).toBeNull();
+  it('is an empty list, not null, before anything is submitted', async () => {
+    // A deal priced for three videos can have none, one or three. The page asks
+    // `length` against `videoCount`, so an absent list would have to be defended
+    // against at every use.
+    const { deps } = okDeps(joinRow(), []);
+
+    const detail = await readBrandDeal(DEAL_ID, deps);
+
+    expect(detail?.deliverables).toEqual([]);
   });
 
-  it('carries the review status and any rejection reason', () => {
-    const submittedAt = new Date('2026-08-15T09:00:00Z');
-    const reviewedAt = new Date('2026-08-16T09:00:00Z');
-    const detail = detailFrom({
-      status: 'revision_requested',
-      deliverable: {
-        tiktokUrl: 'https://www.tiktok.com/@selam/video/123',
-        submittedAt,
-        reviewStatus: 'rejected',
-        reviewedAt,
-        rejectionReason: 'Please show the product label.',
-      },
-    });
+  it('never fetches the videos for a deal the caller does not own', async () => {
+    // The whole point of the second seam. A row that did not come back means the
+    // brand does not own this deal, and asking for its videos anyway would leak
+    // whether they exist.
+    const { deps, videoCalls } = okDeps(null, [video()]);
 
-    expect(detail.deliverable).toEqual({
-      tiktokUrl: 'https://www.tiktok.com/@selam/video/123',
-      submittedAt,
-      reviewStatus: 'rejected',
-      reviewedAt,
-      rejectionReason: 'Please show the product label.',
-    });
+    await expect(readBrandDeal(DEAL_ID, deps)).resolves.toBeNull();
+    expect(videoCalls).toHaveLength(0);
+  });
+
+  it('never fetches the videos for a malformed id or a caller with no profile', async () => {
+    const malformed = okDeps(joinRow(), [video()]);
+    await expect(
+      readBrandDeal('not-a-uuid', malformed.deps)
+    ).resolves.toBeNull();
+    expect(malformed.videoCalls).toHaveLength(0);
+
+    const noProfile = okDeps(joinRow(), [video()]);
+    await expect(
+      readBrandDeal(DEAL_ID, {
+        ...noProfile.deps,
+        requireBrand: async () => ({ brandProfileId: null }),
+      })
+    ).resolves.toBeNull();
+    expect(noProfile.videoCalls).toHaveLength(0);
+  });
+
+  it('scopes the video read to the deal the first query returned', async () => {
+    // The id from the row, not the argument — so a lookup that resolved to a
+    // different deal cannot be talked into listing another one's videos.
+    const { deps, videoCalls } = okDeps(joinRow(), [video()]);
+
+    await readBrandDeal(DEAL_ID, deps);
+
+    expect(videoCalls).toEqual([DEAL_ID]);
+  });
+
+  it('orders the videos by submission time in SQL, not in the page', () => {
+    // "Video 2" has to mean the same video on two page loads, and on the
+    // creator's screen too — both read this column.
+    const source = src(READ_MODULE);
+    const query = source.slice(
+      source.indexOf('export function brandDealDeliverablesQuery')
+    );
+
+    expect(query).toContain('eq(deliverable.dealId, dealId)');
+    expect(query).toContain('asc(deliverable.submittedAt)');
+  });
+
+  it('no longer joins the deliverable into the one-row deal query', () => {
+    // A `.limit(1)` query with a left join returned one arbitrary video and
+    // multiplied the deal's own columns across the rest — the read-side half of
+    // F38.
+    const source = src(READ_MODULE);
+    const dealQuery = source.slice(
+      source.indexOf('export function brandDealQuery'),
+      source.indexOf('export function brandDealDeliverablesQuery')
+    );
+
+    expect(dealQuery).not.toContain('leftJoin(deliverable');
+  });
+
+  it('carries the video ids, because rejection names one', () => {
+    // The reject endpoint takes a `deliverableId` now. Without the id on the read
+    // the screen could render three videos and send back none of them.
+    expect(src(READ_MODULE)).toMatch(
+      /interface BrandDeliverableView \{\s*\n\s*id: string/
+    );
   });
 
   it('keeps the deal’s own rights-terms version, not the current one', () => {
     // AC-6. A deal is governed by the text its creator accepted; a later
     // republication must not change what a signed agreement says. This read has
     // no notion of "current" at all, which is what guarantees it.
-    expect(detailFrom({ rightsTermsVersion: 'v1.0' }).rightsTermsVersion).toBe(
+    expect(joinRow({ rightsTermsVersion: 'v1.0' }).rightsTermsVersion).toBe(
       'v1.0'
     );
     expect(src(READ_MODULE)).not.toContain('getCurrentRightsTerms');
+  });
+});
+
+describe('the progress copy says how much of the delivery arrived', () => {
+  it('counts submitted against what was ordered', () => {
+    expect(deliveryProgress(1, 3)).toBe('1 of 3 videos submitted');
+    expect(deliveryProgress(3, 3)).toBe('3 of 3 videos submitted');
+  });
+
+  it('keeps the fraction even for a one-video deal', () => {
+    // The brand ordered a number and is entitled to see it accounted for.
+    expect(deliveryProgress(1, 1)).toBe('1 of 1 video submitted');
+  });
+
+  it('numbers videos from one, not from zero', () => {
+    // The heading is read by a person, and it is how the brand's rejection note
+    // and the creator's screen refer to the same video.
+    expect(videoHeading(0)).toBe('Video 1');
+    expect(videoHeading(1)).toBe('Video 2');
+  });
+
+  it('names no ticket in anything either side reads', () => {
+    for (const copy of [
+      deliveryProgress(1, 2),
+      videoHeading(0),
+      DELIVERABLES_TITLE,
+      AWAITING_REMAINING_VIDEOS_MESSAGE,
+    ]) {
+      expect(copy).not.toMatch(/KAN-\d+/);
+      expect(copy).not.toMatch(/F38/);
+    }
   });
 });
 
@@ -319,9 +434,39 @@ describe('the review page is the surface the endpoints were missing', () => {
   it('mounts the review controls, gated on canReview', () => {
     // The assertion this whole ticket turns on. A page that read the deal and
     // forgot to render the controls would pass every other test in this file.
-    expect(page).toContain('ReviewActions');
+    expect(page).toContain('ApproveDealButton');
+    expect(page).toContain('RejectVideoForm');
     expect(page).toContain('canReview(deal.status)');
-    expect(page).toMatch(/reviewable \? \(?\s*<ReviewActions/);
+    expect(page).toMatch(/reviewable \? \(?\s*<ApproveDealButton/);
+  });
+
+  it('mounts one Approve for the deal and one reject form per video (F38)', () => {
+    // The asymmetry AC-023 and AC-024 imply: one hold, one payout, one Approve —
+    // but a reason has to name which of three videos to redo.
+    expect(page).toMatch(/deal\.deliverables\.map\(/);
+    expect(page).toContain('<RejectVideoForm');
+    expect(page).toContain('deliverableId={video.id}');
+    // The approve button is outside the map, so it cannot be rendered per video.
+    const mapBlock = page.slice(
+      page.indexOf('deal.deliverables.map('),
+      page.indexOf('</section>')
+    );
+    expect(mapBlock).not.toContain('ApproveDealButton');
+  });
+
+  it('lists every submitted video with its own link and timestamp (AC-3)', () => {
+    expect(page).toContain('DELIVERABLES_TITLE');
+    expect(page).toContain('videoHeading(index)');
+    expect(page).toContain('SUBMITTED_AT_LABEL');
+    expect(page).toContain('video.tiktokUrl');
+  });
+
+  it('says why Approve is absent over a partial delivery', () => {
+    // A deal one video short is not a deal nobody has looked at, and the two
+    // absences need different sentences.
+    expect(page).toContain('AWAITING_REMAINING_VIDEOS_MESSAGE');
+    expect(page).toContain('deal.deliverables.length <');
+    expect(page).toContain('deliveryProgress(');
   });
 
   it('turns every miss into the shared not-found', () => {
@@ -377,7 +522,9 @@ describe('the review page is the surface the endpoints were missing', () => {
   it.each([
     ALREADY_REVIEWED_MESSAGE,
     AWAITING_DELIVERABLE_MESSAGE,
+    AWAITING_REMAINING_VIDEOS_MESSAGE,
     AWAITING_RESUBMISSION_MESSAGE,
+    DELIVERABLES_TITLE,
     NO_RIGHTS_TERMS_MESSAGE,
     REJECTION_REASON_LABEL,
   ])('renders “%s” from its constant rather than retyping it', (copy) => {
@@ -427,17 +574,45 @@ describe('ReviewActions posts to the endpoints and re-reads the server', () => {
     // The amounts are derived under the ledger's lock, so there is nothing for a
     // client to vary except which deal — and that is in the path.
     const approve = source.slice(
-      source.indexOf('async function handleApprove'),
-      source.indexOf('async function handleReject')
+      source.indexOf('export function ApproveDealButton'),
+      source.indexOf('export function RejectVideoForm')
     );
     expect(approve).toMatch(/\{ method: 'POST' \}/);
     expect(approve).not.toContain('JSON.stringify');
   });
 
-  it('confirms before an irreversible payment', () => {
-    expect(source).toContain('window.confirm(APPROVE_CONFIRM_MESSAGE)');
-    // The sentence has to say what cannot be undone, not merely ask.
-    expect(APPROVE_CONFIRM_MESSAGE).toMatch(/cannot be undone/i);
+  it('confirms before an irreversible payment, naming the whole deal', () => {
+    expect(source).toContain(
+      'window.confirm(approveConfirmMessage(videoCount))'
+    );
+    // The sentence has to say what cannot be undone, not merely ask — and it
+    // has to say how much is being accepted, because one click pays for every
+    // video on the deal (F38).
+    expect(approveConfirmMessage(1)).toMatch(/cannot be undone/i);
+    expect(approveConfirmMessage(3)).toMatch(/cannot be undone/i);
+    expect(approveConfirmMessage(3)).toContain('all 3 videos');
+    // A one-video deal has nothing to enumerate, so it does not say "all 1".
+    expect(approveConfirmMessage(1)).toContain('this video');
+    expect(approveConfirmMessage(1)).not.toContain('all 1');
+  });
+
+  it('sends the deliverable id with the reason, so the note names its video', () => {
+    // AC-024 with several videos on a deal: a reason that does not say which one
+    // leaves the creator guessing.
+    expect(source).toContain('deliverableId,');
+    expect(source).toContain('rejectDeliverableSchema.safeParse({');
+  });
+
+  it('gives every reject form its own state, so three cannot collide', () => {
+    // One shared field would make the note ambiguous about which video it
+    // described — the same species of error as the data bug F38 fixed.
+    const reject = source.slice(
+      source.indexOf('export function RejectVideoForm')
+    );
+    expect(reject).toContain('const [reason, setReason] = useState');
+    expect(reject).toContain('const [rejecting, setRejecting] = useState');
+    // And its own DOM ids, keyed on the deliverable.
+    expect(reject).toContain('`reason-${deliverableId}`');
   });
 
   it('validates the reason with the same schema the server runs', () => {
@@ -454,16 +629,19 @@ describe('ReviewActions posts to the endpoints and re-reads the server', () => {
   });
 
   it('guards re-entry and clears the busy flag on every path', () => {
-    expect(source).toContain('if (busy) return');
-
     // F11 is the bug that comes from forgetting the success path: a flag left
-    // true leaves both buttons dead until a full reload.
+    // true leaves the control dead until a full reload. Each component guards its
+    // own flag now, since they no longer share one.
     const approve = source.slice(
-      source.indexOf('async function handleApprove'),
-      source.indexOf('async function handleReject')
+      source.indexOf('export function ApproveDealButton'),
+      source.indexOf('export function RejectVideoForm')
     );
-    const reject = source.slice(source.indexOf('async function handleReject'));
+    const reject = source.slice(
+      source.indexOf('export function RejectVideoForm')
+    );
 
+    expect(approve).toContain('if (approving) return');
+    expect(reject).toContain('if (rejecting) return');
     expect(approve.match(/setApproving\(false\)/g)?.length).toBeGreaterThan(2);
     expect(reject.match(/setRejecting\(false\)/g)?.length).toBeGreaterThan(2);
   });
@@ -474,16 +652,24 @@ describe('ReviewActions posts to the endpoints and re-reads the server', () => {
   });
 
   it('keeps approve out of the form’s submit path', () => {
-    // Otherwise Enter in the reason field pays the creator.
+    // Otherwise Enter in the reason field pays the creator. Now structural as
+    // well as typed: approve is a different component from the form entirely.
     expect(source).toMatch(
       /<Button\s+type="button"\s+onClick=\{handleApprove\}/
     );
     expect(source).toMatch(/<Button\s+type="submit"/);
+    const approve = source.slice(
+      source.indexOf('export function ApproveDealButton'),
+      source.indexOf('export function RejectVideoForm')
+    );
+    expect(approve).not.toContain('<form');
   });
 
-  it('disables both controls while either is in flight', () => {
-    const applied = /disabled=\{busy\}/g;
-    expect(source.match(applied)?.length).toBe(2);
+  it('disables each control while its own request is in flight', () => {
+    expect(source).toContain('disabled={approving}');
+    expect(source).toContain('disabled={rejecting}');
+    // No shared `busy` any more: one video's rejection must not disable another's.
+    expect(source).not.toContain('disabled={busy}');
   });
 
   it.each([
@@ -514,17 +700,19 @@ describe('the surface is reachable', () => {
   it('is linked from the campaign’s video list', () => {
     // KAN-49 replaced the deals list this used to assert on with the performance
     // section — the same rows plus engagement counts — so the link moved from the
-    // page into `video-performance.tsx`. The claim is unchanged and is the one that
-    // matters: a brand can reach this screen from their campaign.
+    // page into `video-performance.tsx`. F38 then grouped those rows by deal, so
+    // the link hangs off the group rather than off one video. The claim is
+    // unchanged and is the one that matters: a brand can reach this screen from
+    // their campaign.
     const page = src(CAMPAIGN_PAGE);
     const list = src('components/campaign/video-performance.tsx');
 
     expect(page).toContain('VideoPerformance');
     expect(page).toContain('readCampaignPerformance');
-    expect(list).toMatch(/href=\{`\/deals\/\$\{video\.dealId\}`\}/);
+    expect(list).toMatch(/href=\{`\/deals\/\$\{deal\.dealId\}`\}/);
     // The shared status vocabulary, so the list and the deal screen cannot call
     // one state two different things.
-    expect(list).toContain('labelForStatus(video.status)');
+    expect(list).toContain('labelForStatus(deal.status)');
   });
 
   it('is where the delivery notification now points', () => {

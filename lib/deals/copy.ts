@@ -217,16 +217,25 @@ export const REJECT_DELIVERABLE_LABEL = 'Request changes';
  * Reject says "request changes" rather than "reject" because the deal goes back
  * to the creator to re-deliver (AC-024), not to a dead end, and the funds stay
  * held throughout.
+ *
+ * **The confirmation speaks of the deal, not a video** (F38). A deal can cover
+ * three videos and this approves all of them against one hold, so "approve this
+ * video" would understate the scope of a click that cannot be undone. It names
+ * the count, because the number of videos being accepted is exactly what a brand
+ * should check before releasing the money.
  */
-export const APPROVE_CONFIRM_MESSAGE =
-  'Approve this video and pay the creator? This cannot be undone — the money leaves escrow immediately, minus the platform commission.';
+export function approveConfirmMessage(videoCount: number): string {
+  const subject =
+    videoCount === 1 ? 'this video' : `all ${videoCount} videos on this deal`;
+  return `Approve ${subject} and pay the creator? This cannot be undone — the money leaves escrow immediately, minus the platform commission.`;
+}
 
 /** While a request is in flight. Replaces the label, so the button never lies. */
 export const APPROVING_LABEL = 'Approving…';
 export const REJECTING_LABEL = 'Sending back…';
 
 export const APPROVE_SUCCESS_MESSAGE =
-  'Video approved. The creator has been paid and notified.';
+  'Deal approved. The creator has been paid and notified.';
 export const REJECT_SUCCESS_MESSAGE =
   'Sent back to the creator with your notes. The funds stay held.';
 

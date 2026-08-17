@@ -138,6 +138,12 @@ export async function handleSubmitDeliverable(
       status: result.status,
       // ISO string, like every timestamp in these envelopes.
       submitted_at: result.submittedAt.toISOString(),
+      // How much of the delivery is in (F38). The status alone no longer says:
+      // a submission that leaves the deal `funded` succeeded, and a client that
+      // could not tell "1 of 3 stored" from "nothing happened" would have to
+      // re-read the deal to find out.
+      submitted: result.submitted,
+      video_count: result.videoCount,
     },
     { status: 200 }
   );

@@ -532,38 +532,61 @@ describe('submitDeliverableSchema', () => {
 });
 
 describe('rejectDeliverableSchema', () => {
-  it('accepts a rejection with reason', () => {
+  const VIDEO_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+
+  it('accepts a rejection with a video and a reason', () => {
     const result = rejectDeliverableSchema.parse({
+      deliverableId: VIDEO_ID,
       reason: 'Does not match the brief.',
     });
+    expect(result.deliverableId).toBe(VIDEO_ID);
     expect(result.reason).toBe('Does not match the brief.');
+  });
+
+  it('requires the video being sent back (F38)', () => {
+    // A deal can hold several videos, so a reason that does not name one leaves
+    // the creator guessing which of three to redo.
+    expect(() =>
+      rejectDeliverableSchema.parse({ reason: 'Does not match the brief.' })
+    ).toThrow();
+    expect(() =>
+      rejectDeliverableSchema.parse({
+        deliverableId: 'not-a-uuid',
+        reason: 'Does not match the brief.',
+      })
+    ).toThrow('Valid video ID is required.');
   });
 
   it('trims the stored reason, so padding never reaches the email', () => {
     // The reason fans out to the deliverable row and the creator's email;
     // leading/trailing whitespace would be stored and quoted verbatim.
     const result = rejectDeliverableSchema.parse({
+      deliverableId: VIDEO_ID,
       reason: '  Does not match the brief.  ',
     });
     expect(result.reason).toBe('Does not match the brief.');
   });
 
   it('rejects an empty reason', () => {
-    expect(() => rejectDeliverableSchema.parse({ reason: '' })).toThrow();
+    expect(() =>
+      rejectDeliverableSchema.parse({ deliverableId: VIDEO_ID, reason: '' })
+    ).toThrow();
   });
 
   it('rejects a reason of only spaces', () => {
     // Trimmed, a spaces-only note is an empty note — AC-2's "empty reason".
-    expect(() => rejectDeliverableSchema.parse({ reason: '   ' })).toThrow(
-      'A rejection reason is required.'
-    );
+    expect(() =>
+      rejectDeliverableSchema.parse({ deliverableId: VIDEO_ID, reason: '   ' })
+    ).toThrow('A rejection reason is required.');
   });
 
   it('rejects a reason over the stored length bound with a truthful message', () => {
     // KAN-69 (N1): over-long is not missing — the message must not claim a
     // 513-character reason is no reason at all.
     const long = 'x'.repeat(MAX_REJECTION_REASON_LENGTH + 1);
-    expect(() => rejectDeliverableSchema.parse({ reason: long })).toThrow(
+    expect(() =>
+      rejectDeliverableSchema.parse({ deliverableId: VIDEO_ID, reason: long })
+    ).toThrow(
       `A rejection reason must be at most ${MAX_REJECTION_REASON_LENGTH} characters.`
     );
   });

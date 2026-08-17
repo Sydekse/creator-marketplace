@@ -298,24 +298,54 @@ export const dealEvent = pgTable('deal_event', {
 
 // -- Delivery and metrics ---------------------------------------------------
 
-export const deliverable = pgTable('deliverable', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  // Unique: one deliverable per deal.
-  dealId: uuid('deal_id')
-    .notNull()
-    .unique()
-    .references(() => deal.id),
-  tiktokUrl: text('tiktok_url').notNull(),
-  submittedAt: timestamp('submitted_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  reviewStatus: text('review_status')
-    .$type<ReviewStatus>()
-    .notNull()
-    .default('pending'),
-  reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
-  rejectionReason: text('rejection_reason'),
-});
+/**
+ * One row per **video**, so a deal delivers every video it was paid for (F38).
+ *
+ * `deal_id` was `unique` until this migration, which is where the bug lived: a
+ * deal priced for three videos could only ever hold one URL, and approving that
+ * one released all three videos' money. The tech spec's §4.4 table says "One
+ * deliverable per deal" and the PRD's AC-009 ("3 videos from creator A"),
+ * AC-026 ("each video shows…") and AC-027 ("that video shows Metrics pending")
+ * cannot all be true alongside it. The PRD binds, so the constraint goes and
+ * the spec line is amended.
+ *
+ * **The ceiling is not a CHECK, and could not be.** "At most `video_count`
+ * rows" spans two tables, which no per-row CHECK can express. It is enforced in
+ * `lib/deals/submit-deliverable.ts`, counting under the `FOR UPDATE` lock the
+ * submission already holds on the deal — so two concurrent submissions cannot
+ * both see room for the last video. Stated here because an absent constraint is
+ * otherwise something the next reader has to discover.
+ *
+ * `review_status`, `reviewed_at` and `rejection_reason` were always per row, and
+ * that is what makes per-video review work without new columns: the brand sends
+ * back one video, and only that row carries the note.
+ */
+export const deliverable = pgTable(
+  'deliverable',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    dealId: uuid('deal_id')
+      .notNull()
+      .references(() => deal.id),
+    tiktokUrl: text('tiktok_url').notNull(),
+    submittedAt: timestamp('submitted_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    reviewStatus: text('review_status')
+      .$type<ReviewStatus>()
+      .notNull()
+      .default('pending'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    rejectionReason: text('rejection_reason'),
+  },
+  (t) => [
+    // Replaces the unique constraint's index. Every read of this table is
+    // "the videos for this deal" — both detail views, the dashboard, and the
+    // metric-reminder sweep — so the lookup that was free under `unique` has
+    // to stay free without it.
+    index('deliverable_deal_id_idx').on(t.dealId),
+  ]
+);
 
 /**
  * Counts are nullable on purpose: null means "not measured yet", which the UI

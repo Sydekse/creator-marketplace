@@ -43,12 +43,15 @@ describe('the metrics-entry form targets the KAN-48 endpoint', () => {
   });
 
   it('renders only where the reminder sweep selects — completed deals', () => {
-    expect(PAGE).toMatch(
-      /canReportMetrics\(deal\.status\) && deal\.deliverable/
-    );
-    expect(PAGE).toContain(
-      '<MetricsForm deliverableId={deal.deliverable.id} />'
-    );
+    // One form per video (F38): the endpoint keys its upsert by deliverable, so a
+    // deal covering three videos owes three sets of counts and AC-026 renders them
+    // as three rows. The gate is still exactly the `{completed}` set the reminder
+    // sweep selects from.
+    expect(PAGE).toContain('canReportMetrics(deal.status)');
+    expect(PAGE).toContain('<MetricsForm deliverableId={video.id} />');
+    // Inside the loop over the deal's videos, not beside it.
+    const loop = PAGE.slice(PAGE.indexOf('deal.deliverables.map('));
+    expect(loop).toContain('<MetricsForm');
   });
 
   it('is the one UI caller of the metrics route', () => {

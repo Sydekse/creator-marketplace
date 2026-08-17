@@ -26,6 +26,7 @@ import {
   UNIT_PRICE_LABEL,
   VIDEO_COUNT_LABEL,
   buildCreatorDealWhere,
+  creatorDealDeliverablesQuery,
   creatorDealQuery,
   readCreatorDeal,
   toDealDetail,
@@ -121,7 +122,6 @@ const joinRow = (
   commissionRate: '0.17',
   offerExpiresAt: null,
   rightsTerms: null,
-  deliverable: null,
   ...over,
 });
 
@@ -310,7 +310,7 @@ describe('the inbox list renders the deadline', () => {
 // -- AC-2: everything needed to decide, on one screen ------------------------
 
 describe('the detail read returns every field AC-2 names', () => {
-  const detail = toDealDetail(joinRow());
+  const detail = toDealDetail(joinRow(), []);
 
   it.each([
     'companyName',
@@ -320,7 +320,7 @@ describe('the detail read returns every field AC-2 names', () => {
     'expectedPayout',
     'offerExpiresAt',
     'rightsTerms',
-    'deliverable',
+    'deliverables',
   ])('carries %s', (field) => {
     expect(detail).toHaveProperty(field);
   });
@@ -344,32 +344,37 @@ describe('the detail read returns every field AC-2 names', () => {
   });
 
   it('keeps the payout an integer number of santim (invariant 4)', () => {
-    const odd = toDealDetail(joinRow({ totalPrice: 333_333 }));
+    const odd = toDealDetail(joinRow({ totalPrice: 333_333 }), []);
 
     expect(Number.isInteger(odd.expectedPayout)).toBe(true);
     expect(Number.isInteger(odd.commission)).toBe(true);
     expect(odd.commission + odd.expectedPayout).toBe(333_333);
   });
 
-  it('carries the deliverable id, for the metrics-entry form (KAN-57 F2)', () => {
+  it('carries each deliverable id, for the metrics-entry forms (KAN-57 F2)', () => {
     // The creator's metrics form posts to `/api/deliverables/{id}/metrics`,
-    // which keys the upsert by deliverable — the URL is not enough. The fold
-    // must bring the id through with the view.
-    const withDeliverable = toDealDetail(
-      joinRow({
-        deliverable: {
-          id: 'dl-9',
-          tiktokUrl: 'https://www.tiktok.com/@selam/video/1',
-          submittedAt: new Date('2026-08-01T00:00:00.000Z'),
-        },
-      })
-    );
+    // which keys the upsert by deliverable — the URL is not enough. A deal
+    // covering two videos owes two forms, so the list carries both ids (F38).
+    const videos = [
+      {
+        id: 'dl-9',
+        tiktokUrl: 'https://www.tiktok.com/@selam/video/1',
+        submittedAt: new Date('2026-08-01T00:00:00.000Z'),
+      },
+      {
+        id: 'dl-10',
+        tiktokUrl: 'https://www.tiktok.com/@selam/video/2',
+        submittedAt: new Date('2026-08-02T00:00:00.000Z'),
+      },
+    ];
 
-    expect(withDeliverable.deliverable).toEqual({
-      id: 'dl-9',
-      tiktokUrl: 'https://www.tiktok.com/@selam/video/1',
-      submittedAt: new Date('2026-08-01T00:00:00.000Z'),
-    });
+    expect(toDealDetail(joinRow(), videos).deliverables).toEqual(videos);
+  });
+
+  it('is an empty list, not null, before anything is submitted', () => {
+    // The page asks `length` against `videoCount`; an absent list would have to
+    // be defended against at every use.
+    expect(toDealDetail(joinRow(), []).deliverables).toEqual([]);
   });
 });
 
@@ -378,23 +383,31 @@ describe('the detail query', () => {
     buildCreatorDealWhere(DEAL_ID, CREATOR_PROFILE_ID)
   ).toSQL();
 
-  it('selects the deliverable id, so the metrics form can target the row', () => {
-    // The F2 form needs the deliverable's own id (the metrics endpoint keys by
-    // deliverable, not deal); the creator's view would be useless without it.
-    expect(sql).toMatch(/"deliverable"\."id"/);
-  });
-
   it('left-joins the rights terms', () => {
     // `deal.rights_terms_id` is nullable; an inner join would make an older deal
     // vanish from the creator's own inbox rather than render without its terms.
     expect(sql).toMatch(/left join "rights_terms"/i);
   });
 
-  it('left-joins the deliverable (KAN-46)', () => {
-    // The join *is* the deliverable: a deal with none must come back with nulls
-    // rather than disappear from the creator's own detail view.
-    expect(sql).toMatch(/left join "deliverable"/i);
-    expect(sql).toContain('"tiktok_url"');
+  it('no longer joins the deliverable into the one-row deal query (F38)', () => {
+    // A deal can hold several videos now, and a `.limit(1)` query with a left join
+    // returned one arbitrary one while multiplying the deal's own columns across
+    // the rest. They are their own read.
+    expect(sql).not.toMatch(/left join "deliverable"/i);
+    expect(sql).not.toContain('"tiktok_url"');
+  });
+
+  it('reads the videos in their own query, oldest first', () => {
+    // The F2 metrics form needs each deliverable's own id (the endpoint keys by
+    // deliverable, not deal), and the order has to match the brand's screen so
+    // "Video 2" means the same video on both sides of a rejection.
+    const videos = creatorDealDeliverablesQuery(DEAL_ID).toSQL();
+
+    // Unprefixed column names: this query selects from `deliverable` alone, with
+    // no join to disambiguate against.
+    expect(videos.sql).toMatch(/select "id", "tiktok_url", "submitted_at"/);
+    expect(videos.sql).toMatch(/order by[^;]*"submitted_at"/i);
+    expect(videos.params).toContain(DEAL_ID);
   });
 
   it('inner-joins the campaign and the brand', () => {
@@ -663,7 +676,8 @@ describe('the deliverable path renders under canDeliver and nowhere else', () =>
   const form = src('components/deals/deliverable-form.tsx');
 
   it('is conditioned on the predicate', () => {
-    expect(source).toMatch(/canDeliver\(deal\.status\) \? <DeliverableForm/);
+    expect(source).toMatch(/canDeliver\(deal\.status\) \?/);
+    expect(source).toContain('<DeliverableForm dealId={deal.id} />');
   });
 
   it('mounts the working form rather than a disabled placeholder (KAN-46)', () => {
@@ -677,11 +691,12 @@ describe('the deliverable path renders under canDeliver and nowhere else', () =>
     expect(SUBMIT_DELIVERABLE_LABEL).not.toBe(ACCEPT_DEAL_LABEL);
   });
 
-  it('shows the submitted deliverable once one exists', () => {
-    // The creator can read back what they submitted (AC-6) — the URL as text
-    // and the recorded submission time.
-    expect(source).toMatch(/deal\.deliverable \?/);
-    expect(source).toContain('SUBMITTED_DELIVERABLE_LABEL');
+  it('lists every submitted video once there is one (F38)', () => {
+    // The creator can read back what they submitted (AC-6) — each URL as text and
+    // each recorded submission time. A deal priced for three videos shows three.
+    expect(source).toMatch(/deal\.deliverables\.length > 0/);
+    expect(source).toMatch(/deal\.deliverables\.map\(/);
+    expect(source).toContain('DELIVERABLES_TITLE');
     expect(source).toContain('SUBMITTED_AT_LABEL');
   });
 });
@@ -811,6 +826,7 @@ describe('ownership is in the where clause on the detail read', () => {
           throw new ForbiddenError('not a creator');
         },
         select,
+        selectDeliverables: async () => [],
         currentTerms: async () => null,
       })
     ).rejects.toBeInstanceOf(ForbiddenError);
@@ -826,6 +842,7 @@ describe('ownership is in the where clause on the detail read', () => {
     const deal = await readCreatorDeal('../../etc/passwd', {
       requireCreator: async () => ({ creatorProfileId: CREATOR_PROFILE_ID }),
       select,
+      selectDeliverables: async () => [],
       currentTerms: async () => null,
     });
 
@@ -842,6 +859,7 @@ describe('ownership is in the where clause on the detail read', () => {
       // A real deal belonging to another creator misses the same way: the
       // creator id is ANDed into the where, so the row is simply not returned.
       select: async () => null,
+      selectDeliverables: async () => [],
       currentTerms: async () => null,
     };
 
@@ -883,8 +901,8 @@ describe('a still-open offer shows the terms currently in effect', () => {
   ) => ({
     deps: {
       requireCreator: async () => ({ creatorProfileId: CREATOR_PROFILE_ID }),
-      select: async () =>
-        toDealDetail(joinRow({ status, rightsTerms: STAMPED })),
+      select: async () => joinRow({ status, rightsTerms: STAMPED }),
+      selectDeliverables: async () => [],
       currentTerms,
     } satisfies CreatorDealDeps,
     currentTerms,
@@ -915,7 +933,7 @@ describe('a still-open offer shows the terms currently in effect', () => {
 
   it('says which of the two it handed back', () => {
     // Inferring it from the status a second time is how the two rules drift.
-    expect(toDealDetail(joinRow()).rightsTermsAreCurrent).toBe(false);
+    expect(toDealDetail(joinRow(), []).rightsTermsAreCurrent).toBe(false);
   });
 
   it('keeps the offer’s own terms when there is no current version', () => {
@@ -923,7 +941,7 @@ describe('a still-open offer shows the terms currently in effect', () => {
     // fails in that state anyway, and it fails with a thrown
     // `MissingRightsTermsError` rather than something the creator is asked to
     // act on.
-    const pending = toDealDetail(joinRow({ rightsTerms: STAMPED }));
+    const pending = toDealDetail(joinRow({ rightsTerms: STAMPED }), []);
 
     expect(withCurrentTerms(pending, null).rightsTerms).toEqual(STAMPED);
     expect(withCurrentTerms(pending, null).rightsTermsAreCurrent).toBe(false);

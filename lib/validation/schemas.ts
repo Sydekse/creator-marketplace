@@ -414,6 +414,20 @@ export const submitDeliverableSchema = z.object({
 export const MAX_REJECTION_REASON_LENGTH = MAX_STRING_LENGTH;
 
 export const rejectDeliverableSchema = z.object({
+  /**
+   * Which video is being sent back (F38).
+   *
+   * Required, because a deal can hold several videos and "reject the deal" is
+   * not an action the brand has — AC-024 asks for a reason, and a reason that
+   * does not name its video leaves the creator guessing which of three to redo.
+   * A missing or malformed id is a plain `VALIDATION_ERROR`; `REASON_REQUIRED`
+   * stays reserved for the reason itself, which is the code §4.4 names.
+   *
+   * Ownership is not this schema's business: `recordRejection` scopes the update
+   * by deal *and* deliverable, so an id belonging to another deal updates nothing
+   * and is refused there.
+   */
+  deliverableId: z.string().uuid({ message: 'Valid video ID is required.' }),
   reason: z
     .string({ message: 'A rejection reason is required.' })
     .trim()

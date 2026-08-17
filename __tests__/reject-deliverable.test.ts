@@ -76,6 +76,12 @@ const OTHER_BRAND_PROFILE_ID = '77777777-7777-4777-8777-777777777777';
 const CREATOR_USER_ID = '99999999-9999-4999-8999-999999999999';
 const CREATOR_PROFILE_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const DEAL_ID = '33333333-3333-4333-8333-333333333333';
+/** The one video being sent back (F38) — rejection names which, not just which deal. */
+const DELIVERABLE_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+/** A video on a different deal, which must match nothing under this deal's scope. */
+const OTHER_DELIVERABLE_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+const TIKTOK_URL =
+  'https://www.tiktok.com/@demo_creator/video/1234567890123456';
 
 const REASON = 'Please show the packaging in the first three seconds.';
 const CAMPAIGN_NAME = 'Ramadan Beauty Push';
@@ -84,7 +90,12 @@ interface Recorded {
   /** Seam names in call order — ordering asserted without reading source. */
   calls: string[];
   transitions: Array<{ dealId: string; actorId: string; reason: string }>;
-  rejections: Array<{ dealId: string; reason: string; reviewedAt: Date }>;
+  rejections: Array<{
+    dealId: string;
+    deliverableId: string;
+    reason: string;
+    reviewedAt: Date;
+  }>;
   notifications: Array<{ userId: string; type: string; payload: unknown }>;
   loads: Array<{ dealId: string; brandProfileId: string }>;
   committed: boolean;
@@ -96,6 +107,8 @@ interface Overrides {
   failNotify?: boolean;
   transitionError?: Error;
   rejectionError?: Error;
+  /** The deliverable id names no video on this deal (F38). */
+  deliverableMissing?: boolean;
 }
 
 function makeDeps(overrides: Overrides = {}): {
@@ -143,10 +156,20 @@ function makeDeps(overrides: Overrides = {}): {
       }
       recorded.transitions.push({ dealId, actorId, reason });
     },
-    recordRejection: async (_tx, dealId, reason, reviewedAt) => {
+    recordRejection: async (_tx, dealId, deliverableId, reason, reviewedAt) => {
       recorded.calls.push('recordRejection');
       if (overrides.rejectionError) throw overrides.rejectionError;
-      recorded.rejections.push({ dealId, reason, reviewedAt });
+      // The real dep scopes its UPDATE by deal *and* deliverable and returns the
+      // row it matched, so an id naming a video on somebody else's deal updates
+      // nothing. The fake honours that rather than reporting a hit regardless.
+      if (overrides.deliverableMissing) return null;
+      recorded.rejections.push({
+        dealId,
+        deliverableId,
+        reason,
+        reviewedAt,
+      });
+      return { tiktokUrl: TIKTOK_URL };
     },
     run: async (fn) => {
       const notify = (async (
@@ -180,6 +203,7 @@ function reject(
   over: {
     dealId?: string;
     brandProfileId?: string;
+    deliverableId?: string;
     reason?: string;
   } = {}
 ) {
@@ -188,6 +212,7 @@ function reject(
     {
       brandProfileId: over.brandProfileId ?? BRAND_PROFILE_ID,
       actorUserId: BRAND_USER_ID,
+      deliverableId: over.deliverableId ?? DELIVERABLE_ID,
       reason: over.reason ?? REASON,
     },
     deps
@@ -286,7 +311,7 @@ describe('AC-2 — rejecting without a reason is refused before any write', () =
     const { deps, recorded } = makeDeps();
 
     const response = await handleRejectDeliverable(
-      post({ reason: '' }),
+      post({ deliverableId: DELIVERABLE_ID, reason: '' }),
       DEAL_ID,
       { rejectDeliverableDeps: deps }
     );
@@ -330,9 +355,13 @@ describe('AC-2 — rejecting without a reason is refused before any write', () =
   it('passes the trimmed reason to the action', async () => {
     const { deps, recorded } = makeDeps();
 
-    await handleRejectDeliverable(post({ reason: `  ${REASON}  ` }), DEAL_ID, {
-      rejectDeliverableDeps: deps,
-    });
+    await handleRejectDeliverable(
+      post({ deliverableId: DELIVERABLE_ID, reason: `  ${REASON}  ` }),
+      DEAL_ID,
+      {
+        rejectDeliverableDeps: deps,
+      }
+    );
 
     expect(recorded.rejections[0].reason).toBe(REASON);
   });
@@ -355,10 +384,13 @@ describe('AC-4 — rejection moves no money in either direction', () => {
 
     await reject(deps);
 
+    // The note is written before the transition (F38): a client-supplied
+    // deliverable id that names nothing must not move the deal on its way to
+    // being refused.
     expect(recorded.calls).toEqual([
       'loadDeal',
-      'transition',
       'recordRejection',
+      'transition',
       'notify',
     ]);
   });
@@ -548,6 +580,10 @@ describe('AC-1/AC-3 — the creator is notified with the reason', () => {
       dealId: DEAL_ID,
       campaignTitle: CAMPAIGN_NAME,
       reason: REASON,
+      // Which video (F38). With several on one deal the note alone would not
+      // say which one to redo — the URL is what the creator recognises, where an
+      // opaque uuid in an email tells them nothing.
+      tiktokUrl: TIKTOK_URL,
     });
   });
 
@@ -620,14 +656,33 @@ describe('the rejection is one transaction', () => {
     expect(recorded.notifications).toHaveLength(0);
   });
 
-  it('refuses to record a rejection against a deal with no deliverable row', () => {
-    // A `delivered` deal is guaranteed one by KAN-46, so a miss is corrupted
-    // data — and rejecting without the note would strand the creator with a
-    // revision and no instructions.
+  it('scopes the rejection by deal as well as by video (F38)', () => {
+    // The deliverable id comes from the client now, so checking it against its
+    // own table alone would let a brand reject a video on somebody else's deal.
+    // ANDing `deal_id` makes the ownership already proved for the deal cover the
+    // video too — layer two of NFR-005, one statement.
     const recorder = REJECT_MODULE.slice(
       REJECT_MODULE.indexOf('recordRejection:')
     );
-    expect(recorder).toContain('if (!existing)');
+    expect(recorder).toContain('eq(deliverable.id, deliverableId)');
+    expect(recorder).toContain('eq(deliverable.dealId, dealId)');
+    expect(recorder).toMatch(/\.returning\(/);
+  });
+
+  it('treats a video that matches nothing as a miss, not a no-op', async () => {
+    // A zero-row update means the id names no video on this deal. Answered as
+    // `not_found` — which the route collapses into 403 like every other
+    // owner-scoped miss — rather than silently sending the deal back with no note.
+    const { deps, recorded } = makeDeps({ deliverableMissing: true });
+
+    const result = await reject(deps, {
+      deliverableId: OTHER_DELIVERABLE_ID,
+    });
+
+    expect(result).toEqual({ ok: false, reason: 'not_found' });
+    expect(recorded.transitions).toHaveLength(0);
+    expect(recorded.notifications).toHaveLength(0);
+    expect(recorded.calls).not.toContain('transition');
   });
 });
 
@@ -652,7 +707,7 @@ describe('POST /api/deals/[id]/reject', () => {
     const { deps } = makeDeps();
 
     const response = await handleRejectDeliverable(
-      post({ reason: REASON }),
+      post({ deliverableId: DELIVERABLE_ID, reason: REASON }),
       DEAL_ID,
       { rejectDeliverableDeps: deps }
     );
@@ -669,9 +724,13 @@ describe('POST /api/deals/[id]/reject', () => {
   it('gates on the brand role and this deal', async () => {
     const { deps } = makeDeps();
 
-    await handleRejectDeliverable(post({ reason: REASON }), DEAL_ID, {
-      rejectDeliverableDeps: deps,
-    });
+    await handleRejectDeliverable(
+      post({ deliverableId: DELIVERABLE_ID, reason: REASON }),
+      DEAL_ID,
+      {
+        rejectDeliverableDeps: deps,
+      }
+    );
 
     expect(guardMock).toHaveBeenCalledWith({
       roles: ['brand'],
@@ -684,7 +743,7 @@ describe('POST /api/deals/[id]/reject', () => {
     guardMock.mockRejectedValueOnce(new ForbiddenError('not the owner'));
 
     const response = await handleRejectDeliverable(
-      post({ reason: REASON }),
+      post({ deliverableId: DELIVERABLE_ID, reason: REASON }),
       DEAL_ID,
       { rejectDeliverableDeps: deps }
     );
@@ -700,7 +759,7 @@ describe('POST /api/deals/[id]/reject', () => {
     const { deps, recorded } = makeDeps();
 
     const response = await handleRejectDeliverable(
-      post({ reason: REASON }, 'not-a-uuid'),
+      post({ deliverableId: DELIVERABLE_ID, reason: REASON }, 'not-a-uuid'),
       'not-a-uuid',
       { rejectDeliverableDeps: deps }
     );
@@ -726,7 +785,7 @@ describe('POST /api/deals/[id]/reject', () => {
     });
 
     const response = await handleRejectDeliverable(
-      post({ reason: REASON }),
+      post({ deliverableId: DELIVERABLE_ID, reason: REASON }),
       DEAL_ID,
       { rejectDeliverableDeps: deps }
     );
@@ -739,7 +798,7 @@ describe('POST /api/deals/[id]/reject', () => {
     const { deps } = makeDeps({ dealMissing: true });
 
     const response = await handleRejectDeliverable(
-      post({ reason: REASON }),
+      post({ deliverableId: DELIVERABLE_ID, reason: REASON }),
       DEAL_ID,
       { rejectDeliverableDeps: deps }
     );
@@ -753,7 +812,7 @@ describe('POST /api/deals/[id]/reject', () => {
     const { deps } = makeDeps({ status: 'funded' });
 
     const response = await handleRejectDeliverable(
-      post({ reason: REASON }),
+      post({ deliverableId: DELIVERABLE_ID, reason: REASON }),
       DEAL_ID,
       { rejectDeliverableDeps: deps }
     );
@@ -772,7 +831,7 @@ describe('POST /api/deals/[id]/reject', () => {
     );
 
     const response = await handleRejectDeliverable(
-      post({ reason: REASON }),
+      post({ deliverableId: DELIVERABLE_ID, reason: REASON }),
       DEAL_ID,
       { rejectDeliverableDeps: deps }
     );
