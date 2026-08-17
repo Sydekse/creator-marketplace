@@ -21,6 +21,10 @@ import {
   readCampaignPerformance,
 } from '@/lib/campaigns/performance';
 import {
+  campaignStatusLabel,
+  campaignStatusTone,
+} from '@/lib/campaigns/status';
+import {
   countAcceptedDeals,
   getCampaignForBrand,
 } from '@/lib/campaigns/queries';
@@ -99,8 +103,11 @@ export default async function CampaignCartPage({
         title={campaign.name}
         description={
           <>
-            <Chip tone="gray" className="mr-2 capitalize">
-              {campaign.status}
+            <Chip
+              tone={campaignStatusTone[campaign.status] ?? 'gray'}
+              className="mr-2 capitalize"
+            >
+              {campaignStatusLabel(campaign.status)}
             </Chip>
             Created on{' '}
             {new Date(campaign.createdAt).toLocaleDateString('en-US', {
@@ -267,7 +274,9 @@ export default async function CampaignCartPage({
         <div className="md:col-span-1">
           <Card className="sticky top-6">
             <CardHeader>
-              <CardTitle>Budget Summary</CardTitle>
+              <CardTitle className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                Budget summary
+              </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <div className="flex justify-between items-center text-sm">

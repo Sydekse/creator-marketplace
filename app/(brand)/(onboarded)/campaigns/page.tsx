@@ -1,8 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
-import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import {
   Card,
@@ -14,6 +14,10 @@ import {
 } from '@/components/ui/card';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
+import {
+  campaignStatusLabel,
+  campaignStatusTone,
+} from '@/lib/campaigns/status';
 import { listCampaignsByBrand } from '@/lib/campaigns/queries';
 import { formatEtb } from '@/lib/money';
 
@@ -65,7 +69,7 @@ export default async function CampaignsPage() {
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {campaigns.map((camp) => (
             <li key={camp.id}>
-              <Card className="h-full transition-shadow hover:shadow-md">
+              <Card className="h-full transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]">
                 <CardHeader>
                   <CardTitle className="text-lg">{camp.name}</CardTitle>
                   <CardDescription>
@@ -77,9 +81,12 @@ export default async function CampaignsPage() {
                     })}
                   </CardDescription>
                   <CardAction>
-                    <Badge variant="secondary" className="capitalize">
-                      {camp.status}
-                    </Badge>
+                    <Chip
+                      tone={campaignStatusTone[camp.status] ?? 'gray'}
+                      className="capitalize"
+                    >
+                      {campaignStatusLabel(camp.status)}
+                    </Chip>
                   </CardAction>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
