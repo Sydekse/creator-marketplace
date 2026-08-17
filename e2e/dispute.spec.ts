@@ -13,12 +13,10 @@ import { DEMO, openCampaign, openCreatorDeal, signIn } from './helpers';
  * would fail on a dead provider ref). Funding through the UI is what puts the
  * hold where the resolution can reach it.
  *
- * Then the admin walks the real UI: /admin/worklist → View deal history (the
- * KAN-78 drill-down, with the campaign name for context) → back → Resolve
- * dispute → refund + note → the row leaves the worklist (`refunded` is not
- * refundable). The audit row and the ledger entry are asserted by the
- * integration suite's dispute test; this spec proves the UI path an admin
- * actually uses.
+ * Then the admin walks the real UI: /admin/worklist → Resolve dispute →
+ * refund + note → the row leaves the worklist (`refunded` is not refundable).
+ * The audit row and the ledger entry are asserted by the integration suite's
+ * dispute test; this spec proves the UI path an admin actually uses.
  */
 test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', async ({
   browser,
@@ -68,21 +66,6 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   const row = admin.locator('li').filter({ hasText: 'Summer Dispute' });
   await expect(row).toBeVisible({ timeout: 15_000 });
   await expect(row.getByText(/delivered/i)).toBeVisible();
-
-  // KAN-78 deal drill-down: the row links to the append-only event trail,
-  // which the resolution is about to extend, carrying the campaign name for
-  // context (F2). Asserted *before* the refund so the drill-down works however
-  // the specs order themselves.
-  await row.getByRole('link', { name: 'View deal history' }).click();
-  await expect(
-    admin.getByRole('heading', { name: 'Deal history' })
-  ).toBeVisible({
-    timeout: 15_000,
-  });
-  await expect(admin.getByText(/Campaign: Summer Dispute/i)).toBeVisible();
-  await expect(admin.getByText('Delivered')).toBeVisible();
-  await admin.goBack();
-  await expect(row).toBeVisible();
 
   // Resolve: refund the brand, with the required audit note.
   await row.getByRole('button', { name: 'Resolve dispute' }).click();

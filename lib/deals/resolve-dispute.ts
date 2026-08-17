@@ -170,7 +170,10 @@ export interface ResolveDisputeDeps {
   ) => void;
 }
 
-const defaultDeps: ResolveDisputeDeps = {
+// Exported so the integration suite can override just the session seam:
+// `{ ...defaultDeps, adminAuditDeps: { getCurrentUser: userFromCookie } }` —
+// the production defaults for everything else (KAN-59).
+export const defaultDeps: ResolveDisputeDeps = {
   loadDeal: async (dealId) => {
     const [row] = await db
       .select({

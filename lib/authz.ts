@@ -216,6 +216,13 @@ const defaultDeps: AuthzDeps = {
   loadOwnerRefs,
 };
 
+// Exported for the KAN-59 integration suite, which builds a real-session guard
+// against a live database: `createGuard` with a `getCurrentUser` that resolves
+// a Better Auth cookie, and these two real DB-backed lookups. In production
+// they stay behind the default deps; exporting them is what lets the suite
+// test the ownership half where it can actually break.
+export { loadProfileIds, loadOwnerRefs };
+
 // -- The guard --------------------------------------------------------------
 
 /**

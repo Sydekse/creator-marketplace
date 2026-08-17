@@ -324,7 +324,20 @@ const DEMO_DEALS: readonly DemoDealSpec[] = [
     goal: 'Sign-ups for the new-year membership offer.',
     videoCount: 2,
     target: 'delivered',
-    // The one demo dispute: delivered, money held, awaiting admin resolution.
+    // Flagged so the disputed worklist has a row (KAN-69 F40). No integration
+    // suite touches it — those self-create their own fixtures, because the
+    // mock provider's holds are per-process and a seeded hold would be
+    // invisible to the test process.
+    flagged: true,
+  },
+  {
+    campaignName: 'Summer Kickoff',
+    goal: 'Launch the warm-weather campaign block.',
+    videoCount: 2,
+    target: 'delivered',
+    // The e2e worklist fixture (KAN-60 flow 6, KAN-78): delivered, money
+    // held, flagged, so the admin worklist shows it for the dispute walk.
+    // Integration suites self-create fixtures and never touch seeded deals.
     flagged: true,
   },
   {
