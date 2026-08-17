@@ -32,7 +32,9 @@ describe('admin dispute resolution (AC-030, AC-031)', () => {
       .from(deal)
       .where(eq(deal.id, dealId));
     if (!dealRow.flagged) {
-      throw new Error('[integration] expected the dispute fixture to be flagged');
+      throw new Error(
+        '[integration] expected the dispute fixture to be flagged'
+      );
     }
 
     const response = await handleResolveDispute(
@@ -72,10 +74,7 @@ describe('admin dispute resolution (AC-030, AC-031)', () => {
       .select({ action: auditLog.action })
       .from(auditLog)
       .where(
-        and(
-          eq(auditLog.targetType, 'deal'),
-          eq(auditLog.targetId, dealId)
-        )
+        and(eq(auditLog.targetType, 'deal'), eq(auditLog.targetId, dealId))
       )
       .limit(1);
     expect(audit?.action).toBe(AUDIT_ACTIONS.DEAL_RESOLVE_DISPUTE);

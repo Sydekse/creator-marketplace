@@ -32,11 +32,19 @@ describe('database constraints (KAN-59 AC-5)', () => {
     // about sign-in credentials.
     const [u1] = await db
       .insert(user)
-      .values({ name: 'Constraint One', email: 'constraint.one@test.local', role: 'creator' })
+      .values({
+        name: 'Constraint One',
+        email: 'constraint.one@test.local',
+        role: 'creator',
+      })
       .returning({ id: user.id });
     const [u2] = await db
       .insert(user)
-      .values({ name: 'Constraint Two', email: 'constraint.two@test.local', role: 'creator' })
+      .values({
+        name: 'Constraint Two',
+        email: 'constraint.two@test.local',
+        role: 'creator',
+      })
       .returning({ id: user.id });
 
     await db.insert(creatorProfile).values({

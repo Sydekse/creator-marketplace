@@ -46,7 +46,9 @@ describe('RBAC per endpoint (NFR-005)', () => {
     // The 403 fires in the guard, before any deps are reached — the rest of
     // the real deps are passed anyway so the call is the real shape.
     const asCreator = await handleVerifyCreator(
-      request(`/api/admin/creators/${pendingId}/verify`, { decision: 'verified' }),
+      request(`/api/admin/creators/${pendingId}/verify`, {
+        decision: 'verified',
+      }),
       pendingId,
       realVerifyDeps(creatorCookie)
     );
@@ -55,7 +57,9 @@ describe('RBAC per endpoint (NFR-005)', () => {
     // The allowed case runs the whole real flow: profile update, audit row,
     // notification row, console email.
     const asAdmin = await handleVerifyCreator(
-      request(`/api/admin/creators/${pendingId}/verify`, { decision: 'verified' }),
+      request(`/api/admin/creators/${pendingId}/verify`, {
+        decision: 'verified',
+      }),
       pendingId,
       realVerifyDeps(adminCookie)
     );
@@ -71,7 +75,8 @@ describe('RBAC per endpoint (NFR-005)', () => {
       .insert(deliverable)
       .values({
         dealId,
-        tiktokUrl: 'https://www.tiktok.com/@creator.demo/video/integration-rbac',
+        tiktokUrl:
+          'https://www.tiktok.com/@creator.demo/video/integration-rbac',
         reviewStatus: 'pending',
       })
       .returning({ id: deliverable.id });

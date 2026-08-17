@@ -47,7 +47,9 @@ export async function signInCookie(email: string): Promise<string> {
     body: { email, password: DEMO_PASSWORD },
   });
   if (!res.token) {
-    throw new Error(`[integration] sign-in for ${email} produced no session token`);
+    throw new Error(
+      `[integration] sign-in for ${email} produced no session token`
+    );
   }
   return `better-auth.session_token=${res.token}`;
 }
@@ -76,7 +78,12 @@ export async function userFromCookie(cookie: string) {
   if (!sessionRow) return null;
 
   const [userRow] = await db
-    .select({ id: user.id, email: user.email, name: user.name, role: user.role })
+    .select({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+    })
     .from(user)
     .where(eq(user.id, sessionRow.userId))
     .limit(1);
@@ -153,7 +160,9 @@ export async function seededDeal(campaignName: string) {
     .where(eq(campaign.name, campaignName))
     .limit(1);
   if (!row) {
-    throw new Error(`[integration] no seeded deal for campaign "${campaignName}"`);
+    throw new Error(
+      `[integration] no seeded deal for campaign "${campaignName}"`
+    );
   }
   return row;
 }
@@ -278,9 +287,15 @@ export async function createMoneyFixture(opts: {
   // `delivered` — through the real guarded transition, so the `deal_event`
   // trail is real too (invariant 6).
   await db.transaction(async (tx) => {
-    await transitionDeal(tx, dealRow.id, 'delivered', await userIdForEmail('creator@demo.com'), {
-      reason: 'Creator submitted the live TikTok post URL',
-    });
+    await transitionDeal(
+      tx,
+      dealRow.id,
+      'delivered',
+      await userIdForEmail('creator@demo.com'),
+      {
+        reason: 'Creator submitted the live TikTok post URL',
+      }
+    );
   });
 
   return ids;

@@ -190,7 +190,10 @@ describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
     });
 
     const [dealRow] = await db
-      .select({ totalPrice: deal.totalPrice, commissionRate: deal.commissionRate })
+      .select({
+        totalPrice: deal.totalPrice,
+        commissionRate: deal.commissionRate,
+      })
       .from(deal)
       .where(eq(deal.id, dealId));
     const { commission, payout } = computeSplit(
@@ -208,7 +211,9 @@ describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
     // Payout + commission reconcile exactly with the deal total (invariant 4).
     expect(release?.amount).toBe(payout);
     expect(comm?.amount).toBe(commission);
-    expect((release?.amount ?? 0) + (comm?.amount ?? 0)).toBe(dealRow.totalPrice);
+    expect((release?.amount ?? 0) + (comm?.amount ?? 0)).toBe(
+      dealRow.totalPrice
+    );
 
     const [after] = await db
       .select({ status: deal.status })
