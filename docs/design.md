@@ -1,15 +1,14 @@
 # Creator Marketplace — Design System
 
 The visual reference for every screen in the product: the **landing page** is the
-canonical expression of this theme, and the app (auth, admin, brand, creator) is
-being brought onto the same system. This document is the single source of truth
-for _why_ things look the way they do — the tokens, the rules, and the
-exceptions. If a page disagrees with this document, the page is wrong.
+canonical expression of this theme, and the app (auth, admin, brand, creator)
+runs on the same system. This document is the single source of truth for _why_
+things look the way they do — the tokens, the rules, and the exceptions. If a
+page disagrees with this document, the page is wrong.
 
-Rollout is tracked on the KAN board: **KAN-83 → KAN-91** (tokens → typography →
-primitives → shared components → per-area passes → decommission). When the
-rollout finishes, this document should read like a description of the app, not
-an aspiration.
+The rollout shipped as **KAN-83 → KAN-91** (tokens → typography → primitives →
+shared components → per-area passes → decommission). This document reads as a
+description of the app as it is, not an aspiration.
 
 ---
 
@@ -106,7 +105,7 @@ Rules:
 Low-saturation teal, the only hue allowed for emphasis in the marketing and
 interface chrome:
 
-| Token (proposed)       | Value                   | Used for                                                                                     |
+| Token                  | Value                   | Used for                                                                                     |
 | ---------------------- | ----------------------- | -------------------------------------------------------------------------------------------- |
 | `--color-brand`        | `oklch(0.44 0.11 185)`  | Emphasis phrases, section labels, links, active feature borders, focus rings, selection tint |
 | `--color-brand-deep`   | `oklch(0.35 0.08 185)`  | Primary actions inside mockups, active nav item, play button                                 |
@@ -153,9 +152,8 @@ neither good nor bad (e.g. "1 of 1 video").
 | **Noto Serif** | `--font-noto-serif` | Display face: page-level h1s, marketing headlines, big numerals |
 | **DM Mono**    | `--font-dm-mono`    | Code, numbers that need monospacing                             |
 
-The app's legacy `--font-heading` (Outfit) is being retired by the typography
-phase (KAN-84) — new work uses `--font-display` (Noto Serif) for page headings
-and DM Sans for everything else.
+The app's legacy `--font-heading` (Outfit) was retired in KAN-84 — page
+headings use `--font-display` (Noto Serif), and everything else uses DM Sans.
 
 ### 4.2 Roles — serif vs sans
 
@@ -394,21 +392,20 @@ monochrome + accent exactly like the app is meant to look.
 
 ## 14. Token map (globals.css → landing page → app)
 
-| Design concept | globals.css token                  | Landing page                     | App (after rollout)                   |
-| -------------- | ---------------------------------- | -------------------------------- | ------------------------------------- |
-| Ink            | `--primary` (`neutral-900`)        | Buttons, headlines, nav pill     | Buttons, page titles, header          |
-| Paper          | `--background` (`neutral-50`)      | Page bg                          | Page bg                               |
-| Hairline       | `--border` (`neutral-200`)         | Dividers, frames                 | Cards, tables, dividers               |
-| Brand accent   | `--color-brand` (proposed, KAN-83) | Emphasis, labels, active borders | Links, focus, active nav, page labels |
-| Serif display  | `--font-display`                   | Headlines                        | Page h1s                              |
-| Sans body      | `--font-sans`                      | Body                             | Everything else                       |
-| Status good    | `--status-verified`                | Mockup chips                     | Real status chips                     |
-| Status waiting | `--status-pending`                 | Mockup chips                     | Real status chips                     |
-| Radius         | `--radius` scale                   | 4/8/12/16/24/32/pill             | Same scale                            |
+| Design concept | globals.css token             | Landing page                     | App (after rollout)                   |
+| -------------- | ----------------------------- | -------------------------------- | ------------------------------------- |
+| Ink            | `--primary` (`neutral-900`)   | Buttons, headlines, nav pill     | Buttons, page titles, header          |
+| Paper          | `--background` (`neutral-50`) | Page bg                          | Page bg                               |
+| Hairline       | `--border` (`neutral-200`)    | Dividers, frames                 | Cards, tables, dividers               |
+| Brand accent   | `--color-brand`               | Emphasis, labels, active borders | Links, focus, active nav, page labels |
+| Serif display  | `--font-display`              | Headlines                        | Page h1s                              |
+| Sans body      | `--font-sans`                 | Body                             | Everything else                       |
+| Status good    | `--status-verified`           | Mockup chips                     | Real status chips                     |
+| Status waiting | `--status-pending`            | Mockup chips                     | Real status chips                     |
+| Radius         | `--radius` scale              | 4/8/12/16/24/32/pill             | Same scale                            |
 
-The landing page currently hardcodes the accent as arbitrary utilities
-(`text-[oklch(0.44_0.11_185)]`); KAN-83 migrates those onto the tokens so the
-app can inherit them, and KAN-91 deletes whatever is left.
+The landing page and the app share the brand tokens from KAN-83 — no hardcoded
+accent utilities remain (KAN-91).
 
 ---
 
@@ -416,12 +413,12 @@ app can inherit them, and KAN-91 deletes whatever is left.
 
 | Ticket    | Phase                                                  | Status |
 | --------- | ------------------------------------------------------ | ------ |
-| KAN-83    | Tokens: brand accent, radius, hairline; drop dark mode | Open   |
-| KAN-84    | Typography + spacing system                            | Open   |
-| KAN-85    | Restyle shadcn primitives via tokens                   | Open   |
-| KAN-86    | Shared components: PageHeader, Chip, empty/error       | Open   |
-| KAN-87–90 | Per-area passes: auth, admin, brand, creator           | Open   |
-| KAN-91    | Decommission + regression sweep                        | Open   |
+| KAN-83    | Tokens: brand accent, radius, hairline; drop dark mode | Done   |
+| KAN-84    | Typography + spacing system                            | Done   |
+| KAN-85    | Restyle shadcn primitives via tokens                   | Done   |
+| KAN-86    | Shared components: PageHeader, Chip, empty/error       | Done   |
+| KAN-87–90 | Per-area passes: auth, admin, brand, creator           | Done   |
+| KAN-91    | Decommission + regression sweep                        | Done   |
 
-While the rollout is in flight, the landing page (`app/page.tsx`) is the
-reference implementation: when in doubt, open it and copy the pattern.
+The landing page (`app/page.tsx`) remains the reference implementation: when
+in doubt, open it and copy the pattern.
