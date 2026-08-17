@@ -285,10 +285,8 @@ export default async function DiscoverPage({
 
 function Header() {
   return (
-    <div className="flex flex-col gap-2">
-      <h1 className="text-2xl font-semibold tracking-tight">
-        Discover creators
-      </h1>
+    <div className="flex flex-col gap-3">
+      <h1 className="page-title">Discover creators</h1>
       <p className="text-sm text-muted-foreground">
         Verified creators with a published rate. Filters combine — each one
         narrows the list further.

@@ -23,9 +23,7 @@ export default async function CreatorOnboardingPage() {
         <p className="text-xs tracking-wide text-muted-foreground uppercase">
           Creator application
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Tell brands who your audience is
-        </h1>
+        <h1 className="page-title">Tell brands who your audience is</h1>
         <p className="text-muted-foreground">
           Brands search by niche and audience, then send paid offers at your
           tier price. Everything here is what they see when they find you.

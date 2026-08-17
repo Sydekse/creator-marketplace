@@ -7,7 +7,6 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-dm-sans);
   --font-mono: var(--font-dm-mono);
-  --font-heading: var(--font-outfit);
   --font-display: var(--font-noto-serif);
   /* The one brand accent (KAN-83). Registered as real theme colours so the
      landing page and the app share the same teal; status tints stay
@@ -246,6 +245,21 @@
     oklch(0.8 0.08 185)
   );
   background-size: 200% 100%;
+}
+
+/* Page-level h1 — the serif headline (design doc §4.3). Page openers only;
+   titles inside cards, tables, and forms stay DM Sans. */
+.page-title {
+  font-family: var(--font-noto-serif);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+  font-size: 1.875rem; /* text-3xl */
+}
+@media (min-width: 640px) {
+  .page-title {
+    font-size: 2.25rem; /* sm:text-4xl */
+  }
 }
 
 /* Landing-page niceties that are not motion: smooth anchor scrolling and a

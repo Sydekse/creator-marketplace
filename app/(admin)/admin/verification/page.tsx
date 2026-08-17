@@ -32,11 +32,9 @@ export default async function VerificationQueuePage({
   });
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Verification queue
-        </h1>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3">
+        <h1 className="page-title">Verification queue</h1>
         <p className="text-sm text-muted-foreground">
           Review creators awaiting verification. Approve to make them eligible
           for tier assignment, or reject with an optional note.

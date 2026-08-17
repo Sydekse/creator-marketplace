@@ -108,9 +108,7 @@ export default async function CreatorDealDetailPage({
       </Link>
 
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {deal.campaignName}
-        </h1>
+        <h1 className="page-title">{deal.campaignName}</h1>
         {/* AC-2's brand name: the trading name the brand publishes, never a
             contact (NFR-010). */}
         <p className="text-sm text-muted-foreground">{deal.companyName}</p>

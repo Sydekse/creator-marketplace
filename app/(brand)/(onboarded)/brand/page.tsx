@@ -25,9 +25,7 @@ export default async function BrandDashboardPage() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           {/* The company name leads because it is what creators see on every
               offer — a brand should be able to check it at a glance. */}
-          <h1 className="text-3xl font-semibold tracking-tight break-words sm:text-4xl">
-            {profile.companyName}
-          </h1>
+          <h1 className="page-title break-words">{profile.companyName}</h1>
           {/* A styled link, not a button: this navigates, so it must stay an
               <a> that middle-clicks and opens in a new tab. `buttonVariants`
               borrows the look without Base UI's button behaviour — `<Button

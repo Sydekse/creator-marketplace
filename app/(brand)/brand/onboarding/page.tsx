@@ -26,9 +26,7 @@ export default async function BrandOnboardingPage() {
         <p className="text-xs tracking-wide text-muted-foreground uppercase">
           Brand setup
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Who are you offering deals as?
-        </h1>
+        <h1 className="page-title">Who are you offering deals as?</h1>
         <p className="text-muted-foreground">
           Creators see this name on every offer you send, so use the one they
           would recognise. You can change it later.

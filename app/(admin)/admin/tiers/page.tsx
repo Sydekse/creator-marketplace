@@ -32,9 +32,9 @@ export default async function AwaitingTierPage({
   });
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Awaiting tier</h1>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3">
+        <h1 className="page-title">Awaiting tier</h1>
         <p className="text-sm text-muted-foreground">
           Verified creators with no pricing tier. A creator is bookable only
           when verified <em>and</em> tiered, so these profiles do not appear in

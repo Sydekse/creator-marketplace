@@ -23,9 +23,9 @@ export default async function AdminCampaignsPage() {
   const campaigns = await listCampaignsForAdmin();
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">Campaigns</h1>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3">
+        <h1 className="page-title">Campaigns</h1>
         <p className="text-sm text-muted-foreground">
           Every campaign and its ledger position — budget, escrow held, and what
           has left it.

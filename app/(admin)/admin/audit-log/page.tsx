@@ -47,15 +47,15 @@ export default async function AdminAuditLogPage() {
   const page = await readAuditLog();
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3">
         <Link
           href="/admin"
           className="text-sm text-muted-foreground underline-offset-4 hover:underline"
         >
           ← Admin console
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Audit log</h1>
+        <h1 className="page-title">Audit log</h1>
         <p className="text-sm text-muted-foreground">
           Every admin action, append-only — who did what, and when. Showing the
           latest {page.rows.length}
