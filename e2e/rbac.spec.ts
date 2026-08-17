@@ -21,7 +21,10 @@ test('flow 7: a creator cannot reach brand or admin surfaces', async ({
   await expect(creator).not.toHaveURL(/\/campaigns/);
 
   // API-level: admin endpoints refuse the creator's session with 403.
-  const adminList = await creator.request.get('/api/admin/creators');
+  // `/api/admin/campaigns` exists as a real admin list (there is no
+  // `/api/admin/creators` list route — only the per-creator verify and
+  // assign-tier mutations).
+  const adminList = await creator.request.get('/api/admin/campaigns');
   expect(adminList.status()).toBe(403);
 
   // API-level: brand-only mutation (fund) is refused for a creator too.
@@ -42,7 +45,7 @@ test('flow 7b: a brand cannot reach creator or admin surfaces', async ({
   await brand.goto('/admin');
   await expect(brand).not.toHaveURL(/\/admin/);
 
-  const adminList = await brand.request.get('/api/admin/creators');
+  const adminList = await brand.request.get('/api/admin/campaigns');
   expect(adminList.status()).toBe(403);
   await brand.close();
 });

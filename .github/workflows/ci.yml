@@ -113,8 +113,21 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
           SEED_DEMO_PASSWORD: demo-Passw0rd!
-      - name: Run e2e suite
-        run: npm run test:e2e
+      # Each browser project runs against a *fresh* database. The seeded
+      # fixtures are consumed by the flows (accepted, funded, delivered), the
+      # four projects share one Postgres service, and the :3002 failure server's
+      # provider arms its fail-once flag at process boot — so state can never
+      # carry from one project's run into the next. Every project therefore
+      # drops the schema, re-migrates, re-seeds, and boots its own webServers.
+      - name: Run e2e suite (per browser project)
+        run: |
+          for project in chromium-desktop chromium-mobile webkit-desktop webkit-mobile; do
+            echo "=== $project ==="
+            npx tsx -e "void (async () => { const m = await import('pg'); const Client = m.Client ?? m.default.Client; const c = new Client({ connectionString: process.env.DATABASE_URL }); await c.connect(); await c.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;'); await c.end(); })().catch((e) => { console.error(e); process.exit(1); })"
+            npx drizzle-kit migrate
+            npx tsx db/seed.ts
+            npx playwright test --project="$project"
+          done
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
           SEED_DEMO_PASSWORD: demo-Passw0rd!
