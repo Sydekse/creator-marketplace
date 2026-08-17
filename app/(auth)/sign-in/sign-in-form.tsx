@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { signInSchema } from '@/lib/validation/schemas';
 import { safeRedirectPath } from '@/lib/navigation';
@@ -57,12 +58,11 @@ export function SignInForm() {
           <label htmlFor="email" className="text-sm font-medium">
             Email
           </label>
-          <input
+          <Input
             id="email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
             placeholder="you@example.com"
             required
             autoComplete="email"
@@ -73,12 +73,11 @@ export function SignInForm() {
           <label htmlFor="password" className="text-sm font-medium">
             Password
           </label>
-          <input
+          <Input
             id="password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
             placeholder="Enter your password"
             required
             autoComplete="current-password"
@@ -94,7 +93,7 @@ export function SignInForm() {
         Don&apos;t have an account?{' '}
         <Link
           href="/sign-up"
-          className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
+          className="font-medium text-brand underline-offset-4 hover:text-brand-deep"
         >
           Sign up
         </Link>

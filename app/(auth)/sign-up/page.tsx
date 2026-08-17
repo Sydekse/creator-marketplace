@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
 import { signUpSchema } from '@/lib/validation/schemas';
 import type { SelfRegisterableRole } from '@/lib/auth-policy';
@@ -81,12 +82,11 @@ export default function SignUpPage() {
             <label htmlFor="name" className="text-sm font-medium">
               Name
             </label>
-            <input
+            <Input
               id="name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
               placeholder="Your full name"
               required
               autoComplete="name"
@@ -97,12 +97,11 @@ export default function SignUpPage() {
             <label htmlFor="email" className="text-sm font-medium">
               Email
             </label>
-            <input
+            <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
               placeholder="you@example.com"
               required
               autoComplete="email"
@@ -113,12 +112,11 @@ export default function SignUpPage() {
             <label htmlFor="password" className="text-sm font-medium">
               Password
             </label>
-            <input
+            <Input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none transition-colors focus:border-ring focus:ring-1 focus:ring-ring"
               placeholder="At least 8 characters"
               required
               minLength={8}
@@ -163,7 +161,7 @@ export default function SignUpPage() {
           Already have an account?{' '}
           <Link
             href="/sign-in"
-            className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
+            className="font-medium text-brand underline-offset-4 hover:text-brand-deep"
           >
             Sign in
           </Link>
