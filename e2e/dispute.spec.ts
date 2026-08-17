@@ -65,7 +65,12 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
 
   // The worklist shows the delivered deal with money held (REFUNDABLE_FROM).
   await admin.goto('/admin/worklist');
-  const row = admin.locator('li').filter({ hasText: 'Summer Dispute' });
+  // Match the worklist row by its heading — sonner toasts are <li> elements
+  // too, and the flag toast contains the campaign name, so a plain text
+  // filter would resolve to both and trip strict mode.
+  const row = admin
+    .getByRole('listitem')
+    .filter({ has: admin.getByRole('heading', { name: 'Summer Dispute' }) });
   await expect(row).toBeVisible({ timeout: 15_000 });
   await expect(row.getByText(/delivered/i)).toBeVisible();
 
