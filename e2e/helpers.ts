@@ -26,12 +26,15 @@ export async function signIn(page: Page, email: string): Promise<void> {
   await page.getByRole('button', { name: 'Sign In' }).click();
   // Landing on a role home is the sign-in succeeding.
   await expect(page).not.toHaveURL(/sign-in/);
-  // The sign-in flow router.push()es to /dashboard, which middleware rewrites
-  // to the role home — a client-side navigation. Let it fully settle before
-  // the caller navigates again: webkit aborts a page.goto that races the
-  // in-flight redirect with "Navigation ... is interrupted by another
-  // navigation".
-  await page.waitForLoadState('networkidle');
+  // The sign-in flow router.push()es to /dashboard, which server-redirects to
+  // the role home — a client-side navigation. Wait for that redirect to commit
+  // before the caller navigates again: webkit aborts a page.goto that races
+  // the in-flight redirect with "Navigation ... is interrupted by another
+  // navigation", and networkidle is a poor landmark here — it can stall
+  // forever against a Next.js app, burning the full 120 s timeout (chromium
+  // never reached it in CI). The role-home URL is the observable state change
+  // the redirect produces.
+  await page.waitForURL(/\/(brand|creator|admin)(\/|$)/);
 }
 
 /** Open the creator's deal detail page by campaign name. */

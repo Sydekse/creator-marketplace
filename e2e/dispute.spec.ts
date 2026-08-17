@@ -80,7 +80,7 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   // the specs order themselves.
   await row.getByRole('link', { name: 'View deal history' }).click();
   await expect(
-    admin.getByRole('heading', { name: 'Deal history' })
+    admin.getByRole('heading', { name: 'Deal history', level: 1 })
   ).toBeVisible({
     timeout: 15_000,
   });
