@@ -877,7 +877,7 @@ describe('VideoPerformance', () => {
     // The assertion that keeps an unreachable state unreachable: nothing sets
     // `stale` today, so a marker rendered unconditionally would tell every brand
     // their fresh numbers are out of date.
-    expect(source).toMatch(/\{video\.stale \? \(?\s*<Badge/);
+    expect(source).toMatch(/\{video\.stale \? \(?\s*<Chip/);
     expect(source).toMatch(/\{video\.stale \?[\s\S]{0,200}STALE_NOTE/);
     expect(source).toContain('STALE_LABEL');
   });
@@ -999,13 +999,11 @@ describe('the source guards are not vacuous', () => {
     // The guard that matters most, because the state it protects is unreachable:
     // nothing sets `stale`, so a marker rendered unconditionally would never fail
     // in a walkthrough and would tell every brand their numbers are out of date.
-    const gated = /\{video\.stale \? \(?\s*<Badge/;
-    expect('<Badge variant="destructive">{STALE_LABEL}</Badge>').not.toMatch(
+    const gated = /\{video\.stale \? \(?\s*<Chip/;
+    expect('<Chip tone="red">{STALE_LABEL}</Chip>').not.toMatch(gated);
+    expect('{video.stale ? (\n  <Chip tone="red">{STALE_LABEL}</Chip>').toMatch(
       gated
     );
-    expect(
-      '{video.stale ? (\n  <Badge variant="destructive">{STALE_LABEL}</Badge>'
-    ).toMatch(gated);
   });
 
   it('would catch a placeholdered timestamp', () => {

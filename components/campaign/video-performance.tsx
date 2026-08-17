@@ -1,9 +1,10 @@
 import Link from 'next/link';
-import { Badge } from '@/components/ui/badge';
+import { Chip } from '@/components/ui/chip';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { labelForStatus } from '@/lib/deals';
+import { dealStatusTone } from '@/lib/deals/status-tone';
 import {
   AWAITING_DELIVERY_LABEL,
   CAMPAIGN_TOTAL_LABEL,
@@ -92,11 +93,9 @@ function VideoMetrics({ video }: { video: CampaignVideoRow }) {
         <div className="flex flex-wrap items-center gap-2">
           {/* AC-027 bullet 4. Beside the video's own numbers rather than over the
               whole deal, because it qualifies these counts and a deal can hold
-              three videos measured at different times. `destructive` outline
-              rather than a colour alone — the word is what carries it. */}
-          {video.stale ? (
-            <Badge variant="destructive">{STALE_LABEL}</Badge>
-          ) : null}
+              three videos measured at different times. The red tint rather than
+              a colour alone — the word is what carries it. */}
+          {video.stale ? <Chip tone="red">{STALE_LABEL}</Chip> : null}
         </div>
 
         {/* AC-026: each video links to its own live post. Shown as a link the
@@ -169,7 +168,12 @@ function DealCard({ deal }: { deal: CampaignDealGroup }) {
           <div className="flex flex-wrap items-center gap-2">
             {/* The shared vocabulary from `lib/deals/groups.ts`, so this list
                 and the deal screen cannot call one state two things. */}
-            <Badge variant="secondary">{labelForStatus(deal.status)}</Badge>
+            <Chip
+              tone={dealStatusTone[deal.status] ?? 'gray'}
+              className="capitalize"
+            >
+              {labelForStatus(deal.status)}
+            </Chip>
             {/* AC-026's "tier price paid": the rate and what it came to. Both,
                 not just the total — the rate is the tier's price snapshotted onto
                 the deal at offer time (invariant 8), and it is the figure a brand
