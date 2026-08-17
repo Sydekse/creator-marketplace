@@ -41,10 +41,12 @@ import type { ErrorCode } from '@/lib/validation/errors';
  *
  * **Ordering is load-bearing.** The terms check runs before the transition, so
  * a stale-terms rejection leaves no `deal_event` behind — an audit trail should
- * not record a status change that never happened. The stamp runs after, in the
- * same transaction, so no reader ever sees a deal at `accepted` with null
- * rights columns. `deal_rights_accepted_when_accepted` enforces that from the
- * database's side; this is the code path that satisfies it.
+ * not record a status change that never happened. The rights pair travels in
+ * the same UPDATE as the status, because `deal_rights_accepted_when_accepted`
+ * is a per-statement CHECK: a write made in a later statement of the same
+ * transaction would arrive too late and the status change would be refused.
+ * The explicit `stampRights` call that follows records the same values the
+ * transition wrote.
  */
 
 /** What the action needs about the deal, its campaign, and both parties. */
@@ -98,7 +100,14 @@ export interface AcceptOfferDeps {
     tx: Tx,
     dealId: string,
     actorId: string,
-    reason: string
+    reason: string,
+    /**
+     * Columns to write in the same UPDATE as the status — the accept path
+     * stamps the rights pair atomically, because the per-statement CHECK
+     * `deal_rights_accepted_when_accepted` cannot see a later statement's
+     * write.
+     */
+    extra?: { rightsTermsId: string; rightsAcceptedAt: Date }
   ) => Promise<unknown>;
   stampRights: (
     tx: Tx,
@@ -162,8 +171,11 @@ const defaultDeps: AcceptOfferDeps = {
   getRightsTerms: (tx) => getCurrentRightsTerms(tx),
   // Delegated to the state machine, which owns every `deal_event` write and
   // re-reads the row under its own lock before judging legality (invariant 6).
-  transition: (tx, dealId, actorId, reason) =>
-    transitionDeal(tx, dealId, 'accepted', actorId, { reason }),
+  // The rights pair travels in the same UPDATE as the status — the
+  // per-statement CHECK constraint `deal_rights_accepted_when_accepted` cannot
+  // see a write made in a later statement of the same transaction.
+  transition: (tx, dealId, actorId, reason, extra) =>
+    transitionDeal(tx, dealId, 'accepted', actorId, { reason, set: extra }),
   stampRights: async (tx, dealId, rightsTermsId, acceptedAt) => {
     await tx
       .update(deal)
@@ -247,7 +259,13 @@ export async function acceptOffer(
       // AC-6 and invariant 6. Also the idempotency guard: a retry arrives as
       // `accepted → accepted`, which is not a legal edge, so the second call is
       // refused rather than writing a second event.
-      await deps.transition(tx, dealId, input.actorUserId, ACCEPT_EVENT_REASON);
+      await deps.transition(
+        tx,
+        dealId,
+        input.actorUserId,
+        ACCEPT_EVENT_REASON,
+        { rightsTermsId: current.id, rightsAcceptedAt: acceptedAt }
+      );
     } catch (error) {
       if (error instanceof TransitionError) {
         return { ok: false, reason: 'illegal', code: error.code };

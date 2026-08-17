@@ -126,9 +126,12 @@ test('flow 2: budget ceiling blocks adding an over-budget creator (AC-014)', asy
   await brand.locator('input[name="videoCount"]').fill('3');
   await brand.getByRole('button', { name: /add/i }).click();
 
-  // The refusal surfaces on the page (toast or inline) — never a silent add.
-  await expect(
-    brand.getByText(/budget|exceed|insufficient/i).first()
-  ).toBeVisible({ timeout: 15_000 });
+  // The refusal surfaces via the form's error toast — the server's
+  // BUDGET_EXCEEDED sentence. Asserted on the full sentence, not a /budget/
+  // fragment: the campaign list's own name ("Tiny Budget Campaign") contains
+  // "Budget" and would match first.
+  await expect(brand.getByText(/exceeds your remaining budget/i)).toBeVisible({
+    timeout: 15_000,
+  });
   await brand.close();
 });

@@ -89,6 +89,13 @@ export const auth = betterAuth({
       },
     },
   },
+  // E2E only: the Playwright suite signs in serially, faster than the
+  // production default (3 sign-ins per 10s per IP) allows, so the webServers
+  // set E2E_DISABLE_RATE_LIMIT=1 to turn throttling off. Production keeps the
+  // default-on protection untouched.
+  ...(process.env.E2E_DISABLE_RATE_LIMIT === '1'
+    ? { rateLimit: { enabled: false } }
+    : {}),
 });
 
 export interface CurrentUser {

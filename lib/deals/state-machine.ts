@@ -176,7 +176,16 @@ export async function transitionDeal(
   dealId: string,
   toStatus: DealStatus,
   actorId?: string | null,
-  opts?: { reason?: string }
+  opts?: {
+    reason?: string;
+    /**
+     * Extra columns written in the same UPDATE as the status. The accept path
+     * uses this to stamp the agreed rights terms atomically with `accepted`:
+     * `deal_rights_accepted_when_accepted` is a per-statement CHECK, so a
+     * follow-up UPDATE could never satisfy it.
+     */
+    set?: Partial<Pick<DealRow, 'rightsTermsId' | 'rightsAcceptedAt'>>;
+  }
 ): Promise<DealRow> {
   const [row] = await tx
     .select()
@@ -202,7 +211,10 @@ export async function transitionDeal(
     );
   }
 
-  await tx.update(deal).set({ status: toStatus }).where(eq(deal.id, dealId));
+  await tx
+    .update(deal)
+    .set({ status: toStatus, ...opts?.set })
+    .where(eq(deal.id, dealId));
 
   await tx.insert(dealEvent).values({
     dealId,

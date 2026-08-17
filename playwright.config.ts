@@ -45,6 +45,9 @@ export default defineConfig({
         BETTER_AUTH_URL: 'http://localhost:3000',
         // The payment provider stays the in-memory mock; email stays console.
         EMAIL_SEND: '',
+        // E2E only: serial sign-ins are faster than the production rate limit
+        // (3 per 10s per IP) allows, so the suite turns throttling off.
+        E2E_DISABLE_RATE_LIMIT: '1',
       },
     },
     {
@@ -56,6 +59,7 @@ export default defineConfig({
         ...process.env,
         BETTER_AUTH_URL: 'http://localhost:3002',
         EMAIL_SEND: '',
+        E2E_DISABLE_RATE_LIMIT: '1',
         // Flow 5: the first funding hold of this server fails, so the UI can
         // walk the AC-020 path (campaign stays unfunded) for real.
         PAYMENT_FAIL_METHOD: 'hold',
