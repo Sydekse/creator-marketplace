@@ -31,13 +31,11 @@ export default async function EditCampaignPage({
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
-      <header className="flex flex-col gap-2">
+      <header className="flex flex-col gap-3">
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Campaign brief
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Edit campaign brief
-        </h1>
+        <h1 className="page-title">Edit campaign brief</h1>
         <p className="text-sm text-muted-foreground">
           Update the budget, target video count, or brief details for this
           campaign.
@@ -45,7 +43,7 @@ export default async function EditCampaignPage({
       </header>
 
       {!isEditable ? (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-8">
           <Alert variant="destructive">
             <AlertTitle>Campaign cannot be edited</AlertTitle>
             <AlertDescription>

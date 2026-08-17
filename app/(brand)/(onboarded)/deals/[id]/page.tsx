@@ -86,10 +86,8 @@ export default async function BrandDealReviewPage({
         ← Back to {deal.campaignName}
       </Link>
 
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {deal.creatorHandle}
-        </h1>
+      <div className="flex flex-col gap-3">
+        <h1 className="page-title">{deal.creatorHandle}</h1>
         {/* The shared vocabulary from `lib/deals/groups.ts`, not a second set of
             words for the same nine statuses — its own docstring anticipates this
             screen, and two views naming one state differently is the kind of

@@ -24,9 +24,7 @@ export default async function BrandSettingsPage() {
         <p className="text-xs tracking-wide text-muted-foreground uppercase">
           Settings
         </p>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-          Brand profile
-        </h1>
+        <h1 className="page-title">Brand profile</h1>
         <p className="text-muted-foreground">
           Creators see this name on every offer you send, including offers you
           have already sent.

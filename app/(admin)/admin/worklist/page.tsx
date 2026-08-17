@@ -25,11 +25,9 @@ export default async function AdminWorklistPage() {
   const worklist = await listWorklistForAdmin();
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          Dispute worklist
-        </h1>
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3">
+        <h1 className="page-title">Dispute worklist</h1>
         <p className="text-sm text-muted-foreground">
           Deals that are flagged, or whose money is held and unresolved.
           Resolving refunds the brand, releases to the creator, or requests a

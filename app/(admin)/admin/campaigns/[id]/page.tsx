@@ -35,8 +35,8 @@ export default async function AdminCampaignLedgerPage({
   const { campaign, entries, totals, reconciled } = ledger;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3">
         <Link
           href="/admin/campaigns"
           className="text-sm text-muted-foreground underline-offset-4 hover:underline"
@@ -44,9 +44,7 @@ export default async function AdminCampaignLedgerPage({
           ← Campaigns
         </Link>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">
-            {campaign.name}
-          </h1>
+          <h1 className="page-title">{campaign.name}</h1>
           <span
             className={
               reconciled

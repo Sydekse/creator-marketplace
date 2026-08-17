@@ -36,9 +36,7 @@ export default async function CampaignsPage() {
     <div className="mx-auto flex max-w-4xl flex-col gap-8 py-4">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-            Campaigns
-          </h1>
+          <h1 className="page-title">Campaigns</h1>
           <p className="text-sm text-muted-foreground">
             Manage your campaign briefs and review creator commitments.
           </p>

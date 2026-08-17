@@ -46,15 +46,15 @@ export default async function AdminDealPage({
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-3">
         <Link
           href="/admin/worklist"
           className="text-sm text-muted-foreground underline-offset-4 hover:underline"
         >
           ← Dispute worklist
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">Deal history</h1>
+        <h1 className="page-title">Deal history</h1>
         <p className="text-sm text-muted-foreground">
           {campaignName ? `Campaign: ${campaignName} — ` : ''}
           every state transition this deal has been through, oldest first — the

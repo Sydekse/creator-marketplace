@@ -8,13 +8,11 @@ export const runtime = 'nodejs';
 export default function NewCampaignPage() {
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
-      <header className="flex flex-col gap-2">
+      <header className="flex flex-col gap-3">
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           Campaign brief
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-          Create a campaign brief
-        </h1>
+        <h1 className="page-title">Create a campaign brief</h1>
         <p className="text-sm text-muted-foreground">
           Define your campaign parameters. Your brief will be saved as a draft,
           allowing you to add creators and confirm before funding.

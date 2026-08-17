@@ -1,14 +1,9 @@
 import type { Metadata } from 'next';
-import { DM_Sans, Outfit, DM_Mono, Noto_Serif } from 'next/font/google';
+import { DM_Sans, DM_Mono, Noto_Serif } from 'next/font/google';
 import './globals.css';
 
 const dmSans = DM_Sans({
   variable: '--font-dm-sans',
-  subsets: ['latin'],
-});
-
-const outfit = Outfit({
-  variable: '--font-outfit',
   subsets: ['latin'],
 });
 
@@ -38,7 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${outfit.variable} ${dmMono.variable} ${notoSerif.variable} dark h-full antialiased`}
+      className={`${dmSans.variable} ${dmMono.variable} ${notoSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background font-sans text-foreground">
         {children}
