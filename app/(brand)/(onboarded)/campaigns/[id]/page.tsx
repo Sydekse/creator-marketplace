@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { PageHeader } from '@/components/layout/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
@@ -94,63 +95,62 @@ export default async function CampaignCartPage({
         ← Back to campaigns
       </Link>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="page-title">{campaign.name}</h1>
-          <div className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
-            <Badge variant="secondary" className="capitalize">
+      <PageHeader
+        title={campaign.name}
+        description={
+          <>
+            <Chip tone="gray" className="mr-2 capitalize">
               {campaign.status}
-            </Badge>
-            <span>•</span>
-            <span>
-              Created on{' '}
-              {new Date(campaign.createdAt).toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })}
-            </span>
-          </div>
-        </div>
-        {campaign.status === 'draft' && (
-          <div className="flex items-start gap-3">
-            <Link
-              href={`/campaigns/${campaign.id}/edit`}
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            >
-              Edit brief
-            </Link>
-            <Link
-              href="/discover"
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            >
-              Find creators
-            </Link>
-            {/*
+            </Chip>
+            Created on{' '}
+            {new Date(campaign.createdAt).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          </>
+        }
+        action={
+          campaign.status === 'draft' && (
+            <div className="flex items-start gap-3">
+              <Link
+                href={`/campaigns/${campaign.id}/edit`}
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              >
+                Edit brief
+              </Link>
+              <Link
+                href="/discover"
+                className={buttonVariants({ variant: 'outline', size: 'sm' })}
+              >
+                Find creators
+              </Link>
+              {/*
               AC-016. Draft only, and disabled on an empty cart — both are
               courtesies. `POST /confirm` re-checks the status, the ownership,
               the cart and the budget ceiling regardless (NFR-005, AC-014).
-            */}
-            <ConfirmCampaignButton
-              campaignId={campaign.id}
-              itemCount={items.length}
-            />
-          </div>
-        )}
-        {/*
-          AC-019. `confirmed` only: before it there is nothing accepted to hold,
+            */}{' '}
+              <ConfirmCampaignButton
+                campaignId={campaign.id}
+                itemCount={items.length}
+              />
+            </div>
+          )
+        }
+      />
+      {/*
+        AC-019. `confirmed` only: before it there is nothing accepted to hold,
           and after it the money is already held — `POST /fund` answers a second
           attempt with 409 `CAMPAIGN_NOT_FUNDABLE` regardless (AC bullet 7).
         */}
-        {campaign.status === 'confirmed' && (
-          <div className="flex items-start gap-3">
-            <FundCampaignButton
-              campaignId={campaign.id}
-              acceptedCount={acceptedCount}
-            />
-          </div>
-        )}
-      </div>
+      {campaign.status === 'confirmed' && (
+        <div className="flex items-start gap-3">
+          <FundCampaignButton
+            campaignId={campaign.id}
+            acceptedCount={acceptedCount}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 flex flex-col gap-4">
@@ -208,9 +208,7 @@ export default async function CampaignCartPage({
                                 {item.creator.tiktokHandle}
                               </Link>
                               {item.tier?.id && (
-                                <Badge variant="outline" className="text-xs">
-                                  {item.tier.name} Tier
-                                </Badge>
+                                <Chip tone="line">{item.tier.name} Tier</Chip>
                               )}
                             </div>
                             <p className="text-sm text-muted-foreground capitalize">

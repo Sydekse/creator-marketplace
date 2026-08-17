@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CreatorCard } from '@/components/creator/creator-card';
 import { EmptyState } from '@/components/feedback/empty-state';
+import { PageHeader } from '@/components/layout/page-header';
 import { buttonVariants } from '@/components/ui/button';
 import {
   AUDIENCE_MARKET_CODES,
@@ -285,12 +286,9 @@ export default async function DiscoverPage({
 
 function Header() {
   return (
-    <div className="flex flex-col gap-3">
-      <h1 className="page-title">Discover creators</h1>
-      <p className="text-sm text-muted-foreground">
-        Verified creators with a published rate. Filters combine — each one
-        narrows the list further.
-      </p>
-    </div>
+    <PageHeader
+      title="Discover creators"
+      description="Verified creators with a published rate. Filters combine — each one narrows the list further."
+    />
   );
 }

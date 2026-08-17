@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { EmptyState } from '@/components/feedback/empty-state';
+import { PageHeader } from '@/components/layout/page-header';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
 import {
@@ -34,20 +35,18 @@ export default async function CampaignsPage() {
 
   return (
     <div className="mx-auto flex max-w-4xl flex-col gap-8 py-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="page-title">Campaigns</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage your campaign briefs and review creator commitments.
-          </p>
-        </div>
-        <Link
-          href="/campaigns/new"
-          className={buttonVariants({ variant: 'default', size: 'default' })}
-        >
-          New campaign
-        </Link>
-      </div>
+      <PageHeader
+        title="Campaigns"
+        description="Manage your campaign briefs and review creator commitments."
+        action={
+          <Link
+            href="/campaigns/new"
+            className={buttonVariants({ variant: 'default', size: 'default' })}
+          >
+            New campaign
+          </Link>
+        }
+      />
 
       {campaigns.length === 0 ? (
         <EmptyState

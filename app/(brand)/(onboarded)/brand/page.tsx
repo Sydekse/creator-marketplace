@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 
@@ -18,28 +19,24 @@ export default async function BrandDashboardPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-10 py-4">
-      <div className="flex flex-col gap-3 border-b border-border pb-8">
-        <p className="text-xs tracking-wide text-muted-foreground uppercase">
-          Offering deals as
-        </p>
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          {/* The company name leads because it is what creators see on every
-              offer — a brand should be able to check it at a glance. */}
-          <h1 className="page-title break-words">{profile.companyName}</h1>
-          {/* A styled link, not a button: this navigates, so it must stay an
-              <a> that middle-clicks and opens in a new tab. `buttonVariants`
-              borrows the look without Base UI's button behaviour — `<Button
-              render={<Link/>}>` would warn that `nativeButton` is true, and
-              setting it false makes Base UI apply `role="button"`, announcing a
-              link as a button. */}
+      <PageHeader
+        label="Offering deals as"
+        title={<span className="break-words">{profile.companyName}</span>}
+        action={
+          /* A styled link, not a button: this navigates, so it must stay an
+             <a> that middle-clicks and opens in a new tab. `buttonVariants`
+             borrows the look without Base UI's button behaviour — `<Button
+             render={<Link/>}>` would warn that `nativeButton` is true, and
+             setting it false makes Base UI apply `role="button"`, announcing a
+             link as a button. */
           <Link
             href="/brand/settings"
             className={buttonVariants({ variant: 'outline', size: 'sm' })}
           >
             Edit name
           </Link>
-        </div>
-      </div>
+        }
+      />
 
       <p className="text-sm text-muted-foreground">
         Signed in as {user.name ?? user.email}. Campaigns and creator discovery

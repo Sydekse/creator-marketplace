@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   ADD_TO_CAMPAIGN_LABEL,
   CAMPAIGN_NOT_DRAFT_MESSAGE,
@@ -109,13 +110,13 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
 
         <label className="flex flex-col gap-1.5 text-sm w-[120px]">
           <span className="font-medium">Videos</span>
-          <input
+          <Input
             type="number"
             name="videoCount"
             min={1}
             defaultValue={1}
             required
-            className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className="h-9 w-[120px]"
           />
         </label>
 

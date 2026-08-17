@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import { BrandOnboardingForm } from './brand-onboarding-form';
@@ -22,16 +23,11 @@ export default async function BrandOnboardingPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-10 py-4">
-      <header className="flex flex-col gap-3">
-        <p className="text-xs tracking-wide text-muted-foreground uppercase">
-          Brand setup
-        </p>
-        <h1 className="page-title">Who are you offering deals as?</h1>
-        <p className="text-muted-foreground">
-          Creators see this name on every offer you send, so use the one they
-          would recognise. You can change it later.
-        </p>
-      </header>
+      <PageHeader
+        label="Brand setup"
+        title="Who are you offering deals as?"
+        description="Creators see this name on every offer you send, so use the one they would recognise. You can change it later."
+      />
 
       <BrandOnboardingForm />
     </div>
