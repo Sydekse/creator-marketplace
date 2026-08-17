@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -45,17 +44,26 @@ export function SignInForm() {
   }
 
   return (
-    <Card className="w-full max-w-sm p-8">
-      <div className="mb-8 text-center">
-        <h1 className="text-xl font-semibold tracking-tight">Sign In</h1>
-        <p className="mt-1.5 text-sm text-muted-foreground">
-          Welcome back to Creator Marketplace
-        </p>
-      </div>
+    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-8 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
+      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+        Welcome back
+      </p>
+      <h1 className="mt-3 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
+        Sign in.
+      </h1>
+      <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
+        Your deals, escrow, and messages are all here — pick up where you left
+        off.
+      </p>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
+
+      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-5">
         <div className="flex flex-col gap-2">
-          <label htmlFor="email" className="text-sm font-medium">
+          <label
+            htmlFor="email"
+            className="text-[13px] font-medium text-neutral-700"
+          >
             Email
           </label>
           <Input
@@ -70,7 +78,10 @@ export function SignInForm() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <label htmlFor="password" className="text-sm font-medium">
+          <label
+            htmlFor="password"
+            className="text-[13px] font-medium text-neutral-700"
+          >
             Password
           </label>
           <Input
@@ -84,20 +95,20 @@ export function SignInForm() {
           />
         </div>
 
-        <Button type="submit" disabled={loading} className="w-full">
-          {loading ? 'Signing in…' : 'Sign In'}
+        <Button type="submit" disabled={loading} size="xl" className="w-full">
+          {loading ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        Don&apos;t have an account?{' '}
+      <p className="mt-6 text-center text-[13px] text-neutral-500">
+        New to Creator Marketplace?{' '}
         <Link
           href="/sign-up"
           className="font-medium text-brand underline-offset-4 hover:text-brand-deep"
         >
-          Sign up
+          Create an account
         </Link>
       </p>
-    </Card>
+    </div>
   );
 }

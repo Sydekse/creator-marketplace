@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
-import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
@@ -12,6 +11,11 @@ import { signUpSchema } from '@/lib/validation/schemas';
 import type { SelfRegisterableRole } from '@/lib/auth-policy';
 
 type RoleOption = SelfRegisterableRole;
+
+const ROLE_OPTIONS: { value: RoleOption; title: string; caption: string }[] = [
+  { value: 'brand', title: 'Brand', caption: 'Brief & fund campaigns' },
+  { value: 'creator', title: 'Creator', caption: 'Deliver & get paid' },
+];
 
 export default function SignUpPage() {
   const router = useRouter();
@@ -66,107 +70,128 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <Card className="w-full max-w-sm p-8">
-        <div className="mb-8 text-center">
-          <h1 className="text-xl font-semibold tracking-tight">
-            Create Account
-          </h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">
-            Join Creator Marketplace
-          </p>
+    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-8 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
+      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+        Create account
+      </p>
+      <h1 className="mt-3 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
+        Join the marketplace.
+      </h1>
+      <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
+        Free to join for both sides — the platform takes a transparent 15%
+        commission on completed deals only.
+      </p>
+
+      <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
+
+      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-5">
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor="name"
+            className="text-[13px] font-medium text-neutral-700"
+          >
+            Name
+          </label>
+          <Input
+            id="name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Your full name"
+            required
+            autoComplete="name"
+          />
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="name" className="text-sm font-medium">
-              Name
-            </label>
-            <Input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Your full name"
-              required
-              autoComplete="name"
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label htmlFor="email" className="text-sm font-medium">
-              Email
-            </label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              autoComplete="email"
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label htmlFor="password" className="text-sm font-medium">
-              Password
-            </label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 8 characters"
-              required
-              minLength={8}
-              autoComplete="new-password"
-            />
-          </div>
-
-          <fieldset className="flex flex-col gap-2">
-            <legend className="text-sm font-medium">I am a…</legend>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setRole('brand')}
-                className={`rounded-lg border px-4 py-3 text-center text-sm font-medium transition-colors ${
-                  role === 'brand'
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-input bg-background text-muted-foreground hover:border-foreground hover:text-foreground'
-                }`}
-              >
-                Brand
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('creator')}
-                className={`rounded-lg border px-4 py-3 text-center text-sm font-medium transition-colors ${
-                  role === 'creator'
-                    ? 'border-foreground bg-foreground text-background'
-                    : 'border-input bg-background text-muted-foreground hover:border-foreground hover:text-foreground'
-                }`}
-              >
-                Creator
-              </button>
-            </div>
-          </fieldset>
-
-          <Button type="submit" disabled={loading || !role} className="w-full">
-            {loading ? 'Creating account…' : 'Create Account'}
-          </Button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-muted-foreground">
-          Already have an account?{' '}
-          <Link
-            href="/sign-in"
-            className="font-medium text-brand underline-offset-4 hover:text-brand-deep"
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor="email"
+            className="text-[13px] font-medium text-neutral-700"
           >
-            Sign in
-          </Link>
-        </p>
-      </Card>
+            Email
+          </label>
+          <Input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            required
+            autoComplete="email"
+          />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor="password"
+            className="text-[13px] font-medium text-neutral-700"
+          >
+            Password
+          </label>
+          <Input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="At least 8 characters"
+            required
+            minLength={8}
+            autoComplete="new-password"
+          />
+        </div>
+
+        <fieldset className="flex flex-col gap-2">
+          <legend className="text-[13px] font-medium text-neutral-700">
+            I am a…
+          </legend>
+          <div className="grid grid-cols-2 gap-3">
+            {ROLE_OPTIONS.map((option) => {
+              const selected = role === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setRole(option.value)}
+                  aria-pressed={selected}
+                  className={`flex flex-col items-start gap-0.5 rounded-xl border px-4 py-3.5 text-left transition-all duration-300 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 ${
+                    selected
+                      ? 'border-neutral-900 bg-neutral-900 text-neutral-50 shadow-[0_12px_32px_rgba(23,23,23,0.18)]'
+                      : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-400 hover:text-neutral-900'
+                  }`}
+                >
+                  <span className="text-sm font-medium">{option.title}</span>
+                  <span
+                    className={`text-xs ${
+                      selected ? 'text-neutral-400' : 'text-neutral-500'
+                    }`}
+                  >
+                    {option.caption}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+
+        <Button
+          type="submit"
+          disabled={loading || !role}
+          size="xl"
+          className="w-full"
+        >
+          {loading ? 'Creating account…' : 'Create account'}
+        </Button>
+      </form>
+
+      <p className="mt-6 text-center text-[13px] text-neutral-500">
+        Already have an account?{' '}
+        <Link
+          href="/sign-in"
+          className="font-medium text-brand underline-offset-4 hover:text-brand-deep"
+        >
+          Sign in
+        </Link>
+      </p>
     </div>
   );
 }
