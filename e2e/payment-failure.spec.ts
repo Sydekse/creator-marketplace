@@ -28,6 +28,10 @@ test('flow 5: a failed payment leaves the campaign unfunded (AC-020)', async ({
     .fill(process.env.SEED_DEMO_PASSWORD ?? 'demo-Passw0rd!');
   await brand.getByRole('button', { name: 'Sign In' }).click();
   await expect(brand).not.toHaveURL(/sign-in/);
+  // Same landmark as the shared helper: the client-side redirect to the role
+  // home must commit before the goto below, or webkit can abort it with
+  // "Navigation ... is interrupted by another navigation".
+  await brand.waitForURL(/\/(brand|creator|admin)(\/|$)/);
 
   await brand.goto('http://localhost:3002/campaigns');
   // The list renders the campaign name as the card title; the action is a
