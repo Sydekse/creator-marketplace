@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { DealInbox } from '@/components/deals/deal-inbox';
 import { EmptyState } from '@/components/feedback/empty-state';
+import { PageHeader } from '@/components/layout/page-header';
 import {
   INBOX_DESCRIPTION,
   INBOX_TITLE,
@@ -41,10 +42,7 @@ export default async function CreatorDealsPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
-      <div className="flex flex-col gap-1">
-        <h1 className="page-title">{INBOX_TITLE}</h1>
-        <p className="text-sm text-muted-foreground">{INBOX_DESCRIPTION}</p>
-      </div>
+      <PageHeader title={INBOX_TITLE} description={INBOX_DESCRIPTION} />
 
       {inbox.isEmpty ? (
         <EmptyState title={NO_DEALS_TITLE} description={NO_DEALS_DESCRIPTION} />

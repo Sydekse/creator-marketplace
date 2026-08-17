@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
 import { getCreatorProfileByUserId } from '@/lib/creators/queries';
 import { CreatorOnboardingForm } from './creator-onboarding-form';
@@ -19,16 +20,11 @@ export default async function CreatorOnboardingPage() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-10 py-4">
-      <header className="flex flex-col gap-3">
-        <p className="text-xs tracking-wide text-muted-foreground uppercase">
-          Creator application
-        </p>
-        <h1 className="page-title">Tell brands who your audience is</h1>
-        <p className="text-muted-foreground">
-          Brands search by niche and audience, then send paid offers at your
-          tier price. Everything here is what they see when they find you.
-        </p>
-      </header>
+      <PageHeader
+        label="Creator application"
+        title="Tell brands who your audience is"
+        description="Brands search by niche and audience, then send paid offers at your tier price. Everything here is what they see when they find you."
+      />
 
       <CreatorOnboardingForm />
     </div>

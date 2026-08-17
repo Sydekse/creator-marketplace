@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DealHistory } from '@/components/deals/deal-history';
+import { PageHeader } from '@/components/layout/page-header';
 import { MetricsForm } from '@/components/deals/metrics-form';
 import { DeliverableForm } from '@/components/deals/deliverable-form';
 import { OfferActions } from '@/components/deals/offer-actions';
@@ -107,12 +108,14 @@ export default async function CreatorDealDetailPage({
         ← Back to your deals
       </Link>
 
-      <div className="flex flex-col gap-1">
-        <h1 className="page-title">{deal.campaignName}</h1>
-        {/* AC-2's brand name: the trading name the brand publishes, never a
-            contact (NFR-010). */}
-        <p className="text-sm text-muted-foreground">{deal.companyName}</p>
-      </div>
+      <PageHeader
+        title={deal.campaignName}
+        description={
+          /* AC-2's brand name: the trading name the brand publishes, never a
+             contact (NFR-010). */
+          deal.companyName
+        }
+      />
 
       <section className="flex flex-col gap-4">
         <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
