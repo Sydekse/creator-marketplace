@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { Megaphone, Scale, ScrollText, Tag, UserCheck } from 'lucide-react';
+import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
 import {
   listCampaignsForAdmin,
@@ -28,29 +30,33 @@ export default async function AdminConsolePage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <h1 className="page-title">Admin console</h1>
-        <p className="text-sm text-muted-foreground">
-          Signed in as {user.name ?? user.email}.
-        </p>
-      </div>
+      <PageHeader
+        title="Admin console"
+        description={<>Signed in as {user.name ?? user.email}.</>}
+      />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           href="/admin/verification"
-          className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50"
+          className="group flex flex-col gap-2.5 rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]"
         >
-          <h2 className="font-semibold">Verification queue</h2>
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+            <UserCheck className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+          </span>
+          <h2 className="font-semibold text-neutral-900">Verification queue</h2>
           <p className="text-sm text-muted-foreground">
             Review pending creator profiles
           </p>
         </Link>
         <Link
           href="/admin/campaigns"
-          className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50"
+          className="group flex flex-col gap-2.5 rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]"
         >
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+            <Megaphone className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+          </span>
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold">Campaigns</h2>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+            <h2 className="font-semibold text-neutral-900">Campaigns</h2>
+            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
               {campaigns.length}
             </span>
           </div>
@@ -60,12 +66,15 @@ export default async function AdminConsolePage() {
         </Link>
         <Link
           href="/admin/worklist"
-          className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50"
+          className="group flex flex-col gap-2.5 rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]"
         >
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+            <Scale className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+          </span>
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold">Dispute worklist</h2>
+            <h2 className="font-semibold text-neutral-900">Dispute worklist</h2>
             {disputed.length > 0 && (
-              <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-white">
+              <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-neutral-50">
                 {disputed.length}
               </span>
             )}
@@ -76,12 +85,15 @@ export default async function AdminConsolePage() {
         </Link>
         <Link
           href="/admin/tiers"
-          className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50"
+          className="group flex flex-col gap-2.5 rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]"
         >
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+            <Tag className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+          </span>
           <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold">Awaiting tier</h2>
+            <h2 className="font-semibold text-neutral-900">Awaiting tier</h2>
             {awaitingTier > 0 && (
-              <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-white">
+              <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-neutral-50">
                 {awaitingTier}
               </span>
             )}
@@ -94,9 +106,12 @@ export default async function AdminConsolePage() {
         </Link>
         <Link
           href="/admin/audit-log"
-          className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50"
+          className="group flex flex-col gap-2.5 rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]"
         >
-          <h2 className="font-semibold">Audit log</h2>
+          <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+            <ScrollText className="h-4 w-4" strokeWidth={1.5} aria-hidden />
+          </span>
+          <h2 className="font-semibold text-neutral-900">Audit log</h2>
           <p className="text-sm text-muted-foreground">
             Every admin action — the append-only trail
           </p>

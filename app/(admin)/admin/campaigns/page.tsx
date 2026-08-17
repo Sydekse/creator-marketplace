@@ -1,8 +1,24 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { Chip, type ChipTone } from '@/components/ui/chip';
+import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { listCampaignsForAdmin } from '@/lib/admin/overview';
 import { formatEtb } from '@/lib/money';
+
+/**
+ * Campaign status → chip tone. The vocabulary (design doc §10.3): teal/success
+ * for good states, amber for waiting, gray for neutral. Cancelled is a
+ * terminal but not a failure state, so it stays gray rather than red.
+ */
+const CAMPAIGN_CHIP_TONE: Record<string, ChipTone> = {
+  draft: 'gray',
+  confirmed: 'amber',
+  funded: 'teal',
+  in_progress: 'teal',
+  completed: 'success',
+  cancelled: 'gray',
+};
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -24,13 +40,10 @@ export default async function AdminCampaignsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <h1 className="page-title">Campaigns</h1>
-        <p className="text-sm text-muted-foreground">
-          Every campaign and its ledger position — budget, escrow held, and what
-          has left it.
-        </p>
-      </div>
+      <PageHeader
+        title="Campaigns"
+        description="Every campaign and its ledger position — budget, escrow held, and what has left it."
+      />
 
       {campaigns.length === 0 ? (
         <EmptyState
@@ -73,7 +86,11 @@ export default async function AdminCampaignsPage() {
                       {campaign.name}
                     </Link>
                   </td>
-                  <td className="px-4 py-3 capitalize">{campaign.status}</td>
+                  <td className="px-4 py-3">
+                    <Chip tone={CAMPAIGN_CHIP_TONE[campaign.status] ?? 'gray'}>
+                      {campaign.status.replaceAll('_', ' ')}
+                    </Chip>
+                  </td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     {formatEtb(campaign.budget)}
                   </td>

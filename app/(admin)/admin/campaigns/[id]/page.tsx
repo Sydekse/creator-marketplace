@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Banknote, Lock, Percent, RotateCcw } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
+import { PageHeader } from '@/components/layout/page-header';
 import { getCampaignLedgerForAdmin } from '@/lib/admin/overview';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { formatEtb } from '@/lib/money';
@@ -43,53 +46,75 @@ export default async function AdminCampaignLedgerPage({
         >
           ← Campaigns
         </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="page-title">{campaign.name}</h1>
-          <span
-            className={
-              reconciled
-                ? 'rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-medium text-white'
-                : 'rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-white'
-            }
-          >
-            {reconciled ? 'Reconciled' : 'Ledger out of balance'}
-          </span>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          {campaign.status} · budget {formatEtb(campaign.budget)}
-        </p>
+        <PageHeader
+          title={campaign.name}
+          action={
+            <Chip tone={reconciled ? 'success' : 'red'} size="md">
+              {reconciled ? 'Reconciled' : 'Ledger out of balance'}
+            </Chip>
+          }
+          description={`${campaign.status} · budget ${formatEtb(campaign.budget)}`}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
-            Held in escrow
-          </h2>
-          <p className="mt-1 text-lg font-semibold tabular-nums">
+        <div className="rounded-xl border border-neutral-200 bg-card p-5">
+          <div className="flex items-center gap-1.5">
+            <Lock
+              className="h-3.5 w-3.5 text-neutral-400"
+              strokeWidth={1.5}
+              aria-hidden
+            />
+            <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
+              Held in escrow
+            </h2>
+          </div>
+          <p className="mt-2 text-xl font-semibold tabular-nums">
             {formatEtb(totals.held)}
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
-            Paid out
-          </h2>
-          <p className="mt-1 text-lg font-semibold tabular-nums">
+        <div className="rounded-xl border border-neutral-200 bg-card p-5">
+          <div className="flex items-center gap-1.5">
+            <Banknote
+              className="h-3.5 w-3.5 text-neutral-400"
+              strokeWidth={1.5}
+              aria-hidden
+            />
+            <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
+              Paid out
+            </h2>
+          </div>
+          <p className="mt-2 text-xl font-semibold tabular-nums">
             {formatEtb(totals.paidOut)}
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
-            Commission
-          </h2>
-          <p className="mt-1 text-lg font-semibold tabular-nums">
+        <div className="rounded-xl border border-neutral-200 bg-card p-5">
+          <div className="flex items-center gap-1.5">
+            <Percent
+              className="h-3.5 w-3.5 text-neutral-400"
+              strokeWidth={1.5}
+              aria-hidden
+            />
+            <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
+              Commission
+            </h2>
+          </div>
+          <p className="mt-2 text-xl font-semibold tabular-nums">
             {formatEtb(totals.commission)}
           </p>
         </div>
-        <div className="rounded-lg border border-border bg-card p-4">
-          <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
-            Refunded
-          </h2>
-          <p className="mt-1 text-lg font-semibold tabular-nums">
+        <div className="rounded-xl border border-neutral-200 bg-card p-5">
+          <div className="flex items-center gap-1.5">
+            <RotateCcw
+              className="h-3.5 w-3.5 text-neutral-400"
+              strokeWidth={1.5}
+              aria-hidden
+            />
+            <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
+              Refunded
+            </h2>
+          </div>
+          <p className="mt-2 text-xl font-semibold tabular-nums">
             {formatEtb(totals.refunded)}
           </p>
         </div>

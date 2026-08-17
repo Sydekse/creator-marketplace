@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/page-header';
 import { readVerificationQueue } from '@/lib/creators/verification-queue';
 import { PAGE_SIZE, offsetForPage, pageFromParam } from '@/lib/paging';
 import { VerificationQueue } from '@/components/admin/verification-queue';
@@ -33,13 +34,10 @@ export default async function VerificationQueuePage({
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <h1 className="page-title">Verification queue</h1>
-        <p className="text-sm text-muted-foreground">
-          Review creators awaiting verification. Approve to make them eligible
-          for tier assignment, or reject with an optional note.
-        </p>
-      </div>
+      <PageHeader
+        title="Verification queue"
+        description="Review creators awaiting verification. Approve to make them eligible for tier assignment, or reject with an optional note."
+      />
 
       <VerificationQueue creators={creators} />
 

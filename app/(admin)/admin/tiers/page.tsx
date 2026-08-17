@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/page-header';
 import { readAwaitingTier } from '@/lib/creators/awaiting-tier';
 import { PAGE_SIZE, offsetForPage, pageFromParam } from '@/lib/paging';
 import { AwaitingTierList } from '@/components/admin/awaiting-tier-list';
@@ -33,15 +34,17 @@ export default async function AwaitingTierPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <h1 className="page-title">Awaiting tier</h1>
-        <p className="text-sm text-muted-foreground">
-          Verified creators with no pricing tier. A creator is bookable only
-          when verified <em>and</em> tiered, so these profiles do not appear in
-          brand discovery. Correct their follower count or engagement rate, then
-          retry assignment.
-        </p>
-      </div>
+      <PageHeader
+        title="Awaiting tier"
+        description={
+          <>
+            Verified creators with no pricing tier. A creator is bookable only
+            when verified <em>and</em> tiered, so these profiles do not appear
+            in brand discovery. Correct their follower count or engagement rate,
+            then retry assignment.
+          </>
+        }
+      />
 
       <AwaitingTierList creators={creators} />
 
