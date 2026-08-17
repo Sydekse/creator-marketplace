@@ -117,7 +117,7 @@ export function TierPricing({
   profile: TierableProfile;
 }) {
   const heading = (
-    <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
+    <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
       Your rate
     </h2>
   );

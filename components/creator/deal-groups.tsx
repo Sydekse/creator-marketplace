@@ -88,7 +88,7 @@ function Group({ group }: { group: CreatorDealGroup }) {
 export function DealGroups({ groups }: { groups: CreatorDealGroup[] }) {
   return (
     <section className="flex flex-col gap-6">
-      <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
+      <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
         Your deals
       </h2>
       {groups.map((group) => (
