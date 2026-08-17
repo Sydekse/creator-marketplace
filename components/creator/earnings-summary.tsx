@@ -36,7 +36,12 @@ function Figure({
       <dt className="text-xs tracking-wide text-muted-foreground uppercase">
         {label}
       </dt>
-      <dd className="font-mono text-xl font-medium tabular-nums">{value}</dd>
+      {/* Money is the one number a creator scans for, so it gets the serif
+          display treatment the landing page gives its headline figures
+          (design doc §4.3) — the same place a brand's eye goes on the hero. */}
+      <dd className="font-display text-2xl font-medium text-neutral-900 tabular-nums">
+        {value}
+      </dd>
       <p className="text-xs text-muted-foreground">{note}</p>
     </div>
   );
@@ -45,7 +50,7 @@ function Figure({
 export function EarningsSummary({ earnings }: { earnings: CreatorEarnings }) {
   return (
     <section className="flex flex-col gap-4">
-      <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
+      <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
         Earnings
       </h2>
 
