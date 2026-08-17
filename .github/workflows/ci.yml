@@ -118,6 +118,10 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
           SEED_DEMO_PASSWORD: demo-Passw0rd!
+          # Better Auth refuses to serve the default secret (it throws on
+          # every request), and .env.local is not present in CI. The built
+          # server inherits this through the Playwright webServer env.
+          BETTER_AUTH_SECRET: e2e-test-secret-8f3a9c2e6d1b4a7f
       # KAN-60 AC-10: failures upload the trace and screenshots as artifacts.
       - name: Upload Playwright report
         if: failure()
