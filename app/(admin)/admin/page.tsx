@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
 import {
   listCampaignsForAdmin,
@@ -28,12 +29,10 @@ export default async function AdminConsolePage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <h1 className="page-title">Admin console</h1>
-        <p className="text-sm text-muted-foreground">
-          Signed in as {user.name ?? user.email}.
-        </p>
-      </div>
+      <PageHeader
+        title="Admin console"
+        description={<>Signed in as {user.name ?? user.email}.</>}
+      />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link
           href="/admin/verification"

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { AUDIT_ACTIONS } from '@/lib/audit/actions';
 import { readAuditLog } from '@/lib/audit/queries';
@@ -55,12 +56,16 @@ export default async function AdminAuditLogPage() {
         >
           ← Admin console
         </Link>
-        <h1 className="page-title">Audit log</h1>
-        <p className="text-sm text-muted-foreground">
-          Every admin action, append-only — who did what, and when. Showing the
-          latest {page.rows.length}
-          {page.hasMore ? ' — older entries are a page behind' : ''}.
-        </p>
+        <PageHeader
+          title="Audit log"
+          description={
+            <>
+              Every admin action, append-only — who did what, and when. Showing
+              the latest {page.rows.length}
+              {page.hasMore ? ' — older entries are a page behind' : ''}.
+            </>
+          }
+        />
       </div>
 
       {page.rows.length === 0 ? (

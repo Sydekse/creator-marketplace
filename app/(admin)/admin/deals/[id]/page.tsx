@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/page-header';
 import { DealHistory } from '@/components/deals/deal-history';
 import { getDealHistory } from '@/lib/deals/queries';
 import { ForbiddenError } from '@/lib/authz';
@@ -54,12 +55,16 @@ export default async function AdminDealPage({
         >
           ← Dispute worklist
         </Link>
-        <h1 className="page-title">Deal history</h1>
-        <p className="text-sm text-muted-foreground">
-          {campaignName ? `Campaign: ${campaignName} — ` : ''}
-          every state transition this deal has been through, oldest first — the
-          append-only audit trail.
-        </p>
+        <PageHeader
+          title="Deal history"
+          description={
+            <>
+              {campaignName ? `Campaign: ${campaignName} — ` : ''}
+              every state transition this deal has been through, oldest first —
+              the append-only audit trail.
+            </>
+          }
+        />
       </div>
 
       <div className="rounded-lg border border-border bg-card p-4">

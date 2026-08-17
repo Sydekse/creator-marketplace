@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { listCampaignsForAdmin } from '@/lib/admin/overview';
 import { formatEtb } from '@/lib/money';
@@ -24,13 +25,10 @@ export default async function AdminCampaignsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <h1 className="page-title">Campaigns</h1>
-        <p className="text-sm text-muted-foreground">
-          Every campaign and its ledger position — budget, escrow held, and what
-          has left it.
-        </p>
-      </div>
+      <PageHeader
+        title="Campaigns"
+        description="Every campaign and its ledger position — budget, escrow held, and what has left it."
+      />
 
       {campaigns.length === 0 ? (
         <EmptyState

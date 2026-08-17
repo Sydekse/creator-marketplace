@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { FlagDealButton } from '@/components/admin/flag-deal-button';
 import { listWorklistForAdmin } from '@/lib/admin/overview';
@@ -26,14 +27,10 @@ export default async function AdminWorklistPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3">
-        <h1 className="page-title">Dispute worklist</h1>
-        <p className="text-sm text-muted-foreground">
-          Deals that are flagged, or whose money is held and unresolved.
-          Resolving refunds the brand, releases to the creator, or requests a
-          revision — and clears the attention flag.
-        </p>
-      </div>
+      <PageHeader
+        title="Dispute worklist"
+        description="Deals that are flagged, or whose money is held and unresolved. Resolving refunds the brand, releases to the creator, or requests a revision — and clears the attention flag."
+      />
 
       {worklist.length === 0 ? (
         <EmptyState
