@@ -17,7 +17,7 @@ describe('cn', () => {
   });
 
   it('accepts objects and keeps only the truthy keys', () => {
-    expect(cn({ 'on': true, 'off': false, 'also-on': 1, 'nope': 0 })).toBe(
+    expect(cn({ on: true, off: false, 'also-on': 1, nope: 0 })).toBe(
       'on also-on'
     );
   });
