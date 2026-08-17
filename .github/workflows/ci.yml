@@ -123,7 +123,7 @@ jobs:
         run: |
           for project in chromium-desktop chromium-mobile webkit-desktop webkit-mobile; do
             echo "=== $project ==="
-            npx tsx -e "void (async () => { const m = await import('pg'); const Client = m.Client ?? m.default.Client; const c = new Client({ connectionString: process.env.DATABASE_URL }); await c.connect(); await c.query('DROP SCHEMA public CASCADE; CREATE SCHEMA public;'); await c.end(); })().catch((e) => { console.error(e); process.exit(1); })"
+            npx tsx -e "void (async () => { const m = await import('pg'); const Client = m.Client ?? m.default.Client; const c = new Client({ connectionString: process.env.DATABASE_URL }); await c.connect(); await c.query('DROP SCHEMA IF EXISTS drizzle CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;'); await c.end(); })().catch((e) => { console.error(e); process.exit(1); })"
             npx drizzle-kit migrate
             npx tsx db/seed.ts
             npx playwright test --project="$project"
