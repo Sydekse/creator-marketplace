@@ -4,22 +4,27 @@ import { db } from '@/db';
 import { auditLog, deal, dealEvent, ledgerEntry } from '@/db/schema';
 import { AUDIT_ACTIONS } from '@/lib/audit/actions';
 import { handleResolveDispute } from '@/app/api/admin/deals/[id]/resolve/route';
-import { guardForCookie, seededDeal, signInCookie } from './helpers';
+import { createMoneyFixture, guardForCookie, signInCookie } from './helpers';
 
 /**
  * KAN-60 flow 6 — admin dispute resolution (AC-030, AC-031): the refund path
  * returns the funds and writes the audit log.
  *
- * The seeded 'Summer Kickoff' campaign is the dedicated dispute fixture —
- * delivered, money held, flagged. It is used by this file alone, so the suite
- * stays order-independent: money-paths.test.ts mutates 'Fitness January', and
- * the two files must never share a deal. There is no admin dispute *UI* yet
- * (that is KAN-78), so the flow is exercised through the real resolve endpoint
- * with a real admin session, which is where the money and the audit trail live.
+ * The fixture is created by `createMoneyFixture` — delivered, money held
+ * IN-PROCESS (the mock provider's holds are per-process, so a seeded hold
+ * would be invisible here), and flagged. This file touches nothing seeded, so
+ * the suite stays order-independent regardless of which file runs first.
+ * There is no admin dispute *UI* yet (that is KAN-78), so the flow is
+ * exercised through the real resolve endpoint with a real admin session,
+ * which is where the money and the audit trail live.
  */
 describe('admin dispute resolution (AC-030, AC-031)', () => {
   it('refund path returns the funds, writes the audit log, and clears the flag', async () => {
-    const { dealId, campaignId } = await seededDeal('Summer Kickoff');
+    const { dealId, campaignId } = await createMoneyFixture({
+      kind: 'delivered',
+      flagged: true,
+      label: 'KAN-59 dispute',
+    });
     const adminCookie = await signInCookie('admin@demo.com');
 
     const [dealRow] = await db
@@ -27,7 +32,7 @@ describe('admin dispute resolution (AC-030, AC-031)', () => {
       .from(deal)
       .where(eq(deal.id, dealId));
     if (!dealRow.flagged) {
-      throw new Error('[integration] expected the seeded dispute to be flagged');
+      throw new Error('[integration] expected the dispute fixture to be flagged');
     }
 
     const response = await handleResolveDispute(
@@ -44,14 +49,15 @@ describe('admin dispute resolution (AC-030, AC-031)', () => {
     );
     expect(response.status).toBe(200);
 
-    // Money: a refund entry equal to the held total, escrow back to zero.
+    // Money: a refund entry equal to the held total (negative — money out of
+    // escrow, spike §3.5), escrow back to zero.
     const [refund] = await db
       .select({ amount: ledgerEntry.amount })
       .from(ledgerEntry)
       .where(
         sql`${ledgerEntry.campaignId} = ${campaignId} and ${ledgerEntry.entryType} = 'refund'`
       );
-    expect(refund?.amount).toBe(dealRow.totalPrice);
+    expect(refund?.amount).toBe(-dealRow.totalPrice);
 
     // State: the deal is refunded, the flag cleared (F40).
     const [after] = await db

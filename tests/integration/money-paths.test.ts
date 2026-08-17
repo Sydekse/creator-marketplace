@@ -5,7 +5,7 @@ import { campaign, deal, deliverable, ledgerEntry } from '@/db/schema';
 import { EscrowLedgerService } from '@/lib/payment/ledger';
 import { getPaymentProvider, MockPaymentProvider } from '@/lib/payment';
 import { computeSplit } from '@/lib/payment/ledger';
-import { seededDeal } from './helpers';
+import { createMoneyFixture } from './helpers';
 
 /**
  * KAN-59 AC-2/AC-3 — the money guarantees, proven against a real Postgres.
@@ -17,7 +17,10 @@ import { seededDeal } from './helpers';
  *
  * The provider is the real `MockPaymentProvider` — the same singleton the
  * running app uses — with `setFailNext` arming the one failure each test
- * needs (the same hook the seed and the e2e payment-failure flow use).
+ * needs. Each test builds its own campaign and walks it through the real
+ * ledger with `createMoneyFixture`, because the mock's holds are per-process:
+ * a hold placed by the seed process would be invisible here, and a test that
+ * failed against a dead ref would "pass" for the wrong reason.
  */
 
 async function entriesFor(campaignId: string) {
@@ -39,12 +42,15 @@ async function escrowed(campaignId: string): Promise<number> {
 
 describe('money-path atomicity (NFR-003)', () => {
   it('a payout that fails mid-transaction leaves deal, ledger and balance unchanged', async () => {
-    // The seeded dispute fixture: delivered, money held, nothing released. The
-    // walker does not create a deliverable row, and the payout's approval write
-    // (KAN-55) is only observable with one — so the test adds the row the real
-    // submit flow would have created, making the "not approved" assertion
-    // non-vacuous.
-    const { dealId, campaignId } = await seededDeal('Fitness January');
+    // A delivered deal with a hold placed by THIS process — so the only thing
+    // that can fail below is the induced `capturePayout` fault. The payout's
+    // approval write (KAN-55) is only observable with a deliverable row, which
+    // the real submit flow would have created, so the test adds it — making
+    // the "not approved" assertion non-vacuous.
+    const { dealId, campaignId } = await createMoneyFixture({
+      kind: 'delivered',
+      label: 'KAN-59 payout-fail',
+    });
     await db.insert(deliverable).values({
       dealId,
       tiktokUrl: 'https://www.tiktok.com/@creator.demo/video/integration-1',
@@ -90,7 +96,12 @@ describe('money-path atomicity (NFR-003)', () => {
   });
 
   it('a funding hold that fails leaves the campaign unfunded', async () => {
-    const { campaignId } = await seededDeal('Ramadan Beauty Push');
+    // The deal starts `accepted` — reachable by `holdForCampaign`, so the
+    // induced `hold` fault is what actually throws (not "no accepted deals").
+    const { dealId, campaignId } = await createMoneyFixture({
+      kind: 'accepted',
+      label: 'KAN-59 hold-fail',
+    });
 
     const provider = getPaymentProvider() as MockPaymentProvider;
     provider.setFailNext('hold');
@@ -103,14 +114,25 @@ describe('money-path atomicity (NFR-003)', () => {
       .from(campaign)
       .where(eq(campaign.id, campaignId));
     expect(row.status).toBe('confirmed');
+
+    // The deal is untouched too — still accepted, never funded.
+    const [dealRow] = await db
+      .select({ status: deal.status })
+      .from(deal)
+      .where(eq(deal.id, dealId));
+    expect(dealRow.status).toBe('accepted');
+
     expect(await escrowed(campaignId)).toBe(0);
   });
 
   it('a refund that fails mid-transaction leaves deal, ledger and balance unchanged', async () => {
-    // The seeded funded deal — the same fixture the happy-path refund test
-    // below uses, so the rollback must leave it refundable for that test: a
-    // refund that half-wrote would surface as a second refund entry there.
-    const { dealId, campaignId } = await seededDeal('Tech Review Series');
+    // A funded deal with a live in-process hold — the refund's `releaseHold`
+    // is the only thing that can fail, so the rejection is genuinely the
+    // induced fault, and the rollback is what keeps every row untouched.
+    const { dealId, campaignId } = await createMoneyFixture({
+      kind: 'funded',
+      label: 'KAN-59 refund-fail',
+    });
 
     const beforeDeal = await db
       .select({ status: deal.status })
@@ -119,8 +141,6 @@ describe('money-path atomicity (NFR-003)', () => {
     const beforeEntries = await entriesFor(campaignId);
     const beforeEscrow = await escrowed(campaignId);
 
-    // The refund's provider call is `releaseHold` (ledger.ts) — failing it
-    // throws inside the transaction, which must roll back everything.
     const provider = getPaymentProvider() as MockPaymentProvider;
     provider.setFailNext('releaseHold');
 
@@ -147,7 +167,10 @@ describe('money-path atomicity (NFR-003)', () => {
 
 describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
   it('hold: funding a confirmed campaign writes a hold and moves it to funded', async () => {
-    const { campaignId } = await seededDeal('Ramadan Beauty Push');
+    const { campaignId } = await createMoneyFixture({
+      kind: 'accepted',
+      label: 'KAN-59 hold',
+    });
 
     const ledger = new EscrowLedgerService(db, getPaymentProvider());
     await ledger.holdForCampaign(campaignId);
@@ -161,7 +184,10 @@ describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
   });
 
   it('release: payout writes release_payout + commission and completes the deal', async () => {
-    const { dealId, campaignId } = await seededDeal('Fitness January');
+    const { dealId, campaignId } = await createMoneyFixture({
+      kind: 'delivered',
+      label: 'KAN-59 release',
+    });
 
     const [dealRow] = await db
       .select({ totalPrice: deal.totalPrice, commissionRate: deal.commissionRate })
@@ -195,7 +221,10 @@ describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
   });
 
   it('refund: refunding a funded deal writes a refund entry and returns the hold', async () => {
-    const { dealId, campaignId } = await seededDeal('Tech Review Series');
+    const { dealId, campaignId } = await createMoneyFixture({
+      kind: 'funded',
+      label: 'KAN-59 refund',
+    });
 
     const [dealRow] = await db
       .select({ totalPrice: deal.totalPrice })
@@ -207,7 +236,8 @@ describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
 
     const entries = await entriesFor(campaignId);
     const refund = entries.find((e) => e.type === 'refund');
-    expect(refund?.amount).toBe(dealRow.totalPrice);
+    // The refund entry is negative — money out of escrow (spike §3.5).
+    expect(refund?.amount).toBe(-dealRow.totalPrice);
 
     const [after] = await db
       .select({ status: deal.status })

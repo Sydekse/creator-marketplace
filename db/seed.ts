@@ -303,10 +303,10 @@ const DEMO_DEALS: readonly DemoDealSpec[] = [
     goal: 'Sign-ups for the new-year membership offer.',
     videoCount: 2,
     target: 'delivered',
-    // The money-path fixture for the KAN-59 integration suite (payout-fail and
-    // release run against this deal). Kept flagged so the disputed worklist has
-    // a row, but the dispute *resolution* test uses its own fixture below —
-    // two suites mutating one deal would make either order of execution fail.
+    // Flagged so the disputed worklist has a row (KAN-69 F40). No integration
+    // suite touches it — those self-create their own fixtures, because the
+    // mock provider's holds are per-process and a seeded hold would be
+    // invisible to the test process.
     flagged: true,
   },
   {
@@ -314,9 +314,9 @@ const DEMO_DEALS: readonly DemoDealSpec[] = [
     goal: 'Launch the warm-weather campaign block.',
     videoCount: 2,
     target: 'delivered',
-    // The dedicated dispute fixture (KAN-59 AC-030/AC-031): delivered, money
-    // held, flagged. Only tests/integration/dispute.test.ts touches it, so the
-    // suite is order-independent regardless of which file runs first.
+    // The e2e worklist fixture (KAN-60 flow 6, KAN-78): delivered, money
+    // held, flagged, so the admin worklist shows it for the dispute walk.
+    // Integration suites self-create fixtures and never touch seeded deals.
     flagged: true,
   },
   {

@@ -14,6 +14,16 @@ const PG_UNIQUE_VIOLATION = '23505';
 /** The Postgres error code for a check-violation. */
 const PG_CHECK_VIOLATION = '23514';
 
+/**
+ * Drizzle wraps driver errors in `DrizzleQueryError` and keeps the pg error
+ * (which carries the SQLSTATE `code`) on `.cause`. Some paths surface the
+ * driver error directly, so both shapes are checked.
+ */
+function pgCode(error: unknown): string | undefined {
+  const e = error as { code?: string; cause?: { code?: string } };
+  return e.code ?? e.cause?.code;
+}
+
 describe('database constraints (KAN-59 AC-5)', () => {
   it('rejects a duplicate TikTok handle at the database (AC-003)', async () => {
     // Two fresh users (no profiles yet), one shared handle — the unique
@@ -36,14 +46,18 @@ describe('database constraints (KAN-59 AC-5)', () => {
       audience: { followers: 1000 },
     });
 
-    await expect(
-      db.insert(creatorProfile).values({
+    const duplicate = await db
+      .insert(creatorProfile)
+      .values({
         userId: u2.id,
         tiktokHandle: '@constraint.shared',
         niche: 'fitness',
         audience: { followers: 1000 },
       })
-    ).rejects.toMatchObject({ code: PG_UNIQUE_VIOLATION });
+      .then(() => null)
+      .catch((error: unknown) => error);
+    expect(duplicate).toBeDefined();
+    expect(pgCode(duplicate)).toBe(PG_UNIQUE_VIOLATION);
   });
 
   it('rejects a non-positive campaign budget at the database (AC-008)', async () => {
@@ -55,8 +69,9 @@ describe('database constraints (KAN-59 AC-5)', () => {
       .where(eq(user.email, 'brand@demo.com'));
     if (!brand) throw new Error('[integration] seeded brand missing');
 
-    await expect(
-      db.insert(campaign).values({
+    const zeroBudget = await db
+      .insert(campaign)
+      .values({
         brandId: brand.id,
         name: 'Constraint Budget Zero',
         goal: 'Should never be inserted.',
@@ -64,6 +79,9 @@ describe('database constraints (KAN-59 AC-5)', () => {
         desiredVideos: 1,
         status: 'draft',
       })
-    ).rejects.toMatchObject({ code: PG_CHECK_VIOLATION });
+      .then(() => null)
+      .catch((error: unknown) => error);
+    expect(zeroBudget).toBeDefined();
+    expect(pgCode(zeroBudget)).toBe(PG_CHECK_VIOLATION);
   });
 });
