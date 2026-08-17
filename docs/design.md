@@ -320,6 +320,11 @@ One-line description (sans, neutral-600, max-w ~52ch)
 
 The hero/landing sections use the same structure at marketing scale.
 
+Auth (KAN-87) is the same rhythm without the shared component: the shell
+renders the mark + wordmark on the paper canvas and centres an editorial
+card — teal label, serif headline, hairline, ink pill submit — so the first
+screen a user meets after the landing page shares its aura.
+
 ### 10.6 Mockup frames (CSS-built product screenshots)
 
 `rounded-[24px]`, 1px hairline, soft ambient shadow, window chrome bar
