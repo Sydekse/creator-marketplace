@@ -5,6 +5,7 @@ import { handleVerifyCreator } from '@/app/api/admin/creators/[id]/verify/route'
 import { handleRecordMetrics } from '@/app/api/deliverables/[id]/metrics/route';
 import { handleApproveDeliverable } from '@/app/api/deals/[id]/approve/route';
 import {
+  createMoneyFixture,
   guardForCookie,
   profileIdForEmail,
   realVerifyDeps,
@@ -107,8 +108,16 @@ describe('RBAC per endpoint (NFR-005)', () => {
     expect(asOwner.status).toBe(200);
   });
 
-  it('approve: a creator cannot approve, the owning brand passes the guard', async () => {
-    const { dealId } = await seededDeal('Fitness January');
+  it('approve: a creator cannot approve, the owning brand completes the payout', async () => {
+    // A fresh delivered deal with a live in-process hold — so the brand's
+    // approve can actually succeed (a seeded deal's hold died with the seed
+    // process, so the payout would fail with INVALID_REFERENCE and the test
+    // would "pass" for the wrong reason). The fixture's campaign is owned by
+    // brand@demo.com, so the ownership read admits the brand.
+    const { dealId } = await createMoneyFixture({
+      kind: 'delivered',
+      label: 'KAN-59 rbac-approve',
+    });
 
     const creatorCookie = await signInCookie('creator@demo.com');
     const brandCookie = await signInCookie('brand@demo.com');
@@ -118,13 +127,12 @@ describe('RBAC per endpoint (NFR-005)', () => {
     });
     expect(asCreator.status).toBe(403);
 
-    // The brand owns this deal, so the guard admits them — the response is
-    // 200 on a delivered deal or 409 (DEAL_NOT_DELIVERED) if another suite
-    // already completed it. Both prove the guard passed; only a 403 would be
-    // an authorization bug.
+    // The brand owns this deal, so the guard admits them and the payout runs
+    // for real against the live hold — 200 proves authorization AND the money
+    // path end to end.
     const asBrand = await handleApproveDeliverable(dealId, {
       guard: guardForCookie(brandCookie),
     });
-    expect(asBrand.status).not.toBe(403);
+    expect(asBrand.status).toBe(200);
   });
 });

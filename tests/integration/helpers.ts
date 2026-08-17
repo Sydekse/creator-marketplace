@@ -16,6 +16,10 @@ import { createGuard, loadOwnerRefs, loadProfileIds } from '@/lib/authz';
 import type { GuardOptions } from '@/lib/authz';
 import { COMMISSION_RATE } from '@/lib/config/pricing';
 import { transitionDeal } from '@/lib/deals/state-machine';
+import {
+  defaultDeps as defaultResolveDeps,
+  type ResolveDisputeDeps,
+} from '@/lib/deals/resolve-dispute';
 import { getPaymentProvider } from '@/lib/payment';
 import { EscrowLedgerService } from '@/lib/payment/ledger';
 import { providerFromEnv, renderNotification } from '@/lib/notifications';
@@ -125,6 +129,26 @@ export function realVerifyDeps(cookie: string): VerifyCreatorDeps {
       log: console,
       sleep: async () => {},
     } as NotifyDeps,
+    adminAuditDeps: {
+      getCurrentUser: async () => userFromCookie(cookie),
+      loadProfileIds,
+      loadOwnerRefs,
+    },
+  };
+}
+
+/**
+ * The real deps for the resolve-dispute action, with only the audit re-check
+ * swapped to a real session: the production `defaultDeps` re-checks the admin
+ * role through `getSessionUser`, which reads `headers()` — a Next request
+ * API that cannot run outside a request. `userFromCookie` resolves the same
+ * genuine session token through the real session table instead (see its own
+ * comment), so `withAdminAudit` inside the ledger transaction attributes the
+ * audit row without needing a request scope.
+ */
+export function realResolveDeps(cookie: string): ResolveDisputeDeps {
+  return {
+    ...defaultResolveDeps,
     adminAuditDeps: {
       getCurrentUser: async () => userFromCookie(cookie),
       loadProfileIds,

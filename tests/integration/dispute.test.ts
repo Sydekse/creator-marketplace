@@ -4,7 +4,12 @@ import { db } from '@/db';
 import { auditLog, deal, dealEvent, ledgerEntry } from '@/db/schema';
 import { AUDIT_ACTIONS } from '@/lib/audit/actions';
 import { handleResolveDispute } from '@/app/api/admin/deals/[id]/resolve/route';
-import { createMoneyFixture, guardForCookie, signInCookie } from './helpers';
+import {
+  createMoneyFixture,
+  guardForCookie,
+  realResolveDeps,
+  signInCookie,
+} from './helpers';
 
 /**
  * KAN-60 flow 6 — admin dispute resolution (AC-030, AC-031): the refund path
@@ -47,7 +52,12 @@ describe('admin dispute resolution (AC-030, AC-031)', () => {
         }),
       }),
       dealId,
-      { guard: guardForCookie(adminCookie) }
+      {
+        guard: guardForCookie(adminCookie),
+        // The audit re-check inside `withAdminAudit` must resolve the session
+        // through the real session table, not `headers()` (see realResolveDeps).
+        resolveDisputeDeps: realResolveDeps(adminCookie),
+      }
     );
     expect(response.status).toBe(200);
 

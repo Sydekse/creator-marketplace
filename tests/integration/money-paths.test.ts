@@ -30,13 +30,18 @@ async function entriesFor(campaignId: string) {
     .where(eq(ledgerEntry.campaignId, campaignId));
 }
 
-async function escrowed(campaignId: string): Promise<number> {
+/**
+ * The campaign's ledger balance — the sum of **every** entry (hold in,
+ * release/refund out). Only the full sum answers "is all the money back?":
+ * the ledger is append-only, so the `hold` row never disappears — a refund or
+ * payout offsets it with a negative entry, and the balance returning to zero
+ * is the invariant that proves the money round-tripped.
+ */
+async function balance(campaignId: string): Promise<number> {
   const [row] = await db
     .select({ total: sql<number>`coalesce(sum(amount), 0)` })
     .from(ledgerEntry)
-    .where(
-      sql`${ledgerEntry.campaignId} = ${campaignId} and ${ledgerEntry.entryType} = 'hold'`
-    );
+    .where(eq(ledgerEntry.campaignId, campaignId));
   return Number(row?.total ?? 0);
 }
 
@@ -62,7 +67,7 @@ describe('money-path atomicity (NFR-003)', () => {
       .from(deal)
       .where(eq(deal.id, dealId));
     const beforeEntries = await entriesFor(campaignId);
-    const beforeEscrow = await escrowed(campaignId);
+    const beforeBalance = await balance(campaignId);
 
     const provider = getPaymentProvider() as MockPaymentProvider;
     provider.setFailNext('capturePayout');
@@ -83,8 +88,8 @@ describe('money-path atomicity (NFR-003)', () => {
     expect(afterEntries).toEqual(beforeEntries);
     expect(afterEntries.filter((e) => e.type !== 'hold')).toHaveLength(0);
 
-    // The campaign's escrowed total is exactly what it was.
-    expect(await escrowed(campaignId)).toBe(beforeEscrow);
+    // The campaign's ledger balance is exactly what it was.
+    expect(await balance(campaignId)).toBe(beforeBalance);
 
     // And the deliverable was not marked approved (KAN-55 write shares the tx).
     const [deliv] = await db
@@ -122,7 +127,7 @@ describe('money-path atomicity (NFR-003)', () => {
       .where(eq(deal.id, dealId));
     expect(dealRow.status).toBe('accepted');
 
-    expect(await escrowed(campaignId)).toBe(0);
+    expect(await balance(campaignId)).toBe(0);
   });
 
   it('a refund that fails mid-transaction leaves deal, ledger and balance unchanged', async () => {
@@ -139,7 +144,7 @@ describe('money-path atomicity (NFR-003)', () => {
       .from(deal)
       .where(eq(deal.id, dealId));
     const beforeEntries = await entriesFor(campaignId);
-    const beforeEscrow = await escrowed(campaignId);
+    const beforeBalance = await balance(campaignId);
 
     const provider = getPaymentProvider() as MockPaymentProvider;
     provider.setFailNext('releaseHold');
@@ -160,8 +165,8 @@ describe('money-path atomicity (NFR-003)', () => {
     expect(afterEntries).toEqual(beforeEntries);
     expect(afterEntries.filter((e) => e.type !== 'hold')).toHaveLength(0);
 
-    // The campaign's escrowed total is exactly what it was.
-    expect(await escrowed(campaignId)).toBe(beforeEscrow);
+    // The campaign's ledger balance is exactly what it was.
+    expect(await balance(campaignId)).toBe(beforeBalance);
   });
 });
 
@@ -180,7 +185,7 @@ describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
       .from(campaign)
       .where(eq(campaign.id, campaignId));
     expect(row.status).toBe('funded');
-    expect(await escrowed(campaignId)).toBeGreaterThan(0);
+    expect(await balance(campaignId)).toBeGreaterThan(0);
   });
 
   it('release: payout writes release_payout + commission and completes the deal', async () => {
@@ -208,11 +213,13 @@ describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
     const release = entries.find((e) => e.type === 'release_payout');
     const comm = entries.find((e) => e.type === 'commission');
 
-    // Payout + commission reconcile exactly with the deal total (invariant 4).
-    expect(release?.amount).toBe(payout);
-    expect(comm?.amount).toBe(commission);
+    // Both entries are negative — money out of escrow (spike §3.5) — and
+    // reconcile exactly with the deal total (invariant 4): the two legs draw
+    // the hold down to zero.
+    expect(release?.amount).toBe(-payout);
+    expect(comm?.amount).toBe(-commission);
     expect((release?.amount ?? 0) + (comm?.amount ?? 0)).toBe(
-      dealRow.totalPrice
+      -dealRow.totalPrice
     );
 
     const [after] = await db
@@ -221,8 +228,9 @@ describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
       .where(eq(deal.id, dealId));
     expect(after.status).toBe('completed');
 
-    // The hold is fully consumed: escrowed goes to zero once released.
-    expect(await escrowed(campaignId)).toBe(0);
+    // The hold is fully consumed: the ledger balance goes to zero once
+    // released (the hold's positive entry offsets the two negative legs).
+    expect(await balance(campaignId)).toBe(0);
   });
 
   it('refund: refunding a funded deal writes a refund entry and returns the hold', async () => {
@@ -249,6 +257,8 @@ describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
       .from(deal)
       .where(eq(deal.id, dealId));
     expect(after.status).toBe('refunded');
-    expect(await escrowed(campaignId)).toBe(0);
+
+    // The hold's positive entry is offset by the refund: all money is back.
+    expect(await balance(campaignId)).toBe(0);
   });
 });
