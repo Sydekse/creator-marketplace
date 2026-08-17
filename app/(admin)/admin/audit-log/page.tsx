@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { AUDIT_ACTIONS } from '@/lib/audit/actions';
@@ -98,12 +99,10 @@ function AuditRow({ row }: { row: AuditLogRow }) {
   const detail = formatDetail(row.detail);
 
   return (
-    <li className="rounded-lg border border-border bg-card p-4">
+    <li className="rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:border-neutral-300">
       <div className="flex flex-col gap-1">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">
-            {label}
-          </span>
+          <Chip tone="gray">{label}</Chip>
           <span className="font-mono text-xs text-muted-foreground">
             {row.action}
           </span>

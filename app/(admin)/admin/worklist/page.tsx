@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { FlagDealButton } from '@/components/admin/flag-deal-button';
@@ -50,17 +51,15 @@ export default async function AdminWorklistPage() {
           {worklist.map((row) => (
             <li
               key={row.id}
-              className="rounded-lg border border-border bg-card p-4"
+              className="rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:border-neutral-300"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
-                    <h2 className="font-semibold">{row.campaignName}</h2>
-                    {row.flagged && (
-                      <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-white">
-                        Flagged
-                      </span>
-                    )}
+                    <h2 className="font-semibold text-neutral-900">
+                      {row.campaignName}
+                    </h2>
+                    {row.flagged && <Chip tone="red">Flagged</Chip>}
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {row.brandCompanyName} · @{row.creatorHandle} ·{' '}
