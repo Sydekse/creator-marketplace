@@ -92,6 +92,15 @@ export default async function AdminConsolePage() {
               : 'Every verified creator has a tier'}
           </p>
         </Link>
+        <Link
+          href="/admin/audit-log"
+          className="flex flex-col gap-2 rounded-lg border border-border bg-card p-4 transition-colors hover:bg-muted/50"
+        >
+          <h2 className="font-semibold">Audit log</h2>
+          <p className="text-sm text-muted-foreground">
+            Every admin action — the append-only trail
+          </p>
+        </Link>
       </div>
     </div>
   );

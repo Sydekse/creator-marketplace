@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/feedback/empty-state';
+import { FlagDealButton } from '@/components/admin/flag-deal-button';
 import { listWorklistForAdmin } from '@/lib/admin/overview';
 import { formatEtb } from '@/lib/money';
 import { ResolveDisputeForm } from '@/components/admin/resolve-dispute-form';
@@ -79,6 +80,11 @@ export default async function AdminWorklistPage() {
                     dealId={row.id}
                     status={row.status}
                     campaignName={row.campaignName}
+                  />
+                  <FlagDealButton
+                    dealId={row.id}
+                    campaignName={row.campaignName}
+                    flagged={row.flagged}
                   />
                   <Link
                     href={`/admin/deals/${row.id}?campaign=${encodeURIComponent(row.campaignName)}`}

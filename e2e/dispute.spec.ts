@@ -69,6 +69,11 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   await expect(row).toBeVisible({ timeout: 15_000 });
   await expect(row.getByText(/delivered/i)).toBeVisible();
 
+  // KAN-81: flagging is attention metadata — raise the flag from the worklist
+  // and the row shows it immediately (the resolution below clears it).
+  await row.getByRole('button', { name: 'Flag for dispute' }).click();
+  await expect(row.getByText('Flagged')).toBeVisible();
+
   // KAN-78 deal drill-down: the row links to the append-only event trail,
   // which the resolution is about to extend, carrying the campaign name for
   // context (F2). Asserted *before* the refund so the drill-down works however
@@ -99,5 +104,18 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
 
   // And the row leaves the worklist — refunded is not refundable.
   await expect(row).toHaveCount(0, { timeout: 15_000 });
+
+  // KAN-81 AC-031: the console links to the append-only audit log, which now
+  // carries both admin actions — the flag and the resolution, note included.
+  await admin.goto('/admin');
+  await admin.getByRole('link', { name: /Audit log/ }).click();
+  await expect(admin.getByRole('heading', { name: 'Audit log' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(admin.getByText('Deal flagged').first()).toBeVisible();
+  await expect(admin.getByText('Dispute resolved').first()).toBeVisible();
+  await expect(
+    admin.getByText(/Brand and creator agreed to cancel/).first()
+  ).toBeVisible();
   await admin.close();
 });
