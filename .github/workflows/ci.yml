@@ -128,13 +128,21 @@ jobs:
       # drops the schema, re-migrates, re-seeds, and boots its own webServers.
       - name: Run e2e suite (per browser project)
         run: |
+          failures=0
           for project in chromium-desktop chromium-mobile webkit-desktop webkit-mobile; do
             echo "=== $project ==="
             npx tsx -e "void (async () => { const m = await import('pg'); const Client = m.Client ?? m.default.Client; const c = new Client({ connectionString: process.env.DATABASE_URL }); await c.connect(); await c.query('DROP SCHEMA IF EXISTS drizzle CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;'); await c.end(); })().catch((e) => { console.error(e); process.exit(1); })"
             npx drizzle-kit migrate
             npx tsx db/seed.ts
-            npx playwright test --project="$project"
+            # Run every project even if one fails — each project gets its own
+            # fresh seed above, so a red project must not hide the next one's
+            # verdict (each re-run cycle is minutes long).
+            if ! npx playwright test --project="$project"; then
+              echo "::error::e2e failed on $project"
+              failures=1
+            fi
           done
+          exit "$failures"
         env:
           DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
           SEED_DEMO_PASSWORD: demo-Passw0rd!
