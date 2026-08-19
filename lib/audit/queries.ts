@@ -56,6 +56,26 @@ export interface AuditLogPage {
   hasMore: boolean;
 }
 
+/**
+ * Filter params are accepted in snake_case because that is how the endpoint
+ * *returns* them — flagged in the KAN-52 review, where `?actor_id=` was silently
+ * dropped and the whole log came back. Shared by the `/api/admin/audit-log`
+ * route and the admin console page so the two cannot drift into accepting
+ * different spellings of the same filter — the discovery page and its route
+ * share `DISCOVERY_PARAM_ALIASES` for exactly this reason.
+ *
+ * A closed map, not a `_x -> X` regex: a misspelling has to stay unknown so the
+ * schema's `.strict()` rejects it, where a general rule would invent a plausible
+ * camelCase key for anything underscored and put us back where the review
+ * started. `readParams` takes the map as an argument for this — see
+ * `lib/query-params.ts`.
+ */
+export const AUDIT_PARAM_ALIASES: Record<string, string> = {
+  actor_id: 'actorId',
+  target_type: 'targetType',
+  target_id: 'targetId',
+};
+
 export { DEFAULT_AUDIT_LIMIT, MAX_AUDIT_LIMIT } from './limits';
 
 /** Seam for tests, matching the shape `lib/authz` uses. */

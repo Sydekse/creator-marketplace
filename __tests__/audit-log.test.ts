@@ -42,6 +42,17 @@ const ADMIN_USER: CurrentUser = {
   role: 'admin',
 };
 
+const AUDIT_PAGE = 'app/(admin)/admin/audit-log/page.tsx';
+
+const src = (file: string) =>
+  readFileSync(join(process.cwd(), file), 'utf8')
+    // JSX `{/* … */}` blocks first, then block and line comments. This page
+    // documents the anti-drift rule it follows in prose, so an un-stripped guard
+    // would read the explanation as the violation it warns against.
+    .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, '')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^\s*\/\/.*$/gm, '');
+
 // -- Vocabulary -------------------------------------------------------------
 
 describe('audit vocabulary', () => {
@@ -765,7 +776,112 @@ describe('GET /api/admin/audit-log', () => {
   });
 });
 
-// -- Insert-only ------------------------------------------------------------
+// -- Read path: the admin console page --------------------------------------
+
+/**
+ * The page is a Server Component with no DOM here to mount it, so every claim
+ * below is a source guard: it proves the page wires the shared read, schema and
+ * alias map to a URL-driven filter form, not that a browser paints it. The
+ * behaviour those pieces guarantee — snake_case in, `.strict()` rejects a typo,
+ * paging retains filters — is already covered against the route and the query
+ * above; this file's job is to prove the page reuses them rather than growing a
+ * second, drifting reading of the same query string.
+ */
+describe('the admin audit-log page', () => {
+  const page = src(AUDIT_PAGE);
+
+  it('reads the shared query, not its own', () => {
+    // The gate lives inside `readAuditLog`; the page calls it directly and
+    // inherits the admin check rather than re-implementing one — the route's own
+    // comment anticipated exactly this second call site.
+    expect(page).toContain('readAuditLog');
+    expect(page).not.toContain('buildAuditWhere');
+    expect(page).not.toContain('leftJoin');
+  });
+
+  it('parses filters through the same schema and alias map as the route', () => {
+    // Shared so the page and the endpoint cannot drift into accepting different
+    // spellings of the same filter — the concern the KAN-52 review raised.
+    expect(page).toContain('AUDIT_PARAM_ALIASES');
+    expect(page).toContain('auditLogQuerySchema');
+    expect(page).toContain('searchParamsFrom');
+    expect(page).toContain('readParams(search, AUDIT_PARAM_ALIASES)');
+  });
+
+  it('takes paging out before the strict schema sees the query string', () => {
+    // `.strict()` rejects an unknown key, and `?page=` is not a filter — reading
+    // it out first is what keeps the pager from turning every page turn into an
+    // unreadable-filters state.
+    expect(page).toContain("pageFromParam(search.get('page')");
+    expect(page).toContain("search.delete('page')");
+  });
+
+  it('renders unreadable filters rather than the whole log on a bad filter', () => {
+    // A page cannot answer 422, but on the table of all tables it must not answer
+    // a mistyped filter with everything either — that reads as an authoritative
+    // "here is all actor X did" when the filter was silently dropped.
+    expect(page).toContain('conflicts.length > 0 || !parsed.success');
+    expect(page).toContain('UnreadableFilters');
+  });
+
+  it('drives the form over the URL, shipping no client JavaScript', () => {
+    // A GET form is how a browser writes to the query string; the filtered view
+    // is then shareable and the whole screen stays a Server Component.
+    expect(page).not.toContain("'use client'");
+    expect(page).toContain('method="GET"');
+    expect(page).toContain('action="/admin/audit-log"');
+  });
+
+  it('offers every filter AC-031 names — actor, action, target, date range', () => {
+    // Names are the snake_case the response uses and the alias map folds back, so
+    // a submitted form round-trips through the same reading as a hand-typed URL.
+    expect(page).toContain('name="action"');
+    expect(page).toContain('name="target_type"');
+    expect(page).toContain('name="actor_id"');
+    expect(page).toContain('name="target_id"');
+    expect(page).toContain('name="from"');
+    expect(page).toContain('name="to"');
+  });
+
+  it('builds the selects from the vocabulary, not a retyped list', () => {
+    // The action and target selects enumerate the closed unions, so a new action
+    // appears in the filter the moment it is added to the vocabulary.
+    expect(page).toContain('AUDIT_ACTION_VALUES.map');
+    expect(page).toContain('AUDIT_TARGET_TYPE_VALUES.map');
+  });
+
+  it('pages with ?page= and carries the filters onto the links', () => {
+    // Otherwise page 2 silently widens the view back to the whole log — the same
+    // trap the discovery pager documents.
+    expect(page).toContain('offsetForPage(page)');
+    expect(page).toContain('limit: PAGE_SIZE');
+    expect(page).toContain('const filterQuery = search.toString()');
+    expect(page).toMatch(/page=\$\{n\}/);
+    expect(page).toContain('result.hasMore');
+  });
+
+  it('reflects the active filters back into the form controls', () => {
+    // A shared link has to render showing what it filtered to, or the form and
+    // the results would disagree on the first paint.
+    expect(page).toContain('defaultValue={filters.action');
+    expect(page).toContain('defaultValue={filters.targetType');
+    expect(page).toContain('toDateInputValue(filters.from)');
+    expect(page).toContain('toDateInputValue(filters.to)');
+  });
+
+  it('distinguishes an empty page from an empty log', () => {
+    // "No entries match these filters" and "No audit entries yet" are different
+    // claims; collapsing them would tell an admin who over-filtered that the log
+    // is empty.
+    expect(page).toContain('hasActiveFilters');
+    expect(page).toMatch(/EmptyState/);
+  });
+
+  it('renders the date instant in UTC, matching the rest of the app', () => {
+    // Invariant 11: a server-local render changes meaning when the region does.
+    expect(page).toContain("toLocaleString('en-GB'");
+  });
+});
 
 /**
  * "The table is insert-only; no application code path updates or deletes a

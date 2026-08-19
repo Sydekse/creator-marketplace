@@ -1,4 +1,4 @@
-import { readAuditLog } from '@/lib/audit/queries';
+import { AUDIT_PARAM_ALIASES, readAuditLog } from '@/lib/audit/queries';
 import type { AuditLogPage, AuditQueryDeps } from '@/lib/audit/queries';
 import { guard, toErrorResponse } from '@/lib/authz';
 import { conflictDetails, readParams } from '@/lib/query-params';
@@ -33,19 +33,10 @@ export const runtime = 'nodejs';
 /**
  * Filters are accepted in snake_case because that is how they are *returned* —
  * flagged in the KAN-52 review, where `?actor_id=` was silently dropped and the
- * endpoint answered with the entire log.
- *
- * Listed explicitly rather than derived by a `_x -> X` regex. A closed set means
- * a misspelling stays unknown and is rejected by the schema's `.strict()`, where
- * a general rule would invent a plausible field name for anything underscored
- * and put us back where we started. `readParams` takes the map as an argument
- * for exactly that reason — see `lib/query-params.ts`.
+ * endpoint answered with the entire log. The alias map lives beside the query
+ * (`AUDIT_PARAM_ALIASES`) so this route and the admin console page accept the
+ * same spellings — see the note there.
  */
-const PARAM_ALIASES: Record<string, string> = {
-  actor_id: 'actorId',
-  target_type: 'targetType',
-  target_id: 'targetId',
-};
 
 /** snake_case out, matching the response style in tech spec §4.2. */
 function serialize(page: AuditLogPage) {
@@ -78,7 +69,7 @@ export async function handleReadAuditLog(
 
   const { params, conflicts } = readParams(
     new URL(request.url).searchParams,
-    PARAM_ALIASES
+    AUDIT_PARAM_ALIASES
   );
   if (conflicts.length > 0) {
     return Response.json(validationError(conflictDetails(conflicts)), {

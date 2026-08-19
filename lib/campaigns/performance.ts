@@ -168,12 +168,20 @@ export interface CampaignTotals {
   totalVideos: number;
 }
 
-/** The four money figures the dashboard states, all integer santim. */
+/** The settlement figures the dashboard states, all integer santim, all non-negative. */
 export interface CampaignSettlement {
   /** Released to creators, net of commission, summed from `release_payout`. */
   paidOut: number;
   /** Kept by the platform, summed from `commission`. */
   commission: number;
+  /**
+   * Returned to the brand's available budget, summed from `refund`.
+   *
+   * Not part of `spent`: a refund leaves escrow like a payout but goes back to
+   * the brand rather than to a creator, so it is stated on its own row and folded
+   * into `Remaining`, never added to what was paid out.
+   */
+  refunded: number;
 }
 
 export interface CampaignPerformance {
@@ -201,7 +209,7 @@ export const EMPTY_PERFORMANCE: CampaignPerformance = {
     measuredVideos: 0,
     totalVideos: 0,
   },
-  settlement: { paidOut: 0, commission: 0 },
+  settlement: { paidOut: 0, commission: 0, refunded: 0 },
 };
 
 /** The four metric keys, in the order AC-026 names them. */
@@ -602,3 +610,18 @@ export const COMMISSION_LABEL = 'Platform commission';
  */
 export const SETTLEMENT_NOTE =
   'Paid out and commission together are what has left escrow on approved videos.';
+
+/** The refund row this ticket adds to the campaign's budget summary. */
+export const REFUNDED_LABEL = 'Refunded to your budget';
+
+/**
+ * What a refund did to the money, so the row is not read as more spend.
+ *
+ * A refund leaves escrow like a payout, which is why it sits among these rows —
+ * but it returns to the brand rather than going to a creator, so it is counted
+ * in `Remaining` below and not in what was paid out. Stated because a refund
+ * figure beside "Paid out" invites the wrong sum: without this line a brand
+ * could read the two as money gone twice over, when one of them came back.
+ */
+export const REFUNDED_NOTE =
+  'Returned to your available budget when a deal was refunded — counted in Remaining, not spent.';
