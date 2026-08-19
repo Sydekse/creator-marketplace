@@ -14,6 +14,7 @@ export type { FieldErrorMap } from './field-errors';
 
 export type {
   CreateCreatorInput,
+  UpdateCreatorNumbersInput,
   CreateBrandInput,
   UpdateBrandInput,
   CreateCampaignInput,
@@ -38,6 +39,7 @@ export {
   signUpSchema,
   signInSchema,
   createCreatorSchema,
+  updateCreatorNumbersSchema,
   createBrandSchema,
   updateBrandSchema,
   discoverCreatorsSchema,

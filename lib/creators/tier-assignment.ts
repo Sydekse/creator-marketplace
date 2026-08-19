@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import { db } from '@/db';
 import { creatorProfile, pricingTier } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
 import { tierNumbers, toBasisPoints } from '@/lib/creators/tier-rules';
@@ -131,21 +132,40 @@ export interface AssignTierDeps {
 }
 
 /**
+ * The columns `selectTier` reads from a `pricing_tier` row, in one place so the
+ * transactional loader and the display reader below cannot select different sets
+ * and hand `selectTier` two different shapes.
+ */
+const TIER_COLUMNS = {
+  id: pricingTier.id,
+  name: pricingTier.name,
+  pricePerVideo: pricingTier.pricePerVideo,
+  minFollowers: pricingTier.minFollowers,
+  minEngagement: pricingTier.minEngagement,
+  active: pricingTier.active,
+} as const;
+
+/**
  * Every tier, active or not — the `active` filter lives in `selectTier` so that
  * eligibility has exactly one definition rather than one in SQL and one in
  * TypeScript that can drift apart.
  */
 async function loadTiers(tx: Tx): Promise<TierCandidate[]> {
-  return tx
-    .select({
-      id: pricingTier.id,
-      name: pricingTier.name,
-      pricePerVideo: pricingTier.pricePerVideo,
-      minFollowers: pricingTier.minFollowers,
-      minEngagement: pricingTier.minEngagement,
-      active: pricingTier.active,
-    })
-    .from(pricingTier);
+  return tx.select(TIER_COLUMNS).from(pricingTier);
+}
+
+/**
+ * The same rows as `loadTiers`, on the base connection, for a caller that only
+ * wants to *preview* a tier rather than assign one.
+ *
+ * The creator dashboard uses it to answer "which band am I on track for" before
+ * an admin has verified them (KAN-24): it runs `selectTier` over these rows to
+ * show a provisional result, so the number a pending creator reads is the same
+ * one assignment will produce on approval. Off `db` rather than a transaction
+ * because a read for display owns no write to ride inside one.
+ */
+export async function listTierCandidates(): Promise<TierCandidate[]> {
+  return db.select(TIER_COLUMNS).from(pricingTier);
 }
 
 const defaultDeps: AssignTierDeps = { loadTiers };

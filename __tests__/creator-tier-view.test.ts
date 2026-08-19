@@ -13,6 +13,7 @@ import {
 } from '../lib/creators/tier-rules';
 import { selectTier } from '../lib/creators/tier-assignment';
 import type { TierCandidate } from '../lib/creators/tier-assignment';
+import { resolveTierPricingView } from '../components/creator/tier-pricing';
 
 /**
  * KAN-24 — the creator sees their tier and price (US-002, AC-005).
@@ -290,6 +291,150 @@ describe('missingFieldLabel', () => {
   it('gives one wording for both the creator and the admin screen', () => {
     expect(missingFieldLabel('followerCount')).toBe('follower count');
     expect(missingFieldLabel('engagementRate')).toBe('engagement rate');
+  });
+});
+
+// -- KAN-24: what an untiered creator is told, by status --------------------
+
+/**
+ * The reported bug in its exact shape: a creator entered a large follower count,
+ * and their dashboard said they were not eligible. The cause was `TierPricing`
+ * reading only `tier` and the profile numbers, never the verification status —
+ * so a `pending_verification` creator (whose tier has simply not been computed
+ * yet, because assignment runs at approval) fell through to the verified case's
+ * "below our lowest tier" copy.
+ *
+ * `resolveTierPricingView` is the branch pulled out of the component so the
+ * decision can be tested without a DOM. These assert the branch, not the markup.
+ */
+describe('resolveTierPricingView', () => {
+  const LADDER: TierCandidate[] = [
+    {
+      id: 'tier-micro',
+      name: 'Micro',
+      pricePerVideo: 150_000,
+      minFollowers: 10_000,
+      minEngagement: '2.00',
+      active: true,
+    },
+    {
+      id: 'tier-macro',
+      name: 'Macro',
+      pricePerVideo: 900_000,
+      minFollowers: 500_000,
+      minEngagement: '3.00',
+      active: true,
+    },
+  ];
+
+  const bigNumbers: TierableProfile = {
+    followerCount: 800_000,
+    engagementRate: '8.00',
+  };
+
+  it('previews the tier for a pending creator with qualifying numbers — not a rejection', () => {
+    // The bug: this creator clears Macro, and the old component told them they
+    // were below the lowest tier. The preview must name the band assignment will
+    // land them on instead.
+    const provisional = selectTier(LADDER, bigNumbers);
+    const view = resolveTierPricingView(
+      null,
+      'pending_verification',
+      provisional,
+      bigNumbers
+    );
+
+    // The whole outcome, not just the name: a preview that dropped the price or
+    // the tier id would still read as "provisional" here while sending a
+    // different shape to the block that renders it.
+    expect(view).toEqual({
+      kind: 'provisional',
+      outcome: {
+        assigned: true,
+        tierId: 'tier-macro',
+        tierName: 'Macro',
+        pricePerVideo: 900_000,
+      },
+    });
+    // Whatever it is, it is never the verified-only "below tier" state.
+    expect(view.kind).not.toBe('below-tier');
+  });
+
+  it('previews for a pending creator even when no band matches yet', () => {
+    // Below every floor, but still pending: the honest message is "we will set
+    // your price once a reviewer confirms your handle", carried by the
+    // provisional block, not "below our lowest tier".
+    const small: TierableProfile = {
+      followerCount: 200,
+      engagementRate: '1.00',
+    };
+    const provisional = selectTier(LADDER, small);
+    const view = resolveTierPricingView(
+      null,
+      'pending_verification',
+      provisional,
+      small
+    );
+
+    expect(view).toEqual({
+      kind: 'provisional',
+      outcome: { assigned: false, reason: 'no_matching_tier' },
+    });
+  });
+
+  it('renders nothing for a rejected creator, even with a qualifying preview', () => {
+    // A rejected creator has a provisional outcome computed like anyone else;
+    // showing "on track for Macro" under a rejection would contradict the notice
+    // `VerificationStatus` already carries.
+    const view = resolveTierPricingView(
+      null,
+      'rejected',
+      selectTier(LADDER, bigNumbers),
+      bigNumbers
+    );
+
+    expect(view).toEqual({ kind: 'hidden' });
+  });
+
+  it('prices a tiered creator regardless of status, ignoring the preview', () => {
+    // A full `CreatorTier` row (`active` included) — a tiered creator is priced
+    // from the row they point at, so the view carries it through unchanged.
+    const tier = {
+      id: 'tier-macro',
+      name: 'Macro',
+      pricePerVideo: 900_000,
+      active: true,
+    };
+
+    for (const status of [
+      'pending_verification',
+      'verified',
+      'rejected',
+    ] as const) {
+      expect(resolveTierPricingView(tier, status, null, bigNumbers)).toEqual({
+        kind: 'priced',
+        tier,
+      });
+    }
+  });
+
+  it('keeps the verified-untiered copy honest about which field is missing', () => {
+    // The genuine no-tier case is unchanged: a verified creator missing a number
+    // is told which, from the same rule that refused to price them (F13).
+    expect(
+      resolveTierPricingView(null, 'verified', null, {
+        followerCount: null,
+        engagementRate: '4.00',
+      })
+    ).toEqual({ kind: 'missing-data', missing: ['follower count'] });
+
+    // Complete numbers below every band → the below-tier copy, not missing-data.
+    expect(
+      resolveTierPricingView(null, 'verified', null, {
+        followerCount: 200,
+        engagementRate: '1.00',
+      })
+    ).toEqual({ kind: 'below-tier' });
   });
 });
 
