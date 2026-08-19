@@ -36,6 +36,18 @@ export const AUDIT_ACTIONS = {
    * second "verification" in the log for somebody who was only verified once.
    */
   CREATOR_ASSIGN_TIER: 'creator.assign_tier',
+  /**
+   * An admin correction of a creator's follower count or engagement rate
+   * (`PATCH /api/admin/creators/:id`).
+   *
+   * Its own action rather than a second `creator.assign_tier`: the edit is the
+   * decision an admin made, and the reassignment it triggers is that decision's
+   * effect, recorded in this row's `detail`. Folding it into the assign action
+   * would log a "tier assignment" for an admin who was really fixing a typo in a
+   * number, and "show me who edited creator data" would have no column to answer
+   * from.
+   */
+  CREATOR_EDIT: 'creator.edit',
   DEAL_RESOLVE_DISPUTE: 'deal.resolve_dispute',
   /** KAN-69 (F40): an admin raises or lowers the flagged attention state. */
   DEAL_FLAG: 'deal.flag',
@@ -76,6 +88,7 @@ export const AUDIT_ACTION_TARGET: Record<AuditAction, AuditTargetType> = {
   [AUDIT_ACTIONS.CREATOR_VERIFY]: AUDIT_TARGET_TYPES.CREATOR_PROFILE,
   [AUDIT_ACTIONS.CREATOR_REJECT]: AUDIT_TARGET_TYPES.CREATOR_PROFILE,
   [AUDIT_ACTIONS.CREATOR_ASSIGN_TIER]: AUDIT_TARGET_TYPES.CREATOR_PROFILE,
+  [AUDIT_ACTIONS.CREATOR_EDIT]: AUDIT_TARGET_TYPES.CREATOR_PROFILE,
   [AUDIT_ACTIONS.DEAL_RESOLVE_DISPUTE]: AUDIT_TARGET_TYPES.DEAL,
   [AUDIT_ACTIONS.DEAL_FLAG]: AUDIT_TARGET_TYPES.DEAL,
   [AUDIT_ACTIONS.METRIC_EDIT]: AUDIT_TARGET_TYPES.VIDEO_METRIC,

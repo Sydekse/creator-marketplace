@@ -21,6 +21,10 @@ import {
   handleAssignTier,
   type AssignTierRouteDeps,
 } from '../app/api/admin/creators/[id]/assign-tier/route';
+import {
+  handleUpdateCreatorNumbers,
+  type UpdateCreatorRouteDeps,
+} from '../app/api/admin/creators/[id]/route';
 import { ForbiddenError } from '../lib/authz';
 import type { AdminAuditDeps, Tx } from '../lib/authz';
 import type { CurrentUser } from '../lib/auth';
@@ -809,6 +813,334 @@ describe('POST /api/admin/creators/:id/assign-tier', () => {
 
       expect(detail.before.tierId).toBe(body.before.tier_id);
     });
+  });
+});
+
+// -- Edit-numbers route -----------------------------------------------------
+
+describe('PATCH /api/admin/creators/:id', () => {
+  const VALID_ID = '33333333-3333-4333-8333-333333333333';
+
+  /** A JSON PATCH body as the route receives it. */
+  function request(body: unknown): Request {
+    return new Request('http://test/api/admin/creators/x', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  /** Same seam shape as the assign-tier route, plus a capture of every `set`. */
+  function routeDeps(
+    creator: {
+      id: string;
+      status: string;
+      followerCount: number | null;
+      engagementRate: string | null;
+    } | null,
+    overrides: Partial<UpdateCreatorRouteDeps> = {}
+  ): {
+    deps: UpdateCreatorRouteDeps;
+    rows: Record<string, unknown>[];
+    sets: Record<string, unknown>[];
+  } {
+    const rows: Record<string, unknown>[] = [];
+    const sets: Record<string, unknown>[] = [];
+
+    const tx = {
+      select: vi.fn(() => ({
+        from: vi.fn(() => ({
+          where: vi.fn(() => ({
+            for: vi.fn(() => ({
+              limit: vi.fn(() => Promise.resolve(creator ? [creator] : [])),
+            })),
+          })),
+        })),
+      })),
+      update: vi.fn(() => ({
+        set: vi.fn((values) => {
+          sets.push(values);
+          return { where: vi.fn(() => Promise.resolve()) };
+        }),
+      })),
+      insert: vi.fn(() => ({
+        values: vi.fn((row) => {
+          rows.push(row);
+          return Promise.resolve();
+        }),
+      })),
+    } as unknown as Tx;
+
+    const adminAuditDeps: Partial<AdminAuditDeps> = {
+      getCurrentUser: async () => ADMIN_USER,
+      loadProfileIds: async () => ({
+        brandProfileId: null,
+        creatorProfileId: null,
+      }),
+      loadOwnerRefs: async () => null,
+      transaction: <T>(fn: (t: Tx) => Promise<T>) => fn(tx),
+    };
+
+    return {
+      deps: {
+        guard: async () => ADMIN_USER,
+        adminAuditDeps,
+        assignTierDeps: { loadTiers: async () => LADDER },
+        ...overrides,
+      },
+      rows,
+      sets,
+    };
+  }
+
+  /** Verified, but onboarded with no numbers — the reason it is stuck. */
+  const stuck = {
+    id: VALID_ID,
+    status: 'verified',
+    followerCount: null,
+    engagementRate: null,
+  };
+
+  it('writes the numbers, reassigns the tier, and echoes the stored values', async () => {
+    const { deps, sets } = routeDeps(stuck);
+
+    // 120k followers / 3.00% clears the Mid floor in LADDER.
+    const response = await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({ followerCount: 120_000, engagementRate: 3 }),
+      deps
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      id: VALID_ID,
+      follower_count: 120_000,
+      engagement_rate: '3.00',
+      tier: {
+        assigned: true,
+        id: 'tier-mid',
+        name: 'Mid',
+        price_per_video: 400_000,
+      },
+    });
+
+    // Two writes rode the transaction: the column edit, then assignTier's tier_id.
+    // The rate is stored fixed to the numeric(5,2) scale, never as a bare number.
+    expect(sets).toEqual([
+      { followerCount: 120_000, engagementRate: '3.00' },
+      { tierId: 'tier-mid' },
+    ]);
+  });
+
+  it('writes only the field supplied, merging the other from the stored row', async () => {
+    // A creator who already has followers but no engagement rate: the admin fills
+    // in only the rate, and assignment must run on the *merged* pair.
+    const { deps, sets } = routeDeps({
+      ...stuck,
+      followerCount: 120_000,
+      engagementRate: null,
+    });
+
+    const response = await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({ engagementRate: 3 }),
+      deps
+    );
+
+    const body = await response.json();
+    expect(body.follower_count).toBe(120_000); // untouched, carried from the row
+    expect(body.engagement_rate).toBe('3.00');
+    expect(body.tier).toMatchObject({ assigned: true, name: 'Mid' });
+
+    // The edit write names only the column that changed — the follower count is
+    // not restated, so a concurrent correction to it is not clobbered.
+    expect(sets[0]).toEqual({ engagementRate: '3.00' });
+  });
+
+  it('writes one creator.edit audit row carrying before, after, and the tier', async () => {
+    const { deps, rows } = routeDeps({
+      ...stuck,
+      followerCount: 5_000,
+      engagementRate: '1.00',
+    });
+
+    await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({ followerCount: 120_000, engagementRate: 3 }),
+      deps
+    );
+
+    const edits = rows.filter((r) => r.action === 'creator.edit');
+    // One row, not a second creator.assign_tier — the edit is the decision, the
+    // reassignment its recorded effect.
+    expect(edits).toHaveLength(1);
+    expect(rows.some((r) => r.action === 'creator.assign_tier')).toBe(false);
+
+    const row = edits[0];
+    expect(row.actorId).toBe(ADMIN_USER.id);
+    expect(row.targetType).toBe('creator_profile');
+    expect(row.targetId).toBe(VALID_ID);
+    expect(row.detail).toMatchObject({
+      before: { followerCount: 5_000, engagementRate: '1.00' },
+      after: { followerCount: 120_000, engagementRate: '3.00' },
+      tier: { assigned: true, tierName: 'Mid' },
+    });
+  });
+
+  it('records the still-stuck outcome too, when the new numbers match no band', async () => {
+    const { deps, rows } = routeDeps(stuck);
+
+    const response = await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({ followerCount: 200, engagementRate: 1 }),
+      deps
+    );
+
+    expect((await response.json()).tier).toEqual({
+      assigned: false,
+      reason: 'no_matching_tier',
+    });
+    expect(rows.find((r) => r.action === 'creator.edit')?.detail).toMatchObject(
+      { tier: { assigned: false, reason: 'no_matching_tier' } }
+    );
+  });
+
+  it('returns 422 for an empty body — the schema refuses a no-op PATCH', async () => {
+    const transaction = vi.fn();
+    const { deps } = routeDeps(stuck, {
+      adminAuditDeps: { transaction },
+    });
+
+    const response = await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({}),
+      deps
+    );
+
+    expect(response.status).toBe(ErrorHttpStatus[ErrorCode.VALIDATION_ERROR]);
+    expect((await response.json()).error.code).toBe(ErrorCode.VALIDATION_ERROR);
+    // Rejected before the transaction opens.
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('returns 422 for an out-of-range value', async () => {
+    const { deps } = routeDeps(stuck);
+
+    const response = await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({ followerCount: -1 }),
+      deps
+    );
+
+    expect(response.status).toBe(ErrorHttpStatus[ErrorCode.VALIDATION_ERROR]);
+  });
+
+  it('returns 422 for a body that is not valid JSON', async () => {
+    const { deps } = routeDeps(stuck);
+    const bad = new Request('http://test/api/admin/creators/x', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: 'not json',
+    });
+
+    const response = await handleUpdateCreatorNumbers(VALID_ID, bad, deps);
+
+    expect(response.status).toBe(ErrorHttpStatus[ErrorCode.VALIDATION_ERROR]);
+  });
+
+  it.each([['pending_verification'], ['rejected']])(
+    'returns 409 CREATOR_NOT_VERIFIED for a %s creator',
+    async (status) => {
+      const { deps, sets } = routeDeps({ ...stuck, status });
+
+      const response = await handleUpdateCreatorNumbers(
+        VALID_ID,
+        request({ followerCount: 120_000 }),
+        deps
+      );
+
+      expect(response.status).toBe(
+        ErrorHttpStatus[ErrorCode.CREATOR_NOT_VERIFIED]
+      );
+      expect((await response.json()).error.code).toBe(
+        ErrorCode.CREATOR_NOT_VERIFIED
+      );
+      // The status gate throws before any column is written, so the numbers of
+      // an unverified creator are never touched by this route.
+      expect(sets).toEqual([]);
+    }
+  );
+
+  it('returns 404 when the creator does not exist', async () => {
+    const { deps } = routeDeps(null);
+
+    const response = await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({ followerCount: 120_000 }),
+      deps
+    );
+
+    expect(response.status).toBe(404);
+    expect((await response.json()).error.code).toBe(ErrorCode.NOT_FOUND);
+  });
+
+  it('returns 404 for a malformed id without opening a transaction', async () => {
+    const transaction = vi.fn();
+    const { deps } = routeDeps(stuck, {
+      adminAuditDeps: { transaction },
+    });
+
+    const response = await handleUpdateCreatorNumbers(
+      'not-a-uuid',
+      request({ followerCount: 120_000 }),
+      deps
+    );
+
+    expect(response.status).toBe(404);
+    expect((await response.json()).error.code).toBe(ErrorCode.NOT_FOUND);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it.each([['brand'], ['creator']])('returns 403 for a %s', async (role) => {
+    const { deps } = routeDeps(stuck, {
+      guard: async () => {
+        throw new ForbiddenError(`role ${role} not permitted`);
+      },
+    });
+
+    const response = await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({ followerCount: 120_000 }),
+      deps
+    );
+
+    expect(response.status).toBe(403);
+    expect((await response.json()).error.code).toBe(ErrorCode.FORBIDDEN);
+  });
+
+  it('gates before parsing the body — an unauthorized caller learns nothing', async () => {
+    // 403 must win over the 422 an empty body would earn, so a non-admin cannot
+    // tell a valid payload from an invalid one.
+    const { deps } = routeDeps(stuck, {
+      guard: async () => {
+        throw new ForbiddenError('not an admin');
+      },
+    });
+
+    const response = await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({}),
+      deps
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  it('maps its audit action to creator_profile', () => {
+    // `withAdminAudit` throws on a mismatched pair before opening a transaction.
+    expect(AUDIT_ACTION_TARGET[AUDIT_ACTIONS.CREATOR_EDIT]).toBe(
+      'creator_profile'
+    );
   });
 });
 

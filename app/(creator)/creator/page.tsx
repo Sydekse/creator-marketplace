@@ -19,6 +19,7 @@ import {
   formatFollowerCount,
 } from '@/lib/creators/profile-facts';
 import { getCreatorProfileWithTier, isBookable } from '@/lib/creators/queries';
+import { listTierCandidates, selectTier } from '@/lib/creators/tier-assignment';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -54,6 +55,14 @@ export default async function CreatorDashboardPage() {
   // Null means no profile row, which the redirect above has already ruled out.
   // Narrowing rather than asserting keeps that an ordinary branch.
   if (!dashboard) redirect('/creator/onboarding');
+
+  // For an untiered creator, work out the tier they *would* be assigned on their
+  // current numbers, so the pricing block can preview it instead of implying they
+  // failed to qualify (tier assignment has simply not run yet — KAN-23). Reuses
+  // the exact rule assignment uses, so the preview and the eventual assignment
+  // agree. Skipped once tiered: the price then comes from the tier row.
+  const provisional =
+    tier === null ? selectTier(await listTierCandidates(), profile) : null;
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-10 py-4">
@@ -99,7 +108,12 @@ export default async function CreatorDashboardPage() {
           the untiered case, the blank field this block is about is directly
           above the sentence naming it. */}
       <div className="border-t border-border pt-8">
-        <TierPricing tier={tier} profile={profile} />
+        <TierPricing
+          tier={tier}
+          profile={profile}
+          status={profile.status}
+          provisional={provisional}
+        />
       </div>
 
       {/* AC-3 and AC-2. Earnings first: a creator opening this page mid-campaign

@@ -54,6 +54,29 @@ export const signInSchema = z.object({
 });
 
 /**
+ * The two self-reported numbers tier assignment reads, shared by the onboarding
+ * schema and the admin edit schema below so the rule a creator's browser enforces
+ * and the rule an admin correction enforces are one definition. Both optional at
+ * their call sites; the schemas decide what "absent" means for each.
+ *
+ * `follower_count` is `integer` and `engagement_rate` is `numeric(5,2)` in the
+ * schema, and `selectTier` treats a negative or unparseable value as missing —
+ * so the floors here (`.int()`, `.min(0)`) keep a value the rule would reject
+ * from ever being stored in the first place.
+ */
+const followerCount = z
+  .number()
+  .int({ message: 'Follower count must be a whole number.' })
+  .min(0, { message: 'Follower count cannot be negative.' });
+
+const engagementRate = z
+  .number()
+  .min(0, { message: 'Engagement rate cannot be negative.' })
+  .max(MAX_ENGAGEMENT_RATE, {
+    message: `Engagement rate cannot exceed ${MAX_ENGAGEMENT_RATE}%.`,
+  });
+
+/**
  * Creator onboarding payload — `POST /api/creators` (AC-001, AC-003).
  *
  * The handle field is the security-relevant one. `.transform()` runs before
@@ -82,21 +105,41 @@ export const createCreatorSchema = z.object({
   // Optional at sign-up, per the ticket. Left empty means no tier is assigned
   // and the creator is not bookable (AC-006) — which is already true here,
   // because tier assignment is KAN-23 and every profile starts untiered.
-  followerCount: z
-    .number()
-    .int({ message: 'Follower count must be a whole number.' })
-    .min(0, { message: 'Follower count cannot be negative.' })
-    .optional(),
-  engagementRate: z
-    .number()
-    .min(0, { message: 'Engagement rate cannot be negative.' })
-    .max(MAX_ENGAGEMENT_RATE, {
-      message: `Engagement rate cannot exceed ${MAX_ENGAGEMENT_RATE}%.`,
-    })
-    .optional(),
+  followerCount: followerCount.optional(),
+  engagementRate: engagementRate.optional(),
 });
 
 export type CreateCreatorInput = z.infer<typeof createCreatorSchema>;
+
+/**
+ * Admin correction of a creator's numbers — `PATCH /api/admin/creators/{id}`.
+ *
+ * The write behind "Save & retry assignment" on `/admin/tiers`: the only route
+ * that can fill in a follower count or engagement rate after onboarding, which is
+ * what un-sticks a verified creator who onboarded without them (there is no
+ * self-serve profile edit yet). Same field rules as onboarding, reused above so
+ * the two cannot diverge.
+ *
+ * Both optional so an admin can correct one number without restating the other,
+ * but the `.refine` rejects the empty object: a PATCH that changes nothing is a
+ * mistake, not a no-op worth an audit row. Kept a separate schema from
+ * `createCreatorSchema` for the reason `updateBrandSchema` is — so a create-only
+ * field added later does not silently become admin-editable.
+ */
+export const updateCreatorNumbersSchema = z
+  .object({
+    followerCount: followerCount.optional(),
+    engagementRate: engagementRate.optional(),
+  })
+  .refine(
+    (value) =>
+      value.followerCount !== undefined || value.engagementRate !== undefined,
+    { message: 'Provide a follower count or an engagement rate to update.' }
+  );
+
+export type UpdateCreatorNumbersInput = z.infer<
+  typeof updateCreatorNumbersSchema
+>;
 
 /**
  * Longest company name accepted. `company_name` is an unbounded `text` column,

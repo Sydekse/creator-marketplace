@@ -8,6 +8,7 @@ import {
   validationError,
   fromZodError,
   createCreatorSchema,
+  updateCreatorNumbersSchema,
   discoverCreatorsSchema,
   createCampaignSchema,
   addCampaignItemSchema,
@@ -267,6 +268,71 @@ describe('createCreatorSchema', () => {
         audience: {},
       })
     ).toThrow();
+  });
+});
+
+describe('updateCreatorNumbersSchema', () => {
+  it('accepts a lone follower count', () => {
+    expect(updateCreatorNumbersSchema.parse({ followerCount: 50_000 })).toEqual(
+      {
+        followerCount: 50_000,
+      }
+    );
+  });
+
+  it('accepts a lone engagement rate', () => {
+    expect(updateCreatorNumbersSchema.parse({ engagementRate: 4.5 })).toEqual({
+      engagementRate: 4.5,
+    });
+  });
+
+  it('accepts both together', () => {
+    expect(
+      updateCreatorNumbersSchema.parse({
+        followerCount: 50_000,
+        engagementRate: 4.5,
+      })
+    ).toEqual({ followerCount: 50_000, engagementRate: 4.5 });
+  });
+
+  it('rejects the empty object — a PATCH that changes nothing is a mistake', () => {
+    // The `.refine`: an admin who submits neither number gets a message, not a
+    // silent no-op audit row.
+    expect(updateCreatorNumbersSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('rejects a negative follower count', () => {
+    expect(
+      updateCreatorNumbersSchema.safeParse({ followerCount: -1 }).success
+    ).toBe(false);
+  });
+
+  it('rejects a non-integer follower count', () => {
+    expect(
+      updateCreatorNumbersSchema.safeParse({ followerCount: 1.5 }).success
+    ).toBe(false);
+  });
+
+  it('rejects a negative engagement rate', () => {
+    expect(
+      updateCreatorNumbersSchema.safeParse({ engagementRate: -0.01 }).success
+    ).toBe(false);
+  });
+
+  it('holds engagement to the same ceiling onboarding enforces', () => {
+    // Reuses the shared `engagementRate` rule, so 100 is valid and over is not.
+    expect(
+      updateCreatorNumbersSchema.safeParse({ engagementRate: 100 }).success
+    ).toBe(true);
+    expect(
+      updateCreatorNumbersSchema.safeParse({ engagementRate: 100.01 }).success
+    ).toBe(false);
+  });
+
+  it('accepts zero for either field — zero is an answer, not absence', () => {
+    expect(
+      updateCreatorNumbersSchema.parse({ followerCount: 0, engagementRate: 0 })
+    ).toEqual({ followerCount: 0, engagementRate: 0 });
   });
 });
 
