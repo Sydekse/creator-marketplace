@@ -75,9 +75,31 @@ jobs:
       - name: Check dependency licenses
         run: npx license-checker --failOn "GPL-2.0;GPL-3.0;AGPL-3.0"
 
-  e2e:
-    name: End-to-End (Playwright, Chrome + Safari)
+  # The four Playwright projects run as a matrix — one runner per project, each
+  # with its own Postgres service — rather than a serial loop on a single
+  # runner. Wall-clock becomes the slowest single project instead of the sum of
+  # four, and each leg installs only the one engine it needs (the chromium legs
+  # never download webkit, and vice versa).
+  e2e-matrix:
+    name: E2E ${{ matrix.project }}
     runs-on: ubuntu-latest
+    # A hung `playwright install` once ran 35+ minutes against the 6-hour
+    # default ceiling; this kills a stuck leg fast. A healthy leg is ~2–3 min.
+    timeout-minutes: 15
+    strategy:
+      # Each leg seeds its own database on its own runner, so a red project must
+      # not cancel the others — every project's verdict stands on its own.
+      fail-fast: false
+      matrix:
+        include:
+          - project: chromium-desktop
+            browser: chromium
+          - project: chromium-mobile
+            browser: chromium
+          - project: webkit-desktop
+            browser: webkit
+          - project: webkit-mobile
+            browser: webkit
     services:
       postgres:
         image: postgres:16
@@ -92,6 +114,13 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
+      SEED_DEMO_PASSWORD: demo-Passw0rd!
+      # Better Auth throws on the default secret and warns without a base URL;
+      # the built server inherits both through the Playwright webServer env.
+      BETTER_AUTH_SECRET: e2e-test-secret-8f3a9c2e6d1b4a7f
+      BETTER_AUTH_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -99,66 +128,62 @@ jobs:
           node-version: '25'
           cache: 'npm'
       - run: npm ci
-      - name: Install Playwright browsers (chromium + webkit)
-        run: npx playwright install --with-deps chromium webkit
+      # The browser binaries live in ~/.cache/ms-playwright and are the slow,
+      # network-bound half of the install — cache them keyed on the lockfile so
+      # a hit skips the download. The OS libraries `--with-deps` pulls are
+      # system packages that do not survive between runs, so on a hit we still
+      # install just those via `install-deps`.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
+      - name: Install Playwright (${{ matrix.browser }}) with OS deps
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Install Playwright OS deps (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ matrix.browser }}
       - name: Migrate and seed
         run: npx drizzle-kit migrate && npx tsx db/seed.ts
-        env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
-          SEED_DEMO_PASSWORD: demo-Passw0rd!
-          # Better Auth is instantiated during migrate/seed; without the secret
-          # and base URL it logs "default secret" errors and "Base URL is not
-          # set" warnings on every step.
-          BETTER_AUTH_SECRET: e2e-test-secret-8f3a9c2e6d1b4a7f
-          BETTER_AUTH_URL: http://localhost:3000
-      # The Playwright webServers only `start` — they share this build, so the
-      # two servers (normal + payment-failure) cannot race each other.
+      # The Playwright webServers only `start` the built app, so the build must
+      # precede them; two servers sharing one `.next` cannot build concurrently.
       - name: Build
         run: npm run build
-        env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
-          SEED_DEMO_PASSWORD: demo-Passw0rd!
-          BETTER_AUTH_SECRET: e2e-test-secret-8f3a9c2e6d1b4a7f
-          BETTER_AUTH_URL: http://localhost:3000
-      # Each browser project runs against a *fresh* database. The seeded
-      # fixtures are consumed by the flows (accepted, funded, delivered), the
-      # four projects share one Postgres service, and the :3002 failure server's
-      # provider arms its fail-once flag at process boot — so state can never
-      # carry from one project's run into the next. Every project therefore
-      # drops the schema, re-migrates, re-seeds, and boots its own webServers.
-      - name: Run e2e suite (per browser project)
-        run: |
-          failures=0
-          for project in chromium-desktop chromium-mobile webkit-desktop webkit-mobile; do
-            echo "=== $project ==="
-            npx tsx -e "void (async () => { const m = await import('pg'); const Client = m.Client ?? m.default.Client; const c = new Client({ connectionString: process.env.DATABASE_URL }); await c.connect(); await c.query('DROP SCHEMA IF EXISTS drizzle CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;'); await c.end(); })().catch((e) => { console.error(e); process.exit(1); })"
-            npx drizzle-kit migrate
-            npx tsx db/seed.ts
-            # Run every project even if one fails — each project gets its own
-            # fresh seed above, so a red project must not hide the next one's
-            # verdict (each re-run cycle is minutes long).
-            if ! npx playwright test --project="$project"; then
-              echo "::error::e2e failed on $project"
-              failures=1
-            fi
-          done
-          exit "$failures"
-        env:
-          DATABASE_URL: postgres://postgres:postgres@localhost:5432/marketplace
-          SEED_DEMO_PASSWORD: demo-Passw0rd!
-          # Better Auth refuses to serve the default secret (it throws on
-          # every request), and .env.local is not present in CI. The built
-          # server inherits this through the Playwright webServer env.
-          BETTER_AUTH_SECRET: e2e-test-secret-8f3a9c2e6d1b4a7f
-          BETTER_AUTH_URL: http://localhost:3000
+      # One project against one fresh database and its own webServers, so there
+      # is no cross-project state to reset — the old per-project DROP SCHEMA loop
+      # is gone. The :3002 failure server still arms its fail-once flag at boot.
+      - name: Run e2e project
+        run: npx playwright test --project="${{ matrix.project }}"
       # KAN-60 AC-10: failures upload the trace and screenshots as artifacts.
+      # The name is per-project so parallel legs do not collide on upload.
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v5
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.project }}
           path: playwright-report/
           retention-days: 7
+
+  # One stable check that is green only when every matrix leg passed, so branch
+  # protection can require a single name no matter how many projects exist. The
+  # name is unchanged from when this was one job, so an existing required check
+  # keeps resolving.
+  e2e:
+    name: End-to-End (Playwright, Chrome + Safari)
+    needs: [e2e-matrix]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every e2e project to pass
+        run: |
+          result="${{ needs.e2e-matrix.result }}"
+          if [ "$result" != "success" ]; then
+            echo "::error::e2e matrix did not pass (result: $result)"
+            exit 1
+          fi
+          echo "All Playwright projects passed."
 
   integration:
     name: Integration Tests (Postgres)
