@@ -353,7 +353,7 @@ export default function HomePage() {
               <div className="shimmer-border p-px">
                 <p className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs text-neutral-600">
                   <TikTokIcon className="h-3.5 w-3.5 text-neutral-900" />
-                  TikTok only for now &mdash; more platforms coming soon
+                  TikTok only for now
                 </p>
               </div>
             </div>

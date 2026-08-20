@@ -34,11 +34,6 @@ export default async function BrandDashboardPage() {
 
   const dashboard = await readBrandDashboard();
 
-  const hasMoney =
-    dashboard.money.held > 0 ||
-    dashboard.money.paidOut > 0 ||
-    dashboard.money.commission > 0;
-
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-10 py-4">
       <PageHeader
@@ -84,40 +79,38 @@ export default async function BrandDashboardPage() {
         </Link>
       </section>
 
-      {/* §13: Money totals — ledger-derived, only shown when non-zero */}
-      {hasMoney && (
-        <section className="flex flex-col gap-4 border-t border-border pt-8">
-          <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-            Money
-          </h2>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
-            <div className="flex flex-col gap-1">
-              <dt className="text-xs tracking-wide text-muted-foreground uppercase">
-                Held in escrow
-              </dt>
-              <dd className="font-mono text-sm">
-                {formatEtb(dashboard.money.held)}
-              </dd>
-            </div>
-            <div className="flex flex-col gap-1">
-              <dt className="text-xs tracking-wide text-muted-foreground uppercase">
-                Paid out
-              </dt>
-              <dd className="font-mono text-sm">
-                {formatEtb(dashboard.money.paidOut)}
-              </dd>
-            </div>
-            <div className="flex flex-col gap-1">
-              <dt className="text-xs tracking-wide text-muted-foreground uppercase">
-                Commission
-              </dt>
-              <dd className="font-mono text-sm">
-                {formatEtb(dashboard.money.commission)}
-              </dd>
-            </div>
-          </dl>
-        </section>
-      )}
+      {/* §13: Money totals — ledger-derived */}
+      <section className="flex flex-col gap-4 border-t border-border pt-8">
+        <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
+          Money
+        </h2>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+          <div className="flex flex-col gap-1">
+            <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+              Held in escrow
+            </dt>
+            <dd className="font-mono text-sm">
+              {formatEtb(dashboard.money.held)}
+            </dd>
+          </div>
+          <div className="flex flex-col gap-1">
+            <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+              Paid out
+            </dt>
+            <dd className="font-mono text-sm">
+              {formatEtb(dashboard.money.paidOut)}
+            </dd>
+          </div>
+          <div className="flex flex-col gap-1">
+            <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+              Commission
+            </dt>
+            <dd className="font-mono text-sm">
+              {formatEtb(dashboard.money.commission)}
+            </dd>
+          </div>
+        </dl>
+      </section>
 
       {/* §13: Deals awaiting review */}
       <section className="flex flex-col gap-4 border-t border-border pt-8">
