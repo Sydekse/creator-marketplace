@@ -23,7 +23,7 @@ const NAV_LINKS: Record<UserRole, NavLink[]> = {
     { label: 'Console', href: '/admin' },
     { label: 'Verification', href: '/admin/verification' },
     { label: 'Campaigns', href: '/admin/campaigns' },
-    { label: 'Deals', href: '/admin/deals' },
+    { label: 'Worklist', href: '/admin/worklist' },
     { label: 'Audit Log', href: '/admin/audit-log' },
   ],
 };

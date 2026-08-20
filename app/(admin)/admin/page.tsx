@@ -3,6 +3,7 @@ import { Megaphone, Scale, ScrollText, Tag, UserCheck } from 'lucide-react';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
+import { formatEtb } from '@/lib/money';
 import {
   listCampaignsForAdmin,
   listWorklistForAdmin,
@@ -123,6 +124,43 @@ export default async function AdminConsolePage() {
           </p>
         </Link>
       </div>
+
+      {/* §9: Platform-wide money roll-up. The data is already fetched above —
+          sum the campaigns array into aggregate totals rather than requiring a
+          second read. Only shown when there is at least one campaign. */}
+      {campaigns.length > 0 && (
+        <div className="rounded-xl border border-neutral-200 bg-card p-5">
+          <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+            Platform totals
+          </h2>
+          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="flex flex-col gap-0.5">
+              <dt className="text-xs text-muted-foreground">Held in escrow</dt>
+              <dd className="font-mono text-sm font-medium">
+                {formatEtb(campaigns.reduce((sum, c) => sum + c.held, 0))}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <dt className="text-xs text-muted-foreground">Paid out</dt>
+              <dd className="font-mono text-sm font-medium">
+                {formatEtb(campaigns.reduce((sum, c) => sum + c.paidOut, 0))}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <dt className="text-xs text-muted-foreground">Commission</dt>
+              <dd className="font-mono text-sm font-medium">
+                {formatEtb(campaigns.reduce((sum, c) => sum + c.commission, 0))}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-0.5">
+              <dt className="text-xs text-muted-foreground">Refunded</dt>
+              <dd className="font-mono text-sm font-medium">
+                {formatEtb(campaigns.reduce((sum, c) => sum + c.refunded, 0))}
+              </dd>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

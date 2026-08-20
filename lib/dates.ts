@@ -81,3 +81,50 @@ export function expiryLabel(
 
   return `${verb} ${formatDeadlineUtc(deadline)}`;
 }
+
+/**
+ * Relative age label for a timestamp — "just now", "5 minutes ago", "3 days
+ * ago", etc. Uses `Intl.RelativeTimeFormat` for proper pluralization and
+ * locale-aware formatting.
+ *
+ * Thresholds: <1min → "just now", <60min → minutes, <24h → hours, <30d →
+ * days, else → months. The `now` parameter follows the same injection
+ * pattern as `expiryLabel` so tests can pin the clock.
+ */
+const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
+  ['month', 30 * 24 * 60 * 60],
+  ['day', 24 * 60 * 60],
+  ['hour', 60 * 60],
+  ['minute', 60],
+];
+
+export function ageLabel(date: Date, now: Date = new Date()): string {
+  const diffSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  // Future timestamps: "in 5 minutes", "in 2 hours", etc.
+  if (diffSeconds < 0) {
+    const abs = Math.abs(diffSeconds);
+    if (abs < 60) return 'just now';
+
+    const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+    for (const [unit, secondsInUnit] of UNITS) {
+      if (abs >= secondsInUnit) {
+        return rtf.format(Math.floor(abs / secondsInUnit), unit);
+      }
+    }
+    return 'just now';
+  }
+
+  if (diffSeconds < 60) return 'just now';
+
+  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+
+  for (const [unit, secondsInUnit] of UNITS) {
+    if (diffSeconds >= secondsInUnit) {
+      const value = -Math.floor(diffSeconds / secondsInUnit);
+      return rtf.format(value, unit);
+    }
+  }
+
+  return 'just now';
+}
