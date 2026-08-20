@@ -17,6 +17,8 @@ import {
   COMMISSION_LABEL,
   EMPTY_PERFORMANCE,
   PAID_OUT_LABEL,
+  REFUNDED_LABEL,
+  REFUNDED_NOTE,
   SETTLEMENT_NOTE,
   readCampaignPerformance,
 } from '@/lib/campaigns/performance';
@@ -358,6 +360,36 @@ export default async function CampaignCartPage({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {SETTLEMENT_NOTE}
+                  </p>
+                </div>
+              )}
+              {/*
+                KAN-51, brand side. A refund puts a deal's held money back into
+                the brand's available budget (`refundDeal`), which is why `Held`
+                drops and `Remaining` rises with no line to explain it — this is
+                that line.
+
+                Summed from `ledger_entry` by `sumSettledByCampaign`, never
+                re-derived here, like every other figure on this card. Shown only
+                once something has actually been refunded, the `escrowed > 0`
+                precedent: a "0.00 ETB refunded" row on a campaign with no dispute
+                reads as a fact rather than the absence of one. Placed after paid
+                out because both are money that has left escrow; its note says
+                this one came back rather than being spent, so the two are not
+                summed into one loss.
+              */}
+              {performance.settlement.refunded > 0 && (
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-muted-foreground">
+                      {REFUNDED_LABEL}
+                    </span>
+                    <span className="font-medium">
+                      {formatEtb(performance.settlement.refunded)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {REFUNDED_NOTE}
                   </p>
                 </div>
               )}

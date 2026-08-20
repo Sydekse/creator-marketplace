@@ -8,9 +8,9 @@ import type { Tx } from '@/lib/authz';
  * the spike §6 identity `budget = available + escrowed + spent` (KAN-43, KAN-49).
  *
  * `sumEscrowedByCampaign` answers what is *held*; `sumSettledByCampaign` answers
- * what has *left*, split into the creator's payout and the platform's commission.
- * Both are un-guarded leaves; their guarded, request-scoped counterparts live in
- * `lib/campaigns/`.
+ * what has *left*, split into the creator's payout, the platform's commission,
+ * and anything refunded back to the brand's budget. Both are un-guarded leaves;
+ * their guarded, request-scoped counterparts live in `lib/campaigns/`.
  *
  * **Why this is its own module rather than a private method on the service.** It
  * was `EscrowLedgerService.sumBalance`, and it is the number the non-negativity
@@ -71,11 +71,14 @@ export async function sumEscrowedByCampaign(
 }
 
 /**
- * What has *left* escrow for a campaign, split by where it went (KAN-49).
+ * What has *left* escrow for a campaign, split by where it went (KAN-49, KAN-51).
  *
  * The `spent` half of the spike §6 identity `budget = available + escrowed +
- * spent`, which nothing read until the campaign dashboard needed it. Both
- * figures are integer santim (invariant 4), and both are non-negative.
+ * spent` is `paidOut + commission`; `refunded` is the fourth flow over the same
+ * rows — money that also left escrow but returned to `available` rather than
+ * being spent, so a dispute refund does not read as one more thing the campaign
+ * bought. Nothing read any of them until the campaign dashboard needed them. All
+ * three figures are integer santim (invariant 4), and all are non-negative.
  *
  * **Summed from the ledger, never recomputed.** AC-026 asks the dashboard to show
  * what was paid out and what commission was taken, and the honest source is the
@@ -85,14 +88,15 @@ export async function sumEscrowedByCampaign(
  * the first time a rate changed or a rounding rule moved. `lib/creators/dashboard.ts`
  * makes the same argument for the creator's side of the same numbers.
  *
- * **Both sums negate.** `release_payout` and `commission` are written negative —
- * positive is into escrow, negative is out (`db/schema.ts`) — so a raw `SUM`
- * returns a negative and would render as `−12,750.00 ETB` paid out. The `CASE
- * WHEN … THEN -amount` shape is `earningsQuery`'s, for the same reason.
+ * **All three sums negate.** `release_payout`, `commission` and `refund` are each
+ * written negative — positive is into escrow, negative is out (`db/schema.ts`) —
+ * so a raw `SUM` returns a negative and would render as `−12,750.00 ETB` paid
+ * out. The `CASE WHEN … THEN -amount` shape is `earningsQuery`'s, for the same
+ * reason.
  *
- * **One query, two aggregates.** They come off the same index scan of the same
- * rows, so two round trips would read `ledger_entry_campaign_created_idx` twice to
- * answer one question (NFR-001).
+ * **One query, three aggregates.** They come off the same index scan of the same
+ * rows, so three round trips would read `ledger_entry_campaign_created_idx` three
+ * times to answer one question (NFR-001).
  *
  * `::int` is not optional — see the note above. A campaign with no settled deals
  * sums to 0 rather than null, so no call site needs a branch.
@@ -100,11 +104,12 @@ export async function sumEscrowedByCampaign(
 export async function sumSettledByCampaign(
   campaignId: string,
   client: typeof db | Tx = db
-): Promise<{ paidOut: number; commission: number }> {
+): Promise<{ paidOut: number; commission: number; refunded: number }> {
   const [row] = await client
     .select({
       paidOut: sql<number>`coalesce(sum(case when ${ledgerEntry.entryType} = 'release_payout' then -${ledgerEntry.amount} else 0 end), 0)::int`,
       commission: sql<number>`coalesce(sum(case when ${ledgerEntry.entryType} = 'commission' then -${ledgerEntry.amount} else 0 end), 0)::int`,
+      refunded: sql<number>`coalesce(sum(case when ${ledgerEntry.entryType} = 'refund' then -${ledgerEntry.amount} else 0 end), 0)::int`,
     })
     .from(ledgerEntry)
     .where(eq(ledgerEntry.campaignId, campaignId));
@@ -112,5 +117,6 @@ export async function sumSettledByCampaign(
   return {
     paidOut: Number(row?.paidOut ?? 0),
     commission: Number(row?.commission ?? 0),
+    refunded: Number(row?.refunded ?? 0),
   };
 }

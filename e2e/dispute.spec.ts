@@ -117,10 +117,13 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   await expect(admin.getByRole('heading', { name: 'Audit log' })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(admin.getByText('Deal flagged').first()).toBeVisible();
-  await expect(admin.getByText('Dispute resolved').first()).toBeVisible();
+  // Scope to <li> audit rows to avoid matching the hidden <option> elements
+  // in the filter <select> dropdown, which carry the same label text.
+  const rows = admin.getByRole('listitem');
+  await expect(rows.getByText('Deal flagged')).toBeVisible();
+  await expect(rows.getByText('Dispute resolved')).toBeVisible();
   await expect(
-    admin.getByText(/Brand and creator agreed to cancel/).first()
+    rows.getByText(/Brand and creator agreed to cancel/)
   ).toBeVisible();
   await admin.close();
 });

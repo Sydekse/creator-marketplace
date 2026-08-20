@@ -15,6 +15,8 @@ import {
   NO_VIDEOS_TITLE,
   PAID_OUT_LABEL,
   PERFORMANCE_TITLE,
+  REFUNDED_LABEL,
+  REFUNDED_NOTE,
   SETTLEMENT_NOTE,
   STALE_LABEL,
   STALE_NOTE,
@@ -159,7 +161,7 @@ const multiDeal = (
 
 const okDeps = (
   videos: CampaignVideoRow[],
-  settlement: CampaignSettlement = { paidOut: 0, commission: 0 }
+  settlement: CampaignSettlement = { paidOut: 0, commission: 0, refunded: 0 }
 ): { deps: CampaignPerformanceDeps; calls: string[] } => {
   const calls: string[] = [];
   return {
@@ -188,26 +190,27 @@ describe('the settlement sums read the ledger', () => {
   it('filters each figure to its own entry type', () => {
     expect(moduleSource).toContain("= 'release_payout'");
     expect(moduleSource).toContain("= 'commission'");
+    expect(moduleSource).toContain("= 'refund'");
   });
 
-  it('negates, because both entry types are written negative', () => {
-    // `release_payout` is `-payout` and `commission` is `-commission` (positive is
-    // into escrow, negative is out). A raw SUM would render as −12,750.00 ETB paid
-    // out.
+  it('negates, because all three entry types are written negative', () => {
+    // `release_payout`, `commission` and `refund` are each written negative
+    // (positive is into escrow, negative is out). A raw SUM would render as
+    // −12,750.00 ETB paid out.
     const body = moduleSource.slice(
       moduleSource.indexOf('sumSettledByCampaign')
     );
     expect(body).toMatch(/then\s*-\$\{ledgerEntry\.amount\}/);
-    expect(body.match(/then -\$\{ledgerEntry\.amount\}/g)).toHaveLength(2);
+    expect(body.match(/then -\$\{ledgerEntry\.amount\}/g)).toHaveLength(3);
   });
 
-  it('casts both aggregates, because SUM() returns bigint as a string', () => {
+  it('casts all three aggregates, because SUM() returns bigint as a string', () => {
     // Without the cast the figure is a string that concatenates instead of adding
     // — the trap `sumBalance` and `earningsQuery` both document.
     const body = moduleSource.slice(
       moduleSource.indexOf('sumSettledByCampaign')
     );
-    expect(body.match(/::int/g)).toHaveLength(2);
+    expect(body.match(/::int/g)).toHaveLength(3);
   });
 
   it('keys on the campaign, not by walking to a deal', () => {
@@ -481,6 +484,7 @@ describe('readCampaignPerformance', () => {
     const { deps } = okDeps([row({ views: 12 })], {
       paidOut: 127_500,
       commission: 22_500,
+      refunded: 40_000,
     });
 
     const result = await readCampaignPerformance(CAMPAIGN_ID, deps);
@@ -490,6 +494,7 @@ describe('readCampaignPerformance', () => {
     expect(result.settlement).toEqual({
       paidOut: 127_500,
       commission: 22_500,
+      refunded: 40_000,
     });
   });
 
@@ -751,6 +756,16 @@ describe('the campaign page shows the performance section', () => {
     expect(page).toContain('performance.settlement.paidOut > 0');
   });
 
+  it('shows a refund row from the ledger’s own figure, gated until one exists', () => {
+    // KAN-51: a refund returns held money to the brand's available budget, so
+    // `Held` drops and `Remaining` rises — this row is what explains that. Summed
+    // by `sumSettledByCampaign`, gated on `> 0` like the escrow and paid-out rows,
+    // so a "0.00 ETB refunded" line cannot appear on a campaign with no dispute.
+    expect(page).toContain('REFUNDED_LABEL');
+    expect(page).toContain('formatEtb(performance.settlement.refunded)');
+    expect(page).toContain('performance.settlement.refunded > 0');
+  });
+
   it('computes no money of its own', () => {
     expect(page).not.toContain('computeSplit');
     expect(page).not.toContain('COMMISSION_RATE');
@@ -929,13 +944,16 @@ describe('VideoPerformance', () => {
     expect(source).not.toContain('LAST_KNOWN_GOOD_LABEL');
   });
 
-  it.each([PAID_OUT_LABEL, COMMISSION_LABEL, SETTLEMENT_NOTE])(
-    'keeps “%s” out of the page as a literal',
-    (copy) => {
-      expect(src(CAMPAIGN_PAGE)).not.toContain(`>${copy}<`);
-      expect(copy).not.toMatch(/KAN-\d+/);
-    }
-  );
+  it.each([
+    PAID_OUT_LABEL,
+    COMMISSION_LABEL,
+    SETTLEMENT_NOTE,
+    REFUNDED_LABEL,
+    REFUNDED_NOTE,
+  ])('keeps “%s” out of the page as a literal', (copy) => {
+    expect(src(CAMPAIGN_PAGE)).not.toContain(`>${copy}<`);
+    expect(copy).not.toMatch(/KAN-\d+/);
+  });
 
   it('takes its copy from the module that owns the query', () => {
     expect(source).toContain("from '@/lib/campaigns/performance'");
