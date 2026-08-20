@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { DealHistory } from '@/components/deals/deal-history';
 import {
   ApproveDealButton,
   RejectVideoForm,
@@ -26,6 +27,7 @@ import {
   videoHeading,
   readBrandDeal,
 } from '@/lib/deals/brand-detail';
+import { getDealHistory } from '@/lib/deals/queries';
 import { formatEtb } from '@/lib/money';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
@@ -75,6 +77,8 @@ export default async function BrandDealReviewPage({
 
   const deal = await readBrandDeal(id);
   if (!deal) notFound();
+
+  const history = await getDealHistory(id);
 
   const reviewable = canReview(deal.status);
 
@@ -210,6 +214,13 @@ export default async function BrandDealReviewPage({
             : ALREADY_REVIEWED_MESSAGE}
         </p>
       )}
+
+      {/* KAN-99 §4: brand deal history — the same component the creator and
+          admin pages use, so a brand can see *why* a deal is in its current
+          state (who rejected, when, with what reason the money moved). */}
+      <div className="border-t border-border pt-8">
+        <DealHistory events={history} />
+      </div>
     </div>
   );
 }

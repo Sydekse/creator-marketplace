@@ -8,6 +8,7 @@ import { getPaymentProvider, PaymentError } from '@/lib/payment';
 import { EscrowLedgerService, LedgerError } from '@/lib/payment/ledger';
 import type { PayoutResult } from '@/lib/payment/ledger';
 import { logPaymentFailure } from '@/lib/payment/log';
+import { advanceCampaignIfComplete } from '@/lib/campaigns/advance-completion';
 import { extractSafeErrorDetails, toLogString } from '@/lib/logging';
 
 /**
@@ -86,6 +87,7 @@ export interface ApproveDeliverableDeps {
   ) => Promise<{
     id: string;
     status: DealStatus;
+    campaignId: string;
     campaignName: string;
     creatorUserId: string;
   } | null>;
@@ -105,6 +107,8 @@ export interface ApproveDeliverableDeps {
     error: unknown,
     context: { dealId: string; actorId: string }
   ) => void;
+  /** Best-effort: advance campaign to completed when all deals are done. */
+  advanceCampaign: (campaignId: string) => Promise<void>;
 }
 
 const defaultDeps: ApproveDeliverableDeps = {
@@ -113,6 +117,7 @@ const defaultDeps: ApproveDeliverableDeps = {
       .select({
         id: deal.id,
         status: deal.status,
+        campaignId: deal.campaignId,
         campaignName: campaign.name,
         creatorUserId: creatorProfile.userId,
       })
@@ -150,6 +155,7 @@ const defaultDeps: ApproveDeliverableDeps = {
       })
     );
   },
+  advanceCampaign: (campaignId) => advanceCampaignIfComplete(campaignId),
 };
 
 /**
@@ -228,6 +234,15 @@ export async function approveDeliverable(
     // failure is traced and swallowed: a 500 here would tell the brand their
     // approval failed when it succeeded (F2).
     deps.logNotifyFailure(error, { dealId, actorId: actorUserId });
+  }
+
+  // Best-effort: advance the campaign to `completed` if all its deals are done.
+  // This is cosmetic bookkeeping — the payout and deal status are already
+  // final, so a failure here is swallowed like the notification above.
+  try {
+    await deps.advanceCampaign(row.campaignId);
+  } catch {
+    // Swallowed — same rationale as the notification failure above.
   }
 
   return {
