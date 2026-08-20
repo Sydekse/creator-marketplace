@@ -68,6 +68,7 @@ const OTHER_BRAND_PROFILE_ID = '77777777-7777-4777-8777-777777777777';
 const CREATOR_USER_ID = '99999999-9999-4999-8999-999999999999';
 const DEAL_ID = '33333333-3333-4333-8333-333333333333';
 
+const CAMPAIGN_ID = '44444444-4444-4444-8444-444444444444';
 const CAMPAIGN_NAME = 'Ramadan Beauty Push';
 const TOTAL = 100_000;
 const PAYOUT = 85_000;
@@ -117,6 +118,7 @@ function makeDeps(overrides: Overrides = {}): {
       return {
         id: dealId,
         status: overrides.status ?? 'delivered',
+        campaignId: CAMPAIGN_ID,
         campaignName: CAMPAIGN_NAME,
         creatorUserId: CREATOR_USER_ID,
       };
@@ -152,6 +154,9 @@ function makeDeps(overrides: Overrides = {}): {
         dealId: context.dealId,
         actorId: context.actorId,
       });
+    },
+    advanceCampaign: async (_campaignId: string) => {
+      recorded.calls.push('advanceCampaign');
     },
   };
 
@@ -201,7 +206,12 @@ describe('AC-023 — approving pays the creator net of commission', () => {
       payout: PAYOUT,
       commission: COMMISSION,
     });
-    expect(recorded.calls).toEqual(['getDeal', 'pay', 'notify']);
+    expect(recorded.calls).toEqual([
+      'getDeal',
+      'pay',
+      'notify',
+      'advanceCampaign',
+    ]);
   });
 
   it('passes the brand as actor to the ledger, which owns the transition', async () => {
@@ -373,7 +383,12 @@ describe('AC-7 — the creator is notified of approval and payout', () => {
 
   it('runs after the ledger, never before it', async () => {
     const { recorded } = await approve();
-    expect(recorded.calls).toEqual(['getDeal', 'pay', 'notify']);
+    expect(recorded.calls).toEqual([
+      'getDeal',
+      'pay',
+      'notify',
+      'advanceCampaign',
+    ]);
   });
 
   it('says nothing when the payout is refused', async () => {
@@ -420,6 +435,7 @@ describe('a failed notification does not undo the payout', () => {
       'pay',
       'notify',
       'logNotifyFailure',
+      'advanceCampaign',
     ]);
   });
 
@@ -717,7 +733,7 @@ describe('NFR-002 — the work is bounded', () => {
     expect(recorded.calls.filter((c) => c === 'getDeal')).toHaveLength(1);
     expect(recorded.calls.filter((c) => c === 'pay')).toHaveLength(1);
     expect(recorded.calls.filter((c) => c === 'notify')).toHaveLength(1);
-    expect(recorded.calls).toHaveLength(3);
+    expect(recorded.calls).toHaveLength(4);
   });
 
   it('sums the balance once and captures exactly the two legs inside the ledger', () => {
