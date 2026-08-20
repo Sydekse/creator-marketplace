@@ -35,7 +35,7 @@ export async function GET(request: Request): Promise<Response> {
       hasMore: notifications.hasMore,
       unreadCount: unread,
     });
-  } catch (error) {
+  } catch {
     return Response.json(errorResponse(ErrorCode.INTERNAL_SERVER_ERROR), {
       status: ErrorHttpStatus[ErrorCode.INTERNAL_SERVER_ERROR],
     });

@@ -7,7 +7,14 @@ import { DeliverableForm } from '@/components/deals/deliverable-form';
 import { OfferActions } from '@/components/deals/offer-actions';
 import { UsageRightsCard } from '@/components/deals/usage-rights';
 import { NO_EXPIRY_LABEL, expiryLabel, formatDeadlineUtc } from '@/lib/dates';
-import { canAct, canDeliver, canReportMetrics } from '@/lib/deals';
+import {
+  canAct,
+  canDeliver,
+  canReportMetrics,
+  labelForStatus,
+} from '@/lib/deals';
+import { Chip } from '@/components/ui/chip';
+import { dealStatusTone } from '@/lib/deals/status-tone';
 import {
   COMMISSION_LABEL,
   DEAL_TERMS_TITLE,
@@ -113,7 +120,12 @@ export default async function CreatorDealDetailPage({
         description={
           /* AC-2's brand name: the trading name the brand publishes, never a
              contact (NFR-010). */
-          deal.companyName
+          <>
+            {deal.companyName}{' '}
+            <Chip tone={dealStatusTone[deal.status]} size="sm">
+              {labelForStatus(deal.status)}
+            </Chip>
+          </>
         }
       />
 
