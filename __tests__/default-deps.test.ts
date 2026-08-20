@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ForbiddenError } from '../lib/authz';
 
 /**
  * Default-dep smoke tests for the brand dashboard and inbox reads.
