@@ -1,7 +1,8 @@
 import { and, eq } from 'drizzle-orm';
 import { db as defaultDb } from '@/db';
 import { campaign } from '@/db/schema';
-import { guard } from '@/lib/authz';
+import { guard as defaultGuard } from '@/lib/authz';
+import type { AuthzContext, GuardOptions } from '@/lib/authz';
 
 /**
  * KAN-99 §5 — campaign lifecycle: cancel a draft or confirmed campaign.
@@ -21,6 +22,7 @@ export type CancelCampaignResult =
 
 export interface CancelCampaignDeps {
   db: typeof defaultDb;
+  guard?: (opts: GuardOptions) => Promise<AuthzContext>;
 }
 
 const defaultDeps: CancelCampaignDeps = { db: defaultDb };
@@ -33,8 +35,8 @@ export async function cancelCampaign(
   brandProfileId: string,
   deps: CancelCampaignDeps = defaultDeps
 ): Promise<CancelCampaignResult> {
-  // The guard runs first — no role gate, no query.
-  await guard({ roles: ['brand'] });
+  const guardFn = deps.guard ?? defaultGuard;
+  await guardFn({ roles: ['brand'] });
 
   return deps.db.transaction(async (tx) => {
     // Lock the campaign row to prevent a concurrent fund from racing.
