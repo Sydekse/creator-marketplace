@@ -29,13 +29,14 @@ function fakeDb(row: { id: string; status: string; brandId: string } | null) {
 
   return {
     db: {
-      transaction: async (fn: (tx: typeof tx) => Promise<unknown>) => fn(tx),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      transaction: async (fn: (tx: any) => Promise<unknown>) => fn(tx),
     } as unknown as CancelCampaignDeps['db'],
   };
 }
 
 function alwaysAllow() {
-  return async () => ({ user: { id: 'u', role: 'brand' as const } } as never);
+  return async () => ({ user: { id: 'u', role: 'brand' as const } }) as never;
 }
 
 function alwaysDeny() {
