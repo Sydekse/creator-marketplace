@@ -9,6 +9,7 @@ const NAV_LINKS: Record<UserRole, NavLink[]> = {
   brand: [
     { label: 'Discover', href: '/discover' },
     { label: 'Campaigns', href: '/campaigns' },
+    { label: 'Deals', href: '/deals' },
     { label: 'Dashboard', href: '/brand' },
   ],
   creator: [
