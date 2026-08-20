@@ -1,0 +1,1 @@
+CREATE INDEX "notification_user_created_idx" ON "notification" USING btree ("user_id","created_at");

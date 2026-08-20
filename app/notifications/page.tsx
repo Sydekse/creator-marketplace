@@ -1,0 +1,171 @@
+import Link from 'next/link';
+import { Chip } from '@/components/ui/chip';
+import { PageHeader } from '@/components/layout/page-header';
+import { EmptyState } from '@/components/feedback/empty-state';
+import { buttonVariants } from '@/components/ui/button';
+import { listNotifications, unreadCount } from '@/lib/notifications/queries';
+import { requireUser } from '@/lib/auth';
+import { NOTIFICATION_TYPES } from '@/lib/notifications/types';
+import { MarkReadButton } from './mark-read-button';
+
+// `pg` needs Node APIs; it cannot run on the edge runtime.
+export const runtime = 'nodejs';
+
+/**
+ * Human-readable labels for the notification type vocabulary (KAN-96).
+ *
+ * One label per entry in `NOTIFICATION_TYPES`, in the same order, so the admin
+ * who greps the codebase sees the same list the page renders.
+ */
+const NOTIFICATION_LABELS: Record<string, string> = {
+  offer_received: 'New offer',
+  verification_result: 'Verification update',
+  campaign_funded: 'Campaign funded',
+  deliverable_submitted: 'Video submitted',
+  deliverable_approved: 'Video approved',
+  revision_requested: 'Revision requested',
+  dispute_resolved: 'Dispute resolved',
+  offer_expired: 'Offer expired',
+  offer_accepted: 'Offer accepted',
+  offer_declined: 'Offer declined',
+  metric_reminder: 'Metrics reminder',
+};
+
+/**
+ * Deep-link target per notification type.
+ *
+ * The payload carries the ids needed to build the link; when absent (e.g.
+ * legacy rows), the link falls back to the dashboard.
+ */
+function deepLink(type: string, payload: Record<string, unknown>): string {
+  switch (type) {
+    case 'offer_received':
+    case 'offer_accepted':
+    case 'offer_declined':
+    case 'offer_expired':
+      return payload.campaignId ? `/creator/deals` : '/creator/deals';
+    case 'deliverable_submitted':
+    case 'deliverable_approved':
+    case 'revision_requested':
+      return payload.dealId
+        ? `/creator/deals/${payload.dealId}`
+        : '/creator/deals';
+    case 'dispute_resolved':
+      return payload.dealId
+        ? `/creator/deals/${payload.dealId}`
+        : '/creator/deals';
+    case 'campaign_funded':
+      return payload.campaignId ? `/creator/deals` : '/creator/deals';
+    case 'verification_result':
+      return '/creator';
+    case 'metric_reminder':
+      return payload.dealId
+        ? `/creator/deals/${payload.dealId}`
+        : '/creator/deals';
+    default:
+      return '/creator';
+  }
+}
+
+function formatTimestamp(date: Date): string {
+  return date.toLocaleString('en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+}
+
+function NotificationItem({
+  row,
+}: {
+  row: {
+    id: string;
+    type: string;
+    payload: unknown;
+    readAt: Date | null;
+    createdAt: Date;
+  };
+}) {
+  const label = NOTIFICATION_LABELS[row.type] ?? row.type;
+  const payload = (
+    typeof row.payload === 'object' && row.payload !== null ? row.payload : {}
+  ) as Record<string, unknown>;
+  const href = deepLink(row.type, payload);
+  const isUnread = row.readAt === null;
+
+  return (
+    <li
+      className={`rounded-xl border p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)] ${
+        isUnread
+          ? 'border-brand/30 bg-brand-tint/30'
+          : 'border-neutral-200 bg-card'
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        <Chip tone={isUnread ? 'teal' : 'gray'}>{label}</Chip>
+        {isUnread && (
+          <span className="text-xs font-medium text-brand-ink">New</span>
+        )}
+        <span className="text-xs text-muted-foreground">
+          {formatTimestamp(row.createdAt)}
+        </span>
+      </div>
+      <div className="mt-2 flex items-center gap-3">
+        <Link
+          href={href}
+          className="text-sm font-medium text-neutral-900 underline-offset-4 hover:underline"
+        >
+          View details
+        </Link>
+        {isUnread && <MarkReadButton notificationId={row.id} />}
+      </div>
+    </li>
+  );
+}
+
+export default async function NotificationsPage() {
+  const user = await requireUser();
+  const [result, unread] = await Promise.all([
+    listNotifications(user.id),
+    unreadCount(user.id),
+  ]);
+
+  return (
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Notifications"
+        description={
+          unread > 0
+            ? `${unread} unread notification${unread === 1 ? '' : 's'}`
+            : "You're all caught up."
+        }
+      />
+
+      {result.rows.length === 0 ? (
+        <EmptyState
+          title="No notifications yet"
+          description="Activity on your deals, campaigns, and account will appear here."
+          action={
+            <Link
+              href="/"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              Back to dashboard
+            </Link>
+          }
+        />
+      ) : (
+        <ul className="flex flex-col gap-4">
+          {result.rows.map((row) => (
+            <NotificationItem key={row.id} row={row} />
+          ))}
+        </ul>
+      )}
+
+      {result.hasMore && (
+        <p className="text-sm text-muted-foreground">
+          Older notifications are on subsequent pages — paging coming soon.
+        </p>
+      )}
+    </div>
+  );
+}

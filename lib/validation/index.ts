@@ -54,4 +54,5 @@ export {
   resolveDisputeSchema,
   flagDealSchema,
   auditLogQuerySchema,
+  notificationReadSchema,
 } from './schemas';
