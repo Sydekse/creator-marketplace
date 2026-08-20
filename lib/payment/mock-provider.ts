@@ -1,3 +1,5 @@
+import { InMemoryHoldStore } from './hold-store';
+import type { HoldRecord, HoldStore } from './hold-store';
 import type {
   PaymentProvider,
   ProviderHoldResult,
@@ -7,23 +9,33 @@ import type {
 } from './types';
 import { PaymentError } from './types';
 
-interface HoldRecord {
-  amount: number;
-  state: ProviderStatus['state'];
-  createdAt: string;
-  updatedAt: string;
-}
-
 type IdempotencyRecord =
   ProviderHoldResult | ProviderCaptureResult | ProviderReleaseResult;
 
 export class MockPaymentProvider implements PaymentProvider {
-  private holds = new Map<string, HoldRecord>();
   private idempotency = new Map<
     string,
     { args: string; result: IdempotencyRecord }
   >();
   private failNext = new Map<string, true>();
+
+  /**
+   * Holds live in `store`; the other two maps stay in memory (KAN-200).
+   *
+   * That asymmetry is the whole point rather than a half-finished job. A hold is
+   * read by a *later request* — funding places it and approval draws it down — so
+   * it has to outlive the instance. An idempotency key is not: every caller in
+   * `lib/payment/ledger.ts` mints one with `crypto.randomUUID()` at the top of
+   * the call, outside the transaction, so a key is only ever replayed inside one
+   * request's own serialization-failure retry loop (spike §5.3). Persisting them
+   * would add a table that nothing could ever read a second time. `failNext` is a
+   * test and e2e affordance and is armed per process by construction.
+   *
+   * The default keeps every existing construction site — `db/seed.ts`,
+   * `tests/integration/helpers.ts`, and every unit test — working unchanged and
+   * database-free. Only `getPaymentProvider()` passes a `PgHoldStore`.
+   */
+  constructor(private readonly store: HoldStore = new InMemoryHoldStore()) {}
 
   setFailNext(method: string): void {
     this.failNext.set(method, true);
@@ -33,8 +45,8 @@ export class MockPaymentProvider implements PaymentProvider {
     this.failNext.delete(method);
   }
 
-  reset(): void {
-    this.holds.clear();
+  async reset(): Promise<void> {
+    await this.store.clear();
     this.idempotency.clear();
     this.failNext.clear();
   }
@@ -97,6 +109,35 @@ export class MockPaymentProvider implements PaymentProvider {
     });
   }
 
+  /**
+   * The hold at `holdRef`, or the refusal that stops the caller's transaction.
+   *
+   * Extracted at its third caller (KAN-200) — `capturePayout`,
+   * `captureCommission` and `releaseHold` open with the same two guards, and the
+   * store made each of them two statements longer. The guards are what keep the
+   * provider's documented transition table honest (`types.ts`: nothing leaves
+   * `captured` or `released`), so having one copy of them is the point rather
+   * than a saving.
+   *
+   * The returned record is a copy — `HoldStore.get` guarantees that — so mutating
+   * it changes nothing until the caller writes it back with `store.put`.
+   */
+  private async loadHeld(holdRef: string): Promise<HoldRecord> {
+    const record = await this.store.get(holdRef);
+    if (!record) {
+      throw new PaymentError('Hold not found', 'INVALID_REFERENCE');
+    }
+
+    if (record.state !== 'held') {
+      throw new PaymentError(
+        `Hold is in state '${record.state}', expected 'held'`,
+        'INVALID_REFERENCE'
+      );
+    }
+
+    return record;
+  }
+
   async hold(
     amount: number,
     idempotencyKey: string
@@ -119,7 +160,7 @@ export class MockPaymentProvider implements PaymentProvider {
     const providerRef = `mock_${crypto.randomUUID()}`;
     const now = new Date().toISOString();
 
-    this.holds.set(providerRef, {
+    await this.store.put(providerRef, {
       amount,
       state: 'held',
       createdAt: now,
@@ -158,17 +199,7 @@ export class MockPaymentProvider implements PaymentProvider {
       throw new PaymentError('Mock capture failed', 'PROVIDER_UNAVAILABLE');
     }
 
-    const record = this.holds.get(holdRef);
-    if (!record) {
-      throw new PaymentError('Hold not found', 'INVALID_REFERENCE');
-    }
-
-    if (record.state !== 'held') {
-      throw new PaymentError(
-        `Hold is in state '${record.state}', expected 'held'`,
-        'INVALID_REFERENCE'
-      );
-    }
+    const record = await this.loadHeld(holdRef);
 
     if (amount > record.amount) {
       throw new PaymentError(
@@ -183,6 +214,7 @@ export class MockPaymentProvider implements PaymentProvider {
       record.state = 'captured';
     }
     record.updatedAt = now;
+    await this.store.put(holdRef, record);
 
     const result: ProviderCaptureResult = {
       providerRef: holdRef,
@@ -229,17 +261,7 @@ export class MockPaymentProvider implements PaymentProvider {
       );
     }
 
-    const record = this.holds.get(holdRef);
-    if (!record) {
-      throw new PaymentError('Hold not found', 'INVALID_REFERENCE');
-    }
-
-    if (record.state !== 'held') {
-      throw new PaymentError(
-        `Hold is in state '${record.state}', expected 'held'`,
-        'INVALID_REFERENCE'
-      );
-    }
+    const record = await this.loadHeld(holdRef);
 
     if (amount > record.amount) {
       throw new PaymentError(
@@ -254,6 +276,7 @@ export class MockPaymentProvider implements PaymentProvider {
       record.state = 'captured';
     }
     record.updatedAt = now;
+    await this.store.put(holdRef, record);
 
     const result: ProviderCaptureResult = {
       providerRef: holdRef,
@@ -282,21 +305,12 @@ export class MockPaymentProvider implements PaymentProvider {
       throw new PaymentError('Mock release failed', 'PROVIDER_UNAVAILABLE');
     }
 
-    const record = this.holds.get(holdRef);
-    if (!record) {
-      throw new PaymentError('Hold not found', 'INVALID_REFERENCE');
-    }
-
-    if (record.state !== 'held') {
-      throw new PaymentError(
-        `Hold is in state '${record.state}', expected 'held'`,
-        'INVALID_REFERENCE'
-      );
-    }
+    const record = await this.loadHeld(holdRef);
 
     const now = new Date().toISOString();
     record.state = 'released';
     record.updatedAt = now;
+    await this.store.put(holdRef, record);
 
     const result: ProviderReleaseResult = {
       providerRef: holdRef,
@@ -309,7 +323,7 @@ export class MockPaymentProvider implements PaymentProvider {
   }
 
   async getStatus(providerRef: string): Promise<ProviderStatus> {
-    const record = this.holds.get(providerRef);
+    const record = await this.store.get(providerRef);
     if (!record) {
       throw new PaymentError('Hold not found', 'INVALID_REFERENCE');
     }

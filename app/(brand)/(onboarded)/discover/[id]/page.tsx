@@ -3,16 +3,22 @@ import { notFound } from 'next/navigation';
 import { AddToCartForm } from '@/components/campaign/add-to-cart-form';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
+import { buttonVariants } from '@/components/ui/button';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import { listDraftCampaignsByBrand } from '@/lib/campaigns/queries';
 
-import { NICHE_LABELS } from '@/lib/config/creator-profile';
+import {
+  ENGAGEMENT_RATE_HINT,
+  NICHE_LABELS,
+} from '@/lib/config/creator-profile';
 import type { Niche } from '@/lib/config/creator-profile';
 
 import { AudienceSection } from '@/components/creator/audience-section';
 import { readCreatorDetail } from '@/lib/creators/detail';
+import { tiktokProfileUrl } from '@/lib/creators/handle';
 import {
+  VIEW_ON_TIKTOK_LABEL,
   formatEngagementRate,
   formatFollowerCount,
 } from '@/lib/creators/profile-facts';
@@ -40,13 +46,31 @@ export const runtime = 'nodejs';
  * `node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/dynamic-routes.md`.
  */
 
-function Fact({ label, value }: { label: string; value: string }) {
+function Fact({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  /**
+   * A sentence saying what the figure means, when the label alone does not say
+   * (KAN-200). Rendered as visible text under the value rather than a tooltip —
+   * hover-only copy tells a touch user nothing.
+   */
+  hint?: string;
+}) {
   return (
     <div className="flex flex-col gap-1">
       <dt className="text-xs tracking-wide text-muted-foreground uppercase">
         {label}
       </dt>
       <dd className="font-mono text-sm">{value}</dd>
+      {hint && (
+        <p className="text-xs leading-normal text-muted-foreground text-balance">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -64,6 +88,10 @@ export default async function CreatorDetailPage({
   const user = await requireRole('brand');
   const profile = await getBrandProfileByUserId(user.id);
   const campaigns = profile ? await listDraftCampaignsByBrand(profile.id) : [];
+
+  // `null` for a handle no longer storable, which renders no link rather than a
+  // broken one. See `tiktokProfileUrl`.
+  const profileUrl = tiktokProfileUrl(creator.tiktokHandle);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
@@ -86,6 +114,27 @@ export default async function CreatorDetailPage({
         />
       </div>
 
+      {/* Every figure below is self-reported and verification is manual, so the
+          profile itself is the only primary source a brand has before it commits
+          money (KAN-200). A plain `<a>`: this page is not wrapped in a `<Link>`,
+          and `next/link` is for in-app routes. `noopener noreferrer` so the tab
+          we open gets no handle on ours, `nofollow` because we are not vouching
+          for an account nobody has checked. */}
+      {profileUrl && (
+        <a
+          href={profileUrl}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className={buttonVariants({
+            variant: 'outline',
+            size: 'sm',
+            className: 'self-start',
+          })}
+        >
+          {VIEW_ON_TIKTOK_LABEL} ↗
+        </a>
+      )}
+
       {/* Two columns on a phone, three from `sm:` up (NFR-007). The price is
           read straight off the joined tier row — no arithmetic on this path, so
           it cannot diverge from what the creator is shown on `/creator`
@@ -98,6 +147,7 @@ export default async function CreatorDetailPage({
         <Fact
           label="Engagement rate"
           value={formatEngagementRate(creator.engagementRate)}
+          hint={ENGAGEMENT_RATE_HINT}
         />
         <Fact
           label={`Per video · ${creator.tierName}`}

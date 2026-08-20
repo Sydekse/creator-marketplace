@@ -19,12 +19,17 @@ import {
   NO_RIGHTS_TERMS_MESSAGE,
   OFFER_EXPIRY_LABEL,
   PAYOUT_ESTIMATE_NOTE,
+  REJECTION_REASON_LABEL,
+  REMAINING_VIDEOS_MESSAGE,
+  revisionRequestedMessage,
+  standingVideoCount,
   SUBMIT_DELIVERABLE_LABEL,
   SUBMITTED_AT_LABEL,
   SUBMITTED_DELIVERABLE_LABEL,
   TOTAL_PRICE_LABEL,
   UNIT_PRICE_LABEL,
   VIDEO_COUNT_LABEL,
+  videoHeading,
   buildCreatorDealWhere,
   creatorDealDeliverablesQuery,
   creatorDealQuery,
@@ -33,6 +38,9 @@ import {
   withCurrentTerms,
 } from '../lib/deals/detail';
 import type { CreatorDealDeps, CreatorDealJoinRow } from '../lib/deals/detail';
+// The brand's label for the same stored text, aliased so the two cannot be
+// confused for each other in an assertion that they differ.
+import { REJECTION_REASON_LABEL as BRAND_REJECTION_REASON_LABEL } from '../lib/deals/brand-detail';
 import {
   canAct,
   canDeliver,
@@ -360,11 +368,17 @@ describe('the detail read returns every field AC-2 names', () => {
         id: 'dl-9',
         tiktokUrl: 'https://www.tiktok.com/@selam/video/1',
         submittedAt: new Date('2026-08-01T00:00:00.000Z'),
+        reviewStatus: 'approved' as const,
+        reviewedAt: new Date('2026-08-03T00:00:00.000Z'),
+        rejectionReason: null,
       },
       {
         id: 'dl-10',
         tiktokUrl: 'https://www.tiktok.com/@selam/video/2',
         submittedAt: new Date('2026-08-02T00:00:00.000Z'),
+        reviewStatus: 'pending' as const,
+        reviewedAt: null,
+        rejectionReason: null,
       },
     ];
 
@@ -372,8 +386,8 @@ describe('the detail read returns every field AC-2 names', () => {
   });
 
   it('is an empty list, not null, before anything is submitted', () => {
-    // The page asks `length` against `videoCount`; an absent list would have to
-    // be defended against at every use.
+    // The page counts the standing videos against `videoCount`; an absent list
+    // would have to be defended against at every use.
     expect(toDealDetail(joinRow(), []).deliverables).toEqual([]);
   });
 });
@@ -698,6 +712,101 @@ describe('the deliverable path renders under canDeliver and nowhere else', () =>
     expect(source).toMatch(/deal\.deliverables\.map\(/);
     expect(source).toContain('DELIVERABLES_TITLE');
     expect(source).toContain('SUBMITTED_AT_LABEL');
+  });
+});
+
+// -- KAN-200: the creator's view of a revision --------------------------------
+
+describe('the creator can see which video was refused, and why', () => {
+  const source = src(DETAIL_PAGE);
+
+  it('reads the review columns, not just the URL', () => {
+    // They were written by `recordRejection` from the first rejection onward and
+    // simply never selected on this side — the whole of items 2 and 3 was a read.
+    const query = src('lib/deals/detail.ts');
+    const body = query.slice(
+      query.indexOf('creatorDealDeliverablesQuery'),
+      query.indexOf('export async function readCreatorDeal')
+    );
+
+    for (const column of ['reviewStatus', 'reviewedAt', 'rejectionReason']) {
+      expect(body).toContain(column);
+    }
+  });
+
+  it('renders the brand’s reason under its own label', () => {
+    // The guard that catches an F31/F34-class miss: a constant defined and
+    // rendered by nothing. The page has to name it.
+    expect(source).toContain('REJECTION_REASON_LABEL');
+    expect(source).toContain('video.rejectionReason');
+    expect(source).toContain('revisionRequestedMessage(');
+  });
+
+  it('is the creator’s own sentence, not the brand’s', () => {
+    // Both sides label the same stored text, and neither can use the other's
+    // words: "Changes you asked for" is addressed to the brand that wrote them.
+    expect(REJECTION_REASON_LABEL).not.toBe(BRAND_REJECTION_REASON_LABEL);
+    expect(REJECTION_REASON_LABEL).not.toMatch(/\byou(r)?\b/i);
+    expect(REJECTION_REASON_LABEL).not.toMatch(/KAN-\d+/);
+  });
+
+  it('names the refused video by the ordinal the brand used', () => {
+    // `videoHeading` is shared, so "Changes to Video 2" finds Video 2 here. A
+    // second numbering scheme would make the note point at the wrong post.
+    expect(source).toContain('videoHeading(rejectedIndex)');
+    expect(revisionRequestedMessage(videoHeading(1))).toContain('Video 2');
+    expect(revisionRequestedMessage(videoHeading(1))).not.toMatch(/KAN-\d+/);
+  });
+
+  it('finds the refused video by status, and only one can stand', () => {
+    // `submit-deliverable.ts` states the rule and the state machine enforces it: a
+    // rejection is legal only from `delivered`, and it lands the deal on
+    // `revision_requested` where `canReview` is false. So `findIndex` naming "the"
+    // flagged video is a fact, not a guess.
+    expect(source).toMatch(/findIndex\(/);
+    expect(source).toContain("video.reviewStatus === 'rejected'");
+  });
+
+  it('shows the list above the form that replaces a video', () => {
+    // The note being replaced has to be readable before the field replacing it. A
+    // creator cannot act on an instruction they have to scroll past the form to
+    // find.
+    expect(source.indexOf('DELIVERABLES_TITLE')).toBeLessThan(
+      source.indexOf('<DeliverableForm')
+    );
+  });
+
+  it('explains the form differently for a replacement than for the next video', () => {
+    // Two questions, two sentences. "One more video to go" over a refused video
+    // would be false, and the replacement sentence over an unfinished delivery
+    // would name a video nobody objected to.
+    expect(source).toMatch(/rejectedIndex >= 0 \?/);
+    expect(source).toContain('REMAINING_VIDEOS_MESSAGE');
+    expect(source).toMatch(/remaining > 0 && standing > 0/);
+  });
+
+  it('counts progress and what is owed off the standing videos', () => {
+    // The symptom Nate hit: "2 of 2 videos submitted" printed above a form asking
+    // for another link, because the refused row was still counted.
+    const delivery = [
+      { reviewStatus: 'approved' as const },
+      { reviewStatus: 'rejected' as const },
+    ];
+
+    expect(standingVideoCount(delivery)).toBe(1);
+    expect(source).toContain('standingVideoCount(deal.deliverables)');
+    expect(source).toContain('deal.videoCount - standing');
+    // `remaining` is the sentence's input only. Whether the form exists at all is
+    // the transition table's answer, which is what stops a completed deal from
+    // asking for a video because its arithmetic came out positive.
+    expect(source).toMatch(/canDeliver\(deal\.status\) \?/);
+  });
+
+  it('keeps the “next video” sentence about a video nobody refused', () => {
+    // It says the delivery is unfinished, not that anything was wrong — the
+    // replacement case has its own words and this one must not drift into them.
+    expect(REMAINING_VIDEOS_MESSAGE).not.toMatch(/reject|refus|chang/i);
+    expect(REMAINING_VIDEOS_MESSAGE).not.toMatch(/KAN-\d+/);
   });
 });
 

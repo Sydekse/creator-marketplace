@@ -32,6 +32,7 @@ import {
 } from '@/lib/campaigns/queries';
 import { formatEtb } from '@/lib/money';
 
+import { CancelCampaignButton } from '@/components/campaign/cancel-campaign-button';
 import { ConfirmCampaignButton } from '@/components/campaign/confirm-campaign-button';
 import { FundCampaignButton } from '@/components/campaign/fund-campaign-button';
 import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-button';
@@ -142,6 +143,19 @@ export default async function CampaignCartPage({
               <ConfirmCampaignButton
                 campaignId={campaign.id}
                 itemCount={items.length}
+              />
+              {/*
+                KAN-200. Last, and after the confirm: it is the one control here
+                that does not reverse, so it does not sit where a brand aiming for
+                "Send offers" can reach it by overshooting.
+
+                Draft only. `POST /cancel` accepts `confirmed` as well, but
+                cancelling then withdraws offers creators are holding and nothing
+                notifies them — that is a product decision, not a button.
+              */}
+              <CancelCampaignButton
+                campaignId={campaign.id}
+                campaignName={campaign.name}
               />
             </div>
           )

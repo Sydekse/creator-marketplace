@@ -8,7 +8,7 @@ import {
   deliverable,
   rightsTerms,
 } from '@/db/schema';
-import type { DealStatus } from '@/db/schema';
+import type { DealStatus, ReviewStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
 import { canAct } from '@/lib/deals/state-machine';
 import { computeSplit } from '@/lib/payment/ledger';
@@ -117,15 +117,18 @@ export interface CreatorDealDetail {
    * AC-022, F38).
    *
    * An **array**, and empty rather than null before the first submission: a deal
-   * priced for three videos accepts three, and `deliverables.length` against
+   * priced for three videos accepts three, and `standingVideoCount` against
    * `videoCount` is what the page turns into "2 of 3 submitted". On
    * `revision_requested` one of these is the submission the brand sent back,
    * which the creator needs to see while they replace it.
    *
-   * Only the id, URL and timestamp are carried. `review_status` and any rejection
-   * note are the brand's half of the review — the note reaches the creator
-   * through their notification, which is what they act on, rather than through a
-   * column this page would have to interpret.
+   * Carries the review columns as well as the URL (KAN-200). They were left out
+   * on the grounds that the rejection note reaches the creator through their
+   * notification — which it does, and it was not enough: a notification is a line
+   * in a list somewhere else, and the creator standing on this page looking at two
+   * links had no way to tell which one the brand refused, or what it said. The
+   * columns are the brand's half of the review, but they are *about* the creator's
+   * work, and this is the screen they act on.
    */
   deliverables: DeliverableView[];
 }
@@ -141,6 +144,23 @@ export interface DeliverableView {
   id: string;
   tiktokUrl: string;
   submittedAt: Date;
+  /**
+   * Where the review stands (KAN-200). `rejected` is the video the brand sent
+   * back and the creator has not yet replaced — which is what makes
+   * `rejectionReason` worth rendering, and what `standingVideoCount` subtracts so
+   * the progress line stops claiming the delivery is complete.
+   */
+  reviewStatus: ReviewStatus;
+  reviewedAt: Date | null;
+  /**
+   * The brand's own words, verbatim, or null if this video was never sent back.
+   *
+   * Shown as written rather than summarised: it is an instruction the creator has
+   * to follow, `REASON_REQUIRED` makes the brand supply one, and paraphrasing the
+   * only sentence explaining what to change would be the least useful edit
+   * possible.
+   */
+  rejectionReason: string | null;
 }
 
 /**
@@ -216,10 +236,11 @@ export function creatorDealQuery(where: SQL) {
 /**
  * Every video the creator has submitted against one deal, oldest first (F38).
  *
- * The same order the brand's screen uses (`brandDealDeliverablesQuery`), so
- * "Video 2" means the same video on both sides of a rejection. Takes the deal id
- * alone: it is issued only after `creatorDealQuery` has proved this creator owns
- * that deal, which is where ownership lives.
+ * The same order **and the same columns** as the brand's screen
+ * (`brandDealDeliverablesQuery`), so "Video 2" means the same video on both sides
+ * of a rejection and both sides read the same review state off it. Takes the deal
+ * id alone: it is issued only after `creatorDealQuery` has proved this creator
+ * owns that deal, which is where ownership lives.
  */
 export function creatorDealDeliverablesQuery(dealId: string) {
   return db
@@ -227,6 +248,9 @@ export function creatorDealDeliverablesQuery(dealId: string) {
       id: deliverable.id,
       tiktokUrl: deliverable.tiktokUrl,
       submittedAt: deliverable.submittedAt,
+      reviewStatus: deliverable.reviewStatus,
+      reviewedAt: deliverable.reviewedAt,
+      rejectionReason: deliverable.rejectionReason,
     })
     .from(deliverable)
     .where(eq(deliverable.dealId, dealId))
@@ -450,20 +474,63 @@ export const SUBMITTED_DELIVERABLE_LABEL = 'Submitted video';
 export const SUBMITTED_AT_LABEL = 'Submitted at';
 
 /**
- * The heading over the creator's list of submitted videos, and the name of one
- * within it (F38).
+ * The heading over the creator's list of submitted videos, the name of one
+ * within it, and the rule for how many of them count (F38, KAN-200).
  *
- * The plural title and the numbered heading are the brand's own
- * (`DELIVERABLES_TITLE`, `videoHeading` in `brand-detail.ts`) rather than a
- * second pair of strings: "Video 2" has to mean the same video on both screens,
- * because the brand's rejection note refers to it and the creator has to find it.
+ * The plural title, the numbered heading and the standing count are the brand's
+ * own (`DELIVERABLES_TITLE`, `videoHeading`, `standingVideoCount` in
+ * `brand-detail.ts`) rather than a second set: "Video 2" has to mean the same
+ * video on both screens, because the brand's rejection note refers to it and the
+ * creator has to find it — and "2 of 3 submitted" has to mean the same delivery,
+ * or the two sides of one deal disagree about whether it is finished.
  * Re-exported here so a creator-side caller still finds its copy in one place.
+ *
+ * `REVIEW_STATUS_LABEL` is shared for the same reason: it labels one column on one
+ * row, and the brand and the creator are looking at the same fact. The *reason*
+ * below is not shared — see it.
  */
 export {
   DELIVERABLES_TITLE,
   deliveryProgress,
+  REVIEW_STATUS_LABEL,
+  standingVideoCount,
   videoHeading,
 } from './brand-detail';
+
+/**
+ * The brand's stored rejection note, from the side that has to act on it
+ * (KAN-200).
+ *
+ * Its own constant rather than a share of `brand-detail.ts`'s: that one reads
+ * "Changes you asked for", which is addressed to the brand that wrote the note.
+ * Said to the creator it would be flatly wrong about who asked. The same fact,
+ * two readers, two labels — the rule `brand-detail.ts`'s copy header states, and
+ * the reason `SUBMITTED_AT_LABEL` already differs between the two screens.
+ */
+export const REJECTION_REASON_LABEL = 'Changes the brand asked for';
+
+/**
+ * What the creator is being asked for after a rejection (KAN-200, AC-024).
+ *
+ * The sentence Nate's walkthrough was missing. A `revision_requested` deal put
+ * the submission form back on screen under a progress line reading "2 of 2 videos
+ * submitted", with nothing anywhere naming the video that had been refused — so
+ * the page asked for a link it had just said was not needed.
+ *
+ * Names the video, because on a multi-video deal that is the whole question, and
+ * the ordinal is the same one the brand's rejection form used (`videoHeading` off
+ * the shared `submitted_at` order). Says the others stand, because
+ * `recordSubmission` replaces the rejected row in place — a creator who feared
+ * resubmitting would restart the whole delivery would be wrong, and the fear is
+ * reasonable.
+ *
+ * A function rather than a constant for `videoHeading`'s reason: the number is
+ * part of what is being said, and interpolating it at the call site would put half
+ * the sentence in the page.
+ */
+export function revisionRequestedMessage(videoLabel: string): string {
+  return `The brand asked for changes to ${videoLabel}. Submit a new link below to replace it — your other videos still stand, and the deal goes back for review once the replacement is in.`;
+}
 
 /**
  * What the creator is being asked for next (F38).
@@ -473,6 +540,10 @@ export {
  * lands — a creator who submitted one of three and saw nothing change would
  * reasonably think it failed. Says where the money is at the same time: it is the
  * reason to keep going.
+ *
+ * For the *next* video, not a replacement for a refused one — that case has its
+ * own sentence (`revisionRequestedMessage`), because the two ask for different
+ * things and only one of them names a video.
  */
 export const REMAINING_VIDEOS_MESSAGE =
   'The brand reviews this deal once every video is in, and your payment stays held until they do.';

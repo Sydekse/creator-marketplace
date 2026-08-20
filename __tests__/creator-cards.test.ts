@@ -3,7 +3,10 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { ForbiddenError } from '../lib/authz';
-import { AUDIENCE_MARKET_LABELS } from '../lib/config/creator-profile';
+import {
+  AUDIENCE_MARKET_LABELS,
+  ENGAGEMENT_RATE_HINT,
+} from '../lib/config/creator-profile';
 import {
   ADD_TO_CAMPAIGN_LABEL,
   NO_DRAFT_CAMPAIGN_MESSAGE,
@@ -287,6 +290,69 @@ describe('profile facts — absent is not zero', () => {
   });
 });
 
+// -- What the number means (KAN-200 item 7) ---------------------------------
+
+/**
+ * Nate's walkthrough on 2026-08-20: nothing anywhere said what "engagement rate"
+ * was. Three people type the figure — the creator at onboarding, a brand into the
+ * discovery filter, an admin correcting it before tier assignment — and it drives
+ * `matchTier`, so three different readings of it put creators in the wrong bands.
+ *
+ * One constant, five sites. The load-bearing assertion is the *last* one: a
+ * filter that defined the number differently from the field it filters on would
+ * be worse than neither of them explaining it.
+ */
+describe('the engagement-rate explanation', () => {
+  const SITES = [
+    // The three inputs.
+    'app/(creator)/creator/onboarding/creator-onboarding-form.tsx',
+    DISCOVER_PAGE,
+    'components/admin/awaiting-tier-list.tsx',
+    // The two displays.
+    CREATOR_DASHBOARD,
+    DETAIL_PAGE,
+  ];
+
+  it('says what the figure measures and who reported it', () => {
+    // Both halves are load-bearing. "A percentage" of an unstated denominator is
+    // not a quantity, and a brand that thinks we measured this from the TikTok
+    // API is being misled — verification is manual and this number is a claim.
+    expect(ENGAGEMENT_RATE_HINT).toMatch(/percentage of followers/i);
+    expect(ENGAGEMENT_RATE_HINT).toMatch(/self-reported/i);
+    expect(ENGAGEMENT_RATE_HINT).not.toMatch(/KAN-\d+/);
+  });
+
+  it('reaches every screen that takes or shows the figure', () => {
+    for (const file of SITES) {
+      expect(src(file)).toContain('ENGAGEMENT_RATE_HINT');
+    }
+  });
+
+  it('is retyped nowhere, so no screen can paraphrase it apart from itself', () => {
+    // The failure this prevents is not a typo, it is drift: an edit to one
+    // screen's copy that leaves the other four saying the old thing.
+    const sentence = ENGAGEMENT_RATE_HINT.slice(0, 30);
+    for (const file of SITES) {
+      expect(src(file)).not.toContain(sentence);
+    }
+  });
+
+  it('is visible text, not a tooltip', () => {
+    // KAN-29's rule: hover-only copy tells a touch user nothing, and the admin
+    // and creator both meet this figure on a phone.
+    //
+    // The guard is on `title=` specifically rather than on any attribute,
+    // because the detail page legitimately passes it as `hint={…}` to a local
+    // `Fact` — and `title="…"` is a real prop on `PageHeader`, so a blanket ban
+    // on the attribute form would fail on markup that is fine.
+    for (const file of SITES) {
+      expect(src(file)).not.toMatch(/title=[{"]\s*ENGAGEMENT_RATE_HINT/);
+    }
+    // And the one indirection is rendered as text at the other end.
+    expect(src(DETAIL_PAGE)).toMatch(/<p[^>]*>\s*\{hint\}/);
+  });
+});
+
 // -- The card ---------------------------------------------------------------
 
 describe('the creator card shows AC-012 in full', () => {
@@ -319,6 +385,63 @@ describe('the creator card shows AC-012 in full', () => {
   it('shows no contact details (NFR-010)', () => {
     expect(source).not.toContain('email');
     expect(source).not.toContain('phone');
+  });
+});
+
+/**
+ * KAN-200 item 8, on the card specifically.
+ *
+ * The card used to be one big `<Link>`. Adding an outbound link inside it is not
+ * a matter of dropping an `<a>` in: an `<a>` inside an `<a>` is invalid HTML, and
+ * the browser recovers by closing the outer one early — so the external link ends
+ * up a sibling of the card rather than inside it, and the layout quietly moves.
+ * The fix is the stretched-link pattern, and each of its parts is load-bearing on
+ * its own.
+ */
+describe('the card keeps two working links', () => {
+  const source = src(CARD);
+
+  it('covers the card with the detail link instead of wrapping it', () => {
+    expect(source).toMatch(/<Card[^>]*className="relative/);
+    expect(source).toMatch(/className="absolute inset-0/);
+    // Self-closing, which is the whole of "wraps nothing" — an element with no
+    // children cannot contain the outbound anchor. Asserted positively rather
+    // than as `not.toMatch(/<Link[\s\S]*?<CardHeader/)`: the lazy any-character
+    // form scans for the nearest `>` followed by the header and finds the
+    // Link's own `/>`, so the negative version fails on correct code. Same trap
+    // `ui-primitives.test.ts` documents on its trigger guard.
+    expect(source).toMatch(/<Link[^<>]*\/>/);
+  });
+
+  it('names the covering link, which has no text of its own', () => {
+    // An empty anchor announces as nothing. The handle is the only name a screen
+    // reader could give it.
+    expect(source).toMatch(/aria-label=\{creator\.tiktokHandle\}/);
+  });
+
+  it('lifts the outbound link above the covering one', () => {
+    // Without `z-10` the stretched link sits on top and swallows the click, so
+    // "View on TikTok" would silently open the detail page instead.
+    expect(source).toMatch(/relative z-10/);
+    expect(source).toContain('VIEW_ON_TIKTOK_LABEL');
+  });
+
+  it('moves the focus ring onto the card, now that the link is not the card', () => {
+    // The ring was on the wrapping link. Left there it would draw around a
+    // zero-content anchor, which is invisible.
+    expect(source).toContain('focus-within:ring');
+  });
+
+  it('renders nothing when the handle cannot make a URL', () => {
+    // `tiktokProfileUrl` returns null for a handle that no longer passes the
+    // pattern; a 404 offered as "View on TikTok" reads as the creator not
+    // existing.
+    expect(source).toContain('profileUrl && (');
+  });
+
+  it('stays a Server Component — both links are links', () => {
+    expect(source).not.toContain("'use client'");
+    expect(source).not.toContain('onClick');
   });
 });
 

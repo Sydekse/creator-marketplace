@@ -10,6 +10,7 @@ import {
 } from '@/db/schema';
 import type { DealStatus, ReviewStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
+import { canReview } from '@/lib/deals/state-machine';
 import { UUID_REGEX } from '@/lib/validation';
 
 /**
@@ -316,6 +317,42 @@ export function deliveryProgress(
   return `${submitted} of ${videoCount} video${videoCount === 1 ? '' : 's'} submitted`;
 }
 
+/**
+ * How many of a deal's videos actually stand — every row except one the brand
+ * sent back (KAN-200).
+ *
+ * **Not `deliverables.length`**, and that difference is a bug Nate walked into.
+ * `recordSubmission` replaces a rejected row *in place* rather than inserting
+ * beside it, so the row count on a two-video deal stays 2 while one of those rows
+ * is a video the brand has refused and the creator has not replaced. Both deal
+ * pages read the count into `deliveryProgress`, so both said "2 of 2 videos
+ * submitted" directly above a form asking for another link — the screen
+ * contradicting itself in two adjacent sentences.
+ *
+ * A rejected row is a slot, not a delivery. Counting it as one also broke the
+ * creator page's explanatory sentence (`remaining` came out zero, so nothing
+ * explained why the form was back) and would have let a brand's progress line
+ * imply a delivery was complete when the thing it was waiting on was its own
+ * rejection.
+ *
+ * Structurally typed over `{ reviewStatus }` rather than over
+ * `BrandDeliverableView`, so the creator's `DeliverableView` satisfies it without
+ * either module importing the other's shape. Exported and pure because it is the
+ * one decision in the progress line, and testing it directly is cheaper than
+ * reaching it through a database — `computeSplit`'s reasoning, applied to a count.
+ *
+ * Deliberately **not** a field on `BrandDealDetail`/`CreatorDealDetail`: those are
+ * built in two different places (`readBrandDeal` has no `toBrandDealDetail`, by
+ * design), so a stored field would be derived twice and free to disagree with
+ * itself. One function, called at the two render sites, cannot.
+ */
+export function standingVideoCount(
+  deliverables: ReadonlyArray<{ reviewStatus: ReviewStatus }>
+): number {
+  return deliverables.filter((video) => video.reviewStatus !== 'rejected')
+    .length;
+}
+
 /** AC-6's version string, when a deal has one and when it does not. */
 export const NO_RIGHTS_TERMS_MESSAGE =
   'No usage-rights version was recorded for this deal.';
@@ -354,6 +391,42 @@ export const ALREADY_REVIEWED_MESSAGE =
   'You have already reviewed this video, so there is nothing to approve or send back.';
 export const AWAITING_RESUBMISSION_MESSAGE =
   'You asked for changes, so this deal is back with the creator. You can review again once they resubmit.';
+
+/**
+ * Which of those sentences explains the missing review controls, or `null` when
+ * they are on screen.
+ *
+ * Four cases, three of them absences, and the **order is the decision** (KAN-200):
+ * a deal the brand sent back has a row set that is simultaneously full
+ * (`deliverables.length === videoCount`) and short (`standingVideoCount <
+ * videoCount`), because the rejected row still occupies its slot. Testing the
+ * count first would tell the brand it was waiting on the creator's *next* video
+ * when what it is waiting on is a replacement for a video it refused itself. So
+ * `revision_requested` is asked before any count.
+ *
+ * A deal with nothing submitted answers `null` rather than a fourth sentence:
+ * `AWAITING_DELIVERABLE_MESSAGE` already stands in for the empty list, and two
+ * paragraphs saying the same thing is how one of them drifts.
+ *
+ * Pure, exported, and total — `null` for a reviewable deal too, so the page reads
+ * as "the button, and the reason if there is no button" instead of a five-deep
+ * ternary. `canReview` is read here rather than passed in, so this cannot disagree
+ * with the control it explains.
+ */
+export function reviewAbsenceMessage(deal: {
+  status: DealStatus;
+  videoCount: number;
+  deliverables: ReadonlyArray<{ reviewStatus: ReviewStatus }>;
+}): string | null {
+  if (canReview(deal.status)) return null;
+  if (deal.deliverables.length === 0) return null;
+  if (deal.status === 'revision_requested')
+    return AWAITING_RESUBMISSION_MESSAGE;
+  if (standingVideoCount(deal.deliverables) < deal.videoCount) {
+    return AWAITING_REMAINING_VIDEOS_MESSAGE;
+  }
+  return ALREADY_REVIEWED_MESSAGE;
+}
 
 /** The stored reason from a previous rejection (AC-7). */
 export const REJECTION_REASON_LABEL = 'Changes you asked for';

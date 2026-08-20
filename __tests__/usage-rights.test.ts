@@ -7,6 +7,11 @@ import {
   AGREEMENT_HINT,
   AGREEMENT_LABEL,
 } from '../components/deals/usage-rights-agreement';
+import {
+  USAGE_RIGHTS_AGREED_SUMMARY,
+  USAGE_RIGHTS_TITLE,
+  usageRightsVersionLabel,
+} from '../components/deals/usage-rights';
 
 const root = join(__dirname, '..');
 const read = (path: string) => readFileSync(join(root, path), 'utf8');
@@ -114,7 +119,10 @@ describe('the terms text is displayed in full on the offer screen (AC-2)', () =>
   });
 
   it('names the version being shown', () => {
-    expect(CARD).toMatch(/\{terms\.version\}/);
+    // Through the shared label, so the expanded card and the collapsed summary
+    // cannot describe the same version two different ways.
+    expect(CARD).toMatch(/usageRightsVersionLabel\(terms\.version\)/);
+    expect(usageRightsVersionLabel('v1.0')).toBe('Version v1.0');
   });
 
   it('uses no typography classes the build cannot produce', () => {
@@ -134,6 +142,72 @@ describe('the terms text is displayed in full on the offer screen (AC-2)', () =>
     // Static text ships no bundle. Same reasoning as `<button
     // className={buttonVariants({...})}>` on a server page.
     expect(CARD).not.toMatch(/'use client'/);
+  });
+});
+
+// -- KAN-200: settled terms fold away, without leaving the page --------------
+
+describe('the terms collapse once the offer is answered (KAN-200)', () => {
+  const PAGE = code(read('app/(creator)/creator/deals/[id]/page.tsx'));
+
+  it('is expanded by default, so a forgotten prop shows the terms', () => {
+    // The direction the default has to fail in. AC-2 binds at the decision
+    // moment, and a caller who omits `collapsed` must not accidentally hide a
+    // contract from someone being asked to agree to it.
+    expect(CARD).toMatch(/collapsed\s*=\s*false/);
+    expect(CARD).toMatch(/collapsed\?:\s*boolean;/);
+  });
+
+  it('folds with a native disclosure, not a client component', () => {
+    // The browser owns the open state, so this stays server-rendered and keyboard
+    // and screen-reader behaviour come for free. `useState` here would ship a
+    // bundle for a contract that never changes.
+    expect(CARD).toMatch(/<details\b/);
+    expect(CARD).toMatch(/<summary\b/);
+    expect(CARD).not.toMatch(/useState|onClick/);
+    expect(CARD).not.toMatch(/'use client'/);
+  });
+
+  it('is still the terms on the page, not a link to them', () => {
+    // The AC-2 rule survives the collapse: one click, no navigation, and the same
+    // body either way.
+    expect(CARD).not.toMatch(/<Link\b/);
+    expect(CARD).not.toMatch(/href=/);
+    expect(CARD).not.toMatch(/\bDialog\b/);
+  });
+
+  it('renders one body for both states', () => {
+    // Two copies of the scroll container and the `whitespace-pre-wrap` would be
+    // two places for the same terms to render differently.
+    expect(CARD.match(/whitespace-pre-wrap/g)).toHaveLength(1);
+    expect(CARD.match(/\{terms\.body\}/g)).toHaveLength(1);
+  });
+
+  it('names the version in the summary, so a shut card still says which terms', () => {
+    const summary = CARD.slice(
+      CARD.indexOf('<summary'),
+      CARD.indexOf('</summary>')
+    );
+
+    expect(summary).toContain('USAGE_RIGHTS_AGREED_SUMMARY');
+    expect(summary).toContain('usageRightsVersionLabel(terms.version)');
+    expect(usageRightsVersionLabel('v1.0')).toBe('Version v1.0');
+  });
+
+  it('says what the collapsed text is, not what it would be', () => {
+    // "Usage Rights Agreement" over a shut card reads as something still to be
+    // done. Past tense is the honest summary of a deal that has been accepted.
+    expect(USAGE_RIGHTS_AGREED_SUMMARY).toMatch(/agreed/i);
+    expect(USAGE_RIGHTS_AGREED_SUMMARY).not.toBe(USAGE_RIGHTS_TITLE);
+  });
+
+  it('is driven by the same predicate that gates the accept controls', () => {
+    // `canAct`, through `isPending` — not a status literal. The terms fold exactly
+    // when the buttons go, so the two cannot disagree about whether a decision is
+    // still open.
+    expect(PAGE).toContain('collapsed={!isPending}');
+    expect(PAGE).toContain('canAct(deal.status)');
+    expect(PAGE).not.toMatch(/collapsed=\{[^}]*status ===/);
   });
 });
 

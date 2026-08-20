@@ -45,3 +45,14 @@ export function formatEngagementRate(rate: string | null): string {
   if (rate === null) return NOT_PROVIDED;
   return `${rate}%`;
 }
+
+/**
+ * The label on the link out to a creator's TikTok profile (KAN-200).
+ *
+ * Held here rather than in either component because both the discovery card and
+ * the creator detail page render it, and a brand who reads one wording on the
+ * list and another on the profile has to work out whether they are the same
+ * thing. "View on TikTok" says where the click goes, which is what a link
+ * leaving the site owes the person clicking it.
+ */
+export const VIEW_ON_TIKTOK_LABEL = 'View on TikTok';

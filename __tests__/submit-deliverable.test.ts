@@ -1133,8 +1133,18 @@ describe('the deal detail page mounts the submission surface', () => {
   it('says how much of the delivery is in', () => {
     // A creator who submitted one of three and saw nothing change would
     // reasonably think it failed.
+    //
+    // Counted from `standingVideoCount`, not `deal.deliverables.length` — which
+    // is what this asserted until KAN-200. A rejected row is still a row, so
+    // after a revision request the raw length said "2 of 2 submitted" while the
+    // form beneath it asked for another link. The count that matters is the one
+    // the brand has not sent back.
     expect(DETAIL_PAGE).toContain(
-      'deliveryProgress(deal.deliverables.length, deal.videoCount)'
+      'deliveryProgress(standing, deal.videoCount)'
+    );
+    expect(DETAIL_PAGE).toContain('standingVideoCount(deal.deliverables)');
+    expect(DETAIL_PAGE).not.toContain(
+      'deliveryProgress(deal.deliverables.length'
     );
     expect(DETAIL_PAGE).toContain('REMAINING_VIDEOS_MESSAGE');
   });

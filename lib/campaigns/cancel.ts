@@ -12,9 +12,10 @@ import type { AuthzContext, GuardOptions } from '@/lib/authz';
  * Once funded, the campaign is on the money path and cancellation would strand
  * escrowed funds — that requires a different flow (not in scope here).
  *
- * The status guard runs inside the transaction so a concurrent fund cannot
- * race past the check: `SERIALIZABLE` isolation on the campaign row prevents
- * the fund from committing after the cancel check passes.
+ * The status guard runs inside the transaction, against a row held under
+ * `SELECT ... FOR UPDATE`, so a concurrent fund cannot race past the check: the
+ * fund path locks the same row, so one of the two waits for the other to commit
+ * and then reads the status it actually left behind.
  */
 export type CancelCampaignResult =
   | { ok: true; status: 'cancelled' }
@@ -40,6 +41,11 @@ export async function cancelCampaign(
 
   return deps.db.transaction(async (tx) => {
     // Lock the campaign row to prevent a concurrent fund from racing.
+    //
+    // `.for('update')` was missing until KAN-200 — the docstring above and the
+    // comment here both claimed the lock and the query took none, so the status
+    // check below was a read a concurrent `POST /fund` could commit straight past.
+    // Fixed on the ticket that gave this path its first caller.
     const [row] = await tx
       .select({
         id: campaign.id,
@@ -48,6 +54,7 @@ export async function cancelCampaign(
       })
       .from(campaign)
       .where(eq(campaign.id, campaignId))
+      .for('update')
       .limit(1);
 
     if (!row) return { ok: false, reason: 'not_found' };
