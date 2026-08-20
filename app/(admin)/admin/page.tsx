@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Megaphone, Scale, ScrollText, Tag, UserCheck } from 'lucide-react';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
 import {
@@ -32,7 +33,12 @@ export default async function AdminConsolePage() {
     <div className="flex flex-col gap-8">
       <PageHeader
         title="Admin console"
-        description={<>Signed in as {user.name ?? user.email}.</>}
+        description={
+          <div className="flex items-center gap-2">
+            <InitialsAvatar name={user.name ?? user.email} size="sm" />
+            <span>Signed in as {user.name ?? user.email}.</span>
+          </div>
+        }
       />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Link

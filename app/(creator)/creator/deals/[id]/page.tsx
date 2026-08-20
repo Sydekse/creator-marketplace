@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DealHistory } from '@/components/deals/deal-history';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { MetricsForm } from '@/components/deals/metrics-form';
 import { DeliverableForm } from '@/components/deals/deliverable-form';
@@ -120,12 +121,13 @@ export default async function CreatorDealDetailPage({
         description={
           /* AC-2's brand name: the trading name the brand publishes, never a
              contact (NFR-010). */
-          <>
-            {deal.companyName}{' '}
+          <div className="flex items-center gap-2">
+            <InitialsAvatar name={deal.companyName} size="sm" />
+            <span>{deal.companyName}</span>
             <Chip tone={dealStatusTone[deal.status]} size="sm">
               {labelForStatus(deal.status)}
             </Chip>
-          </>
+          </div>
         }
       />
 

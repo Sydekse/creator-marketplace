@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DealHistory } from '@/components/deals/deal-history';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import {
   ApproveDealButton,
   RejectVideoForm,
@@ -93,18 +94,22 @@ export default async function BrandDealReviewPage({
         ← Back to {deal.campaignName}
       </Link>
 
-      <PageHeader
-        title={deal.creatorHandle}
-        description={
-          /* The shared vocabulary from `lib/deals/groups.ts`, not a second set
-             of words for the same nine statuses — its own docstring anticipates
-             this screen, and two views naming one state differently is the kind
-             of drift that is hard to notice. */
-          <Chip tone={dealStatusTone[deal.status]} size="md">
-            {labelForStatus(deal.status)}
-          </Chip>
-        }
-      />
+      <div className="flex items-center gap-4">
+        <InitialsAvatar name={deal.creatorHandle} size="lg" />
+        <PageHeader
+          title={deal.creatorHandle}
+          description={
+            /* The shared vocabulary from `lib/deals/groups.ts`, not a second set
+               of words for the same nine statuses — its own docstring anticipates
+               this screen, and two views naming one state differently is the kind
+               of drift that is hard to notice. */
+            <Chip tone={dealStatusTone[deal.status]} size="md">
+              {labelForStatus(deal.status)}
+            </Chip>
+          }
+          className="flex-1"
+        />
+      </div>
 
       <section className="flex flex-col gap-4">
         <dl className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3">

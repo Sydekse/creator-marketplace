@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { authClient } from '@/lib/auth-client';
 import { useRouter } from 'next/navigation';
 import type { CurrentUser } from '@/lib/auth';
@@ -20,7 +20,7 @@ interface UserMenuProps {
 
 export function UserMenu({ user }: UserMenuProps) {
   const router = useRouter();
-  const initials = (user.name ?? user.email).slice(0, 2).toUpperCase();
+  const displayName = user.name ?? user.email;
   const roleLabel = user.role.charAt(0).toUpperCase() + user.role.slice(1);
 
   async function handleSignOut() {
@@ -32,9 +32,7 @@ export function UserMenu({ user }: UserMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="rounded-full outline-none">
-        <Avatar className="h-8 w-8 cursor-pointer">
-          <AvatarFallback className="text-xs">{initials}</AvatarFallback>
-        </Avatar>
+        <InitialsAvatar name={displayName} className="cursor-pointer" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         {/*

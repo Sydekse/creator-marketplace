@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
@@ -38,10 +39,13 @@ export default async function BrandDashboardPage() {
         }
       />
 
-      <p className="text-sm text-muted-foreground">
-        Signed in as {user.name ?? user.email}. Campaigns and creator discovery
-        land here in a later ticket.
-      </p>
+      <div className="flex items-center gap-3">
+        <InitialsAvatar name={user.name ?? user.email} />
+        <p className="text-sm text-muted-foreground">
+          Signed in as {user.name ?? user.email}. Campaigns and creator
+          discovery land here in a later ticket.
+        </p>
+      </div>
     </div>
   );
 }

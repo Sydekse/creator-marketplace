@@ -1,3 +1,4 @@
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { formatDeadlineUtc } from '@/lib/dates';
 import {
   DEAL_HISTORY_EMPTY,
@@ -27,17 +28,24 @@ import type { DealHistoryEvent } from '@/lib/deals/queries';
 
 function Event({ event }: { event: DealHistoryEvent }) {
   return (
-    <li className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2">
-      <div className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm">{labelForStatus(event.toStatus)}</span>
-        {/* The reason is the useful half of a rejection or a dispute
-            resolution, and it is nullable for every ordinary transition. */}
-        {event.reason ? (
-          <span className="text-xs text-muted-foreground">{event.reason}</span>
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 py-2">
+      <div className="flex min-w-0 items-center gap-2">
+        {event.actor ? (
+          <InitialsAvatar name={event.actor.name} size="sm" />
         ) : null}
-        <span className="text-xs text-muted-foreground">
-          {event.actor ? event.actor.name : SYSTEM_ACTOR_LABEL}
-        </span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="text-sm">{labelForStatus(event.toStatus)}</span>
+          {/* The reason is the useful half of a rejection or a dispute
+              resolution, and it is nullable for every ordinary transition. */}
+          {event.reason ? (
+            <span className="text-xs text-muted-foreground">
+              {event.reason}
+            </span>
+          ) : null}
+          <span className="text-xs text-muted-foreground">
+            {event.actor ? event.actor.name : SYSTEM_ACTOR_LABEL}
+          </span>
+        </div>
       </div>
       <span className="font-mono text-xs text-muted-foreground tabular-nums">
         {formatDeadlineUtc(event.createdAt)}

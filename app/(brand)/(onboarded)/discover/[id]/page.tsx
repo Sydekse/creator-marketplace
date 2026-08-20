@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { AddToCartForm } from '@/components/campaign/add-to-cart-form';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
@@ -111,10 +112,14 @@ export default async function CreatorDetailPage({
         ← Back to results
       </Link>
 
-      <PageHeader
-        title={creator.tiktokHandle}
-        description={NICHE_LABELS[creator.niche as Niche] ?? creator.niche}
-      />
+      <div className="flex items-center gap-4">
+        <InitialsAvatar name={creator.tiktokHandle} size="lg" />
+        <PageHeader
+          title={creator.tiktokHandle}
+          description={NICHE_LABELS[creator.niche as Niche] ?? creator.niche}
+          className="flex-1"
+        />
+      </div>
 
       {/* Two columns on a phone, three from `sm:` up (NFR-007). The price is
           read straight off the joined tier row — no arithmetic on this path, so

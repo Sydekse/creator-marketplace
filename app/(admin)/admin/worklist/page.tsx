@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { FlagDealButton } from '@/components/admin/flag-deal-button';
@@ -61,10 +62,14 @@ export default async function AdminWorklistPage() {
                     </h2>
                     {row.flagged && <Chip tone="red">Flagged</Chip>}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {row.brandCompanyName} · @{row.creatorHandle} ·{' '}
-                    {row.videoCount} video{row.videoCount === 1 ? '' : 's'}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <InitialsAvatar name={row.brandCompanyName} size="sm" />
+                    <InitialsAvatar name={row.creatorHandle} size="sm" />
+                    <p className="text-sm text-muted-foreground">
+                      {row.brandCompanyName} · @{row.creatorHandle} ·{' '}
+                      {row.videoCount} video{row.videoCount === 1 ? '' : 's'}
+                    </p>
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     {row.status} · {formatEtb(row.totalPrice)} held
                   </p>
