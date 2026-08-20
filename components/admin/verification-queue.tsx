@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { Textarea } from '@/components/ui/textarea';
 import { Spinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/feedback/empty-state';
@@ -217,9 +218,12 @@ export function VerificationQueue({ creators }: { creators: QueueCreator[] }) {
           {creators.map((creator) => (
             <tr key={creator.id} className="hover:bg-muted/50">
               <td className="px-4 py-3">
-                <span className="font-mono text-sm">
-                  {creator.tiktokHandle}
-                </span>
+                <div className="flex items-center gap-2">
+                  <InitialsAvatar name={creator.tiktokHandle} size="sm" />
+                  <span className="font-mono text-sm">
+                    {creator.tiktokHandle}
+                  </span>
+                </div>
               </td>
               <td className="px-4 py-3 text-sm capitalize">{creator.niche}</td>
               <td className="px-4 py-3 text-sm">

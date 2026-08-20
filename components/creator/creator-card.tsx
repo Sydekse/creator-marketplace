@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { NICHE_LABELS } from '@/lib/config/creator-profile';
 import type { Niche } from '@/lib/config/creator-profile';
 import type { DiscoveryCreator } from '@/lib/creators/discovery';
@@ -71,8 +72,11 @@ export function CreatorCard({ creator }: { creator: DiscoveryCreator }) {
       {/* `h-full` so cards in a row match height when one handle wraps. */}
       <Card className="h-full transition-shadow hover:ring-foreground/25">
         <CardHeader>
-          <CardTitle className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-            <span>{creator.tiktokHandle}</span>
+          <CardTitle className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <div className="flex items-center gap-2">
+              <InitialsAvatar name={creator.tiktokHandle} />
+              <span>{creator.tiktokHandle}</span>
+            </div>
             {/* The tier name is context for the price beside it, not a fact a
                 brand filters on, so it reads as a label rather than a figure. */}
             <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">

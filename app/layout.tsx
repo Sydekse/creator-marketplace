@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { DM_Sans, DM_Mono, Noto_Serif } from 'next/font/google';
+import { DM_Sans, DM_Mono, Noto_Serif, Bungee } from 'next/font/google';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -20,6 +20,13 @@ const notoSerif = Noto_Serif({
   weight: ['400', '500', '600'],
 });
 
+/** Bold display face for initials avatars. */
+const bungee = Bungee({
+  variable: '--font-bungee',
+  subsets: ['latin'],
+  weight: '400',
+});
+
 export const metadata: Metadata = {
   title: 'Creator Marketplace',
   description: 'A two-sided marketplace connecting brands with TikTok creators',
@@ -33,7 +40,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${dmMono.variable} ${notoSerif.variable} h-full antialiased`}
+      className={`${dmSans.variable} ${dmMono.variable} ${notoSerif.variable} ${bungee.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background font-sans text-foreground">
         {children}

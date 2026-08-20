@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { DealGroups } from '@/components/creator/deal-groups';
 import { EarningsSummary } from '@/components/creator/earnings-summary';
 import { TierPricing } from '@/components/creator/tier-pricing';
@@ -149,9 +150,12 @@ export default async function CreatorDashboardPage() {
         )}
       </div>
 
-      <p className="text-sm text-muted-foreground">
-        Signed in as {user.name ?? user.email}.
-      </p>
+      <div className="flex items-center gap-3 border-t border-border pt-8">
+        <InitialsAvatar name={user.name ?? user.email} />
+        <p className="text-sm text-muted-foreground">
+          Signed in as {user.name ?? user.email}.
+        </p>
+      </div>
     </div>
   );
 }

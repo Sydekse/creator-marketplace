@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Chip } from '@/components/ui/chip';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { buttonVariants } from '@/components/ui/button';
@@ -91,6 +92,13 @@ function NotificationItem({
   const href = deepLink(row.type, payload);
   const isUnread = row.readAt === null;
 
+  // Use a person name from the payload when available, otherwise fall back
+  // to the notification label (e.g. "Video approved" → "VA").
+  const avatarName =
+    (payload.companyName as string) ??
+    (payload.creatorHandle as string) ??
+    label;
+
   return (
     <li
       className={`rounded-xl border p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)] ${
@@ -100,6 +108,7 @@ function NotificationItem({
       }`}
     >
       <div className="flex flex-wrap items-center gap-2">
+        <InitialsAvatar name={avatarName} size="sm" />
         <Chip tone={isUnread ? 'teal' : 'gray'}>{label}</Chip>
         {isUnread && (
           <span className="text-xs font-medium text-brand-ink">New</span>

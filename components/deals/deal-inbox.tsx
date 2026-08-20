@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { expiryLabel } from '@/lib/dates';
 import {
   type InboxDealRow,
@@ -60,19 +61,22 @@ function DealRow({ deal, now }: { deal: InboxDealRow; now: Date }) {
     <li>
       <Link
         href={`/creator/deals/${deal.id}`}
-        className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-md px-2 py-3 -mx-2 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md px-2 py-3 -mx-2 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-sm font-medium">
-            {deal.campaignName}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {deal.companyName} · {deal.videoCount}{' '}
-            {deal.videoCount === 1 ? 'video' : 'videos'}
-          </span>
-          {deal.status === 'pending' ? (
-            <ExpiryLine offerExpiresAt={deal.offerExpiresAt} now={now} />
-          ) : null}
+        <div className="flex min-w-0 items-center gap-2">
+          <InitialsAvatar name={deal.companyName} size="sm" />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="truncate text-sm font-medium">
+              {deal.campaignName}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {deal.companyName} · {deal.videoCount}{' '}
+              {deal.videoCount === 1 ? 'video' : 'videos'}
+            </span>
+            {deal.status === 'pending' ? (
+              <ExpiryLine offerExpiresAt={deal.offerExpiresAt} now={now} />
+            ) : null}
+          </div>
         </div>
         <div className="flex flex-col items-end gap-0.5">
           <span className="font-mono text-sm tabular-nums">
