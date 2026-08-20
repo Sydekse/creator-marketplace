@@ -79,7 +79,7 @@ export default async function BrandDashboardPage() {
         </Link>
       </section>
 
-     {/* §13: Money totals — ledger-derived */}
+      {/* §13: Money totals — ledger-derived */}
       <section className="flex flex-col gap-4 border-t border-border pt-8">
         <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
           Money
