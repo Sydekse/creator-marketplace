@@ -10,10 +10,9 @@ import { listDraftCampaignsByBrand } from '@/lib/campaigns/queries';
 import { NICHE_LABELS } from '@/lib/config/creator-profile';
 import type { Niche } from '@/lib/config/creator-profile';
 
+import { AudienceSection } from '@/components/creator/audience-section';
 import { readCreatorDetail } from '@/lib/creators/detail';
-import type { CreatorAudience } from '@/lib/creators/detail';
 import {
-  NOT_PROVIDED,
   formatEngagementRate,
   formatFollowerCount,
 } from '@/lib/creators/profile-facts';
@@ -49,40 +48,6 @@ function Fact({ label, value }: { label: string; value: string }) {
       </dt>
       <dd className="font-mono text-sm">{value}</dd>
     </div>
-  );
-}
-
-/**
- * The audience breakdown. Every value here is already a display string —
- * `readAudience` resolved the market codes and kept anything it did not
- * recognise verbatim, so nothing below can render `undefined`.
- *
- * An empty breakdown answers with `NOT_PROVIDED`, the same constant the two
- * optional metrics use. A creator who never filled this in has not told a brand
- * their audience is nobody, and one screen saying "None" while another says
- * "Not provided" about the same kind of gap is how that distinction erodes.
- */
-function Audience({ audience }: { audience: CreatorAudience }) {
-  const { markets, ageRange } = audience;
-
-  return (
-    <section className="flex flex-col gap-4 border-t border-border pt-8">
-      <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
-        Audience
-      </h2>
-      <dl className="grid gap-6 sm:grid-cols-2">
-        <div className="flex flex-col gap-1">
-          <dt className="text-sm text-muted-foreground">Top markets</dt>
-          <dd className="text-sm">
-            {markets.length > 0 ? markets.join(', ') : NOT_PROVIDED}
-          </dd>
-        </div>
-        <div className="flex flex-col gap-1">
-          <dt className="text-sm text-muted-foreground">Age range</dt>
-          <dd className="text-sm">{ageRange ?? NOT_PROVIDED}</dd>
-        </div>
-      </dl>
-    </section>
   );
 }
 
@@ -140,7 +105,9 @@ export default async function CreatorDetailPage({
         />
       </dl>
 
-      <Audience audience={creator.audience} />
+      <div className="border-t border-border pt-8">
+        <AudienceSection audience={creator.audience} />
+      </div>
 
       <AddToCartForm
         creatorId={creator.id}

@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { AudienceSection } from '@/components/creator/audience-section';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { DealGroups } from '@/components/creator/deal-groups';
 import { EarningsSummary } from '@/components/creator/earnings-summary';
@@ -19,6 +20,7 @@ import {
   formatEngagementRate,
   formatFollowerCount,
 } from '@/lib/creators/profile-facts';
+import { readAudience } from '@/lib/creators/detail';
 import { getCreatorProfileWithTier, isBookable } from '@/lib/creators/queries';
 import { listTierCandidates, selectTier } from '@/lib/creators/tier-assignment';
 
@@ -103,6 +105,13 @@ export default async function CreatorDashboardPage() {
           </dd>
         </div>
       </dl>
+
+      {/* §11: The audience the creator submitted at onboarding — the same data
+          brands see on the discovery detail page. Placed between profile stats
+          and tier pricing: it is part of "who you are", not "what you earn". */}
+      <div className="border-t border-border pt-8">
+        <AudienceSection audience={readAudience(profile.audience)} />
+      </div>
 
       {/* Below the profile numbers on purpose: the tier is derived from them, so
           a creator reading top to bottom sees the inputs before the rate — and in
