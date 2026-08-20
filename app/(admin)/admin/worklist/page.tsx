@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { FlagDealButton } from '@/components/admin/flag-deal-button';
 import { listWorklistForAdmin } from '@/lib/admin/overview';
+import { ageLabel } from '@/lib/dates';
 import { formatEtb } from '@/lib/money';
 import { ResolveDisputeForm } from '@/components/admin/resolve-dispute-form';
 
@@ -71,7 +72,8 @@ export default async function AdminWorklistPage() {
                     </p>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {row.status} · {formatEtb(row.totalPrice)} held
+                    {row.status} · {formatEtb(row.totalPrice)} held ·{' '}
+                    {ageLabel(row.createdAt)}
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-2">

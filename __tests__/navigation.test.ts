@@ -22,7 +22,7 @@ describe('getNavLinks', () => {
       'Console',
       'Verification',
       'Campaigns',
-      'Deals',
+      'Worklist',
       'Audit Log',
     ]);
   });
