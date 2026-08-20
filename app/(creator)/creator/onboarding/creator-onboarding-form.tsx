@@ -26,6 +26,7 @@ import {
   AGE_RANGES,
   AUDIENCE_MARKET_CODES,
   AUDIENCE_MARKET_LABELS,
+  ENGAGEMENT_RATE_HINT,
   NICHES,
   NICHE_LABELS,
 } from '@/lib/config/creator-profile';
@@ -303,6 +304,7 @@ export function CreatorOnboardingForm() {
               />
               <InputGroupAddon align="inline-end">%</InputGroupAddon>
             </InputGroup>
+            <FieldDescription>{ENGAGEMENT_RATE_HINT}</FieldDescription>
             <FieldError errors={fieldError('engagementRate')} />
           </Field>
         </div>

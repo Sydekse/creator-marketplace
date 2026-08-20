@@ -58,6 +58,19 @@ export type LedgerEntryType =
 
 export type MetricSource = 'creator' | 'admin';
 
+/**
+ * The state of a hold at the payment processor (KAN-200).
+ *
+ * Structurally identical to `ProviderStatus['state']` in `lib/payment/types.ts`
+ * and deliberately re-declared rather than imported: this file is what
+ * drizzle-kit loads, and keeping its imports to drizzle plus `./auth-schema`
+ * means generating a migration never depends on the app's path aliases
+ * resolving. The two cannot silently drift — `lib/payment/pg-hold-store.ts`
+ * assigns a row's `state` straight into a `HoldRecord`, so a divergence is a
+ * type error rather than a runtime surprise.
+ */
+export type ProviderHoldState = 'held' | 'captured' | 'released' | 'failed';
+
 // -- Identity ---------------------------------------------------------------
 
 /**
@@ -476,3 +489,52 @@ export const notification = pgTable(
   },
   (t) => [index('notification_user_created_idx').on(t.userId, t.createdAt)]
 );
+
+// -- Mock payment processor -------------------------------------------------
+
+/**
+ * Where `MockPaymentProvider` keeps its holds (KAN-200).
+ *
+ * **This is not part of the data model.** Every other table in this file is ours;
+ * this one stands in for storage that belongs to an external payment processor,
+ * and it exists only because our processor is a mock (Q3 defers the real one past
+ * the MVP). When a real provider arrives this table is dropped, not migrated.
+ *
+ * It is here because the mock previously kept holds in a module-level `Map`,
+ * which does not survive between serverless invocations: the hold placed while
+ * funding a campaign was gone by the time the brand approved a deliverable, so
+ * `capturePayout` answered `INVALID_REFERENCE` and the brand got
+ * "Payment failed — please try again." with no way past it.
+ *
+ * Nothing here references `deal` or `campaign`, deliberately. A processor knows
+ * its own references and its own money; the mapping from a hold to a deal is
+ * ours and lives on `ledger_entry.provider_ref` (invariant 12 — one hold per
+ * deal, so that column is what joins the two worlds).
+ *
+ * Not append-only, unlike `ledger_entry`: a hold is drawn down in place, which is
+ * what a processor does. Our record of the money moving is the ledger, and that
+ * is still insert-only.
+ */
+export const providerHold = pgTable('provider_hold', {
+  /**
+   * The processor's own reference — `mock_<uuid>`, minted by `hold()`. The
+   * primary key rather than a surrogate id, because it is the only identifier
+   * every other provider method is handed.
+   */
+  providerRef: text('provider_ref').primaryKey(),
+  /**
+   * What is left to draw, in santim (invariant 4). Named for what it is: both
+   * payout legs subtract from it and the hold becomes `captured` at zero
+   * (invariant 13), so this is never the amount originally held.
+   */
+  amountRemaining: integer('amount_remaining').notNull(),
+  state: text('state').$type<ProviderHoldState>().notNull(),
+  /**
+   * No `defaultNow()` on either timestamp. These are the processor's clock, and
+   * the provider already stamps them — `getStatus` reports `updatedAt` back to
+   * us, so a default would let Postgres and the mock disagree about when a hold
+   * moved.
+   */
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull(),
+});

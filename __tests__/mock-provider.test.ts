@@ -504,7 +504,7 @@ describe('MockPaymentProvider', () => {
     it('clears all state', async () => {
       await provider.hold(100, 'reset-key-1');
       provider.setFailNext('hold');
-      provider.reset();
+      await provider.reset();
       const result = await provider.hold(200, 'reset-key-2');
       expect(result.status).toBe('held');
     });

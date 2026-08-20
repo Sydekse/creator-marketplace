@@ -92,6 +92,7 @@ const GROUPS_MODULE = 'lib/deals/groups.ts';
 const EARNINGS = 'components/creator/earnings-summary.tsx';
 const DEAL_GROUPS_FILE = 'components/creator/deal-groups.tsx';
 const PAGE = 'app/(creator)/creator/page.tsx';
+const VERIFICATION = 'components/creator/verification-status.tsx';
 
 // -- AC-2: every status renders somewhere ------------------------------------
 
@@ -533,6 +534,107 @@ describe('the creator dashboard page', () => {
     ]) {
       expect(source).not.toContain(copy);
     }
+  });
+});
+
+/**
+ * KAN-200 item 9: "it doesn't look like a dashboard".
+ *
+ * It was seven `border-t` sections stacked in a `max-w-2xl` column, in the order
+ * the creator had filled them in — profile facts, audience, pricing, then
+ * earnings and deals last. So the two things that change without the creator
+ * doing anything were below everything they had already told us, and the page
+ * read as a submitted form.
+ *
+ * The structure now matches `(brand)/brand/page.tsx`. These are source guards on
+ * class strings, which is as far as this repo can go without a DOM: they prove
+ * the layout is *described*, never that it lays out. The columns need a browser.
+ */
+describe('the dashboard is laid out as one', () => {
+  const source = src(PAGE);
+
+  it('opens the way every other page opens', () => {
+    // `PageHeader` — teal label, serif h1, hairline (design doc §10.5). It comes
+    // in through `VerificationStatus`, which owns the handle and the status chip
+    // because the two are one statement.
+    expect(src(VERIFICATION)).toContain('PageHeader');
+    expect(src(VERIFICATION)).toContain('label="Your TikTok account"');
+  });
+
+  it('separates sections with the teal label rather than a rule', () => {
+    // The same treatment the brand dashboard and `EarningsSummary` already use.
+    const labels = source.match(
+      /text-\[13px\] font-semibold tracking-\[0\.14em\] text-brand uppercase/g
+    );
+    expect(labels?.length ?? 0).toBeGreaterThanOrEqual(4);
+    // One rule left, above the "signed in as" footer. Seven was the complaint.
+    expect(source.match(/border-t border-border/g)).toHaveLength(1);
+  });
+
+  it('gives the work its own column, and the reference the other', () => {
+    expect(source).toContain('max-w-5xl');
+    expect(source).not.toContain('max-w-2xl');
+    expect(source).toMatch(/lg:grid-cols-\[/);
+  });
+
+  it('puts the work first, which is also the phone order (NFR-007)', () => {
+    // Below `lg:` the columns stack in source order, so "left" and "first" are
+    // the same decision. Earnings and deals must precede the profile facts.
+    const earnings = source.indexOf('<EarningsSummary');
+    const deals = source.indexOf('<DealGroups');
+    // The call, not the import — the import list is at the top of every file.
+    const facts = source.indexOf('formatFollowerCount(profile');
+    const pricing = source.indexOf('<TierPricing');
+    expect(earnings).toBeGreaterThan(-1);
+    expect(deals).toBeGreaterThan(earnings);
+    expect(facts).toBeGreaterThan(deals);
+    expect(pricing).toBeGreaterThan(facts);
+  });
+
+  it('still ships no client bundle', () => {
+    // Two columns is a class string. Nothing here became interactive.
+    expect(source).not.toContain("'use client'");
+    expect(source).not.toMatch(/<Button\b/);
+  });
+});
+
+/**
+ * The stepper is an onboarding artefact, and three ticked steps at the top of a
+ * page a creator opens every day was the single biggest reason the first
+ * screenful was about a finished process.
+ */
+describe('verification collapses once there is nothing outstanding', () => {
+  const source = src(VERIFICATION);
+
+  it('hides the steps only when the creator is verified *and* tiered', () => {
+    // Deliberately the `isBookable` pair (AC-006), not `status === 'verified'`
+    // alone: a verified creator with no tier still has a step ahead of them, and
+    // it is the one they can do nothing about, so it is the one most worth
+    // showing.
+    expect(source).toMatch(
+      /const settled =\s*status === 'verified' && hasTier/
+    );
+    expect(source).toMatch(/!settled && \(/);
+  });
+
+  it('keeps the handle and the chip in every state', () => {
+    // "Am I still verified" is a real question; "what happens next" is not, once
+    // the answer is nothing. Both sit outside the collapsing branch.
+    const settledGate = source.indexOf('!settled && (');
+    expect(source.indexOf('<StatusChip')).toBeLessThan(settledGate);
+    expect(source.indexOf('{tiktokHandle}')).toBeLessThan(settledGate);
+  });
+
+  it('still explains the gap to a verified creator with no tier', () => {
+    // The one state where the steps stay and the last one is not reachable by
+    // anything the creator does.
+    expect(source).toContain("status === 'verified' && !hasTier");
+    expect(source).toContain('as soon as your');
+  });
+
+  it('still carries the rejection notice, which TierPricing relies on', () => {
+    expect(source).toContain("status === 'rejected'");
+    expect(source).toContain('We could not verify this account.');
   });
 });
 

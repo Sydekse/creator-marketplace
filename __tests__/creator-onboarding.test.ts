@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   TIKTOK_HANDLE_PATTERN,
   isValidTiktokHandle,
   normalizeTiktokHandle,
+  tiktokProfileUrl,
 } from '../lib/creators/handle';
 import { isBookable } from '../lib/creators/queries';
 import {
@@ -72,6 +74,28 @@ function uniqueViolation(constraint: string) {
       code: '23505',
       constraint,
     }
+  );
+}
+
+/**
+ * Every `.tsx` under the given directories, for the source guards below. Walking
+ * the tree rather than listing files is what makes a guard hold for a screen
+ * nobody has written yet.
+ */
+function readTsx(dirs: string[]): Array<{ file: string; src: string }> {
+  function walk(dir: string): string[] {
+    return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) return walk(full);
+      return entry.name.endsWith('.tsx') ? [full] : [];
+    });
+  }
+
+  return dirs.flatMap((dir) =>
+    walk(path.join(process.cwd(), dir)).map((file) => ({
+      file: path.relative(process.cwd(), file),
+      src: readFileSync(file, 'utf8'),
+    }))
   );
 }
 
@@ -158,6 +182,132 @@ describe('isValidTiktokHandle', () => {
     // if the transform were ever removed, every mixed-case handle would start
     // failing validation loudly instead of reaching the index raw.
     expect(TIKTOK_HANDLE_PATTERN.test('@BeautyByHana')).toBe(false);
+  });
+});
+
+// -- The link out to the real profile (KAN-200) ------------------------------
+
+/**
+ * KAN-200 item 8: a brand had no way to check whether the account it was about
+ * to pay actually exists. Verification is manual and every figure on the profile
+ * is self-reported, so the TikTok page itself is the only primary source a brand
+ * has before it commits money.
+ *
+ * These tests are mostly about the *null* half. A handle that no longer passes
+ * the pattern must produce no link, because a 404 offered under the label "View
+ * on TikTok" reads as the creator not existing — which is exactly the judgement
+ * the brand came here to make, answered wrongly by a formatting bug.
+ */
+describe('tiktokProfileUrl', () => {
+  it.each([
+    // The stored canonical form drops straight in: the `@` is part of TikTok's
+    // own path, which is why this needs no new column.
+    ['@beautybyhana', 'https://www.tiktok.com/@beautybyhana'],
+    ['@hana_01.x', 'https://www.tiktok.com/@hana_01.x'],
+    ['@ab', 'https://www.tiktok.com/@ab'],
+  ])('builds %j into %j', (handle, expected) => {
+    expect(tiktokProfileUrl(handle)).toBe(expected);
+  });
+
+  it.each([
+    // Every one of these is a handle a brand could be shown if the value were
+    // taken from anywhere but the column, and each links to a different page or
+    // to none.
+    ['beautybyhana', 'no leading at'],
+    ['@BeautyByHana', 'uppercase'],
+    ['  @beautybyhana  ', 'surrounding space'],
+    ['@@beautybyhana', 'double at'],
+  ])('normalises %j (%s) before building the URL', (handle) => {
+    expect(tiktokProfileUrl(handle)).toBe(
+      'https://www.tiktok.com/@beautybyhana'
+    );
+  });
+
+  it.each([
+    ['', 'empty'],
+    ['@', 'at only'],
+    ['@a', 'one character'],
+    [`@${'a'.repeat(25)}`, 'too long'],
+    ['@hana!', 'illegal character'],
+    ['@hana.', 'trailing period'],
+  ])('returns null for %j (%s) rather than a broken link', (handle) => {
+    expect(tiktokProfileUrl(handle)).toBeNull();
+  });
+
+  it('returns null for a non-string without throwing', () => {
+    // Same reachability argument as `normalizeTiktokHandle`: this runs on a row
+    // read from the database, and a render is a worse place to throw than a
+    // parse.
+    expect(tiktokProfileUrl(null as unknown as string)).toBeNull();
+    expect(tiktokProfileUrl(12345 as unknown as string)).toBeNull();
+  });
+
+  it('agrees with isValidTiktokHandle on every input', () => {
+    // The two must not drift: a handle the app is willing to store is one it
+    // must be willing to link to, and vice versa. Asserting the relationship
+    // rather than a second list of cases means adding a case to either function
+    // cannot leave this behind.
+    for (const handle of [
+      '@beautybyhana',
+      'beautybyhana',
+      '@BeautyByHana',
+      '@',
+      '',
+      '@a',
+      '@hana!',
+      `@${'a'.repeat(25)}`,
+    ]) {
+      const valid = isValidTiktokHandle(normalizeTiktokHandle(handle));
+      expect(tiktokProfileUrl(handle) === null).toBe(!valid);
+    }
+  });
+
+  it('is the only thing that builds a profile href', () => {
+    // A second copy of the origin is how one screen ends up on `tiktok.com` and
+    // another on `www.tiktok.com` after a domain change — and the check a brand
+    // makes here is worth exactly as much as the link being right.
+    //
+    // Scoped to `href=`, not to the host, because the host legitimately appears
+    // as *text* elsewhere: the landing page's marketing mock, the placeholder in
+    // `lib/deals/copy.ts`, and `lib/validation/schemas.ts`, which parses video
+    // post URLs — a different shape with its own long, short and mobile forms.
+    // Widening this to any mention would fail on all three and teach the next
+    // person to delete the guard.
+    const offenders = readTsx(['app', 'components'])
+      .filter(({ src }) => /href=[^>]*tiktok\.com/.test(src))
+      .map(({ file }) => file);
+    expect(offenders).toEqual([]);
+  });
+
+  it('is reached from both screens that show a brand a creator', () => {
+    // The F31/F34 habit: a helper that nothing mounts is a helper that does not
+    // exist. Both the discovery card and the creator detail page have to link
+    // out, because a brand shortlisting from the list should not have to open a
+    // profile to find out the account is dead.
+    for (const file of [
+      path.join('components', 'creator', 'creator-card.tsx'),
+      path.join(
+        'app',
+        '(brand)',
+        '(onboarded)',
+        'discover',
+        '[id]',
+        'page.tsx'
+      ),
+      // The creator's own dashboard, so they can see what a brand sees.
+      path.join('app', '(creator)', 'creator', 'page.tsx'),
+    ]) {
+      const src = readFileSync(
+        fileURLToPath(new URL(`../${file}`, import.meta.url)),
+        'utf8'
+      );
+      expect(src).toContain('tiktokProfileUrl');
+      // One label, so the three cannot come to say different things.
+      expect(src).toContain('VIEW_ON_TIKTOK_LABEL');
+      // The tab we open must get no handle on ours, and we are not vouching for
+      // an account nobody has checked.
+      expect(src).toContain('noopener noreferrer nofollow');
+    }
   });
 });
 

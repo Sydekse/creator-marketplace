@@ -97,3 +97,40 @@ export const HELD_IN_ESCROW_LABEL = 'Held in escrow';
  */
 export const HELD_IN_ESCROW_NOTE =
   'Released to each creator only after you approve their video.';
+
+/**
+ * KAN-200 — cancelling a draft campaign.
+ *
+ * `cancelCampaign` and `POST /api/campaigns/{id}/cancel` shipped complete on
+ * KAN-99 with nothing anywhere that could call them, so a brand who created a
+ * campaign by mistake had no way to be rid of it. Same species as F31 and F34: a
+ * correct path with no surface.
+ *
+ * "Cancel campaign", not "Delete": the row survives with `status = 'cancelled'`,
+ * which is what keeps the audit trail intact, and telling the brand it was
+ * deleted would promise more than happened.
+ */
+export const CANCEL_CAMPAIGN_LABEL = 'Cancel campaign';
+export const CANCEL_CAMPAIGN_PENDING_LABEL = 'Cancelling…';
+
+/**
+ * The confirmation prompt. Names the campaign, because this control sits beside
+ * "Send offers" and the two are one click apart on a decision that does not
+ * reverse — the UI offers no un-cancel and the endpoint's `CANCELLABLE` set has
+ * no edge back out of `cancelled`.
+ */
+export const cancelCampaignPrompt = (name: string) =>
+  `Cancel “${name}”? This cannot be undone, and you will need to start a new campaign to shop for creators again.`;
+
+export const CANCEL_CAMPAIGN_SUCCESS = 'Campaign cancelled.';
+export const CANCEL_CAMPAIGN_FAILED = 'Failed to cancel this campaign.';
+
+/**
+ * The campaign is past the point of cancelling — funded, completed or already
+ * cancelled. Deliberately does not guess which, on the `FUND_NOT_FUNDABLE_MESSAGE`
+ * precedent: the button reloads straight after, and the status chip is the honest
+ * answer. Covers both codes the route can answer with, since `not_cancellable`
+ * currently arrives as `VALIDATION_ERROR`.
+ */
+export const CANCEL_NOT_CANCELLABLE_MESSAGE =
+  'This campaign can no longer be cancelled. Reloading to show where it stands.';

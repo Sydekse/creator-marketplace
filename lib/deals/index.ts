@@ -18,5 +18,6 @@ export {
   groupForStatus,
   groupDeals,
   labelForStatus,
+  labelForReviewStatus,
 } from './groups';
 export type { DealGroup } from './groups';

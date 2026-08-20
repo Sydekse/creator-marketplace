@@ -12,6 +12,7 @@ import {
   canAct,
   canDeliver,
   canReportMetrics,
+  labelForReviewStatus,
   labelForStatus,
 } from '@/lib/deals';
 import { Chip } from '@/components/ui/chip';
@@ -27,7 +28,11 @@ import {
   NO_RIGHTS_TERMS_MESSAGE,
   OFFER_EXPIRY_LABEL,
   PAYOUT_ESTIMATE_NOTE,
+  REJECTION_REASON_LABEL,
   REMAINING_VIDEOS_MESSAGE,
+  REVIEW_STATUS_LABEL,
+  revisionRequestedMessage,
+  standingVideoCount,
   SUBMITTED_AT_LABEL,
   TOTAL_PRICE_LABEL,
   UNIT_PRICE_LABEL,
@@ -87,11 +92,30 @@ export default async function CreatorDealDetailPage({
   const isPending = canAct(deal.status);
 
   /**
-   * Videos still owed on this deal (F38). Drives the sentence above the
-   * submission form, and only that — whether the form appears at all is
-   * `canDeliver`, read off the transition table.
+   * How much of the delivery stands, and what is still owed (F38, KAN-200).
+   *
+   * `standingVideoCount`, never `deliverables.length`: a video the brand sent
+   * back keeps its row, so the raw length said "2 of 2 videos submitted" directly
+   * above a form asking for another link. See the function for the whole story.
+   *
+   * `remaining` drives the sentence above the submission form, and only that —
+   * whether the form appears at all is `canDeliver`, read off the transition table.
    */
-  const remaining = deal.videoCount - deal.deliverables.length;
+  const standing = standingVideoCount(deal.deliverables);
+  const remaining = deal.videoCount - standing;
+
+  /**
+   * Which video the brand refused, if any.
+   *
+   * At most one row can be `rejected` at a time — `submit-deliverable.ts` states
+   * the rule and the state machine enforces it, because a rejection is only legal
+   * from `delivered` and moves the deal to `revision_requested` where `canReview`
+   * is false. So naming "the" flagged video is safe rather than a guess, and the
+   * ordinal is the one the brand's own review screen used.
+   */
+  const rejectedIndex = deal.deliverables.findIndex(
+    (video) => video.reviewStatus === 'rejected'
+  );
 
   /*
    * The verb is only correct while the offer is still open. On an accepted or
@@ -161,9 +185,16 @@ export default async function CreatorDealDetailPage({
           While the offer is open this is the version *currently* in effect, not
           the one stamped at offer time — `readCreatorDeal` swaps it, because
           acceptance must match the current version and agreeing to superseded
-          text would be refused with a 409 no reload could clear. */}
+          text would be refused with a 409 no reload could clear.
+
+          Collapsed once the offer is answered (KAN-200), off the same predicate
+          that gates the accept controls: while a creator is being asked to agree
+          the text is the decision and AC-2 says they see it, and afterwards it is
+          reference material that was pushing the deliverable form and the review
+          status below the fold on every later visit. Still on the page either way
+          — a `<details>` the creator opens, not a link they leave for. */}
       {deal.rightsTerms ? (
-        <UsageRightsCard terms={deal.rightsTerms} />
+        <UsageRightsCard terms={deal.rightsTerms} collapsed={!isPending} />
       ) : (
         <p className="text-sm text-muted-foreground">
           {NO_RIGHTS_TERMS_MESSAGE}
@@ -198,44 +229,25 @@ export default async function CreatorDealDetailPage({
         <OfferActions dealId={deal.id} terms={deal.rightsTerms} />
       ) : null}
 
-      {/* KAN-46, AC-022 — the deliverable submission path. `canDeliver` is
-          `{funded, revision_requested}`, read off the same transition table as
-          the accept controls: a funded deal is what the creator may deliver
-          against, and a rejected one is what they may re-deliver against. The
-          form is client-side — it holds the URL field and posts to
-          `/api/deals/{id}/deliverable`.
-
-          It stays on screen for every video the deal covers (F38), so a creator
-          three videos into a three-video deal submits through the same control
-          they used for the first. The sentence beside it says why nothing has
-          reached the brand yet — a submission that changed no visible status
-          would otherwise read as a failure. */}
-      {canDeliver(deal.status) ? (
-        <div className="flex flex-col gap-3">
-          {remaining > 0 && deal.deliverables.length > 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {REMAINING_VIDEOS_MESSAGE}
-            </p>
-          ) : null}
-          <DeliverableForm dealId={deal.id} />
-        </div>
-      ) : null}
-
       {/* What the creator submitted, once there is something to show — one
           section per video (F38), oldest first, numbered the same way the brand's
           review screen numbers them so a rejection note about "Video 2" finds the
-          same video here. For a `revision_requested` deal one of these is the
-          submission the brand sent back, sitting above the resubmit form so the
-          creator can see what they are replacing.
+          same video here.
 
-          Shown as text, not a link: nothing here navigates or fetches (AC-8), and
-          the brand-side "links to the live post" is KAN-49's. */}
+          **Above the submission form**, which is where the comment here always
+          said it was and where it now actually is (KAN-200). On a
+          `revision_requested` deal the thing being replaced has to be readable
+          before the field that replaces it — a creator cannot act on a note they
+          have to scroll past the form to find.
+
+          The URL is shown as text, not a link: nothing on this page navigates or
+          fetches (AC-8), and the brand's screen is where the live post is opened. */}
       {deal.deliverables.length > 0 ? (
         <section className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-medium">{DELIVERABLES_TITLE}</h2>
             <p className="text-sm text-muted-foreground">
-              {deliveryProgress(deal.deliverables.length, deal.videoCount)}
+              {deliveryProgress(standing, deal.videoCount)}
             </p>
           </div>
 
@@ -249,6 +261,35 @@ export default async function CreatorDealDetailPage({
               <p className="text-sm text-muted-foreground">
                 {SUBMITTED_AT_LABEL}: {formatDeadlineUtc(video.submittedAt)}
               </p>
+
+              {/* Where the review stands, per video (KAN-200). Mapped through
+                  `labelForReviewStatus`, never the raw column: `pending` is a
+                  database word, and the creator's question is who holds it next.
+                  The instant is shown once there is one — a review that happened
+                  has a date, and "when did they look at it" is the next thing a
+                  creator asks after "did they". */}
+              <p className="text-sm text-muted-foreground">
+                {REVIEW_STATUS_LABEL}:{' '}
+                {labelForReviewStatus(video.reviewStatus)}
+                {video.reviewedAt
+                  ? ` (${formatDeadlineUtc(video.reviewedAt)})`
+                  : ''}
+              </p>
+
+              {/* The brand's own words, on the video they are about (KAN-200).
+                  Present only while a rejection stands: `recordSubmission` clears
+                  the note when the replacement lands, so a stale instruction never
+                  follows a new video around. */}
+              {video.rejectionReason ? (
+                <div className="flex flex-col gap-1 pt-2">
+                  <h4 className="text-sm font-medium">
+                    {REJECTION_REASON_LABEL}
+                  </h4>
+                  <p className="text-sm text-muted-foreground">
+                    {video.rejectionReason}
+                  </p>
+                </div>
+              ) : null}
 
               {/* The KAN-57 review's F2 fix — the reminder's promise, made real.
                   One form per video (F38), because the metrics API keys its
@@ -264,6 +305,39 @@ export default async function CreatorDealDetailPage({
             </div>
           ))}
         </section>
+      ) : null}
+
+      {/* KAN-46, AC-022 — the deliverable submission path. `canDeliver` is
+          `{funded, revision_requested}`, read off the same transition table as
+          the accept controls: a funded deal is what the creator may deliver
+          against, and a rejected one is what they may re-deliver against. The
+          form is client-side — it holds the URL field and posts to
+          `/api/deals/{id}/deliverable`.
+
+          It stays on screen for every video the deal covers (F38), so a creator
+          three videos into a three-video deal submits through the same control
+          they used for the first.
+
+          Two different sentences, because the form is asking for two different
+          things (KAN-200). A replacement for a refused video names it, since on a
+          multi-video deal that is the only question worth answering. The next
+          video in an unfinished delivery says why nothing has reached the brand
+          yet — a submission that changed no visible status would otherwise read as
+          a failure. Neither appears on the first video of a deal, where the form
+          speaks for itself. */}
+      {canDeliver(deal.status) ? (
+        <div className="flex flex-col gap-3">
+          {rejectedIndex >= 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {revisionRequestedMessage(videoHeading(rejectedIndex))}
+            </p>
+          ) : remaining > 0 && standing > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {REMAINING_VIDEOS_MESSAGE}
+            </p>
+          ) : null}
+          <DeliverableForm dealId={deal.id} />
+        </div>
       ) : null}
 
       {/* AC-5. Last on the page: it is the reference a creator scrolls to, not

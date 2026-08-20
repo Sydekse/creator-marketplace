@@ -128,3 +128,80 @@ describe('Base UI usage', () => {
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * KAN-200 item 9: "buttons don't highlight well".
+ *
+ * Same species as the four guards above — found by opening the app, invisible to
+ * lint, typecheck and the build. Two specific gaps:
+ *
+ *   - `outline` changed only its border and text colour on hover, which is a
+ *     one-pixel difference on a white card.
+ *   - the only pressed treatment anywhere was `active:scale-[0.98]` in the base
+ *     string. A transform is a poor press indicator on a touch device: there is
+ *     no hover state to have preceded it, and the finger is covering the control
+ *     that shrinks.
+ *
+ * These read the variant strings rather than a rendered element, so they prove
+ * the classes are *present*, never that they are visible. That is the standing
+ * limitation of this whole file.
+ */
+describe('button variants', () => {
+  const BUTTON = 'components/ui/button.tsx';
+  const source = SOURCES.find(({ file }) => file === BUTTON);
+
+  /** The `variant: { … }` block, so a stray `active:` elsewhere cannot satisfy these. */
+  const variantBlock = (source?.src ?? '').slice(
+    (source?.src ?? '').indexOf('variant: {'),
+    (source?.src ?? '').indexOf('size: {')
+  );
+
+  it('finds the variant block', () => {
+    // A rename or a move should fail loudly rather than leave the two guards
+    // below asserting against an empty string.
+    expect(source).toBeDefined();
+    expect(variantBlock).toContain('outline');
+    expect(variantBlock.length).toBeGreaterThan(200);
+  });
+
+  /**
+   * Every variant, not just the ones that looked wrong. A press with no colour
+   * change is the reported bug, and the variant that lacks one is the variant
+   * whoever styles the next screen will reach for.
+   */
+  it.each(['default', 'outline', 'secondary', 'ghost', 'destructive', 'link'])(
+    'gives %s a pressed treatment that is not only a transform',
+    (variant) => {
+      // Each variant's own string: from its key to the next `:` that starts a
+      // property, bounded so `default`'s classes cannot vouch for `outline`'s.
+      const start = variantBlock.indexOf(`${variant}:`);
+      expect(start).toBeGreaterThan(-1);
+      const declaration = variantBlock.slice(
+        start,
+        variantBlock.indexOf("',", start)
+      );
+      // `bg-`, `text-` or `underline`: `link` is the one variant with no
+      // background to darken, so it deepens its colour instead. What none of them
+      // may do is rely on the base string's scale alone, which is the bug.
+      expect(declaration).toMatch(/active:(?:bg-|text-|underline)/);
+    }
+  );
+
+  it('gives outline a hover background, not just a border', () => {
+    // The reported symptom. `ghost` is the reference: `hover:bg-muted`.
+    const start = variantBlock.indexOf('outline:');
+    const declaration = variantBlock.slice(
+      start,
+      variantBlock.indexOf("',", start)
+    );
+    expect(declaration).toMatch(/hover:bg-/);
+  });
+
+  it('keeps the treatments that were already right', () => {
+    // Additive, per the ticket: nothing that already looked correct changes. The
+    // shine, the focus ring and the scale are all still there.
+    expect(source?.src).toContain('btn-shine');
+    expect(source?.src).toContain('focus-visible:ring-ring/50');
+    expect(source?.src).toContain('active:not-aria-[haspopup]:scale-[0.98]');
+  });
+});

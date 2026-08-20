@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { EmptyState } from '@/components/feedback/empty-state';
+import { ENGAGEMENT_RATE_HINT } from '@/lib/config/creator-profile';
 import type { AwaitingTierCreator } from '@/lib/creators/awaiting-tier';
 import {
   missingFieldLabel,
@@ -266,6 +267,12 @@ function EditNumbersForm({
           disabled={submitting}
           className="w-36"
         />
+        {/* The admin correcting this figure needs the same definition the
+            creator was given (KAN-200) — it feeds `matchTier`, so entering a
+            different quantity here silently puts a creator in the wrong band. */}
+        <span className="max-w-72 leading-normal font-normal text-balance">
+          {ENGAGEMENT_RATE_HINT}
+        </span>
       </label>
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm" disabled={submitting}>

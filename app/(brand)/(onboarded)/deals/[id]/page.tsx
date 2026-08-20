@@ -9,20 +9,19 @@ import {
 import { Chip } from '@/components/ui/chip';
 import { PageHeader } from '@/components/layout/page-header';
 import { formatDeadlineUtc } from '@/lib/dates';
-import { canReview, labelForStatus } from '@/lib/deals';
+import { canReview, labelForReviewStatus, labelForStatus } from '@/lib/deals';
 import { dealStatusTone } from '@/lib/deals/status-tone';
 import {
-  ALREADY_REVIEWED_MESSAGE,
   AWAITING_DELIVERABLE_MESSAGE,
-  AWAITING_REMAINING_VIDEOS_MESSAGE,
-  AWAITING_RESUBMISSION_MESSAGE,
   CREATOR_LABEL,
   DELIVERABLES_TITLE,
   deliveryProgress,
   NO_RIGHTS_TERMS_MESSAGE,
   REJECTION_REASON_LABEL,
   REVIEW_STATUS_LABEL,
+  reviewAbsenceMessage,
   RIGHTS_TERMS_LABEL,
+  standingVideoCount,
   SUBMITTED_AT_LABEL,
   TOTAL_PRICE_LABEL,
   UNIT_PRICE_LABEL,
@@ -85,6 +84,23 @@ export default async function BrandDealReviewPage({
 
   const reviewable = canReview(deal.status);
 
+  /**
+   * Why the review controls are absent, or `null` when they are on screen
+   * (KAN-200).
+   *
+   * The decision is `reviewAbsenceMessage`'s, not this page's: the order the four
+   * cases are tested in is load-bearing — a deal sent back for changes is both
+   * "full" and "short" at once — and it is worth a test of its own.
+   */
+  const absence = reviewAbsenceMessage(deal);
+
+  /**
+   * How much of the delivery stands (KAN-200). Not `deliverables.length`: a video
+   * the brand sent back keeps its row, so the raw length claimed a two-video deal
+   * was fully delivered while the brand was waiting on its own rejection.
+   */
+  const standing = standingVideoCount(deal.deliverables);
+
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
       <Link
@@ -142,7 +158,7 @@ export default async function BrandDealReviewPage({
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-medium">{DELIVERABLES_TITLE}</h2>
             <p className="text-sm text-muted-foreground">
-              {deliveryProgress(deal.deliverables.length, deal.videoCount)}
+              {deliveryProgress(standing, deal.videoCount)}
             </p>
           </div>
 
@@ -162,12 +178,21 @@ export default async function BrandDealReviewPage({
               </a>
               <p className="text-sm text-muted-foreground">
                 {SUBMITTED_AT_LABEL}: {formatDeadlineUtc(video.submittedAt)}
-                <p className="text-sm text-muted-foreground">
-                  {REVIEW_STATUS_LABEL}: {video.reviewStatus}
-                  {video.reviewedAt
-                    ? ` (${formatDeadlineUtc(video.reviewedAt)})`
-                    : ''}
-                </p>
+              </p>
+              {/* Two paragraphs, not one nested inside the other (KAN-200). The
+                  review line was a `<p>` inside a `<p>`, which is invalid HTML —
+                  the browser closes the outer one at the inner tag, so React warns
+                  on hydration and the rendered tree is not the one written here.
+
+                  And the status is mapped, never the raw column: this printed
+                  `pending` to a brand, which is a database word for "you have not
+                  looked at it yet". */}
+              <p className="text-sm text-muted-foreground">
+                {REVIEW_STATUS_LABEL}:{' '}
+                {labelForReviewStatus(video.reviewStatus)}
+                {video.reviewedAt
+                  ? ` (${formatDeadlineUtc(video.reviewedAt)})`
+                  : ''}
               </p>
               {/* AC-7 — what the brand asked for last time, so a resubmission can
                   be read against it. Present only once a rejection has been
@@ -206,27 +231,19 @@ export default async function BrandDealReviewPage({
       {/* AC-023, once per deal. `canReview` reads `LEGAL_TRANSITIONS`, so this
           control cannot outlive the edge that permits it — and because a deal only
           reaches `delivered` when every video it was paid for is in (F38), the
-          button cannot appear over a partial delivery. Where it is absent the
-          reason is a sentence, never a `title=` tooltip, which tells a touch user
-          nothing.
+          button cannot appear over a partial delivery.
 
-          Three different absences, three different sentences: nothing submitted at
-          all is covered above; a delivery still in progress says so; and a deal
-          already judged or sent back says which. */}
+          Where it is absent the reason is a sentence, never a `title=` tooltip,
+          which tells a touch user nothing. Which sentence is
+          `reviewAbsenceMessage`'s decision (KAN-200) rather than a ternary chain
+          here: the case order matters and the page is the wrong place to keep a
+          rule worth testing. */}
       {reviewable ? (
         <ApproveDealButton dealId={deal.id} videoCount={deal.videoCount} />
-      ) : deal.deliverables.length === 0 ? null : deal.deliverables.length <
-        deal.videoCount ? (
-        <p className="text-sm text-muted-foreground">
-          {AWAITING_REMAINING_VIDEOS_MESSAGE}
-        </p>
-      ) : (
-        <p className="text-sm text-muted-foreground">
-          {deal.status === 'revision_requested'
-            ? AWAITING_RESUBMISSION_MESSAGE
-            : ALREADY_REVIEWED_MESSAGE}
-        </p>
-      )}
+      ) : null}
+      {absence ? (
+        <p className="text-sm text-muted-foreground">{absence}</p>
+      ) : null}
 
       {/* KAN-99 §4: brand deal history — the same component the creator and
           admin pages use, so a brand can see *why* a deal is in its current
