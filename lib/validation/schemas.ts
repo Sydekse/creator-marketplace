@@ -669,3 +669,19 @@ export const auditLogQuerySchema = z
   });
 
 export type AuditLogQueryInput = z.infer<typeof auditLogQuerySchema>;
+
+/**
+ * KAN-96 — the body for `POST /api/notifications/read`.
+ *
+ * When `notificationId` is present, that single row is marked read.
+ * When absent (or empty body), all unread notifications for the user
+ * are marked read.
+ */
+export const notificationReadSchema = z
+  .object({
+    notificationId: z
+      .string()
+      .uuid({ message: 'Invalid notification ID.' })
+      .optional(),
+  })
+  .strict();
