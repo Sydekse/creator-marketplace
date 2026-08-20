@@ -7,6 +7,7 @@ describe('getNavLinks', () => {
     expect(links.map((l) => l.label)).toEqual([
       'Discover',
       'Campaigns',
+      'Deals',
       'Dashboard',
     ]);
   });
