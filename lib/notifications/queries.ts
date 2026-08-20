@@ -1,6 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '@/db';
-import { notification, user } from '@/db/schema';
+import { db as defaultDb } from '@/db';
+import { notification } from '@/db/schema';
 import { guard } from '@/lib/authz';
 import { PAGE_SIZE } from '@/lib/paging';
 
@@ -29,7 +29,17 @@ export interface NotificationPage {
 }
 
 /**
- * Lists notifications for the signed-in user, newest first.
+ * Seam for tests — allows injecting a fake database while keeping the real
+ * defaults for production.
+ */
+export interface NotificationQueryDeps {
+  db: typeof defaultDb;
+}
+
+const defaultDeps: NotificationQueryDeps = { db: defaultDb };
+
+/**
+ * Lists notifications for the signed-in user, unread first then newest.
  *
  * The `(user_id, created_at)` index keeps this off the heap regardless of
  * table size — every row sorts by `created_at`, and the filter leads with
@@ -38,10 +48,11 @@ export interface NotificationPage {
 export async function listNotifications(
   userId: string,
   limit: number = PAGE_SIZE,
-  offset: number = 0
+  offset: number = 0,
+  deps: NotificationQueryDeps = defaultDeps
 ): Promise<NotificationPage> {
   // One row past the page, to answer `hasMore` without a second COUNT.
-  const rows = await db
+  const rows = await deps.db
     .select({
       id: notification.id,
       type: notification.type,
@@ -51,12 +62,7 @@ export async function listNotifications(
     })
     .from(notification)
     .where(eq(notification.userId, userId))
-    .orderBy(
-      // Unread first, then newest — the most useful default order.
-      // isNull returns true (1) when read_at is null, so unread rows sort first.
-      isNull(notification.readAt),
-      notification.createdAt
-    )
+    .orderBy(isNull(notification.readAt), notification.createdAt)
     .limit(limit + 1)
     .offset(offset);
 
@@ -72,8 +78,11 @@ export async function listNotifications(
  * Used by the header bell — a lightweight count query that the index covers
  * entirely.
  */
-export async function unreadCount(userId: string): Promise<number> {
-  const rows = await db
+export async function unreadCount(
+  userId: string,
+  deps: NotificationQueryDeps = defaultDeps
+): Promise<number> {
+  const rows = await deps.db
     .select({ id: notification.id })
     .from(notification)
     .where(and(eq(notification.userId, userId), isNull(notification.readAt)));
@@ -87,9 +96,10 @@ export async function unreadCount(userId: string): Promise<number> {
  */
 export async function markAsRead(
   notificationId: string,
-  userId: string
+  userId: string,
+  deps: NotificationQueryDeps = defaultDeps
 ): Promise<boolean> {
-  const [updated] = await db
+  const [updated] = await deps.db
     .update(notification)
     .set({ readAt: new Date() })
     .where(
@@ -107,8 +117,11 @@ export async function markAsRead(
 /**
  * Mark all unread notifications for the user as read in one shot.
  */
-export async function markAllAsRead(userId: string): Promise<number> {
-  const updated = await db
+export async function markAllAsRead(
+  userId: string,
+  deps: NotificationQueryDeps = defaultDeps
+): Promise<number> {
+  const updated = await deps.db
     .update(notification)
     .set({ readAt: new Date() })
     .where(and(eq(notification.userId, userId), isNull(notification.readAt)))
