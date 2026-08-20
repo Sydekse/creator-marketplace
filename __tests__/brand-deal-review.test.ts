@@ -15,6 +15,8 @@ import {
   buildBrandDealWhere,
   deliveryProgress,
   readBrandDeal,
+  reviewAbsenceMessage,
+  standingVideoCount,
   videoHeading,
 } from '../lib/deals/brand-detail';
 import type {
@@ -28,7 +30,8 @@ import {
   REJECT_REASON_HINT,
   approveConfirmMessage,
 } from '../lib/deals/copy';
-import type { DealStatus } from '../db/schema';
+import { labelForReviewStatus, labelForStatus } from '../lib/deals/groups';
+import type { DealStatus, ReviewStatus } from '../db/schema';
 
 /**
  * KAN-68 — the brand reviews a delivered deal and approves or rejects it
@@ -92,6 +95,7 @@ const src = (file: string) =>
 const READ_MODULE = 'lib/deals/brand-detail.ts';
 const COPY_MODULE = 'lib/deals/copy.ts';
 const REVIEW_PAGE = 'app/(brand)/(onboarded)/deals/[id]/page.tsx';
+const CREATOR_DEAL_PAGE = 'app/(creator)/creator/deals/[id]/page.tsx';
 const NOT_FOUND_PAGE = 'app/(brand)/(onboarded)/deals/[id]/not-found.tsx';
 const ACTIONS_COMPONENT = 'components/deals/review-actions.tsx';
 const CAMPAIGN_PAGE = 'app/(brand)/(onboarded)/campaigns/[id]/page.tsx';
@@ -399,6 +403,181 @@ describe('the progress copy says how much of the delivery arrived', () => {
   });
 });
 
+// -- What counts as delivered (KAN-200) ---------------------------------------
+
+describe('standingVideoCount — a refused video is not a delivered one', () => {
+  it('counts rows that have not been sent back', () => {
+    expect(
+      standingVideoCount([
+        video({ reviewStatus: 'approved' }),
+        video({ reviewStatus: 'pending' }),
+      ])
+    ).toBe(2);
+  });
+
+  it('excludes the one the brand refused', () => {
+    // The bug, exactly: `recordRejection` leaves the row in place, so a raw
+    // `length` told a two-video deal it was fully delivered while both sides were
+    // waiting on the replacement.
+    expect(
+      standingVideoCount([
+        video({ reviewStatus: 'approved' }),
+        video({ reviewStatus: 'rejected' }),
+      ])
+    ).toBe(1);
+  });
+
+  it('is zero for an empty delivery, not a crash', () => {
+    expect(standingVideoCount([])).toBe(0);
+  });
+
+  it('counts pending as standing, because it is with the brand', () => {
+    // A submitted video awaiting review has arrived. Only a refusal takes it back
+    // off the tally — `pending` is the brand's turn, not the creator's.
+    expect(standingVideoCount([video({ reviewStatus: 'pending' })])).toBe(1);
+  });
+
+  it('reads the review status rather than a review timestamp', () => {
+    const source = src(READ_MODULE);
+    const body = source.slice(
+      source.indexOf('export function standingVideoCount')
+    );
+
+    expect(body).toContain("reviewStatus !== 'rejected'");
+    // `reviewedAt` is set on approval too, so it cannot distinguish the two.
+    expect(body.slice(0, body.indexOf('}'))).not.toContain('reviewedAt');
+  });
+
+  it('is what both pages pass to deliveryProgress, never the raw length', () => {
+    // The guard that keeps the fix. Either page reverting to `deliverables.length`
+    // would restore "2 of 2 submitted" over a form asking for another link.
+    for (const page of [src(REVIEW_PAGE), src(CREATOR_DEAL_PAGE)]) {
+      expect(page).toContain('standingVideoCount(deal.deliverables)');
+      expect(page).toContain('deliveryProgress(standing, deal.videoCount)');
+      expect(page).not.toContain('deliverables.length, deal.videoCount');
+    }
+  });
+});
+
+describe('reviewAbsenceMessage — why there is no Approve button', () => {
+  const deal = (
+    over: Partial<{
+      status: DealStatus;
+      videoCount: number;
+      deliverables: BrandDeliverableView[];
+    }> = {}
+  ) => ({
+    status: 'delivered' as DealStatus,
+    videoCount: 2,
+    deliverables: [video(), video()],
+    ...over,
+  });
+
+  it('says nothing at all while the button is on screen', () => {
+    // `null` is the whole point: a sentence explaining an absence, rendered beside
+    // the control it claims is missing, is worse than no sentence.
+    expect(reviewAbsenceMessage(deal({ status: 'delivered' }))).toBeNull();
+  });
+
+  it('stays silent before anything has been submitted', () => {
+    // That state has its own sentence, rendered where the video list would be —
+    // this function would be a second copy of it in a different place.
+    expect(
+      reviewAbsenceMessage(deal({ status: 'funded', deliverables: [] }))
+    ).toBeNull();
+  });
+
+  it('names the resubmission on a deal the brand sent back', () => {
+    // The ordering trap. This deal has `videoCount` rows — it is "full" — and one
+    // of them is refused, so its standing count is short. Both later branches
+    // match, and only the first one is true: the brand is waiting on a
+    // *replacement*, not on a video it never ordered.
+    const sentBack = deal({
+      status: 'revision_requested',
+      deliverables: [
+        video({ reviewStatus: 'approved' }),
+        video({ reviewStatus: 'rejected' }),
+      ],
+    });
+
+    expect(sentBack.deliverables).toHaveLength(sentBack.videoCount);
+    expect(standingVideoCount(sentBack.deliverables)).toBeLessThan(
+      sentBack.videoCount
+    );
+    expect(reviewAbsenceMessage(sentBack)).toBe(AWAITING_RESUBMISSION_MESSAGE);
+  });
+
+  it('says the delivery is short while videos are still owed', () => {
+    expect(
+      reviewAbsenceMessage(deal({ status: 'funded', deliverables: [video()] }))
+    ).toBe(AWAITING_REMAINING_VIDEOS_MESSAGE);
+  });
+
+  it('says the decision is already made once the deal is finished', () => {
+    expect(
+      reviewAbsenceMessage(
+        deal({
+          status: 'completed',
+          deliverables: [
+            video({ reviewStatus: 'approved' }),
+            video({ reviewStatus: 'approved' }),
+          ],
+        })
+      )
+    ).toBe(ALREADY_REVIEWED_MESSAGE);
+  });
+
+  it('asks the state machine whether the button is there', () => {
+    // Not a status literal. The button's presence is `canReview`'s answer, so the
+    // explanation for its absence has to come from the same call or the two can
+    // disagree — a sentence under a live button, or a button with no sentence.
+    const source = src(READ_MODULE);
+    const body = source.slice(
+      source.indexOf('export function reviewAbsenceMessage')
+    );
+
+    expect(body).toContain('canReview(deal.status)');
+    expect(body.slice(0, body.indexOf('\n}'))).not.toMatch(
+      /status === 'delivered'/
+    );
+  });
+});
+
+describe('labelForReviewStatus — the review column, in words', () => {
+  it('covers every value the column can hold', () => {
+    const statuses: ReviewStatus[] = ['pending', 'approved', 'rejected'];
+
+    for (const status of statuses) {
+      expect(labelForReviewStatus(status)).not.toBe(status);
+      expect(labelForReviewStatus(status)).toMatch(/^[A-Z]/);
+    }
+  });
+
+  it('borrows the deal-level words for a refusal', () => {
+    // One event at two levels: `recordRejection` moves the deal to
+    // `revision_requested` and the row to `rejected`, so naming them differently
+    // would read as two things happening. And "Rejected" overstates it — the funds
+    // stay held and the creator resubmits (AC-024).
+    expect(labelForReviewStatus('rejected')).toBe(
+      labelForStatus('revision_requested')
+    );
+    expect(labelForReviewStatus('rejected')).not.toMatch(/reject/i);
+  });
+
+  it('falls back to the raw value rather than throwing', () => {
+    // A column is a text column; a row written by something older than this map
+    // should render badly, not take the page down.
+    expect(labelForReviewStatus('something-new')).toBe('something-new');
+  });
+
+  it('is what both pages render, never the enum', () => {
+    for (const page of [src(REVIEW_PAGE), src(CREATOR_DEAL_PAGE)]) {
+      expect(page).toContain('labelForReviewStatus(video.reviewStatus)');
+      expect(page).not.toMatch(/\{video\.reviewStatus\}/);
+    }
+  });
+});
+
 // -- The state machine decides who may review --------------------------------
 
 describe('canReview — derived, not restated', () => {
@@ -461,11 +640,12 @@ describe('the review page is the surface the endpoints were missing', () => {
     expect(page).toContain('video.tiktokUrl');
   });
 
-  it('says why Approve is absent over a partial delivery', () => {
-    // A deal one video short is not a deal nobody has looked at, and the two
-    // absences need different sentences.
-    expect(page).toContain('AWAITING_REMAINING_VIDEOS_MESSAGE');
-    expect(page).toContain('deal.deliverables.length <');
+  it('says why Approve is absent, from the rule rather than a ternary here', () => {
+    // The sentence is chosen by `reviewAbsenceMessage` (KAN-200), which is tested
+    // on its own below — the case order is load-bearing and a page is the wrong
+    // place to keep it. What the page owes is rendering the answer.
+    expect(page).toContain('reviewAbsenceMessage(deal)');
+    expect(page).toContain('{absence}');
     expect(page).toContain('deliveryProgress(');
   });
 
@@ -495,10 +675,12 @@ describe('the review page is the surface the endpoints were missing', () => {
   });
 
   it('explains an absent control in a sentence, never a tooltip', () => {
-    // Hover-only copy tells a touch user nothing — the rule KAN-29 set.
-    expect(page).toContain('ALREADY_REVIEWED_MESSAGE');
-    expect(page).toContain('AWAITING_RESUBMISSION_MESSAGE');
+    // Hover-only copy tells a touch user nothing — the rule KAN-29 set. The three
+    // "no Approve" sentences now reach the page through `reviewAbsenceMessage`;
+    // the empty-list one is still rendered here, because it belongs to the list
+    // and not to the button.
     expect(page).toContain('AWAITING_DELIVERABLE_MESSAGE');
+    expect(page).toContain('reviewAbsenceMessage');
     expect(page).not.toMatch(/<[a-z][a-zA-Z0-9]*\s[^>]*\stitle=/);
   });
 

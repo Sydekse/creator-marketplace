@@ -1,4 +1,4 @@
-import type { DealStatus } from '@/db/schema';
+import type { DealStatus, ReviewStatus } from '@/db/schema';
 
 /**
  * How a creator's deals are grouped by state (KAN-25 AC-2, KAN-39 AC-1).
@@ -145,4 +145,42 @@ const STATUS_LABELS = {
  */
 export function labelForStatus(status: string): string {
   return STATUS_LABELS[status as DealStatus] ?? status;
+}
+
+/**
+ * One `deliverable.review_status`, named for a person (KAN-200).
+ *
+ * Both deal pages render this column, and until now the brand's printed it raw:
+ * a brand read `pending` and a creator read nothing at all. Three lowercase enum
+ * values are a database detail, and `revision_requested` proved on KAN-39 that
+ * they reach a screen unless something maps them.
+ *
+ * `rejected` is deliberately **"Changes requested"**, the same words
+ * `STATUS_LABELS` gives the deal state it produces. The two are one event seen at
+ * two levels — the brand sends a video back and the deal moves to
+ * `revision_requested` in the same transaction — so naming the video "Rejected"
+ * beside a deal reading "Changes requested" would invent a distinction the code
+ * does not have. "Rejected" also overstates it: the deal is not over, and the
+ * funds stay held (AC-024).
+ *
+ * `pending` says "Awaiting review" rather than "Pending" because the creator is
+ * the reader who cares most, and what they want to know is who holds it next.
+ *
+ * `satisfies Record<ReviewStatus, string>` for the reason `STATUS_LABELS` uses
+ * it: a fourth review status becomes a compile error here rather than a raw enum
+ * value on two screens.
+ */
+const REVIEW_STATUS_LABELS = {
+  pending: 'Awaiting review',
+  approved: 'Approved',
+  rejected: 'Changes requested',
+} satisfies Record<ReviewStatus, string>;
+
+/**
+ * Takes a plain `string` for the reason `labelForStatus` does — the column
+ * arrives typed only by our own `$type<>` assertion, and a value this build has
+ * never heard of is more honestly shown verbatim than dropped.
+ */
+export function labelForReviewStatus(status: string): string {
+  return REVIEW_STATUS_LABELS[status as ReviewStatus] ?? status;
 }

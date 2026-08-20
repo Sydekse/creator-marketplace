@@ -72,3 +72,34 @@ export function isValidTiktokHandle(normalized: string): boolean {
   if (normalized.endsWith('.')) return false;
   return true;
 }
+
+/** The one place the TikTok host is spelled out. */
+const TIKTOK_ORIGIN = 'https://www.tiktok.com';
+
+/**
+ * The public profile URL for a stored handle (KAN-200).
+ *
+ * A brand walking the product on 2026-08-20 had no way to look at the account
+ * they were about to pay. Every number on a creator's card is self-reported and
+ * verification is manual (the MVP's whole posture), so the profile itself is the
+ * only primary source a brand has — and we were storing the exact string the URL
+ * needs while never offering it.
+ *
+ * No new column. The canonical form is already `@` + lowercase, which is what
+ * TikTok's own path segment is, so this is string concatenation rather than data.
+ * It lives here, beside `normalizeTiktokHandle`, because a URL built from an
+ * un-normalised handle is a link to nothing — and because one module owning the
+ * host means a future change of domain is one edit.
+ *
+ * Returns `null` for anything not storable, so a caller renders no link rather
+ * than a broken one. That can only happen for a row written before
+ * `isValidTiktokHandle` gated the insert (`db/seed.ts`'s `@demo_creator` passes),
+ * but a 404 offered as "View on TikTok" is worse than no link: it reads as the
+ * creator not existing.
+ */
+export function tiktokProfileUrl(handle: string): string | null {
+  const normalized = normalizeTiktokHandle(handle);
+  if (!isValidTiktokHandle(normalized)) return null;
+  // The `@` is part of TikTok's path, so the canonical form drops straight in.
+  return `${TIKTOK_ORIGIN}/${normalized}`;
+}

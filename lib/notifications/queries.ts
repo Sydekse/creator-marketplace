@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { db as defaultDb } from '@/db';
 import { notification } from '@/db/schema';
 import { PAGE_SIZE } from '@/lib/paging';
@@ -38,11 +38,19 @@ export interface NotificationQueryDeps {
 const defaultDeps: NotificationQueryDeps = { db: defaultDb };
 
 /**
- * Lists notifications for the signed-in user, unread first then newest.
+ * Lists notifications for the signed-in user, newest first.
+ *
+ * **Newest first, and only that (KAN-200).** The order used to lead with
+ * `isNull(read_at)`, which sorts `false` before `true` and therefore put every
+ * *read* row above the unread ones — the exact inverse of what it was for. Rather
+ * than flip the term, it is gone: unread rows are already visually distinct (a
+ * tinted card, a chip and a "New" marker), and a feed whose first item is not its
+ * most recent event is the harder thing to read. `created_at` was also ascending,
+ * so the oldest notification in the account sat at the top of page one.
  *
  * The `(user_id, created_at)` index keeps this off the heap regardless of
  * table size — every row sorts by `created_at`, and the filter leads with
- * `user_id`.
+ * `user_id`. Descending reads the same index backwards, at the same cost.
  */
 export async function listNotifications(
   userId: string,
@@ -61,7 +69,7 @@ export async function listNotifications(
     })
     .from(notification)
     .where(eq(notification.userId, userId))
-    .orderBy(isNull(notification.readAt), notification.createdAt)
+    .orderBy(desc(notification.createdAt))
     .limit(limit + 1)
     .offset(offset);
 

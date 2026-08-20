@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils';
 import type { CreatorStatus } from '@/db/schema';
 
 import { Chip, type ChipTone } from '@/components/ui/chip';
+import { PageHeader } from '@/components/layout/page-header';
 
 /**
  * What a creator sees about their own verification (US-001's "awaiting
@@ -115,21 +116,43 @@ export function VerificationStatus({
 }) {
   const reachedStep = status === 'verified' ? (hasTier ? 3 : 2) : 1;
 
+  /**
+   * Verified *and* tiered — nothing about verification is outstanding (KAN-200).
+   *
+   * The stepper is an onboarding artefact. Three ticked steps at the top of a
+   * dashboard a creator opens every day is the single biggest reason the page
+   * read as a form rather than a place of work: the first screenful was entirely
+   * about a process that finished. The handle and the chip stay, because "am I
+   * still verified" is a real question; "what happens next" is not, once the
+   * answer is nothing.
+   *
+   * Deliberately the same predicate as `isBookable` (AC-006), not just
+   * `status === 'verified'` — a verified creator with no tier still has a step
+   * ahead of them, and it is the one they cannot do anything about, so it is the
+   * one most worth showing.
+   */
+  const settled = status === 'verified' && hasTier;
+
   return (
     <div className="flex flex-col gap-8">
-      {/* The handle is the thing under review, so it leads. Mono because case
-          and characters matter here — that is the whole of AC-003. */}
-      <div className="flex flex-col gap-3 border-b border-border pb-8">
-        <div className="flex items-center gap-3">
-          <p className="text-xs tracking-wide text-muted-foreground uppercase">
-            Your TikTok account
-          </p>
-          <StatusChip status={status} />
-        </div>
-        <p className="font-mono text-3xl break-all sm:text-4xl">
-          {tiktokHandle}
-        </p>
-      </div>
+      {/* The creator dashboard's page opener, and it lives here because the
+          handle and the status chip are one statement — "this account, in this
+          state" — and splitting them would let a later edit move one without the
+          other (KAN-200).
+
+          `PageHeader` rather than the bespoke stack this used to be: every other
+          page in the app opens with the teal label, the serif `h1` and the
+          hairline (design doc §10.5), and `/creator` opening differently was part
+          of why it did not read as a dashboard. The handle loses its mono
+          treatment in the swap, which is the right way round — `discover/[id]`
+          already renders the same handle as a serif page title, so the two
+          screens now agree on what a handle looks like. Nothing on this page
+          asks the creator to *type* it. */}
+      <PageHeader
+        label="Your TikTok account"
+        title={<span className="break-all">{tiktokHandle}</span>}
+        action={<StatusChip status={status} />}
+      />
 
       {status === 'rejected' ? (
         <div className="flex flex-col gap-2">
@@ -142,15 +165,17 @@ export function VerificationStatus({
           </p>
         </div>
       ) : (
-        <div className="flex flex-col gap-6">
-          <StepList reachedStep={reachedStep} />
-          {status === 'verified' && !hasTier && (
-            <p className="text-sm text-muted-foreground">
-              You are verified. Brands can send you offers as soon as your tier
-              is assigned.
-            </p>
-          )}
-        </div>
+        !settled && (
+          <div className="flex flex-col gap-6">
+            <StepList reachedStep={reachedStep} />
+            {status === 'verified' && !hasTier && (
+              <p className="text-sm text-muted-foreground">
+                You are verified. Brands can send you offers as soon as your
+                tier is assigned.
+              </p>
+            )}
+          </div>
+        )
       )}
     </div>
   );

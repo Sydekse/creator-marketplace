@@ -4,9 +4,12 @@ import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { buttonVariants } from '@/components/ui/button';
+import { deepLink } from '@/lib/notifications/deep-link';
 import { listNotifications, unreadCount } from '@/lib/notifications/queries';
 import { requireUser } from '@/lib/auth';
+import type { UserRole } from '@/db/schema';
 import { MarkReadButton } from './mark-read-button';
+import { ViewDetailsLink } from './view-details-link';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -31,42 +34,6 @@ const NOTIFICATION_LABELS: Record<string, string> = {
   metric_reminder: 'Metrics reminder',
 };
 
-/**
- * Deep-link target per notification type.
- *
- * The payload carries the ids needed to build the link; when absent (e.g.
- * legacy rows), the link falls back to the dashboard.
- */
-function deepLink(type: string, payload: Record<string, unknown>): string {
-  switch (type) {
-    case 'offer_received':
-    case 'offer_accepted':
-    case 'offer_declined':
-    case 'offer_expired':
-      return payload.campaignId ? `/creator/deals` : '/creator/deals';
-    case 'deliverable_submitted':
-    case 'deliverable_approved':
-    case 'revision_requested':
-      return payload.dealId
-        ? `/creator/deals/${payload.dealId}`
-        : '/creator/deals';
-    case 'dispute_resolved':
-      return payload.dealId
-        ? `/creator/deals/${payload.dealId}`
-        : '/creator/deals';
-    case 'campaign_funded':
-      return payload.campaignId ? `/creator/deals` : '/creator/deals';
-    case 'verification_result':
-      return '/creator';
-    case 'metric_reminder':
-      return payload.dealId
-        ? `/creator/deals/${payload.dealId}`
-        : '/creator/deals';
-    default:
-      return '/creator';
-  }
-}
-
 function formatTimestamp(date: Date): string {
   return date.toLocaleString('en-GB', {
     dateStyle: 'medium',
@@ -76,6 +43,7 @@ function formatTimestamp(date: Date): string {
 
 function NotificationItem({
   row,
+  role,
 }: {
   row: {
     id: string;
@@ -84,12 +52,18 @@ function NotificationItem({
     readAt: Date | null;
     createdAt: Date;
   };
+  /**
+   * The recipient's role, from the session (KAN-200). Every link on this page is
+   * built from it, because the same notification type reaches both sides of a
+   * deal and the routes are not the same.
+   */
+  role: UserRole;
 }) {
   const label = NOTIFICATION_LABELS[row.type] ?? row.type;
   const payload = (
     typeof row.payload === 'object' && row.payload !== null ? row.payload : {}
   ) as Record<string, unknown>;
-  const href = deepLink(row.type, payload);
+  const href = deepLink(row.type, payload, role);
   const isUnread = row.readAt === null;
 
   // Use a person name from the payload when available, otherwise fall back
@@ -118,12 +92,10 @@ function NotificationItem({
         </span>
       </div>
       <div className="mt-2 flex items-center gap-3">
-        <Link
-          href={href}
-          className="text-sm font-medium text-neutral-900 underline-offset-4 hover:underline"
-        >
-          View details
-        </Link>
+        {/* Opening a notification is reading it, so following this link clears
+            the unread state on its own (KAN-200). `MarkReadButton` stays for a
+            row the user wants to clear without opening it. */}
+        <ViewDetailsLink notificationId={row.id} href={href} />
         {isUnread && <MarkReadButton notificationId={row.id} />}
       </div>
     </li>
@@ -164,7 +136,7 @@ export default async function NotificationsPage() {
       ) : (
         <ul className="flex flex-col gap-4">
           {result.rows.map((row) => (
-            <NotificationItem key={row.id} row={row} />
+            <NotificationItem key={row.id} row={row} role={user.role} />
           ))}
         </ul>
       )}

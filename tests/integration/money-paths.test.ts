@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { campaign, deal, deliverable, ledgerEntry } from '@/db/schema';
 import { EscrowLedgerService } from '@/lib/payment/ledger';
 import { getPaymentProvider, MockPaymentProvider } from '@/lib/payment';
+import { PgHoldStore } from '@/lib/payment/pg-hold-store';
 import { computeSplit } from '@/lib/payment/ledger';
 import { createMoneyFixture } from './helpers';
 
@@ -18,9 +19,12 @@ import { createMoneyFixture } from './helpers';
  * The provider is the real `MockPaymentProvider` — the same singleton the
  * running app uses — with `setFailNext` arming the one failure each test
  * needs. Each test builds its own campaign and walks it through the real
- * ledger with `createMoneyFixture`, because the mock's holds are per-process:
- * a hold placed by the seed process would be invisible here, and a test that
- * failed against a dead ref would "pass" for the wrong reason.
+ * ledger with `createMoneyFixture`, so a test never depends on another's rows.
+ *
+ * Since KAN-200 the mock's holds live in `provider_hold` rather than in a
+ * per-process `Map`, which is what makes the cross-instance test at the bottom
+ * of this file possible — and is why holds placed by the seed process are now
+ * visible here rather than being dead references.
  */
 
 async function entriesFor(campaignId: string) {
@@ -43,6 +47,28 @@ async function balance(campaignId: string): Promise<number> {
     .from(ledgerEntry)
     .where(eq(ledgerEntry.campaignId, campaignId));
   return Number(row?.total ?? 0);
+}
+
+/**
+ * The provider reference for a deal's hold.
+ *
+ * Read off the `hold` ledger row rather than tracked by the test, because that
+ * column is the only mapping between our books and the processor's — and since
+ * KAN-68 there is exactly one hold row per deal, each with its own ref
+ * (invariant 12).
+ */
+async function providerRefForHold(dealId: string): Promise<string> {
+  const [row] = await db
+    .select({ providerRef: ledgerEntry.providerRef })
+    .from(ledgerEntry)
+    .where(
+      and(eq(ledgerEntry.dealId, dealId), eq(ledgerEntry.entryType, 'hold'))
+    )
+    .limit(1);
+  if (!row?.providerRef) {
+    throw new Error(`[integration] no hold ledger row for deal ${dealId}`);
+  }
+  return row.providerRef;
 }
 
 describe('money-path atomicity (NFR-003)', () => {
@@ -259,6 +285,74 @@ describe('money paths (KAN-59 AC-3, §4.3–4.4)', () => {
     expect(after.status).toBe('refunded');
 
     // The hold's positive entry is offset by the refund: all money is back.
+    expect(await balance(campaignId)).toBe(0);
+  });
+});
+
+/**
+ * The KAN-200 regression, and the only test in the repo that reproduces what
+ * Nate actually hit on 2026-08-20.
+ *
+ * Funding and approval are two HTTP requests, and on Vercel there is no promise
+ * they run on the same instance. While the mock kept holds in a module-level
+ * `Map`, the approving instance simply had none: `capturePayout` threw
+ * `INVALID_REFERENCE`, `payoutForDeal` rolled its transaction back, and the brand
+ * saw "Payment failed — please try again." on every attempt with no way past it.
+ *
+ * A fresh `MockPaymentProvider` over a fresh `PgHoldStore` is the closest a
+ * single process can get to that boundary: it shares nothing with the instance
+ * that placed the hold except the database. Before this change the assertion
+ * below fails; after it, the hold is found and drawn down by both legs.
+ */
+describe('holds survive the request boundary (KAN-200)', () => {
+  it('a provider instance that never placed the hold can still pay out against it', async () => {
+    const { dealId, campaignId } = await createMoneyFixture({
+      kind: 'delivered',
+      label: 'KAN-200 cross-instance',
+    });
+
+    // Nothing is carried over from the funding call — not the provider, not the
+    // store, not the ledger service.
+    const freshProvider = new MockPaymentProvider(new PgHoldStore());
+    const freshLedger = new EscrowLedgerService(db, freshProvider);
+    await freshLedger.payoutForDeal(dealId);
+
+    const [after] = await db
+      .select({ status: deal.status })
+      .from(deal)
+      .where(eq(deal.id, dealId));
+    expect(after.status).toBe('completed');
+
+    // Both legs reached the provider and drained the hold (invariant 13), so the
+    // campaign's escrow balance is back to zero.
+    expect(await balance(campaignId)).toBe(0);
+
+    // And the processor's own record agrees: nothing left to draw. This is the
+    // read that used to throw `INVALID_REFERENCE`.
+    const holdRef = await providerRefForHold(dealId);
+    expect(await freshProvider.getStatus(holdRef)).toMatchObject({
+      state: 'captured',
+      amount: 0,
+    });
+  });
+
+  it('a fresh instance can release a hold it never placed', async () => {
+    const { dealId, campaignId } = await createMoneyFixture({
+      kind: 'funded',
+      label: 'KAN-200 cross-instance refund',
+    });
+
+    const freshLedger = new EscrowLedgerService(
+      db,
+      new MockPaymentProvider(new PgHoldStore())
+    );
+    await freshLedger.refundDeal(dealId);
+
+    const [after] = await db
+      .select({ status: deal.status })
+      .from(deal)
+      .where(eq(deal.id, dealId));
+    expect(after.status).toBe('refunded');
     expect(await balance(campaignId)).toBe(0);
   });
 });

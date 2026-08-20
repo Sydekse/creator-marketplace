@@ -99,3 +99,29 @@ export const AUDIENCE_MARKET_LABELS: Record<AudienceMarketCode, string> = {
  * at 100 rather than at what the column happens to allow.
  */
 export const MAX_ENGAGEMENT_RATE = 100;
+
+/**
+ * One sentence saying what the number means, wherever it is asked for or shown.
+ *
+ * Nate walked the product on 2026-08-20 and asked what engagement rate was — the
+ * figure drives tier assignment (`lib/creators/tier-rules.ts`) and is a discovery
+ * filter, and nothing on any screen said what it measures or where it came from.
+ *
+ * Both halves are load-bearing. **What it measures**, because "4.20%" of an
+ * unstated denominator is not a quantity: a brand comparing two creators has to
+ * know it is per-post interactions over followers and not, say, watch-through.
+ * **That the creator reported it**, because we do not read the TikTok API (Q3's
+ * neighbour — manual verification is the MVP's whole posture), so a brand
+ * treating it as measured would be relying on something no one checked. The
+ * TikTok profile link added alongside this is how they check it themselves.
+ *
+ * One constant, rendered at every input and every display. A string defined once
+ * cannot be paraphrased apart from itself by a later edit — and a *filter* that
+ * explained the number differently from the *field* it filters on would be worse
+ * than neither explaining it.
+ *
+ * Rendered as visible text through `FieldDescription`, never a tooltip: the rule
+ * from KAN-29 is that hover-only copy tells a touch user nothing.
+ */
+export const ENGAGEMENT_RATE_HINT =
+  'Average likes, comments and shares per post, as a percentage of followers. Self-reported by the creator at sign-up.';

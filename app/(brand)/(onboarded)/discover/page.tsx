@@ -6,6 +6,7 @@ import { buttonVariants } from '@/components/ui/button';
 import {
   AUDIENCE_MARKET_CODES,
   AUDIENCE_MARKET_LABELS,
+  ENGAGEMENT_RATE_HINT,
   NICHES,
   NICHE_LABELS,
 } from '@/lib/config/creator-profile';
@@ -211,6 +212,13 @@ export default async function DiscoverPage({
               defaultValue={filters.minEngagement ?? ''}
               className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
             />
+            {/* The same sentence the creator saw when they entered the figure
+                (KAN-200). Filtering on a number nobody has defined is guessing,
+                and a filter that explained it differently from the field it
+                filters on would be worse than neither explaining it. */}
+            <span className="text-xs leading-normal font-normal text-muted-foreground">
+              {ENGAGEMENT_RATE_HINT}
+            </span>
           </label>
         </div>
 
