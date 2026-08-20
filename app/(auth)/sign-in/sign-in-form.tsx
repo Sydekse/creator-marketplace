@@ -6,31 +6,44 @@ import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
+import { PasswordInput } from '@/components/ui/password-input';
+import { FieldError } from '@/components/ui/field-error';
 import { signInSchema } from '@/lib/validation/schemas';
 import { safeRedirectPath } from '@/lib/navigation';
+
+type FieldErrors = { email?: string; password?: string };
 
 export function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setFormError(null);
 
     const parsed = signInSchema.safeParse({ email, password });
     if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? 'Invalid input.');
+      const fieldErrors = parsed.error.flatten().fieldErrors;
+      setErrors({
+        email: fieldErrors.email?.[0],
+        password: fieldErrors.password?.[0],
+      });
       return;
     }
+    setErrors({});
     setLoading(true);
 
     const { error } = await authClient.signIn.email({ email, password });
 
     if (error) {
-      toast.error(error.message ?? 'Failed to sign in.');
+      // A credential failure is not a field problem — it could be either the
+      // email or the password, so it belongs above the button, not under one.
+      setFormError(error.message ?? 'Failed to sign in. Please try again.');
       setLoading(false);
       return;
     }
@@ -58,7 +71,11 @@ export function SignInForm() {
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-5">
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="mt-6 flex flex-col gap-5"
+      >
         <div className="flex flex-col gap-2">
           <label
             htmlFor="email"
@@ -70,11 +87,17 @@ export function SignInForm() {
             id="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
+            }}
             placeholder="you@example.com"
             required
             autoComplete="email"
+            aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? 'email-error' : undefined}
           />
+          <FieldError id="email-error" message={errors.email} />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -84,16 +107,31 @@ export function SignInForm() {
           >
             Password
           </label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errors.password)
+                setErrors((p) => ({ ...p, password: undefined }));
+            }}
             placeholder="Enter your password"
             required
             autoComplete="current-password"
+            aria-invalid={!!errors.password}
+            aria-describedby={errors.password ? 'password-error' : undefined}
           />
+          <FieldError id="password-error" message={errors.password} />
         </div>
+
+        {formError && (
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-[13px] leading-snug text-destructive"
+          >
+            {formError}
+          </div>
+        )}
 
         <Button type="submit" disabled={loading} size="xl" className="w-full">
           {loading ? 'Signing in…' : 'Sign in'}

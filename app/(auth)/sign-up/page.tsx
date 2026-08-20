@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { PasswordInput } from '@/components/ui/password-input';
+import { FieldError } from '@/components/ui/field-error';
 import { toast } from 'sonner';
 import { signUpSchema } from '@/lib/validation/schemas';
 import type { SelfRegisterableRole } from '@/lib/auth-policy';
@@ -17,26 +19,39 @@ const ROLE_OPTIONS: { value: RoleOption; title: string; caption: string }[] = [
   { value: 'creator', title: 'Creator', caption: 'Deliver & get paid' },
 ];
 
+type FieldErrors = {
+  name?: string;
+  email?: string;
+  password?: string;
+  role?: string;
+};
+
 export default function SignUpPage() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<RoleOption | null>(null);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!role) {
-      toast.error('Please select a role.');
-      return;
-    }
+    setFormError(null);
+
     const parsed = signUpSchema.safeParse({ name, email, password, role });
     if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? 'Invalid input.');
-      setLoading(false);
+      const fieldErrors = parsed.error.flatten().fieldErrors;
+      setErrors({
+        name: fieldErrors.name?.[0],
+        email: fieldErrors.email?.[0],
+        password: fieldErrors.password?.[0],
+        role: fieldErrors.role?.[0],
+      });
       return;
     }
+    setErrors({});
     setLoading(true);
 
     // `role` is an additional field, which Better Auth's generated client types
@@ -54,16 +69,18 @@ export default function SignUpPage() {
       name,
       email,
       password,
-      role,
+      role: parsed.data.role,
     });
 
     if (error) {
-      toast.error(error.message ?? 'Failed to create account.');
+      setFormError(
+        error.message ?? 'Failed to create account. Please try again.'
+      );
       setLoading(false);
       return;
     }
 
-    toast.success('Account created! Welcome.');
+    toast.success('Account created. Welcome.');
     // /dashboard resolves the role server-side, so the client never has to.
     router.push('/dashboard');
     router.refresh();
@@ -84,7 +101,11 @@ export default function SignUpPage() {
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-5">
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="mt-6 flex flex-col gap-5"
+      >
         <div className="flex flex-col gap-2">
           <label
             htmlFor="name"
@@ -96,11 +117,17 @@ export default function SignUpPage() {
             id="name"
             type="text"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (errors.name) setErrors((p) => ({ ...p, name: undefined }));
+            }}
             placeholder="Your full name"
             required
             autoComplete="name"
+            aria-invalid={!!errors.name}
+            aria-describedby={errors.name ? 'name-error' : undefined}
           />
+          <FieldError id="name-error" message={errors.name} />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -114,11 +141,17 @@ export default function SignUpPage() {
             id="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
+            }}
             placeholder="you@example.com"
             required
             autoComplete="email"
+            aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? 'email-error' : undefined}
           />
+          <FieldError id="email-error" message={errors.email} />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -128,19 +161,28 @@ export default function SignUpPage() {
           >
             Password
           </label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errors.password)
+                setErrors((p) => ({ ...p, password: undefined }));
+            }}
             placeholder="At least 8 characters"
             required
             minLength={8}
             autoComplete="new-password"
+            aria-invalid={!!errors.password}
+            aria-describedby={errors.password ? 'password-error' : undefined}
           />
+          <FieldError id="password-error" message={errors.password} />
         </div>
 
-        <fieldset className="flex flex-col gap-2">
+        <fieldset
+          className="flex flex-col gap-2"
+          aria-describedby={errors.role ? 'role-error' : undefined}
+        >
           <legend className="text-[13px] font-medium text-neutral-700">
             I am a…
           </legend>
@@ -151,7 +193,11 @@ export default function SignUpPage() {
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setRole(option.value)}
+                  onClick={() => {
+                    setRole(option.value);
+                    if (errors.role)
+                      setErrors((p) => ({ ...p, role: undefined }));
+                  }}
                   aria-pressed={selected}
                   className={`flex flex-col items-start gap-0.5 rounded-xl border px-4 py-3.5 text-left transition-all duration-300 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 ${
                     selected
@@ -171,7 +217,17 @@ export default function SignUpPage() {
               );
             })}
           </div>
+          <FieldError id="role-error" message={errors.role} />
         </fieldset>
+
+        {formError && (
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-[13px] leading-snug text-destructive"
+          >
+            {formError}
+          </div>
+        )}
 
         <Button
           type="submit"

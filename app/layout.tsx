@@ -1,35 +1,61 @@
 import type { Metadata } from 'next';
-import { DM_Sans, DM_Mono, Noto_Serif, Bungee } from 'next/font/google';
+import localFont from 'next/font/local';
 import './globals.css';
 
-const dmSans = DM_Sans({
+const dmSans = localFont({
+  src: [{ path: '../public/fonts/dm-sans-latin.woff2', weight: '100 900' }],
   variable: '--font-dm-sans',
-  subsets: ['latin'],
+  display: 'swap',
 });
 
-const dmMono = DM_Mono({
+const dmMono = localFont({
+  src: [
+    { path: '../public/fonts/dm-mono-400-latin.woff2', weight: '400' },
+    { path: '../public/fonts/dm-mono-500-latin.woff2', weight: '500' },
+  ],
   variable: '--font-dm-mono',
-  subsets: ['latin'],
-  weight: ['400', '500'],
+  display: 'swap',
 });
 
 /** Editorial serif reserved for landing-page display headlines. */
-const notoSerif = Noto_Serif({
+const notoSerif = localFont({
+  src: [{ path: '../public/fonts/noto-serif-latin.woff2', weight: '400 600' }],
   variable: '--font-noto-serif',
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
+  display: 'swap',
 });
 
 /** Bold display face for initials avatars. */
-const bungee = Bungee({
+const bungee = localFont({
+  src: '../public/fonts/bungee-latin.woff2',
   variable: '--font-bungee',
-  subsets: ['latin'],
   weight: '400',
+  display: 'swap',
 });
 
+const SITE_NAME = 'Creator Marketplace';
+const SITE_DESCRIPTION =
+  'A two-sided marketplace connecting brands with TikTok creators — with escrow-protected payments and verified-only talent.';
+
 export const metadata: Metadata = {
-  title: 'Creator Marketplace',
-  description: 'A two-sided marketplace connecting brands with TikTok creators',
+  metadataBase: new URL(process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'),
+  title: {
+    default: SITE_NAME,
+    template: `%s — ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    url: '/',
+  },
+  twitter: {
+    card: 'summary',
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
@@ -40,6 +66,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${dmSans.variable} ${dmMono.variable} ${notoSerif.variable} ${bungee.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background font-sans text-foreground">

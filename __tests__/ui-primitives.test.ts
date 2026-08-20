@@ -39,7 +39,9 @@ function collectTsx(dir: string): string[] {
 const SOURCES: ReadonlyArray<{ file: string; src: string }> =
   SOURCE_DIRS.flatMap((dir) =>
     collectTsx(path.join(process.cwd(), dir)).map((file) => ({
-      file: path.relative(process.cwd(), file),
+      // Normalize Windows separators so source guards behave identically on
+      // Windows and POSIX runners.
+      file: path.relative(process.cwd(), file).replaceAll(path.sep, '/'),
       src: readFileSync(file, 'utf8').replace(/\/\*[\s\S]*?\*\//g, ''),
     }))
   );
