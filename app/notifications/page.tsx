@@ -5,7 +5,6 @@ import { EmptyState } from '@/components/feedback/empty-state';
 import { buttonVariants } from '@/components/ui/button';
 import { listNotifications, unreadCount } from '@/lib/notifications/queries';
 import { requireUser } from '@/lib/auth';
-import { NOTIFICATION_TYPES } from '@/lib/notifications/types';
 import { MarkReadButton } from './mark-read-button';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.

@@ -155,7 +155,7 @@ function makeDeps(overrides: Overrides = {}): {
         actorId: context.actorId,
       });
     },
-    advanceCampaign: async (_campaignId: string) => {
+    advanceCampaign: async () => {
       recorded.calls.push('advanceCampaign');
     },
   };

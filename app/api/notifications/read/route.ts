@@ -51,7 +51,7 @@ export async function POST(request: Request): Promise<Response> {
 
     const count = await markAllAsRead(ctx.user.id);
     return Response.json({ updated: count > 0, count });
-  } catch (error) {
+  } catch {
     return Response.json(errorResponse(ErrorCode.INTERNAL_SERVER_ERROR), {
       status: ErrorHttpStatus[ErrorCode.INTERNAL_SERVER_ERROR],
     });

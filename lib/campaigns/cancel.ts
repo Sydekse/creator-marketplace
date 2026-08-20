@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { db as defaultDb } from '@/db';
 import { campaign } from '@/db/schema';
 import { guard as defaultGuard } from '@/lib/authz';

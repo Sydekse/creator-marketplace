@@ -1,7 +1,6 @@
 import { and, eq, isNull } from 'drizzle-orm';
 import { db as defaultDb } from '@/db';
 import { notification } from '@/db/schema';
-import { guard } from '@/lib/authz';
 import { PAGE_SIZE } from '@/lib/paging';
 
 /**

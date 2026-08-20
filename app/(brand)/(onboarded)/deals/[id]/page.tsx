@@ -9,6 +9,7 @@ import { Chip } from '@/components/ui/chip';
 import { PageHeader } from '@/components/layout/page-header';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { canReview, labelForStatus } from '@/lib/deals';
+import { dealStatusTone } from '@/lib/deals/status-tone';
 import {
   ALREADY_REVIEWED_MESSAGE,
   AWAITING_DELIVERABLE_MESSAGE,
@@ -19,6 +20,7 @@ import {
   deliveryProgress,
   NO_RIGHTS_TERMS_MESSAGE,
   REJECTION_REASON_LABEL,
+  REVIEW_STATUS_LABEL,
   RIGHTS_TERMS_LABEL,
   SUBMITTED_AT_LABEL,
   TOTAL_PRICE_LABEL,
@@ -98,7 +100,7 @@ export default async function BrandDealReviewPage({
              of words for the same nine statuses — its own docstring anticipates
              this screen, and two views naming one state differently is the kind
              of drift that is hard to notice. */
-          <Chip tone="gray" size="md">
+          <Chip tone={dealStatusTone[deal.status]} size="md">
             {labelForStatus(deal.status)}
           </Chip>
         }
@@ -155,6 +157,12 @@ export default async function BrandDealReviewPage({
               </a>
               <p className="text-sm text-muted-foreground">
                 {SUBMITTED_AT_LABEL}: {formatDeadlineUtc(video.submittedAt)}
+                <p className="text-sm text-muted-foreground">
+                  {REVIEW_STATUS_LABEL}: {video.reviewStatus}
+                  {video.reviewedAt
+                    ? ` (${formatDeadlineUtc(video.reviewedAt)})`
+                    : ''}
+                </p>
               </p>
               {/* AC-7 — what the brand asked for last time, so a resubmission can
                   be read against it. Present only once a rejection has been
