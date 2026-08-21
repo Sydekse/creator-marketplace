@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notification Email Template Preview</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        background: #e5e5e5;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        padding: 40px 20px;
+      }
+      .label {
+        color: #737373;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 8px;
+        font-weight: 600;
+      }
+      .wrapper {
+        max-width: 640px;
+        margin: 0 auto 60px;
+      }
+
+      /* === NEW TEMPLATE STYLES === */
+      .body {
+        background-color: #f3f4f2;
+        font-family:
+          'Geist',
+          'DM Sans',
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          Helvetica,
+          Arial,
+          sans-serif;
+        margin: 0;
+        padding: 24px 12px;
+      }
+      .container {
+        background-color: #fafafa;
+        border: 1px solid #dedfdd;
+        border-radius: 24px;
+        margin: 0 auto;
+        max-width: 580px;
+        overflow: hidden;
+      }
+      .masthead {
+        background-color: #171717;
+        padding: 20px 28px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .brand-mark {
+        display: inline-block;
+        vertical-align: middle;
+        margin-right: 10px;
+        position: relative;
+        width: 20px;
+        height: 20px;
+      }
+      .brand {
+        color: #fafafa;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: -0.1px;
+        line-height: 20px;
+      }
+      .content {
+        padding: 36px 40px 28px;
+      }
+      .eyebrow {
+        color: #166b63;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        line-height: 16px;
+        margin: 0 0 12px;
+        text-transform: uppercase;
+      }
+      .heading {
+        color: #171717;
+        font-size: 28px;
+        font-weight: 600;
+        letter-spacing: -0.7px;
+        line-height: 34px;
+        margin: 0 0 20px;
+      }
+      .text {
+        color: #525252;
+        font-size: 15px;
+        line-height: 25px;
+        margin: 0 0 16px;
+      }
+      .hr {
+        border: none;
+        border-top: 1px solid #dedfdd;
+        margin: 28px 0 20px;
+      }
+      .cta-wrap {
+        margin: 24px 0 4px;
+      }
+      .cta {
+        background-color: #171717;
+        border-radius: 999px;
+        color: #fafafa;
+        display: inline-block;
+        font-size: 14px;
+        font-weight: 600;
+        line-height: 20px;
+        padding: 12px 18px;
+        text-decoration: none;
+      }
+      .muted {
+        color: #737373;
+        font-size: 12px;
+        line-height: 19px;
+        margin: 0;
+      }
+      .footer {
+        background-color: #f5f5f4;
+        border-top: 1px solid #dedfdd;
+        padding: 20px 40px 24px;
+      }
+      .breakdown {
+        border-bottom: 1px solid #dedfdd;
+        border-top: 1px solid #dedfdd;
+        margin: 8px 0 20px;
+        padding: 14px 0;
+      }
+      .breakdown-row {
+        color: #525252;
+        font-family: 'DM Mono', 'SFMono-Regular', Consolas, monospace;
+        font-size: 13px;
+        line-height: 21px;
+        margin: 0 0 6px;
+      }
+      .breakdown-net {
+        border-top: 1px solid #dedfdd;
+        color: #171717;
+        font-family: 'DM Mono', 'SFMono-Regular', Consolas, monospace;
+        font-size: 14px;
+        line-height: 22px;
+        margin: 10px 0 0;
+        padding-top: 10px;
+      }
+
+      /* === OLD TEMPLATE STYLES (for comparison) === */
+      .old-body {
+        background-color: #f6f6f7;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica,
+          Arial, sans-serif;
+      }
+      .old-container {
+        background-color: #ffffff;
+        border-radius: 12px;
+        margin: 0 auto;
+        max-width: 520px;
+        padding: 32px;
+        border: none;
+      }
+      .old-heading {
+        font-size: 20px;
+        font-weight: 600;
+        margin: 0 0 16px;
+        color: #000;
+      }
+      .old-text {
+        color: #333333;
+        font-size: 15px;
+        line-height: 24px;
+        margin: 0 0 12px;
+      }
+      .old-cta {
+        background-color: #000000;
+        color: #ffffff;
+        border-radius: 6px;
+        display: inline-block;
+        font-size: 14px;
+        font-weight: 600;
+        padding: 12px 20px;
+        text-decoration: none;
+      }
+      .old-hr {
+        border: none;
+        border-top: 1px solid #eaeaea;
+        margin: 24px 0;
+      }
+      .old-muted {
+        color: #666666;
+        font-size: 12px;
+        line-height: 20px;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- OLD DESIGN -->
+    <div class="wrapper">
+      <div class="label">Old Design</div>
+      <div class="old-body" style="padding: 24px 12px">
+        <div class="old-container">
+          <h1
+            style="
+              font-size: 20px;
+              font-weight: 600;
+              margin: 0 0 16px;
+              color: #000;
+            "
+          >
+            New offer from Habesha Cosmetics
+          </h1>
+          <p
+            style="
+              color: #333333;
+              font-size: 15px;
+              line-height: 24px;
+              margin: 0 0 12px;
+            "
+          >
+            Habesha Cosmetics has sent you an offer for the
+            <strong>Ramadan Beauty Push</strong> campaign - 2 videos at 1,500.00
+            ETB each.
+          </p>
+          <p
+            style="
+              color: #333333;
+              font-size: 15px;
+              line-height: 24px;
+              margin: 0 0 12px;
+            "
+          >
+            You have 7 days to accept before the offer expires.
+          </p>
+          <div style="margin: 24px 0">
+            <a
+              href="#"
+              style="
+                background-color: #000000;
+                color: #ffffff;
+                border-radius: 6px;
+                display: inline-block;
+                font-size: 14px;
+                font-weight: 600;
+                padding: 12px 20px;
+                text-decoration: none;
+              "
+              >View offer</a
+            >
+          </div>
+          <hr
+            style="border: none; border-top: 1px solid #eaeaea; margin: 24px 0"
+          />
+          <p
+            style="
+              color: #666666;
+              font-size: 12px;
+              line-height: 20px;
+              margin: 0;
+            "
+          >
+            Creator Marketplace - you are receiving this because of activity on
+            your account.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW DESIGN -->
+    <div class="wrapper">
+      <div class="label">New Design</div>
+      <div class="body">
+        <div class="container">
+          <div class="masthead">
+            <span class="brand-mark"
+              ><span
+                style="
+                  display: block;
+                  width: 12px;
+                  height: 12px;
+                  border-radius: 4px;
+                  background: #fafafa;
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                "
+              ></span
+              ><span
+                style="
+                  display: block;
+                  width: 12px;
+                  height: 12px;
+                  border-radius: 4px;
+                  background: #a1a1aa;
+                  position: absolute;
+                  bottom: 0;
+                  right: 0;
+                "
+              ></span
+            ></span>
+            <span class="brand">Creator Marketplace</span>
+          </div>
+          <div class="content">
+            <p class="eyebrow">Account activity</p>
+            <h1 class="heading">New offer from Habesha Cosmetics</h1>
+            <p class="text">
+              Habesha Cosmetics has sent you an offer for the
+              <strong>Ramadan Beauty Push</strong> campaign - 2 videos at
+              1,500.00 ETB each.
+            </p>
+            <p class="text">
+              You have 7 days to accept before the offer expires.
+            </p>
+            <div class="cta-wrap">
+              <a href="#" class="cta">View offer</a>
+            </div>
+            <hr class="hr" />
+            <p class="muted">
+              Creator Marketplace - you are receiving this because of activity
+              on your account.
+            </p>
+          </div>
+          <div class="footer">
+            <p class="muted">
+              You are receiving this email because of activity on your Creator
+              Marketplace account.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW DESIGN: Money Breakdown Variant -->
+    <div class="wrapper">
+      <div class="label">New Design - Money Breakdown (Payout)</div>
+      <div class="body">
+        <div class="container">
+          <div class="masthead">
+            <span class="brand-mark"
+              ><span
+                style="
+                  display: block;
+                  width: 12px;
+                  height: 12px;
+                  border-radius: 4px;
+                  background: #fafafa;
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                "
+              ></span
+              ><span
+                style="
+                  display: block;
+                  width: 12px;
+                  height: 12px;
+                  border-radius: 4px;
+                  background: #a1a1aa;
+                  position: absolute;
+                  bottom: 0;
+                  right: 0;
+                "
+              ></span
+            ></span>
+            <span class="brand">Creator Marketplace</span>
+          </div>
+          <div class="content">
+            <p class="eyebrow">Payment</p>
+            <h1 class="heading">You've been paid</h1>
+            <p class="text">
+              Your deliverable for <strong>Ramadan Beauty Push</strong> has been
+              approved. The payout has been released from escrow.
+            </p>
+            <div class="breakdown">
+              <p class="breakdown-row">Total price: 300,000.00 ETB</p>
+              <p class="breakdown-row">Commission (15%): −45,000.00 ETB</p>
+              <p class="breakdown-net">You receive: 255,000.00 ETB</p>
+            </div>
+            <div class="cta-wrap">
+              <a href="#" class="cta">View deal</a>
+            </div>
+            <hr class="hr" />
+            <p class="muted">
+              Creator Marketplace - you are receiving this because of activity
+              on your account.
+            </p>
+          </div>
+          <div class="footer">
+            <p class="muted">
+              You are receiving this email because of activity on your Creator
+              Marketplace account.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW DESIGN: Admin notification -->
+    <div class="wrapper">
+      <div class="label">New Design - Admin (Verification Result)</div>
+      <div class="body">
+        <div class="container">
+          <div class="masthead">
+            <span class="brand-mark"
+              ><span
+                style="
+                  display: block;
+                  width: 12px;
+                  height: 12px;
+                  border-radius: 4px;
+                  background: #fafafa;
+                  position: absolute;
+                  top: 0;
+                  left: 0;
+                "
+              ></span
+              ><span
+                style="
+                  display: block;
+                  width: 12px;
+                  height: 12px;
+                  border-radius: 4px;
+                  background: #a1a1aa;
+                  position: absolute;
+                  bottom: 0;
+                  right: 0;
+                "
+              ></span
+            ></span>
+            <span class="brand">Creator Marketplace</span>
+          </div>
+          <div class="content">
+            <p class="eyebrow">Admin alert</p>
+            <h1 class="heading">New creator awaiting review</h1>
+            <p class="text">
+              <strong>@selam_creates</strong> has submitted their TikTok account
+              for verification. They have 52,000 followers with a 4.2%
+              engagement rate.
+            </p>
+            <div class="cta-wrap">
+              <a href="#" class="cta">Review profile</a>
+            </div>
+            <hr class="hr" />
+            <p class="muted">
+              Creator Marketplace - you are receiving this because of activity
+              on your account.
+            </p>
+          </div>
+          <div class="footer">
+            <p class="muted">
+              You are receiving this email because of activity on your Creator
+              Marketplace account.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

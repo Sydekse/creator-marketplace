@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Email Template OG</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        width: 1200px;
+        height: 630px;
+        background: #f3f4f2;
+        font-family:
+          'Geist',
+          'DM Sans',
+          -apple-system,
+          sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        position: relative;
+      }
+      .scene {
+        display: flex;
+        gap: 40px;
+        align-items: flex-start;
+        padding: 0 60px;
+        width: 100%;
+      }
+      .phone {
+        width: 320px;
+        flex-shrink: 0;
+        background: #fafafa;
+        border: 1px solid #dedfdd;
+        border-radius: 24px;
+        overflow: hidden;
+        box-shadow: 0 24px 60px -40px rgba(23, 23, 23, 0.35);
+        transform: rotate(-2deg);
+      }
+      .masthead {
+        background: #171717;
+        padding: 16px 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .mark {
+        position: relative;
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+      }
+      .mark-sq1 {
+        display: block;
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: #fafafa;
+        position: absolute;
+        top: 0;
+        left: 0;
+      }
+      .mark-sq2 {
+        display: block;
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        background: #a1a1aa;
+        position: absolute;
+        bottom: 0;
+        right: 0;
+      }
+      .brand-text {
+        color: #fafafa;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: -0.1px;
+      }
+      .content {
+        padding: 24px 28px 20px;
+      }
+      .eyebrow {
+        color: #166b63;
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .heading {
+        color: #171717;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+        line-height: 26px;
+        margin-bottom: 12px;
+      }
+      .text {
+        color: #525252;
+        font-size: 12px;
+        line-height: 19px;
+        margin-bottom: 12px;
+      }
+      .cta {
+        background: #171717;
+        color: #fafafa;
+        border-radius: 999px;
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 8px 14px;
+        text-decoration: none;
+        margin-bottom: 16px;
+      }
+      .hr {
+        border: none;
+        border-top: 1px solid #dedfdd;
+        margin: 0 0 12px;
+      }
+      .muted {
+        color: #737373;
+        font-size: 9px;
+        line-height: 14px;
+      }
+      .footer {
+        background: #f5f5f4;
+        border-top: 1px solid #dedfdd;
+        padding: 12px 28px 16px;
+      }
+      .info {
+        flex: 1;
+        padding-top: 20px;
+      }
+      .title {
+        font-size: 44px;
+        font-weight: 700;
+        color: #171717;
+        letter-spacing: -1.5px;
+        line-height: 1.1;
+        margin-bottom: 16px;
+      }
+      .subtitle {
+        font-size: 18px;
+        color: #525252;
+        line-height: 28px;
+        margin-bottom: 24px;
+        max-width: 480px;
+      }
+      .tag {
+        display: inline-block;
+        background: #166b63;
+        color: #fafafa;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 4px 12px;
+        border-radius: 999px;
+        letter-spacing: 0.5px;
+      }
+
+      /* money variant behind */
+      .phone-back {
+        width: 280px;
+        flex-shrink: 0;
+        background: #fafafa;
+        border: 1px solid #dedfdd;
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 16px 40px -24px rgba(23, 23, 23, 0.25);
+        transform: rotate(3deg) translateY(-20px);
+        opacity: 0.6;
+      }
+      .phone-back .masthead {
+        padding: 12px 16px;
+      }
+      .phone-back .brand-text {
+        font-size: 9px;
+      }
+      .phone-back .content {
+        padding: 18px 20px 16px;
+      }
+      .phone-back .eyebrow {
+        font-size: 8px;
+        margin-bottom: 6px;
+      }
+      .phone-back .heading {
+        font-size: 16px;
+        line-height: 20px;
+        margin-bottom: 8px;
+      }
+      .phone-back .text {
+        font-size: 10px;
+        line-height: 16px;
+        margin-bottom: 8px;
+      }
+      .phone-back .cta {
+        font-size: 9px;
+        padding: 6px 10px;
+        margin-bottom: 10px;
+      }
+      .breakdown {
+        border-top: 1px solid #dedfdd;
+        border-bottom: 1px solid #dedfdd;
+        padding: 8px 0;
+        margin-bottom: 10px;
+      }
+      .breakdown-row {
+        color: #525252;
+        font-family: 'DM Mono', Consolas, monospace;
+        font-size: 9px;
+        line-height: 15px;
+        margin-bottom: 2px;
+      }
+      .breakdown-net {
+        color: #171717;
+        font-family: 'DM Mono', Consolas, monospace;
+        font-size: 10px;
+        font-weight: 600;
+        border-top: 1px solid #dedfdd;
+        padding-top: 6px;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="scene">
+      <!-- Money variant (behind) -->
+      <div class="phone-back">
+        <div class="masthead">
+          <div class="mark">
+            <span class="mark-sq1"></span><span class="mark-sq2"></span>
+          </div>
+          <span class="brand-text">Creator Marketplace</span>
+        </div>
+        <div class="content">
+          <p class="eyebrow">Payment</p>
+          <h1 class="heading">You've been paid</h1>
+          <p class="text">
+            Your deliverable for <strong>Ramadan Beauty Push</strong> has been
+            approved.
+          </p>
+          <div class="breakdown">
+            <p class="breakdown-row">Total: 300,000.00 ETB</p>
+            <p class="breakdown-row">Commission: -45,000.00 ETB</p>
+            <p class="breakdown-net">You receive: 255,000.00 ETB</p>
+          </div>
+          <a href="#" class="cta">View deal</a>
+          <hr class="hr" />
+          <p class="muted">Creator Marketplace - activity on your account.</p>
+        </div>
+      </div>
+
+      <!-- Main info -->
+      <div class="info">
+        <span class="tag">Email Templates</span>
+        <h1 class="title">Redesigned<br />notification emails</h1>
+        <p class="subtitle">
+          Brand masthead, teal eyebrows, pill CTAs, and monospace money
+          breakdowns. Every notification type, one consistent system.
+        </p>
+      </div>
+
+      <!-- Main phone -->
+      <div class="phone">
+        <div class="masthead">
+          <div class="mark">
+            <span class="mark-sq1"></span><span class="mark-sq2"></span>
+          </div>
+          <span class="brand-text">Creator Marketplace</span>
+        </div>
+        <div class="content">
+          <p class="eyebrow">Account activity</p>
+          <h1 class="heading">New offer from Habesha Cosmetics</h1>
+          <p class="text">
+            Habesha Cosmetics has sent you an offer for the
+            <strong>Ramadan Beauty Push</strong> campaign - 2 videos at 1,500.00
+            ETB each.
+          </p>
+          <p class="text">
+            You have 7 days to accept before the offer expires.
+          </p>
+          <a href="#" class="cta">View offer</a>
+          <hr class="hr" />
+          <p class="muted">Creator Marketplace - activity on your account.</p>
+        </div>
+        <div class="footer">
+          <p class="muted">
+            You are receiving this email because of activity on your Creator
+            Marketplace account.
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

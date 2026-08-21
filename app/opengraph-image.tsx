@@ -153,8 +153,8 @@ export default async function Image() {
                 marginBottom: 28,
               }}
             >
-              Post a deal, match with vetted creators, ship content.
-              Payment releases on approval. Escrow holds every deal safe.
+              Post a deal, match with vetted creators, ship content. Payment
+              releases on approval. Escrow holds every deal safe.
             </div>
 
             {/* Stats */}
