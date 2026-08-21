@@ -39,7 +39,7 @@ function Figure({
       {/* Money is the one number a creator scans for, so it gets the serif
           display treatment the landing page gives its headline figures
           (design doc §4.3) — the same place a brand's eye goes on the hero. */}
-      <dd className="font-display text-2xl font-medium text-neutral-900 tabular-nums">
+      <dd className="mt-1 font-sans text-3xl font-semibold tracking-[-0.04em] text-neutral-900 tabular-nums">
         {value}
       </dd>
       <p className="text-xs text-muted-foreground">{note}</p>
@@ -49,27 +49,29 @@ function Figure({
 
 export function EarningsSummary({ earnings }: { earnings: CreatorEarnings }) {
   return (
-    <section className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
         Earnings
       </h2>
 
       {/* Stacked on a phone, two up from `sm:` — no fixed widths, nothing that
           scrolls sideways (NFR-007). */}
-      <dl className="grid gap-6 sm:grid-cols-2">
+      <dl className="grid gap-6 sm:grid-cols-2 sm:divide-x sm:divide-neutral-200">
         <Figure
           label={EARNINGS_PAID_OUT_LABEL}
           value={formatEtb(earnings.paidOut)}
           note="Released to you on approved deliverables."
         />
-        <Figure
-          label={EARNINGS_IN_ESCROW_LABEL}
-          value={formatEtb(earnings.inEscrow)}
-          note="Committed by brands, released when work is approved."
-        />
+        <div className="sm:pl-6">
+          <Figure
+            label={EARNINGS_IN_ESCROW_LABEL}
+            value={formatEtb(earnings.inEscrow)}
+            note="Committed by brands, released when work is approved."
+          />
+        </div>
       </dl>
 
       <p className="text-xs text-muted-foreground">{EARNINGS_NET_NOTE}</p>
-    </section>
+    </div>
   );
 }

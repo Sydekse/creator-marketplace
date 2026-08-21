@@ -240,47 +240,60 @@ function EditNumbersForm({
         event.preventDefault();
         void handleSave();
       }}
-      className="flex flex-wrap items-end gap-3"
+      className="flex flex-col gap-5"
     >
-      <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-        Followers
-        <Input
-          type="number"
-          min={0}
-          step={1}
-          inputMode="numeric"
-          value={followerCount}
-          onChange={(event) => setFollowerCount(event.target.value)}
-          disabled={submitting}
-          className="w-36"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-xs font-medium text-muted-foreground">
-        Engagement %
-        <Input
-          type="number"
-          min={0}
-          step="0.1"
-          inputMode="decimal"
-          value={engagementRate}
-          onChange={(event) => setEngagementRate(event.target.value)}
-          disabled={submitting}
-          className="w-36"
-        />
-        {/* The admin correcting this figure needs the same definition the
+      <div className="flex flex-col gap-1">
+        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+          Correct profile data
+        </p>
+        <p className="max-w-2xl text-sm leading-relaxed text-neutral-600">
+          Update the figures used for tier matching, then run assignment again.
+          Changes are saved to the creator profile.
+        </p>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2 lg:max-w-xl">
+        <label className="flex flex-col gap-2 text-sm font-medium text-neutral-800">
+          Followers
+          <Input
+            type="number"
+            min={0}
+            step={1}
+            inputMode="numeric"
+            value={followerCount}
+            onChange={(event) => setFollowerCount(event.target.value)}
+            disabled={submitting}
+            className="h-10 w-full bg-neutral-50 font-mono tabular-nums"
+          />
+        </label>
+        <label className="flex flex-col gap-2 text-sm font-medium text-neutral-800">
+          Engagement rate
+          <div className="relative">
+            <Input
+              type="number"
+              min={0}
+              step="0.1"
+              inputMode="decimal"
+              value={engagementRate}
+              onChange={(event) => setEngagementRate(event.target.value)}
+              disabled={submitting}
+              className="h-10 w-full bg-neutral-50 pr-9 font-mono tabular-nums"
+            />
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-500">
+              %
+            </span>
+          </div>
+          {/* The admin correcting this figure needs the same definition the
             creator was given (KAN-200) — it feeds `matchTier`, so entering a
             different quantity here silently puts a creator in the wrong band. */}
-        <span className="max-w-72 leading-normal font-normal text-balance">
-          {ENGAGEMENT_RATE_HINT}
-        </span>
-      </label>
-      <div className="flex items-center gap-2">
+          <span className="max-w-72 leading-normal font-normal text-balance">
+            {ENGAGEMENT_RATE_HINT}
+          </span>
+        </label>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 border-t border-neutral-200 pt-4">
         <Button type="submit" size="sm" disabled={submitting}>
-          {submitting ? (
-            <Spinner className="size-3" />
-          ) : (
-            'Save & retry assignment'
-          )}
+          {submitting ? <Spinner className="size-3" /> : null}
+          {submitting ? 'Saving and retrying' : 'Save and retry assignment'}
         </Button>
         <Button
           type="button"
@@ -309,15 +322,17 @@ function CreatorRow({ creator }: { creator: AwaitingTierCreator }) {
 
   return (
     <Fragment>
-      <tr className="hover:bg-muted/50">
+      <tr className="transition-colors hover:bg-neutral-100/60">
         <td className="px-4 py-3">
-          <span className="font-mono text-sm">{creator.tiktokHandle}</span>
+          <span className="text-sm font-semibold text-neutral-900">
+            @{creator.tiktokHandle.replace(/^@+/, '')}
+          </span>
         </td>
         <td className="px-4 py-3 text-sm capitalize">{creator.niche}</td>
-        <td className="px-4 py-3 text-sm">
+        <td className="px-4 py-3 font-mono text-xs tabular-nums">
           {formatFollowerCount(creator.followerCount)}
         </td>
-        <td className="px-4 py-3 text-sm">
+        <td className="px-4 py-3 font-mono text-xs tabular-nums">
           {formatEngagementRate(creator.engagementRate)}
         </td>
         <td className="px-4 py-3 text-sm text-muted-foreground">
@@ -342,7 +357,7 @@ function CreatorRow({ creator }: { creator: AwaitingTierCreator }) {
         </td>
       </tr>
       {editing && (
-        <tr className="bg-muted/30">
+        <tr className="bg-brand-tint/35">
           <td colSpan={7} className="px-4 py-4">
             <EditNumbersForm
               creator={creator}
@@ -363,6 +378,7 @@ export function AwaitingTierList({
   if (creators.length === 0) {
     return (
       <EmptyState
+        align="start"
         title="Every verified creator has a tier"
         description="Nobody is waiting on a price. Verified creators appear here only when no tier matches their audience."
       />
@@ -370,9 +386,9 @@ export function AwaitingTierList({
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="overflow-x-auto border-b border-neutral-200">
       <table className="w-full">
-        <thead className="bg-muted/50">
+        <thead className="bg-neutral-100/70">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
               TikTok Handle
@@ -397,7 +413,7 @@ export function AwaitingTierList({
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
+        <tbody className="divide-y divide-neutral-200 bg-neutral-50">
           {creators.map((creator) => (
             <CreatorRow key={creator.id} creator={creator} />
           ))}

@@ -132,10 +132,10 @@ export default async function CreatorDealDetailPage({
         : formatDeadlineUtc(deal.offerExpiresAt);
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
+    <div className="mx-auto flex max-w-5xl flex-col gap-10 py-4">
       <Link
         href="/creator/deals"
-        className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+        className="inline-flex self-start rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
       >
         ← Back to your deals
       </Link>
@@ -155,12 +155,12 @@ export default async function CreatorDealDetailPage({
         }
       />
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
+      <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.3)] sm:p-8">
+        <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
           {DEAL_TERMS_TITLE}
         </h2>
         {/* Two columns on a phone, three from `sm:` up (NFR-007). */}
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3">
+        <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-3">
           <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
           <Fact label={UNIT_PRICE_LABEL} value={formatEtb(deal.unitPrice)} />
           <Fact label={TOTAL_PRICE_LABEL} value={formatEtb(deal.totalPrice)} />
@@ -174,7 +174,9 @@ export default async function CreatorDealDetailPage({
         {/* Labelled as an estimate, not decoration: a pending deal has no ledger
             rows, so this figure describes money that has not moved. KAN-25's
             AC-4 is why the dashboard's numbers are ledger sums instead. */}
-        <p className="text-sm text-muted-foreground">{PAYOUT_ESTIMATE_NOTE}</p>
+        <p className="mt-6 border-t border-neutral-200 pt-4 text-sm text-muted-foreground">
+          {PAYOUT_ESTIMATE_NOTE}
+        </p>
       </section>
 
       {/* AC-2's "full usage-rights terms", inline rather than behind a link.
@@ -215,10 +217,16 @@ export default async function CreatorDealDetailPage({
           creator is willing to start work, so it comes before the control that
           starts it. */}
       {isMoneyHeld(deal.status) ? (
-        <section className="flex flex-col gap-1 rounded-md border border-border p-4">
-          <h2 className="text-sm font-medium">{FUNDS_HELD_LABEL}</h2>
-          <p className="font-mono text-sm">{formatEtb(deal.totalPrice)}</p>
-          <p className="text-sm text-muted-foreground">{FUNDS_HELD_MESSAGE}</p>
+        <section className="rounded-[24px] border border-neutral-800 bg-neutral-900 p-6 text-neutral-50 shadow-[0_20px_48px_-32px_rgba(23,23,23,0.6)]">
+          <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
+            {FUNDS_HELD_LABEL}
+          </p>
+          <p className="mt-3 font-mono text-2xl font-medium">
+            {formatEtb(deal.totalPrice)}
+          </p>
+          <p className="mt-2 max-w-xl text-sm text-neutral-400">
+            {FUNDS_HELD_MESSAGE}
+          </p>
         </section>
       ) : null}
 
@@ -243,9 +251,11 @@ export default async function CreatorDealDetailPage({
           The URL is shown as text, not a link: nothing on this page navigates or
           fetches (AC-8), and the brand's screen is where the live post is opened. */}
       {deal.deliverables.length > 0 ? (
-        <section className="flex flex-col gap-4">
+        <section className="flex flex-col gap-5 border-t border-neutral-200 pt-8">
           <div className="flex flex-col gap-1">
-            <h2 className="text-sm font-medium">{DELIVERABLES_TITLE}</h2>
+            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
+              {DELIVERABLES_TITLE}
+            </h2>
             <p className="text-sm text-muted-foreground">
               {deliveryProgress(standing, deal.videoCount)}
             </p>
@@ -254,7 +264,7 @@ export default async function CreatorDealDetailPage({
           {deal.deliverables.map((video, index) => (
             <div
               key={video.id}
-              className="flex flex-col gap-1 rounded-md border border-border p-4"
+              className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5 transition-colors duration-300 ease-out hover:border-neutral-300"
             >
               <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
               <p className="font-mono text-sm break-all">{video.tiktokUrl}</p>
@@ -326,23 +336,25 @@ export default async function CreatorDealDetailPage({
           a failure. Neither appears on the first video of a deal, where the form
           speaks for itself. */}
       {canDeliver(deal.status) ? (
-        <div className="flex flex-col gap-3">
-          {rejectedIndex >= 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {revisionRequestedMessage(videoHeading(rejectedIndex))}
-            </p>
-          ) : remaining > 0 && standing > 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {REMAINING_VIDEOS_MESSAGE}
-            </p>
-          ) : null}
-          <DeliverableForm dealId={deal.id} />
+        <div className="rounded-[24px] border border-neutral-200 bg-neutral-100/70 p-5 sm:p-6">
+          <div className="flex flex-col gap-3">
+            {rejectedIndex >= 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {revisionRequestedMessage(videoHeading(rejectedIndex))}
+              </p>
+            ) : remaining > 0 && standing > 0 ? (
+              <p className="text-sm text-muted-foreground">
+                {REMAINING_VIDEOS_MESSAGE}
+              </p>
+            ) : null}
+            <DeliverableForm dealId={deal.id} />
+          </div>
         </div>
       ) : null}
 
       {/* AC-5. Last on the page: it is the reference a creator scrolls to, not
           the thing they came for. */}
-      <div className="border-t border-border pt-8">
+      <div className="border-t border-neutral-200 pt-8">
         <DealHistory events={history} />
       </div>
     </div>

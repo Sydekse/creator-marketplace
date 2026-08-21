@@ -20,8 +20,9 @@ import { buttonVariants } from '@/components/ui/button';
  */
 export default function BrandDealNotFound() {
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
+    <div className="mx-auto min-h-[60dvh] max-w-5xl py-8">
       <EmptyState
+        align="start"
         title="This deal is not available."
         description="It may have been withdrawn, or the link may be out of date. Your campaigns are still there."
         action={

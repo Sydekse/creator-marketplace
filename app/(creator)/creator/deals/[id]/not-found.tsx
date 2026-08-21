@@ -20,19 +20,21 @@ import { buttonVariants } from '@/components/ui/button';
  */
 export default function DealNotFound() {
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
-      <EmptyState
-        title="This deal is not available."
-        description="It may have been withdrawn, or the link may be out of date. Your other deals are still there."
-        action={
-          <Link
-            href="/creator/deals"
-            className={buttonVariants({ variant: 'outline', size: 'sm' })}
-          >
-            Back to your deals
-          </Link>
-        }
-      />
+    <div className="mx-auto flex min-h-[60dvh] max-w-3xl items-center py-8">
+      <div className="w-full rounded-[28px] border border-neutral-200 bg-neutral-50 px-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.3)] sm:px-10">
+        <EmptyState
+          title="This deal is not available."
+          description="It may have been withdrawn, or the link may be out of date. Your other deals are still there."
+          action={
+            <Link
+              href="/creator/deals"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              Back to your deals
+            </Link>
+          }
+        />
+      </div>
     </div>
   );
 }

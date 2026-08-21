@@ -19,12 +19,25 @@ export default async function CreatorOnboardingPage() {
   if (profile) redirect('/creator');
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-10 py-4">
-      <PageHeader
-        label="Creator application"
-        title="Tell brands who your audience is"
-        description="Brands search by niche and audience, then send paid offers at your tier price. Everything here is what they see when they find you."
-      />
+    <div className="mx-auto grid max-w-6xl gap-12 py-8 sm:py-12 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:items-start lg:gap-20 lg:py-16">
+      <div className="lg:sticky lg:top-24 lg:pt-4">
+        <PageHeader
+          label="Creator application"
+          title="Build your creator profile"
+          description="Tell brands what you create and who watches it. Your profile becomes searchable after verification and tier assignment."
+          className="max-w-xl"
+        />
+        <div className="mt-10 hidden border-l-2 border-brand/60 pl-5 lg:block">
+          <p className="text-sm font-semibold text-neutral-900">
+            What brands will see
+          </p>
+          <ul className="mt-3 space-y-2 text-sm leading-relaxed text-neutral-600">
+            <li>TikTok account and niche</li>
+            <li>Top audience markets and age</li>
+            <li>Optional performance figures for tier review</li>
+          </ul>
+        </div>
+      </div>
 
       <CreatorOnboardingForm />
     </div>

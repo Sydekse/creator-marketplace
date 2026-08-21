@@ -31,7 +31,7 @@ export default async function EditCampaignPage({
   const isEditable = campaign.status === 'draft';
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
+    <div className="mx-auto flex max-w-3xl flex-col gap-10 py-4">
       <PageHeader
         label="Campaign brief"
         title="Edit campaign brief"

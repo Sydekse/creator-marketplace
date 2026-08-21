@@ -9,6 +9,7 @@ import { listWorklistForAdmin } from '@/lib/admin/overview';
 import { ageLabel } from '@/lib/dates';
 import { formatEtb } from '@/lib/money';
 import { ResolveDisputeForm } from '@/components/admin/resolve-dispute-form';
+import { displayTiktokHandle } from '@/lib/creators/handle';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -29,14 +30,16 @@ export default async function AdminWorklistPage() {
   const worklist = await listWorklistForAdmin();
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <PageHeader
+        label="Risk operations"
         title="Dispute worklist"
-        description="Deals that are flagged, or whose money is held and unresolved. Resolving refunds the brand, releases to the creator, or requests a revision — and clears the attention flag."
+        description="Resolve flagged deals and decide whether held funds return to the brand, release to the creator, or stay held for revision."
       />
 
       {worklist.length === 0 ? (
         <EmptyState
+          align="start"
           title="Nothing awaiting resolution"
           description="Every deal is either resolved, or money is not held on it."
           action={
@@ -49,11 +52,11 @@ export default async function AdminWorklistPage() {
           }
         />
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="border-y border-neutral-200">
           {worklist.map((row) => (
             <li
               key={row.id}
-              className="rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:border-neutral-300"
+              className="border-b border-neutral-200 px-1 py-6 transition-colors duration-300 last:border-b-0 hover:bg-neutral-100/60 sm:px-4"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex flex-col gap-1">
@@ -67,7 +70,8 @@ export default async function AdminWorklistPage() {
                     <InitialsAvatar name={row.brandCompanyName} size="sm" />
                     <InitialsAvatar name={row.creatorHandle} size="sm" />
                     <p className="text-sm text-muted-foreground">
-                      {row.brandCompanyName} · @{row.creatorHandle} ·{' '}
+                      {row.brandCompanyName} ·{' '}
+                      {displayTiktokHandle(row.creatorHandle)} ·{' '}
                       {row.videoCount} video{row.videoCount === 1 ? '' : 's'}
                     </p>
                   </div>

@@ -33,11 +33,21 @@ export default async function VerificationQueuePage({
   });
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <PageHeader
+        label="Creator review"
         title="Verification queue"
         description="Review creators awaiting verification. Approve to make them eligible for tier assignment, or reject with an optional note."
       />
+
+      <div className="flex items-center justify-between gap-4 border-y border-neutral-200 bg-neutral-100/45 px-4 py-3">
+        <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">
+          Pending profiles
+        </p>
+        <p className="font-mono text-xs text-muted-foreground">
+          {creators.length} on this page
+        </p>
+      </div>
 
       <VerificationQueue creators={creators} />
 

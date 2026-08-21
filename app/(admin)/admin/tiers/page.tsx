@@ -33,18 +33,28 @@ export default async function AwaitingTierPage({
   });
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <PageHeader
+        label="Pricing operations"
         title="Awaiting tier"
         description={
           <>
             Verified creators with no pricing tier. A creator is bookable only
-            when verified <em>and</em> tiered, so these profiles do not appear
-            in brand discovery. Correct their follower count or engagement rate,
-            then retry assignment.
+            after verification and tier assignment, so these profiles do not
+            appear in brand discovery. Correct their follower count or
+            engagement rate, then retry assignment.
           </>
         }
       />
+
+      <div className="flex items-center justify-between gap-4 border-y border-neutral-200 bg-neutral-100/45 px-4 py-3">
+        <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">
+          Unbookable creators
+        </p>
+        <p className="font-mono text-xs text-muted-foreground">
+          {creators.length} on this page
+        </p>
+      </div>
 
       <AwaitingTierList creators={creators} />
 

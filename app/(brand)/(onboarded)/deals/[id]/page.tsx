@@ -102,16 +102,18 @@ export default async function BrandDealReviewPage({
   const standing = standingVideoCount(deal.deliverables);
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
+    <div className="mx-auto flex max-w-5xl flex-col gap-10 py-4">
       <Link
         href={`/campaigns/${deal.campaignId}`}
-        className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+        className="inline-flex self-start rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
       >
         ← Back to {deal.campaignName}
       </Link>
 
-      <div className="flex items-center gap-4">
-        <InitialsAvatar name={deal.creatorHandle} size="lg" />
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-4 sm:gap-6">
+        <div className="pt-1">
+          <InitialsAvatar name={deal.creatorHandle} size="lg" />
+        </div>
         <PageHeader
           title={deal.creatorHandle}
           description={
@@ -127,8 +129,8 @@ export default async function BrandDealReviewPage({
         />
       </div>
 
-      <section className="flex flex-col gap-4">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3">
+      <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.3)] sm:p-8">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-3">
           <Fact label={CREATOR_LABEL} value={deal.creatorHandle} />
           <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
           <Fact label={UNIT_PRICE_LABEL} value={formatEtb(deal.unitPrice)} />
@@ -165,7 +167,7 @@ export default async function BrandDealReviewPage({
           {deal.deliverables.map((video, index) => (
             <div
               key={video.id}
-              className="flex flex-col gap-2 rounded-md border border-border p-4"
+              className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5 transition-colors duration-300 hover:border-neutral-300"
             >
               <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
               <a
@@ -248,7 +250,7 @@ export default async function BrandDealReviewPage({
       {/* KAN-99 §4: brand deal history — the same component the creator and
           admin pages use, so a brand can see *why* a deal is in its current
           state (who rejected, when, with what reason the money moved). */}
-      <div className="border-t border-border pt-8">
+      <div className="border-t border-neutral-200 pt-8">
         <DealHistory events={history} />
       </div>
     </div>

@@ -29,14 +29,16 @@ export default async function AdminCampaignsPage() {
   const campaigns = await listCampaignsForAdmin();
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <PageHeader
+        label="Ledger oversight"
         title="Campaigns"
-        description="Every campaign and its ledger position — budget, escrow held, and what has left it."
+        description="Every campaign and its ledger position, including budget, escrow, payouts, commission, and refunds."
       />
 
       {campaigns.length === 0 ? (
         <EmptyState
+          align="start"
           title="No campaigns yet"
           description="Campaigns appear here the moment a brand creates one."
           action={
@@ -49,10 +51,10 @@ export default async function AdminCampaignsPage() {
           }
         />
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-border">
+        <div className="overflow-x-auto border-y border-neutral-200 bg-neutral-50">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border bg-muted/40 text-left text-xs tracking-wide text-muted-foreground uppercase">
+              <tr className="border-b border-neutral-200 bg-neutral-100/70 text-left text-[11px] tracking-[0.12em] text-neutral-500 uppercase">
                 <th className="px-4 py-3 font-medium">Campaign</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 text-right font-medium">Budget</th>
@@ -66,7 +68,7 @@ export default async function AdminCampaignsPage() {
               {campaigns.map((campaign) => (
                 <tr
                   key={campaign.id}
-                  className="border-b border-border last:border-b-0 hover:bg-muted/30"
+                  className="border-b border-neutral-200 last:border-b-0 hover:bg-neutral-100/60"
                 >
                   <td className="px-4 py-3">
                     <Link
@@ -84,19 +86,19 @@ export default async function AdminCampaignsPage() {
                       {campaignStatusLabel(campaign.status)}
                     </Chip>
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td className="px-4 py-3 text-right font-mono text-xs tabular-nums">
                     {formatEtb(campaign.budget)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td className="px-4 py-3 text-right font-mono text-xs tabular-nums">
                     {formatEtb(campaign.held)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td className="px-4 py-3 text-right font-mono text-xs tabular-nums">
                     {formatEtb(campaign.paidOut)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td className="px-4 py-3 text-right font-mono text-xs tabular-nums">
                     {formatEtb(campaign.commission)}
                   </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
+                  <td className="px-4 py-3 text-right font-mono text-xs tabular-nums">
                     {formatEtb(campaign.refunded)}
                   </td>
                 </tr>

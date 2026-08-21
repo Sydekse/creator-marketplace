@@ -34,9 +34,15 @@ export function PageHeader({
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       {description ? (
-        <p className="max-w-[52ch] text-sm text-muted-foreground">
-          {description}
-        </p>
+        typeof description === 'string' || typeof description === 'number' ? (
+          <p className="max-w-[52ch] text-sm text-muted-foreground">
+            {description}
+          </p>
+        ) : (
+          <div className="max-w-[52ch] text-sm text-muted-foreground">
+            {description}
+          </div>
+        )
       ) : null}
       {hairline ? (
         <div className="mt-1 border-b border-neutral-200" aria-hidden="true" />

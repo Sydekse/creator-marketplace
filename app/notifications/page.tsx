@@ -75,10 +75,8 @@ function NotificationItem({
 
   return (
     <li
-      className={`rounded-xl border p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)] ${
-        isUnread
-          ? 'border-brand/30 bg-brand-tint/30'
-          : 'border-neutral-200 bg-card'
+      className={`border-b border-neutral-200 px-1 py-5 transition-colors duration-300 hover:bg-neutral-100/60 sm:px-4 ${
+        isUnread ? 'border-l-2 border-l-brand bg-brand-tint/25' : ''
       }`}
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -112,6 +110,7 @@ export default async function NotificationsPage() {
   return (
     <div className="flex flex-col gap-8">
       <PageHeader
+        label="Activity"
         title="Notifications"
         description={
           unread > 0
@@ -126,15 +125,15 @@ export default async function NotificationsPage() {
           description="Activity on your deals, campaigns, and account will appear here."
           action={
             <Link
-              href="/"
+              href="/dashboard"
               className={buttonVariants({ variant: 'outline', size: 'sm' })}
             >
-              Back to dashboard
+              Go to dashboard
             </Link>
           }
         />
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="border-t border-neutral-200">
           {result.rows.map((row) => (
             <NotificationItem key={row.id} row={row} role={user.role} />
           ))}
@@ -143,7 +142,7 @@ export default async function NotificationsPage() {
 
       {result.hasMore && (
         <p className="text-sm text-muted-foreground">
-          Older notifications are on subsequent pages — paging coming soon.
+          Older notifications are on subsequent pages. Paging is coming soon.
         </p>
       )}
     </div>

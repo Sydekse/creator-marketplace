@@ -1,5 +1,11 @@
 import Link from 'next/link';
-import { Megaphone, Scale, ScrollText, Tag, UserCheck } from 'lucide-react';
+import {
+  Megaphone,
+  Scales,
+  Scroll,
+  Tag,
+  UserCheck,
+} from '@phosphor-icons/react/dist/ssr';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
@@ -31,8 +37,9 @@ export default async function AdminConsolePage() {
   const campaigns = await listCampaignsForAdmin();
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-12">
       <PageHeader
+        label="Operations"
         title="Admin console"
         description={
           <div className="flex items-center gap-2">
@@ -41,125 +48,141 @@ export default async function AdminConsolePage() {
           </div>
         }
       />
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Link
-          href="/admin/verification"
-          className="group flex flex-col gap-2.5 rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]"
-        >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
-            <UserCheck className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-          </span>
-          <h2 className="font-semibold text-neutral-900">Verification queue</h2>
-          <p className="text-sm text-muted-foreground">
-            Review pending creator profiles
-          </p>
-        </Link>
-        <Link
-          href="/admin/campaigns"
-          className="group flex flex-col gap-2.5 rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]"
-        >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
-            <Megaphone className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-          </span>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold text-neutral-900">Campaigns</h2>
-            <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
-              {campaigns.length}
+      <section>
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
+              Operational queues
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Review people, money, and exceptions that need an operator.
+            </p>
+          </div>
+        </div>
+        <div className="grid border-y border-neutral-200 lg:grid-cols-[1.15fr_0.85fr]">
+          <Link
+            href="/admin/verification"
+            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-colors duration-300 hover:bg-neutral-100/70 sm:border-r"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+              <UserCheck className="h-4 w-4" weight="regular" aria-hidden />
             </span>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Budgets, escrow held, payouts, commission and refunds
-          </p>
-        </Link>
-        <Link
-          href="/admin/worklist"
-          className="group flex flex-col gap-2.5 rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]"
-        >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
-            <Scale className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-          </span>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold text-neutral-900">Dispute worklist</h2>
-            {disputed.length > 0 && (
-              <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-neutral-50">
-                {disputed.length}
+            <h2 className="font-semibold text-neutral-900">
+              Verification queue
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Review pending creator profiles
+            </p>
+          </Link>
+          <Link
+            href="/admin/campaigns"
+            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-colors duration-300 hover:bg-neutral-100/70"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+              <Megaphone className="h-4 w-4" weight="regular" aria-hidden />
+            </span>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-semibold text-neutral-900">Campaigns</h2>
+              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
+                {campaigns.length}
               </span>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Flagged or money-held deals awaiting resolution
-          </p>
-        </Link>
-        <Link
-          href="/admin/tiers"
-          className="group flex flex-col gap-2.5 rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]"
-        >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
-            <Tag className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-          </span>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-semibold text-neutral-900">Awaiting tier</h2>
-            {awaitingTier > 0 && (
-              <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-neutral-50">
-                {awaitingTier}
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground">
-            {awaitingTier > 0
-              ? 'Verified creators with no price, so not bookable'
-              : 'Every verified creator has a tier'}
-          </p>
-        </Link>
-        <Link
-          href="/admin/audit-log"
-          className="group flex flex-col gap-2.5 rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]"
-        >
-          <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
-            <ScrollText className="h-4 w-4" strokeWidth={1.5} aria-hidden />
-          </span>
-          <h2 className="font-semibold text-neutral-900">Audit log</h2>
-          <p className="text-sm text-muted-foreground">
-            Every admin action — the append-only trail
-          </p>
-        </Link>
-      </div>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Budgets, escrow held, payouts, commission and refunds
+            </p>
+          </Link>
+          <Link
+            href="/admin/worklist"
+            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-colors duration-300 hover:bg-neutral-100/70 sm:border-r"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+              <Scales className="h-4 w-4" weight="regular" aria-hidden />
+            </span>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-semibold text-neutral-900">
+                Dispute worklist
+              </h2>
+              {disputed.length > 0 && (
+                <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-neutral-50">
+                  {disputed.length}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Flagged or money-held deals awaiting resolution
+            </p>
+          </Link>
+          <Link
+            href="/admin/tiers"
+            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-colors duration-300 hover:bg-neutral-100/70"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+              <Tag className="h-4 w-4" weight="regular" aria-hidden />
+            </span>
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="font-semibold text-neutral-900">Awaiting tier</h2>
+              {awaitingTier > 0 && (
+                <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-neutral-50">
+                  {awaitingTier}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {awaitingTier > 0
+                ? 'Verified creators with no price, so not bookable'
+                : 'Every verified creator has a tier'}
+            </p>
+          </Link>
+          <Link
+            href="/admin/audit-log"
+            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-colors duration-300 hover:bg-neutral-100/70 sm:col-span-2"
+          >
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+              <Scroll className="h-4 w-4" weight="regular" aria-hidden />
+            </span>
+            <h2 className="font-semibold text-neutral-900">Audit log</h2>
+            <p className="text-sm text-muted-foreground">
+              Trace every administrative action in chronological order.
+            </p>
+          </Link>
+        </div>
+      </section>
 
       {/* §9: Platform-wide money roll-up. The data is already fetched above —
           sum the campaigns array into aggregate totals rather than requiring a
           second read. Only shown when there is at least one campaign. */}
       {campaigns.length > 0 && (
-        <div className="rounded-xl border border-neutral-200 bg-card p-5">
-          <h2 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        <section className="rounded-[24px] bg-neutral-900 p-6 text-neutral-50 sm:p-8">
+          <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
             Platform totals
           </h2>
-          <div className="mt-3 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
             <div className="flex flex-col gap-0.5">
-              <dt className="text-xs text-muted-foreground">Held in escrow</dt>
-              <dd className="font-mono text-sm font-medium">
+              <dt className="text-xs text-neutral-400">Held in escrow</dt>
+              <dd className="mt-1 font-mono text-sm font-medium text-neutral-50">
                 {formatEtb(campaigns.reduce((sum, c) => sum + c.held, 0))}
               </dd>
             </div>
             <div className="flex flex-col gap-0.5">
-              <dt className="text-xs text-muted-foreground">Paid out</dt>
-              <dd className="font-mono text-sm font-medium">
+              <dt className="text-xs text-neutral-400">Paid out</dt>
+              <dd className="mt-1 font-mono text-sm font-medium text-neutral-50">
                 {formatEtb(campaigns.reduce((sum, c) => sum + c.paidOut, 0))}
               </dd>
             </div>
             <div className="flex flex-col gap-0.5">
-              <dt className="text-xs text-muted-foreground">Commission</dt>
-              <dd className="font-mono text-sm font-medium">
+              <dt className="text-xs text-neutral-400">Commission</dt>
+              <dd className="mt-1 font-mono text-sm font-medium text-neutral-50">
                 {formatEtb(campaigns.reduce((sum, c) => sum + c.commission, 0))}
               </dd>
             </div>
             <div className="flex flex-col gap-0.5">
-              <dt className="text-xs text-muted-foreground">Refunded</dt>
-              <dd className="font-mono text-sm font-medium">
+              <dt className="text-xs text-neutral-400">Refunded</dt>
+              <dd className="mt-1 font-mono text-sm font-medium text-neutral-50">
                 {formatEtb(campaigns.reduce((sum, c) => sum + c.refunded, 0))}
               </dd>
             </div>
-          </div>
-        </div>
+          </dl>
+        </section>
       )}
     </div>
   );

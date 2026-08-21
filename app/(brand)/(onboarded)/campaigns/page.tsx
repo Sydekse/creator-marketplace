@@ -4,14 +4,6 @@ import { Chip } from '@/components/ui/chip';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { buttonVariants } from '@/components/ui/button';
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import {
@@ -38,8 +30,9 @@ export default async function CampaignsPage() {
   const campaigns = await listCampaignsByBrand(profile.id);
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 py-4">
+    <div className="mx-auto flex max-w-6xl flex-col gap-10 py-4">
       <PageHeader
+        label="Brand workspace"
         title="Campaigns"
         description="Manage your campaign briefs and review creator commitments."
         action={
@@ -54,6 +47,7 @@ export default async function CampaignsPage() {
 
       {campaigns.length === 0 ? (
         <EmptyState
+          align="start"
           title="No campaigns yet"
           description="Create your first campaign brief with a budget and goals to start discovering and booking creators."
           action={
@@ -66,57 +60,66 @@ export default async function CampaignsPage() {
           }
         />
       ) : (
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {campaigns.map((camp) => (
-            <li key={camp.id}>
-              <Card className="h-full transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]">
-                <CardHeader>
-                  <CardTitle className="text-lg">{camp.name}</CardTitle>
-                  <CardDescription>
-                    Created on{' '}
-                    {new Date(camp.createdAt).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </CardDescription>
-                  <CardAction>
-                    <Chip
-                      tone={campaignStatusTone[camp.status] ?? 'gray'}
-                      className="capitalize"
-                    >
-                      {campaignStatusLabel(camp.status)}
-                    </Chip>
-                  </CardAction>
-                </CardHeader>
-                <CardContent className="flex flex-col gap-3">
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div>
-                      <span className="text-xs text-muted-foreground block">
-                        Budget
-                      </span>
-                      <span className="font-semibold text-foreground">
-                        {formatEtb(camp.budget)}
-                      </span>
+        <section className="border-y border-neutral-200">
+          <div className="flex items-center justify-between gap-4 bg-neutral-100/45 px-4 py-3 sm:px-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+              Campaign ledger
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {campaigns.length}{' '}
+              {campaigns.length === 1 ? 'campaign' : 'campaigns'}
+            </p>
+          </div>
+          <ul>
+            {campaigns.map((camp) => (
+              <li key={camp.id} className="border-b border-neutral-200">
+                <div className="grid gap-5 px-1 py-5 transition-colors hover:bg-neutral-100/60 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 className="truncate text-base font-semibold text-neutral-900">
+                        {camp.name}
+                      </h2>
+                      <Chip
+                        tone={campaignStatusTone[camp.status] ?? 'gray'}
+                        className="capitalize"
+                      >
+                        {campaignStatusLabel(camp.status)}
+                      </Chip>
                     </div>
-                    <div>
-                      <span className="text-xs text-muted-foreground block">
-                        Target Videos
-                      </span>
-                      <span className="font-semibold text-foreground">
-                        {camp.desiredVideos}{' '}
-                        {camp.desiredVideos === 1 ? 'video' : 'videos'}
-                      </span>
-                    </div>
-                  </div>
-
-                  {camp.goal && (
-                    <p className="line-clamp-2 text-xs text-muted-foreground">
-                      {camp.goal}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Created on{' '}
+                      {new Date(camp.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
                     </p>
-                  )}
-
-                  <div className="mt-2 pt-2 border-t border-border flex items-center justify-end">
+                    <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-sm">
+                      <div className="flex flex-col gap-1">
+                        <dt className="text-xs text-muted-foreground">
+                          Budget
+                        </dt>
+                        <dd className="font-mono text-sm text-neutral-900">
+                          {formatEtb(camp.budget)}
+                        </dd>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <dt className="text-xs text-muted-foreground">
+                          Deliverables
+                        </dt>
+                        <dd className="text-sm text-neutral-900">
+                          {camp.desiredVideos}{' '}
+                          {camp.desiredVideos === 1 ? 'video' : 'videos'}
+                        </dd>
+                      </div>
+                    </dl>
+                    {camp.goal && (
+                      <p className="mt-3 line-clamp-2 max-w-2xl text-sm text-muted-foreground">
+                        {camp.goal}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center sm:justify-end">
                     {/*
                       A confirmed campaign has no brief to edit — the edit page
                       answers with a "cannot be edited" alert and a way back.
@@ -146,11 +149,11 @@ export default async function CampaignsPage() {
                       </Link>
                     )}
                   </div>
-                </CardContent>
-              </Card>
-            </li>
-          ))}
-        </ul>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </div>
   );

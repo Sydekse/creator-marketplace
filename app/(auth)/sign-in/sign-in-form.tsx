@@ -6,31 +6,44 @@ import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { toast } from 'sonner';
+import { PasswordInput } from '@/components/ui/password-input';
+import { FieldError } from '@/components/ui/field-error';
 import { signInSchema } from '@/lib/validation/schemas';
 import { safeRedirectPath } from '@/lib/navigation';
+
+type FieldErrors = { email?: string; password?: string };
 
 export function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setFormError(null);
 
     const parsed = signInSchema.safeParse({ email, password });
     if (!parsed.success) {
-      toast.error(parsed.error.issues[0]?.message ?? 'Invalid input.');
+      const fieldErrors = parsed.error.flatten().fieldErrors;
+      setErrors({
+        email: fieldErrors.email?.[0],
+        password: fieldErrors.password?.[0],
+      });
       return;
     }
+    setErrors({});
     setLoading(true);
 
     const { error } = await authClient.signIn.email({ email, password });
 
     if (error) {
-      toast.error(error.message ?? 'Failed to sign in.');
+      // A credential failure is not a field problem — it could be either the
+      // email or the password, so it belongs above the button, not under one.
+      setFormError(error.message ?? 'Failed to sign in. Please try again.');
       setLoading(false);
       return;
     }
@@ -44,7 +57,7 @@ export function SignInForm() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-8 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
+    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-7 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
       <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
         Welcome back
       </p>
@@ -52,17 +65,20 @@ export function SignInForm() {
         Sign in.
       </h1>
       <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
-        Your deals, escrow, and messages are all here — pick up where you left
-        off.
+        Your deals, escrow, and messages are here when you need them.
       </p>
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
-      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-5">
+      <form
+        onSubmit={handleSubmit}
+        noValidate
+        className="mt-6 flex flex-col gap-5"
+      >
         <div className="flex flex-col gap-2">
           <label
             htmlFor="email"
-            className="text-[13px] font-medium text-neutral-700"
+            className="text-[13px] font-semibold text-neutral-700"
           >
             Email
           </label>
@@ -70,37 +86,60 @@ export function SignInForm() {
             id="email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
+            }}
             placeholder="you@example.com"
             required
             autoComplete="email"
+            aria-invalid={!!errors.email}
+            aria-describedby={errors.email ? 'email-error' : undefined}
+            className="h-11 px-3.5"
           />
+          <FieldError id="email-error" message={errors.email} />
         </div>
 
         <div className="flex flex-col gap-2">
           <label
             htmlFor="password"
-            className="text-[13px] font-medium text-neutral-700"
+            className="text-[13px] font-semibold text-neutral-700"
           >
             Password
           </label>
-          <Input
+          <PasswordInput
             id="password"
-            type="password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (errors.password)
+                setErrors((p) => ({ ...p, password: undefined }));
+            }}
             placeholder="Enter your password"
             required
             autoComplete="current-password"
+            aria-invalid={!!errors.password}
+            aria-describedby={errors.password ? 'password-error' : undefined}
+            className="h-11 px-3.5"
           />
+          <FieldError id="password-error" message={errors.password} />
         </div>
+
+        {formError && (
+          <div
+            role="alert"
+            className="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-[13px] leading-snug text-destructive"
+          >
+            {formError}
+          </div>
+        )}
 
         <Button type="submit" disabled={loading} size="xl" className="w-full">
           {loading ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-[13px] text-neutral-500">
+      <p className="mt-7 text-center text-[13px] text-neutral-500">
         New to Creator Marketplace?{' '}
         <Link
           href="/sign-up"

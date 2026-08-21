@@ -47,7 +47,7 @@ export default async function AdminDealPage({
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="mx-auto flex max-w-5xl flex-col gap-10">
       <div className="flex flex-col gap-3">
         <Link
           href="/admin/worklist"
@@ -56,18 +56,18 @@ export default async function AdminDealPage({
           ← Dispute worklist
         </Link>
         <PageHeader
+          label="Deal audit trail"
           title="Deal history"
           description={
             <>
-              {campaignName ? `Campaign: ${campaignName} — ` : ''}
-              every state transition this deal has been through, oldest first —
-              the append-only audit trail.
+              {campaignName ? `Campaign: ${campaignName}. ` : ''}
+              Every state transition this deal has been through, oldest first.
             </>
           }
         />
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-4">
+      <div className="border-y border-neutral-200 bg-neutral-100/35 px-4 py-5 sm:px-6">
         <DealHistory events={events} />
       </div>
 

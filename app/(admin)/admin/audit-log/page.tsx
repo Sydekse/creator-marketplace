@@ -81,12 +81,13 @@ function toDateInputValue(date: Date | undefined): string {
 }
 
 const inputClass =
-  'h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm';
+  'h-11 rounded-lg border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors hover:border-neutral-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20';
 
 /** Rendered when the URL's filters cannot be parsed — the discovery precedent. */
 function UnreadableFilters() {
   return (
     <EmptyState
+      align="start"
       title="Those filters could not be read."
       description="The link may be mistyped or out of date. Clear the filters and try again."
       action={
@@ -122,7 +123,7 @@ export default async function AdminAuditLogPage({
   // Saying the filters were unreadable is the honest version of the same 422.
   if (conflicts.length > 0 || !parsed.success) {
     return (
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-10">
         <Masthead />
         <UnreadableFilters />
       </div>
@@ -154,13 +155,13 @@ export default async function AdminAuditLogPage({
     `/admin/audit-log?${filterQuery ? `${filterQuery}&` : ''}page=${n}`;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <Masthead />
 
       <form
         method="GET"
         action="/admin/audit-log"
-        className="flex flex-col gap-4 rounded-xl border border-neutral-200 bg-card p-5"
+        className="flex flex-col gap-5 rounded-[24px] border border-neutral-200 bg-neutral-100/45 p-5 sm:p-6"
       >
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <label className="flex flex-col gap-1.5 text-sm">
@@ -266,6 +267,7 @@ export default async function AdminAuditLogPage({
       {result.rows.length === 0 ? (
         hasActiveFilters ? (
           <EmptyState
+            align="start"
             title="No entries match these filters"
             description="Try widening the date range, or clear the filters to see the whole trail."
             action={
@@ -279,6 +281,7 @@ export default async function AdminAuditLogPage({
           />
         ) : (
           <EmptyState
+            align="start"
             title="No audit entries yet"
             description="Admin actions will appear here as they happen."
             action={
@@ -292,7 +295,7 @@ export default async function AdminAuditLogPage({
           />
         )
       ) : (
-        <ul className="flex flex-col gap-4">
+        <ul className="border-y border-neutral-200">
           {result.rows.map((row) => (
             <AuditRow key={row.id} row={row} />
           ))}
@@ -343,7 +346,7 @@ function Masthead() {
       <PageHeader
         label="Admin"
         title="Audit log"
-        description="Every admin action, append-only — who did what, to what, and when. Filter by action, actor, target, or date range."
+        description="Review who acted, what changed, and when. Filter by action, actor, target, or date range."
       />
     </div>
   );
@@ -355,24 +358,26 @@ function AuditRow({ row }: { row: AuditLogRow }) {
   const detail = formatDetail(row.detail);
 
   return (
-    <li className="rounded-xl border border-neutral-200 bg-card p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_12px_32px_rgba(23,23,23,0.08)]">
-      <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <Chip tone="gray">{label}</Chip>
-          <span className="font-mono text-xs text-muted-foreground">
-            {row.action}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {formatTimestamp(row.createdAt)}
-          </span>
+    <li className="border-b border-neutral-200 px-1 py-5 transition-colors duration-300 last:border-b-0 hover:bg-neutral-100/60 sm:px-4">
+      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
+        <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Chip tone="gray">{label}</Chip>
+            <span className="font-mono text-xs text-muted-foreground">
+              {row.action}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            {actor} · {row.targetType}
+            <span className="font-mono">:{row.targetId}</span>
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {actor} · {row.targetType}
-          <span className="font-mono">:{row.targetId}</span>
-        </p>
+        <time className="font-mono text-xs text-muted-foreground sm:text-right">
+          {formatTimestamp(row.createdAt)}
+        </time>
       </div>
       {detail !== '' && (
-        <pre className="mt-2 overflow-x-auto rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">
+        <pre className="mt-3 overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-100/65 p-3 font-mono text-xs text-neutral-600">
           {detail}
         </pre>
       )}

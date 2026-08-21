@@ -15,24 +15,24 @@ export default function AuthLayout({
 }) {
   return (
     <div className="flex min-h-screen flex-col bg-neutral-50 text-neutral-900 antialiased">
-      <header className="flex justify-center pt-8 sm:pt-10">
+      <header className="flex justify-center px-6 pt-8 sm:pt-10">
         <Link
           href="/"
           className="flex items-center gap-3 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500"
         >
           <Mark tone="dark" />
-          <span className="text-[13px] font-semibold tracking-tight">
+          <span className="text-[13px] font-semibold tracking-tight text-neutral-900">
             Creator Marketplace
           </span>
         </Link>
       </header>
 
-      <main className="flex flex-1 items-center justify-center p-4 sm:p-6">
+      <main className="flex flex-1 items-center justify-center px-4 py-10 sm:px-6 sm:py-14">
         {children}
       </main>
 
       <footer className="pb-8 text-center text-xs text-neutral-500">
-        Free to join &middot; 15% commission on completed deals only
+        Free to join for brands and creators
       </footer>
 
       <Toaster />

@@ -145,175 +145,264 @@ export function CreatorOnboardingForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
-      <FieldGroup className="gap-8">
-        <Field data-invalid={hasError('tiktokHandle') || undefined}>
-          <FieldLabel htmlFor="tiktokHandle">TikTok handle</FieldLabel>
-          <InputGroup className="h-11">
-            {/* The @ is furniture, not input — typing one is handled by the
-                normaliser, so both habits produce the same stored value. */}
-            <InputGroupAddon className="font-mono text-base">@</InputGroupAddon>
-            <Input
-              id="tiktokHandle"
-              name="tiktokHandle"
-              value={handleInput}
-              onChange={(event) => setHandleInput(event.target.value)}
-              data-slot="input-group-control"
-              className="border-0 font-mono text-base shadow-none focus-visible:ring-0"
-              placeholder="yourhandle"
-              autoComplete="off"
-              autoCapitalize="none"
-              spellCheck={false}
-              aria-invalid={hasError('tiktokHandle') || undefined}
-              aria-describedby="tiktokHandle-preview"
-            />
-          </InputGroup>
-          <FieldDescription id="tiktokHandle-preview">
-            {normalized === '' ? (
-              'The account brands will see. 2–24 letters, numbers, underscores or periods.'
-            ) : (
-              <>
-                Saved as{' '}
-                <span className="font-mono text-foreground">{normalized}</span>
-                {handleChanged && ' — handles are stored in lower case.'}
-              </>
-            )}
-          </FieldDescription>
-          <FieldError errors={fieldError('tiktokHandle')} />
-        </Field>
-
-        <Field data-invalid={hasError('niche') || undefined}>
-          <FieldLabel htmlFor="niche">Niche</FieldLabel>
-          <Select
-            items={NICHES.map((value) => ({
-              value,
-              label: NICHE_LABELS[value],
-            }))}
-            value={niche}
-            onValueChange={(value) => setNiche(value as Niche)}
-          >
-            <SelectTrigger id="niche" className="h-11 w-full">
-              <SelectValue placeholder="Choose the niche you post in" />
-            </SelectTrigger>
-            <SelectContent>
-              {NICHES.map((value) => (
-                <SelectItem key={value} value={value}>
-                  {NICHE_LABELS[value]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <FieldDescription>
-            Brands filter by niche, so pick where most of your posts sit.
-          </FieldDescription>
-          <FieldError errors={fieldError('niche')} />
-        </Field>
-
-        <Field data-invalid={hasError('audience.topCountries') || undefined}>
-          <FieldLabel htmlFor="markets">Top audience markets</FieldLabel>
-          <ToggleGroup
-            id="markets"
-            multiple
-            variant="outline"
-            value={markets}
-            onValueChange={setMarkets}
-            className="flex-wrap"
-          >
-            {AUDIENCE_MARKET_CODES.map((code) => (
-              <ToggleGroupItem key={code} value={code} className="h-9 px-3">
-                {AUDIENCE_MARKET_LABELS[code]}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <FieldDescription>Choose every market that applies.</FieldDescription>
-          <FieldError errors={fieldError('audience.topCountries')} />
-        </Field>
-
-        <Field data-invalid={hasError('audience.ageRange') || undefined}>
-          <FieldLabel htmlFor="ageRange">Main audience age</FieldLabel>
-          <ToggleGroup
-            id="ageRange"
-            variant="outline"
-            value={ageRange ? [ageRange] : []}
-            onValueChange={(value) =>
-              setAgeRange((value[0] as AgeRange) ?? null)
-            }
-            className="flex-wrap"
-          >
-            {AGE_RANGES.map((range) => (
-              <ToggleGroupItem
-                key={range}
-                value={range}
-                className="h-9 px-3 font-mono"
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      className="rounded-[24px] border border-neutral-200 bg-neutral-50 p-6 shadow-[0_24px_60px_-32px_rgba(23,23,23,0.25)] sm:p-9"
+    >
+      <FieldGroup className="gap-0">
+        <section className="border-b border-neutral-200 pb-9">
+          <div className="mb-6">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+              Creator profile
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+              Start with the account and category brands will use to find you.
+            </p>
+          </div>
+          <div className="grid gap-7 sm:grid-cols-2">
+            <Field data-invalid={hasError('tiktokHandle') || undefined}>
+              <FieldLabel
+                htmlFor="tiktokHandle"
+                className="text-[13px] font-semibold text-neutral-700"
               >
-                {range}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
-          <FieldError errors={fieldError('audience.ageRange')} />
-        </Field>
+                TikTok handle
+              </FieldLabel>
+              <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
+                {/* The @ is furniture, not input — typing one is handled by the
+                normaliser, so both habits produce the same stored value. */}
+                <InputGroupAddon className="font-mono text-base">
+                  @
+                </InputGroupAddon>
+                <Input
+                  id="tiktokHandle"
+                  name="tiktokHandle"
+                  value={handleInput}
+                  onChange={(event) => setHandleInput(event.target.value)}
+                  data-slot="input-group-control"
+                  className="border-0 font-mono text-base shadow-none focus-visible:ring-0"
+                  placeholder="yourhandle"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  aria-invalid={hasError('tiktokHandle') || undefined}
+                  aria-describedby="tiktokHandle-preview"
+                />
+              </InputGroup>
+              <FieldDescription
+                id="tiktokHandle-preview"
+                className="text-[13px] leading-relaxed text-neutral-500"
+              >
+                {normalized === '' ? (
+                  'Use the account brands should review. 2–24 letters, numbers, underscores or periods.'
+                ) : (
+                  <>
+                    Saved as{' '}
+                    <span className="font-mono text-foreground">
+                      {normalized}
+                    </span>
+                    {handleChanged && '. Handles are stored in lower case.'}
+                  </>
+                )}
+              </FieldDescription>
+              <FieldError errors={fieldError('tiktokHandle')} />
+            </Field>
+
+            <Field data-invalid={hasError('niche') || undefined}>
+              <FieldLabel
+                htmlFor="niche"
+                className="text-[13px] font-semibold text-neutral-700"
+              >
+                Main niche
+              </FieldLabel>
+              <Select
+                items={NICHES.map((value) => ({
+                  value,
+                  label: NICHE_LABELS[value],
+                }))}
+                value={niche}
+                onValueChange={(value) => setNiche(value as Niche)}
+              >
+                <SelectTrigger
+                  id="niche"
+                  className={`h-12 w-full ${
+                    niche
+                      ? 'border-brand/40 bg-brand-tint font-medium text-brand-ink'
+                      : 'bg-neutral-50'
+                  }`}
+                >
+                  <SelectValue placeholder="Choose the niche you post in" />
+                </SelectTrigger>
+                <SelectContent>
+                  {NICHES.map((value) => (
+                    <SelectItem key={value} value={value}>
+                      {NICHE_LABELS[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
+                Choose the category that best describes most of your posts.
+              </FieldDescription>
+              <FieldError errors={fieldError('niche')} />
+            </Field>
+          </div>
+        </section>
+
+        <section className="border-b border-neutral-200 py-9">
+          <div className="mb-6">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+              Audience
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+              Select the people who make up most of your current audience.
+            </p>
+          </div>
+          <div className="space-y-7">
+            <Field
+              data-invalid={hasError('audience.topCountries') || undefined}
+            >
+              <FieldLabel
+                htmlFor="markets"
+                className="text-[13px] font-semibold text-neutral-700"
+              >
+                Top audience markets
+              </FieldLabel>
+              <ToggleGroup
+                id="markets"
+                multiple
+                variant="outline"
+                value={markets}
+                onValueChange={setMarkets}
+                className="flex-wrap gap-2"
+              >
+                {AUDIENCE_MARKET_CODES.map((code) => (
+                  <ToggleGroupItem
+                    key={code}
+                    value={code}
+                    className="h-10 px-4 aria-pressed:border-brand/40 aria-pressed:bg-brand-tint aria-pressed:text-brand-ink data-[state=on]:border-brand/40 data-[state=on]:bg-brand-tint data-[state=on]:text-brand-ink"
+                  >
+                    {AUDIENCE_MARKET_LABELS[code]}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
+                Choose every market that applies.
+              </FieldDescription>
+              <FieldError errors={fieldError('audience.topCountries')} />
+            </Field>
+
+            <Field data-invalid={hasError('audience.ageRange') || undefined}>
+              <FieldLabel
+                htmlFor="ageRange"
+                className="text-[13px] font-semibold text-neutral-700"
+              >
+                Main audience age
+              </FieldLabel>
+              <ToggleGroup
+                id="ageRange"
+                variant="outline"
+                value={ageRange ? [ageRange] : []}
+                onValueChange={(value) =>
+                  setAgeRange((value[0] as AgeRange) ?? null)
+                }
+                className="flex-wrap gap-2"
+              >
+                {AGE_RANGES.map((range) => (
+                  <ToggleGroupItem
+                    key={range}
+                    value={range}
+                    className="h-10 px-4 font-mono aria-pressed:border-brand/40 aria-pressed:bg-brand-tint aria-pressed:text-brand-ink data-[state=on]:border-brand/40 data-[state=on]:bg-brand-tint data-[state=on]:text-brand-ink"
+                  >
+                    {range}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+              <FieldError errors={fieldError('audience.ageRange')} />
+            </Field>
+          </div>
+        </section>
 
         {/* Optional, and labelled as such: a creator who cannot find these
             numbers must still be able to finish onboarding. */}
-        <div className="grid gap-8 sm:grid-cols-2">
-          <Field data-invalid={hasError('followerCount') || undefined}>
-            <FieldLabel htmlFor="followerCount">
-              Followers{' '}
-              <span className="font-normal text-muted-foreground">
-                (optional)
-              </span>
-            </FieldLabel>
-            <Input
-              id="followerCount"
-              name="followerCount"
-              type="number"
-              inputMode="numeric"
-              min={0}
-              step={1}
-              value={followerCount}
-              onChange={(event) => setFollowerCount(event.target.value)}
-              className="h-11 font-mono"
-              placeholder="12000"
-              aria-invalid={hasError('followerCount') || undefined}
-            />
-            <FieldError errors={fieldError('followerCount')} />
-          </Field>
-
-          <Field data-invalid={hasError('engagementRate') || undefined}>
-            <FieldLabel htmlFor="engagementRate">
-              Engagement rate{' '}
-              <span className="font-normal text-muted-foreground">
-                (optional)
-              </span>
-            </FieldLabel>
-            <InputGroup className="h-11">
+        <section className="py-9">
+          <div className="mb-6">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+              Performance
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+              Optional. Add these if you know them; you can still submit without
+              them.
+            </p>
+          </div>
+          <div className="grid gap-7 sm:grid-cols-2">
+            <Field data-invalid={hasError('followerCount') || undefined}>
+              <FieldLabel
+                htmlFor="followerCount"
+                className="text-[13px] font-semibold text-neutral-700"
+              >
+                Followers{' '}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </FieldLabel>
               <Input
-                id="engagementRate"
-                name="engagementRate"
+                id="followerCount"
+                name="followerCount"
                 type="number"
-                inputMode="decimal"
+                inputMode="numeric"
                 min={0}
-                max={100}
-                step={0.01}
-                value={engagementRate}
-                onChange={(event) => setEngagementRate(event.target.value)}
-                data-slot="input-group-control"
-                className="border-0 font-mono shadow-none focus-visible:ring-0"
-                placeholder="4.20"
-                aria-invalid={hasError('engagementRate') || undefined}
+                step={1}
+                value={followerCount}
+                onChange={(event) => setFollowerCount(event.target.value)}
+                className="h-12 bg-neutral-50 px-3.5 font-mono focus-visible:bg-white"
+                placeholder="12000"
+                aria-invalid={hasError('followerCount') || undefined}
               />
-              <InputGroupAddon align="inline-end">%</InputGroupAddon>
-            </InputGroup>
-            <FieldDescription>{ENGAGEMENT_RATE_HINT}</FieldDescription>
-            <FieldError errors={fieldError('engagementRate')} />
-          </Field>
-        </div>
+              <FieldError errors={fieldError('followerCount')} />
+            </Field>
+
+            <Field data-invalid={hasError('engagementRate') || undefined}>
+              <FieldLabel
+                htmlFor="engagementRate"
+                className="text-[13px] font-semibold text-neutral-700"
+              >
+                Engagement rate{' '}
+                <span className="font-normal text-muted-foreground">
+                  (optional)
+                </span>
+              </FieldLabel>
+              <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
+                <Input
+                  id="engagementRate"
+                  name="engagementRate"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  max={100}
+                  step={0.01}
+                  value={engagementRate}
+                  onChange={(event) => setEngagementRate(event.target.value)}
+                  data-slot="input-group-control"
+                  className="border-0 font-mono shadow-none focus-visible:ring-0"
+                  placeholder="4.20"
+                  aria-invalid={hasError('engagementRate') || undefined}
+                />
+                <InputGroupAddon align="inline-end">%</InputGroupAddon>
+              </InputGroup>
+              <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
+                {ENGAGEMENT_RATE_HINT}
+              </FieldDescription>
+              <FieldError errors={fieldError('engagementRate')} />
+            </Field>
+          </div>
+        </section>
 
         {hasError('_root') && (
           <FieldError errors={fieldError('_root')} className="text-sm" />
         )}
 
-        <div className="flex flex-col gap-3 border-t border-border pt-8">
+        <div className="flex flex-col gap-4 border-t border-neutral-200 pt-8 sm:flex-row sm:items-end sm:justify-between">
           <Button
             type="submit"
             disabled={submitting}
@@ -323,9 +412,9 @@ export function CreatorOnboardingForm() {
             {submitting && <Spinner />}
             {submitting ? 'Submitting…' : 'Submit for verification'}
           </Button>
-          <p className="text-sm text-muted-foreground">
-            A person reviews your handle before brands can find you. You will
-            not be visible in search until then.
+          <p className="text-[13px] leading-relaxed text-neutral-500">
+            We review your TikTok handle first. Your profile appears in brand
+            search after verification and tier assignment.
           </p>
         </div>
       </FieldGroup>

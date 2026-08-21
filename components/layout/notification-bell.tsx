@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Bell } from 'lucide-react';
+import { Bell } from '@phosphor-icons/react';
 
 /**
  * Notification bell with unread count (KAN-96).
@@ -16,14 +16,14 @@ export function NotificationBell({ unreadCount }: { unreadCount: number }) {
   return (
     <Link
       href="/notifications"
-      className="relative rounded-lg p-2 text-neutral-600 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+      className="relative grid h-9 w-9 place-items-center rounded-full text-neutral-300 transition-[background-color,color,transform] duration-300 ease-out hover:bg-neutral-800 hover:text-neutral-50 active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50"
       aria-label={
         unreadCount > 0
           ? `${unreadCount} unread notification${unreadCount === 1 ? '' : 's'}`
           : 'Notifications'
       }
     >
-      <Bell className="h-5 w-5" strokeWidth={1.5} />
+      <Bell size={19} weight="regular" aria-hidden />
       {unreadCount > 0 && (
         <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
           {unreadCount > 99 ? '99+' : unreadCount}

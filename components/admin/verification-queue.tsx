@@ -183,6 +183,7 @@ export function VerificationQueue({ creators }: { creators: QueueCreator[] }) {
   if (creators.length === 0) {
     return (
       <EmptyState
+        align="start"
         title="No pending creators"
         description="All submitted creator profiles have been reviewed."
       />
@@ -190,9 +191,9 @@ export function VerificationQueue({ creators }: { creators: QueueCreator[] }) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border">
+    <div className="overflow-x-auto border-b border-neutral-200">
       <table className="w-full">
-        <thead className="bg-muted/50">
+        <thead className="bg-neutral-100/70">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
               TikTok Handle
@@ -214,22 +215,25 @@ export function VerificationQueue({ creators }: { creators: QueueCreator[] }) {
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-border">
+        <tbody className="divide-y divide-neutral-200 bg-neutral-50">
           {creators.map((creator) => (
-            <tr key={creator.id} className="hover:bg-muted/50">
+            <tr
+              key={creator.id}
+              className="transition-colors hover:bg-neutral-100/60"
+            >
               <td className="px-4 py-3">
                 <div className="flex items-center gap-2">
                   <InitialsAvatar name={creator.tiktokHandle} size="sm" />
-                  <span className="font-mono text-sm">
-                    {creator.tiktokHandle}
+                  <span className="text-sm font-semibold text-neutral-900">
+                    @{creator.tiktokHandle.replace(/^@+/, '')}
                   </span>
                 </div>
               </td>
               <td className="px-4 py-3 text-sm capitalize">{creator.niche}</td>
-              <td className="px-4 py-3 text-sm">
+              <td className="px-4 py-3 font-mono text-xs tabular-nums">
                 {formatFollowerCount(creator.followerCount)}
               </td>
-              <td className="px-4 py-3 text-sm">
+              <td className="px-4 py-3 font-mono text-xs tabular-nums">
                 {formatEngagementRate(creator.engagementRate)}
               </td>
               <td className="px-4 py-3 text-sm text-muted-foreground">

@@ -42,22 +42,20 @@ function Fact({
   label,
   value,
   note,
-  mono = true,
 }: {
   label: string;
   value: string;
   note?: string;
-  mono?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-0.5">
-      <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+    <div className="flex min-w-0 flex-col gap-1 px-3 first:pl-0 last:pr-0">
+      <dt className="text-[10px] font-semibold tracking-[0.12em] text-neutral-500 uppercase">
         {label}
       </dt>
-      <dd className={mono ? 'font-mono text-sm' : 'text-sm'}>
-        {value}
+      <dd className="truncate text-sm font-semibold tabular-nums text-neutral-900">
+        <span>{value}</span>
         {note ? (
-          <span className="ml-1.5 font-sans text-xs text-muted-foreground">
+          <span className="mt-0.5 block truncate text-[11px] font-normal text-neutral-500">
             {note}
           </span>
         ) : null}
@@ -73,7 +71,7 @@ export function CreatorCard({ creator }: { creator: DiscoveryCreator }) {
     // `h-full` so cards in a row match height when one handle wraps. `relative`
     // is what makes the stretched link below work, and `focus-within` moves the
     // ring onto the card now that the link no longer wraps it.
-    <Card className="relative h-full transition-shadow focus-within:ring-2 focus-within:ring-ring hover:ring-foreground/25">
+    <Card className="relative h-full border-neutral-200 bg-neutral-50 transition-all duration-300 hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_16px_32px_-24px_rgba(23,23,23,0.35)] focus-within:ring-2 focus-within:ring-ring">
       {/* The whole-card hit target. It covers the card instead of wrapping it
           because an `<a>` inside an `<a>` is invalid HTML — the browser closes
           the outer one early and the TikTok link ends up outside the card
@@ -84,29 +82,31 @@ export function CreatorCard({ creator }: { creator: DiscoveryCreator }) {
         aria-label={creator.tiktokHandle}
         className="absolute inset-0 rounded-xl"
       />
-      <CardHeader>
-        <CardTitle className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-          <div className="flex items-center gap-2">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-start justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
             <InitialsAvatar name={creator.tiktokHandle} />
-            <span>{creator.tiktokHandle}</span>
+            <div className="min-w-0">
+              <span className="block truncate text-base font-semibold text-neutral-900">
+                @{creator.tiktokHandle.replace(/^@+/, '')}
+              </span>
+              <span className="mt-0.5 block text-xs text-muted-foreground">
+                {NICHE_LABELS[creator.niche as Niche] ?? creator.niche}
+              </span>
+            </div>
           </div>
           {/* The tier name is context for the price beside it, not a fact a
               brand filters on, so it reads as a label rather than a figure. */}
-          <span className="text-xs font-normal tracking-wide text-muted-foreground uppercase">
+          <span className="shrink-0 pt-1 text-[11px] font-semibold tracking-[0.12em] text-brand uppercase">
             {creator.tierName}
           </span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <CardContent className="flex flex-col gap-5">
         {/* Two columns at phone widths and four from `sm:` up (NFR-007). No
             fixed widths anywhere, so nothing here can scroll sideways at
             375px — the facts reflow instead. */}
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
-          <Fact
-            label="Niche"
-            value={NICHE_LABELS[creator.niche as Niche] ?? creator.niche}
-            mono={false}
-          />
+        <dl className="grid grid-cols-3 divide-x divide-neutral-200 border-y border-neutral-200 py-4">
           {/* Absent is not zero. Both of these come from
               `lib/creators/profile-facts.ts`, which is also what the creator's
               own dashboard renders them through, so a blank optional field
@@ -135,7 +135,7 @@ export function CreatorCard({ creator }: { creator: DiscoveryCreator }) {
             href={profileUrl}
             target="_blank"
             rel="noopener noreferrer nofollow"
-            className="relative z-10 self-start text-xs font-medium text-brand-ink underline-offset-4 hover:underline"
+            className="relative z-10 self-start border-t border-neutral-200 pt-3 text-xs font-medium text-brand-ink underline-offset-4 hover:underline"
           >
             {VIEW_ON_TIKTOK_LABEL} ↗
           </a>

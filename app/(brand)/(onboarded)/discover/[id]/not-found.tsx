@@ -21,8 +21,9 @@ import { buttonVariants } from '@/components/ui/button';
  */
 export default function CreatorNotFound() {
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
+    <div className="mx-auto min-h-[60dvh] max-w-5xl py-8">
       <EmptyState
+        align="start"
         title="This creator is not available."
         description="They may not be taking bookings yet, or the link may be out of date. Your other results are still there."
         action={

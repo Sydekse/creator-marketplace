@@ -81,49 +81,112 @@ export { formatEtb, formatDeadline };
 
 const styles = {
   body: {
-    backgroundColor: '#f6f6f7',
+    backgroundColor: '#f3f4f2',
     fontFamily:
-      "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+      "Geist, 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif",
+    margin: '0',
+    padding: '24px 12px',
   },
   container: {
-    backgroundColor: '#ffffff',
-    borderRadius: '12px',
-    margin: '32px auto',
-    maxWidth: '520px',
-    padding: '32px',
+    backgroundColor: '#fafafa',
+    border: '1px solid #dedfdd',
+    borderRadius: '24px',
+    margin: '16px auto',
+    maxWidth: '580px',
+    overflow: 'hidden',
   },
-  heading: { fontSize: '20px', fontWeight: 600, margin: '0 0 16px' },
-  text: {
-    color: '#333333',
-    fontSize: '15px',
-    lineHeight: '24px',
+  masthead: {
+    backgroundColor: '#171717',
+    padding: '20px 28px',
+  },
+  brand: {
+    color: '#fafafa',
+    fontSize: '13px',
+    fontWeight: 600,
+    letterSpacing: '-0.1px',
+    lineHeight: '20px',
+    margin: 0,
+  },
+  brandMark: {
+    color: '#8fc7bd',
+    fontSize: '14px',
+    letterSpacing: '-2px',
+    marginRight: '10px',
+  },
+  content: {
+    padding: '36px 40px 28px',
+  },
+  eyebrow: {
+    color: '#166b63',
+    fontSize: '11px',
+    fontWeight: 700,
+    letterSpacing: '1.5px',
+    lineHeight: '16px',
     margin: '0 0 12px',
+    textTransform: 'uppercase' as const,
   },
-  muted: { color: '#6b7280', fontSize: '13px', lineHeight: '20px', margin: 0 },
-  hr: { borderColor: '#e5e7eb', margin: '24px 0' },
-  link: { color: '#111827', fontWeight: 600 },
+  heading: {
+    color: '#171717',
+    fontSize: '28px',
+    fontWeight: 600,
+    letterSpacing: '-0.7px',
+    lineHeight: '34px',
+    margin: '0 0 20px',
+  },
+  text: {
+    color: '#525252',
+    fontSize: '15px',
+    lineHeight: '25px',
+    margin: '0 0 16px',
+  },
+  footer: {
+    backgroundColor: '#f5f5f4',
+    borderTop: '1px solid #dedfdd',
+    padding: '20px 40px 24px',
+  },
+  muted: {
+    color: '#737373',
+    fontSize: '12px',
+    lineHeight: '19px',
+    margin: 0,
+  },
+  hr: { borderColor: '#dedfdd', margin: '28px 0 20px' },
+  linkWrap: { margin: '24px 0 4px' },
+  link: {
+    backgroundColor: '#171717',
+    borderRadius: '999px',
+    color: '#fafafa',
+    display: 'inline-block',
+    fontSize: '14px',
+    fontWeight: 600,
+    lineHeight: '20px',
+    padding: '12px 18px',
+    textDecoration: 'none',
+  },
   // The money breakdown (AC-3, AC-4). Set off from the prose because it is a
   // receipt rather than a sentence, and a creator checking what they were paid
   // should find the figures without reading.
   breakdown: {
-    backgroundColor: '#f9fafb',
-    borderRadius: '8px',
-    margin: '0 0 12px',
-    padding: '16px',
+    borderBottom: '1px solid #dedfdd',
+    borderTop: '1px solid #dedfdd',
+    margin: '8px 0 20px',
+    padding: '14px 0',
   },
   breakdownRow: {
-    color: '#333333',
-    fontSize: '14px',
-    lineHeight: '22px',
-    margin: 0,
+    color: '#525252',
+    fontFamily: "'DM Mono', 'SFMono-Regular', Consolas, monospace",
+    fontSize: '13px',
+    lineHeight: '21px',
+    margin: '0 0 6px',
   },
   breakdownNet: {
-    borderTop: '1px solid #e5e7eb',
-    color: '#111827',
-    fontSize: '15px',
+    borderTop: '1px solid #dedfdd',
+    color: '#171717',
+    fontFamily: "'DM Mono', 'SFMono-Regular', Consolas, monospace",
+    fontSize: '14px',
     lineHeight: '22px',
-    margin: '8px 0 0',
-    paddingTop: '8px',
+    margin: '10px 0 0',
+    paddingTop: '10px',
   },
 } as const;
 
@@ -144,13 +207,30 @@ function Layout({
       <Preview>{preview}</Preview>
       <Body style={styles.body}>
         <Container style={styles.container}>
-          <Heading style={styles.heading}>{heading}</Heading>
-          <Section>{children}</Section>
-          <Hr style={styles.hr} />
-          <Text style={styles.muted}>
-            Creator Marketplace — you are receiving this because of activity on
-            your account.
-          </Text>
+          <Section style={styles.masthead}>
+            <Text style={styles.brand}>
+              <span style={styles.brandMark} aria-hidden="true">
+                ■ ■
+              </span>{' '}
+              Creator Marketplace
+            </Text>
+          </Section>
+          <Section style={styles.content}>
+            <Text style={styles.eyebrow}>Account activity</Text>
+            <Heading style={styles.heading}>{heading}</Heading>
+            <Section>{children}</Section>
+            <Hr style={styles.hr} />
+            <Text style={styles.muted}>
+              Creator Marketplace — you are receiving this because of activity
+              on your account.
+            </Text>
+          </Section>
+          <Section style={styles.footer}>
+            <Text style={styles.muted}>
+              You are receiving this email because of activity on your Creator
+              Marketplace account.
+            </Text>
+          </Section>
         </Container>
       </Body>
     </Html>
@@ -159,7 +239,7 @@ function Layout({
 
 function Cta({ href, label }: { href: string; label: string }) {
   return (
-    <Text style={styles.text}>
+    <Text style={styles.linkWrap}>
       <Link href={href} style={styles.link}>
         {label}
       </Link>

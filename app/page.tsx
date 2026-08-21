@@ -36,15 +36,15 @@ const STEPS = [
   },
   {
     title: 'Creators accept',
-    desc: 'Verified creators receive offers that match their niche. Accept or decline — no pressure, no spam.',
+    desc: 'Verified creators receive offers that match their niche. Accept or decline. No pressure, no spam.',
   },
   {
     title: 'Deliver & approve',
-    desc: 'The creator submits the video and the brand reviews it with engagement data attached — no chasing links.',
+    desc: 'The creator submits the video. The brand reviews it with engagement data attached. No chasing links.',
   },
   {
     title: 'Approve & pay',
-    desc: 'Approval releases the payout instantly, net of the transparent 15% commission. Both sides keep the audit trail.',
+    desc: 'Approval releases the payout. The 15% commission is shown up front, and both sides keep the record.',
   },
 ];
 
@@ -75,12 +75,12 @@ const WORKSPACE_FEATURES = [
   },
   {
     title: 'Creators deliver',
-    desc: 'Verified creators submit their video against the brief, with real-time engagement data attached.',
+    desc: 'Verified creators submit videos against the brief, with engagement data attached.',
     active: false,
   },
   {
     title: 'Approve & pay',
-    desc: 'Review the deliverable, approve, and the creator is paid instantly from escrow.',
+    desc: 'Review the deliverable and approve it. The creator is then paid from escrow.',
     active: false,
   },
   {
@@ -92,22 +92,22 @@ const WORKSPACE_FEATURES = [
 
 const CREATOR_STATS = [
   { value: '85%', label: 'You keep on every approved deal' },
-  { value: '0', label: 'Fees to join or list your profile' },
-  { value: 'Instant', label: 'Payout the moment a brand approves' },
+  { value: 'Free', label: 'To join and list your profile' },
+  { value: 'On approval', label: 'Your payout is released' },
 ];
 
 const BRAND_PRICING = [
   'Unlimited campaigns',
   'Escrow-protected payments',
   'Human-verified creators only',
-  'Real-time engagement data',
+  'Engagement data for each video',
   'Full audit trail on every deal',
 ];
 
 const CREATOR_PRICING = [
   'Free to join and list',
   'Keep 85% of every deal',
-  'Instant payout on approval',
+  'Payout after brand approval',
   'Receive offers, not spam',
   'Commission shown before you accept',
 ];
@@ -115,7 +115,7 @@ const CREATOR_PRICING = [
 const FAQ_ITEMS = [
   {
     q: 'How does escrow work?',
-    a: 'When a brand funds a campaign, the total is held in escrow per deal. The money stays locked until the brand approves the deliverable — or disputes it. Creators get paid only after approval, and every transaction leaves an audit trail.',
+    a: 'When a brand funds a campaign, the money is held in escrow for each deal. It stays there until the brand approves the work or opens a dispute. Creators are paid after approval, and both sides can see the transaction record.',
   },
   {
     q: 'How are creators verified?',
@@ -131,7 +131,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Is there a fee to join?',
-    a: 'No. Signing up is free for both brands and creators. The platform takes a transparent 15% commission on completed deals — you see the breakdown before accepting.',
+    a: 'No. Joining is free for brands and creators. The platform takes 15% from completed deals, and you see the amount before accepting.',
   },
 ];
 
@@ -183,7 +183,7 @@ const TIMELINE = [
   { label: 'Offer accepted', meta: '02 Aug', done: true },
   { label: 'Funded in escrow', meta: '02 Aug', done: true },
   { label: 'Video submitted', meta: '10 Aug', done: true },
-  { label: 'Approved & paid', meta: '—', done: false },
+  { label: 'Approved & paid', meta: 'Pending', done: false },
 ];
 
 const CREATOR_DEALS = [
@@ -254,17 +254,17 @@ function AppFrame({
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-[24px] border border-neutral-200 bg-white shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)]',
+        'overflow-hidden rounded-[24px] border border-neutral-200 bg-white font-sans shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)]',
         className
       )}
     >
-      <div className="relative flex items-center border-b border-neutral-200 bg-neutral-50 px-4 py-2">
-        <span className="flex gap-2" aria-hidden>
-          <span className="h-2 w-2 rounded-full bg-[oklch(0.78_0.08_25)]" />
-          <span className="h-2 w-2 rounded-full bg-[oklch(0.82_0.09_85)]" />
-          <span className="h-2 w-2 rounded-full bg-[oklch(0.8_0.09_160)]" />
+      <div className="relative flex items-center border-b border-neutral-200 bg-neutral-50 px-4 py-2.5">
+        <span className="flex gap-1.5" aria-hidden>
+          <span className="h-2 w-2 rounded-full bg-[oklch(0.78_0.08_25)] ring-1 ring-black/5" />
+          <span className="h-2 w-2 rounded-full bg-[oklch(0.82_0.09_85)] ring-1 ring-black/5" />
+          <span className="h-2 w-2 rounded-full bg-[oklch(0.8_0.09_160)] ring-1 ring-black/5" />
         </span>
-        <span className="absolute left-1/2 top-1/2 hidden max-w-[70%] -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-neutral-200 bg-white px-3 py-1 text-[11px] text-neutral-500 sm:flex">
+        <span className="absolute left-1/2 top-1/2 hidden max-w-[70%] -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-neutral-200 bg-white px-3 py-1 text-[10px] font-medium text-neutral-500 sm:flex">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-soft" />
           <span className="truncate">creator-marketplace.et</span>
         </span>
@@ -310,7 +310,7 @@ export default function HomePage() {
               <Link
                 key={href}
                 href={href}
-                className="rounded-full px-3 py-2 text-[13px] text-neutral-400 transition-colors duration-300 ease-out hover:bg-white/5 hover:text-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500"
+                className="nav-underline mx-3 py-2 text-[13px] text-neutral-400 transition-colors duration-300 ease-out hover:text-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500"
               >
                 {label}
               </Link>
@@ -337,192 +337,228 @@ export default function HomePage() {
         {/* ---------------------------------------------------------------- */}
         {/*  HERO — editorial headline over a CSS-built dashboard mockup     */}
         {/* ---------------------------------------------------------------- */}
-        <section className="pt-24 pb-16 sm:pt-28 sm:pb-20">
-          <div className="mx-auto max-w-5xl px-6 text-center">
-            <h1 className="animate-rise-in font-display text-5xl font-medium leading-[1.08] tracking-tight text-neutral-900 sm:text-6xl lg:text-[72px]">
-              Brands fund.
-              <br />
-              <em className="not-italic text-brand">Creators deliver.</em>
-            </h1>{' '}
-            <p className="animate-rise-in-1 mx-auto mt-6 max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-              Brief a campaign, fund it in escrow, and pay for deliverables you
-              actually approve.
-            </p>
-            {/* Platform notice — shimmering pill, just above the CTAs      */}
-            <div className="animate-rise-in-2 mt-8 flex justify-center">
-              <div className="shimmer-border p-px">
-                <p className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs text-neutral-600">
-                  <TikTokIcon className="h-3.5 w-3.5 text-neutral-900" />
-                  TikTok only for now
-                </p>
+        <section className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-20 lg:min-h-[900px] lg:pt-32 lg:pb-20">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-40"
+            aria-hidden
+            style={{
+              backgroundImage:
+                'linear-gradient(to right, oklch(0.88 0 0 / 0.3) 1px, transparent 1px), linear-gradient(to bottom, oklch(0.88 0 0 / 0.3) 1px, transparent 1px)',
+              backgroundSize: '72px 72px',
+              maskImage: 'linear-gradient(to bottom, black, transparent 82%)',
+            }}
+          />
+          <div className="relative mx-auto w-full max-w-[1400px] px-5 sm:px-8 xl:px-12">
+            <div className="relative z-[1] max-w-xl lg:ml-[4%] lg:max-w-2xl">
+              <div className="animate-rise-in inline-flex items-center gap-3 border-l border-brand pl-4">
+                <TikTokIcon className="h-4 w-4 text-neutral-900" />
+                <span className="text-[11px] font-semibold tracking-[0.16em] text-neutral-600 uppercase">
+                  Built for TikTok campaigns
+                </span>
               </div>
+              <h1 className="animate-rise-in-1 mt-6 font-display text-[44px] font-medium leading-[1.04] tracking-tight text-neutral-900 sm:mt-8 sm:text-6xl lg:text-[68px] xl:text-[72px]">
+                Brands fund.
+                <br />
+                <em className="not-italic text-brand">Creators deliver.</em>
+              </h1>
+              <p className="animate-rise-in-2 mt-5 max-w-[48ch] text-base leading-relaxed text-neutral-600 sm:mt-7 sm:text-lg">
+                Set the brief, choose verified creators, and pay only for work
+                you approve. The money and the deal stay together.
+              </p>
+              {/* Platform notice — shimmering pill, just above the CTAs      */}
+              <div className="animate-rise-in-3 mt-6 flex flex-col items-stretch gap-3 sm:mt-9 sm:flex-row sm:items-center">
+                <Link
+                  href="/sign-up"
+                  className="btn-shine inline-flex items-center justify-center gap-2 rounded-full bg-neutral-900 px-7 py-3 text-sm font-medium text-neutral-50 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-neutral-800 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+                >
+                  Create free account
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                </Link>
+                <Link
+                  href="#for-creators"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-neutral-300 bg-neutral-50/80 px-7 py-3 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:bg-neutral-100 hover:text-neutral-900 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+                >
+                  See creator benefits
+                </Link>
+              </div>
+              <dl className="animate-rise-in-4 mt-8 grid max-w-xl grid-cols-3 border-y border-neutral-300/80 py-5 sm:mt-10">
+                {[
+                  ['15%', 'clear commission'],
+                  ['85%', 'kept by creators'],
+                  ['Free', 'to join'],
+                ].map(([value, label], index) => (
+                  <div
+                    key={label}
+                    className={cn(
+                      'pr-4',
+                      index > 0 && 'border-l border-neutral-300/80 pl-4'
+                    )}
+                  >
+                    <dt className="font-mono text-base font-medium tabular-nums text-neutral-900 sm:text-lg">
+                      {value}
+                    </dt>
+                    <dd className="mt-1 text-[10px] leading-tight tracking-[0.08em] text-neutral-500 uppercase sm:text-[11px]">
+                      {label}
+                    </dd>
+                  </div>
+                ))}
+              </dl>
             </div>
-            <div className="animate-rise-in-3 mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <Link
-                href="/sign-up"
-                className="btn-shine inline-flex items-center justify-center gap-2 rounded-full bg-neutral-900 px-7 py-3 text-sm font-medium text-neutral-50 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-neutral-800 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
-              >
-                Create an account
-                <ArrowRight className="h-4 w-4" aria-hidden />
-              </Link>
-              <Link
-                href="#how-it-works"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-neutral-300 px-7 py-3 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
-              >
-                See how it works
-              </Link>
-            </div>
-            <p className="animate-rise-in-4 mt-4 text-xs text-neutral-500">
-              Free to join &middot; 15% transparent commission &middot; Pay only
-              when a deal completes
-            </p>
           </div>
 
-          <div className="animate-rise-in-4 mx-auto mt-6 max-w-5xl px-6 sm:mt-8">
-            <AppFrame>
-              <div className="flex">
-                {/* Sidebar */}
-                <aside className="hidden w-44 shrink-0 flex-col gap-1 border-r border-neutral-200 bg-neutral-50 p-3 sm:flex">
-                  <div className="mb-2 flex items-center gap-2 px-2 pt-1">
-                    <Mark tone="dark" className="h-5 w-5 rounded-md" />
-                    <span className="text-[10px] font-semibold text-neutral-900">
-                      Creator Marketplace
-                    </span>
-                  </div>
-                  {SIDEBAR.map((item) => (
-                    <div
-                      key={item.label}
-                      className={cn(
-                        'flex items-center gap-2 rounded-md px-2 py-2 text-[11px]',
-                        item.active
-                          ? 'bg-brand-strong font-medium text-neutral-50'
-                          : 'text-neutral-600'
-                      )}
-                    >
-                      <item.icon
-                        className="h-3.5 w-3.5"
-                        strokeWidth={1.5}
-                        aria-hidden
-                      />
-                      {item.label}
-                    </div>
-                  ))}
-                  <div className="mt-auto space-y-1 border-t border-neutral-200 pt-3">
-                    <div className="flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-neutral-600">
-                      <Settings
-                        className="h-3.5 w-3.5"
-                        strokeWidth={1.5}
-                        aria-hidden
-                      />
-                      Settings
-                    </div>
-                    <div className="flex items-center gap-2 px-2 py-2">
-                      <Avatar initials="AD" className="h-6 w-6 text-[8px]" />
-                      <span className="text-[10px] font-medium text-neutral-700">
-                        Admin
+          <div className="relative mx-auto mt-14 w-full max-w-[1400px] px-5 sm:px-8 lg:absolute lg:inset-x-0 lg:top-48 lg:mt-0 xl:px-12">
+            <div className="animate-rise-in-3 relative ml-auto w-full lg:w-[48%] xl:w-[50%]">
+              <AppFrame>
+                <div className="flex">
+                  {/* Sidebar */}
+                  <aside className="hidden w-36 shrink-0 flex-col gap-0.5 border-r border-neutral-200 bg-neutral-50 p-3 sm:flex">
+                    <div className="mb-3 flex items-center gap-2 px-2 pt-1">
+                      <Mark tone="dark" className="h-5 w-5 rounded-md" />
+                      <span className="text-[9px] font-semibold leading-tight text-neutral-900">
+                        Creator Marketplace
                       </span>
                     </div>
-                  </div>
-                </aside>
-
-                {/* Main panel */}
-                <div className="min-w-0 flex-1 space-y-4 bg-neutral-50 p-4 sm:p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-neutral-900">
-                        Campaigns
-                      </p>
-                      <p className="text-[11px] text-neutral-500">
-                        6 active &middot; 2 pending
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="hidden items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-[11px] text-neutral-500 md:flex">
-                        <Search
-                          className="h-3 w-3"
+                    {SIDEBAR.map((item) => (
+                      <div
+                        key={item.label}
+                        className={cn(
+                          'flex items-center gap-2 rounded-lg border border-transparent px-2 py-2 text-[11px] transition-colors',
+                          item.active
+                            ? 'border-brand/20 bg-brand-tint font-medium text-brand-ink'
+                            : 'text-neutral-600 hover:border-neutral-200 hover:bg-white'
+                        )}
+                      >
+                        <item.icon
+                          className="h-3.5 w-3.5"
                           strokeWidth={1.5}
                           aria-hidden
                         />
-                        Search campaigns
-                      </span>
-                      <span className="rounded-full bg-brand-deep px-3 py-2 text-[11px] font-medium text-neutral-50">
-                        New campaign
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                    {[
-                      ['In escrow', '2,400 ETB', 'across 4 deals'],
-                      ['Active campaigns', '6', '2 pending'],
-                      ['Paid out', '1,150 ETB', 'this month'],
-                    ].map(([label, value, sub]) => (
-                      <div
-                        key={label}
-                        className="rounded-xl border border-neutral-200 bg-white p-3"
-                      >
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
-                          {label}
-                        </p>
-                        <p className="mt-1 text-sm font-semibold text-neutral-900">
-                          {value}
-                        </p>
-                        <p className="text-[10px] text-neutral-500">{sub}</p>
+                        {item.label}
                       </div>
                     ))}
-                  </div>
+                    <div className="mt-auto space-y-1 border-t border-neutral-200 pt-3">
+                      <div className="flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-neutral-600">
+                        <Settings
+                          className="h-3.5 w-3.5"
+                          strokeWidth={1.5}
+                          aria-hidden
+                        />
+                        Settings
+                      </div>
+                      <div className="flex items-center gap-2 px-2 py-2">
+                        <Avatar initials="AD" className="h-6 w-6 text-[8px]" />
+                        <span className="text-[10px] font-medium text-neutral-700">
+                          Admin
+                        </span>
+                      </div>
+                    </div>
+                  </aside>
 
-                  <div className="hidden gap-3 sm:grid sm:grid-cols-3">
-                    {CAMPAIGNS.map((c) => (
-                      <div
-                        key={c.name}
-                        className="rounded-xl border border-neutral-200 bg-white p-3"
-                      >
-                        <div className="flex items-center gap-2">
+                  {/* Main panel */}
+                  <div className="min-w-0 flex-1 space-y-4 bg-neutral-50 p-4 sm:p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-[13px] font-semibold tracking-tight text-neutral-900">
+                          Campaigns
+                        </p>
+                        <p className="text-[11px] text-neutral-500">
+                          6 active &middot; 2 pending
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="hidden items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-[11px] text-neutral-500 md:flex">
+                          <Search
+                            className="h-3 w-3"
+                            strokeWidth={1.5}
+                            aria-hidden
+                          />
+                          Search
+                        </span>
+                        <span className="rounded-full bg-brand-deep px-3 py-2 text-[10px] font-semibold text-neutral-50 shadow-sm shadow-brand-deep/10">
+                          New campaign
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        ['In escrow', '2,400 ETB', 'across 4 deals'],
+                        ['Active campaigns', '6', '2 pending'],
+                        ['Paid out', '1,150 ETB', 'this month'],
+                      ].map(([label, value, sub]) => (
+                        <div
+                          key={label}
+                          className="rounded-lg border border-neutral-200 bg-white p-2.5"
+                        >
+                          <p className="text-[8px] font-semibold uppercase tracking-[0.08em] text-neutral-500 sm:text-[9px]">
+                            {label}
+                          </p>
+                          <p className="mt-1.5 font-sans text-[12px] font-medium leading-none tabular-nums text-neutral-900 sm:text-[13px]">
+                            {value}
+                          </p>
+                          <p className="mt-1 text-[9px] leading-tight text-neutral-500">
+                            {sub}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="hidden overflow-hidden rounded-lg border border-neutral-200 bg-white sm:block">
+                      {CAMPAIGNS.map((c) => (
+                        <div
+                          key={c.name}
+                          className="flex items-center gap-2.5 border-b border-neutral-200 px-3 py-2.5 last:border-b-0"
+                        >
                           <Avatar
                             initials={c.brand
                               .split(' ')
                               .map((n) => n[0])
                               .join('')}
-                            className="h-7 w-7 text-[9px]"
+                            className="h-7 w-7 text-[8px]"
                           />
-                          <div className="min-w-0">
-                            <p className="truncate text-[11px] font-medium text-neutral-900">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[10px] font-semibold tracking-tight text-neutral-900 sm:text-[11px]">
                               {c.name}
                             </p>
-                            <p className="truncate text-[10px] text-neutral-500">
+                            <p className="truncate text-[9px] text-neutral-500 sm:text-[10px]">
                               {c.brand} &middot; {c.videos}
                             </p>
                           </div>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between border-t border-neutral-100 pt-2">
-                          <span className="text-[11px] font-semibold text-neutral-900">
+                          <span className="whitespace-nowrap font-sans text-[10px] font-medium tabular-nums text-neutral-800">
                             {c.price}
                           </span>
-                          <Chip tone={c.tone} className="text-[10px]">
+                          <Chip tone={c.tone} className="text-[9px]">
                             {c.chip}
                           </Chip>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </AppFrame>
+              </AppFrame>
+            </div>
           </div>
         </section>
 
         {/* ---------------------------------------------------------------- */}
         {/*  BAND — four value props divided by hairlines                     */}
         {/* ---------------------------------------------------------------- */}
-        <section className="border-y border-neutral-200 bg-white">
-          <div className="mx-auto grid max-w-6xl gap-8 px-6 py-12 sm:grid-cols-2 lg:grid-cols-4 lg:gap-0">
-            {BAND.map((item) => (
+        <section className="border-y border-neutral-200 bg-neutral-50">
+          <div className="mx-auto grid max-w-6xl px-6 sm:grid-cols-2 lg:grid-cols-4">
+            {BAND.map((item, index) => (
               <div
                 key={item.title}
-                className="lg:border-l lg:border-neutral-200 lg:px-8 lg:first:border-l-0 lg:first:pl-0"
+                className={cn(
+                  'border-b border-neutral-200 py-8 sm:px-8 lg:border-b-0 lg:border-l lg:py-12',
+                  index % 2 === 0 && 'sm:border-r lg:border-r-0',
+                  index === 0 && 'lg:border-l-0 lg:pl-0',
+                  index === BAND.length - 1 && 'lg:pr-0'
+                )}
               >
-                <p className="text-[15px] font-semibold text-neutral-900">
+                <p className="font-mono text-[10px] tracking-[0.14em] text-neutral-500 uppercase">
+                  0{index + 1}
+                </p>
+                <p className="mt-4 text-[15px] font-semibold text-neutral-900">
                   {item.title}
                 </p>
                 <p className="mt-2 text-[13px] leading-relaxed text-neutral-600">
@@ -551,8 +587,8 @@ export default function HomePage() {
               </Reveal>
               <Reveal delay={120} className="lg:self-end">
                 <p className="max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-                  A deal is a single thread from first offer to final payout —
-                  escrow holds the money, and every step is on the record.
+                  The brand creates an offer and funds it. The creator accepts,
+                  posts the video, and gets paid after approval.
                 </p>
               </Reveal>
             </div>
@@ -593,17 +629,18 @@ export default function HomePage() {
                   Why it works
                 </p>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
-                  Replace the patchwork,
+                  One place for the deal,
                   <br />
-                  <em className="not-italic text-brand">not your process.</em>
+                  <em className="not-italic text-brand">
+                    the work, and the payment.
+                  </em>
                 </h2>
               </Reveal>
               <Reveal delay={120} className="lg:self-end">
                 <p className="max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-                  Briefs in one tool. Payments in another. Conversations
-                  somewhere else. Creator Marketplace keeps the deal and the
-                  money together — so every review starts from what was agreed,
-                  not what got lost between tabs.
+                  Brands can see the brief, creator, deliverable, payment, and
+                  deal history in the same workspace. Nothing has to be pieced
+                  together from messages and spreadsheets.
                 </p>
               </Reveal>
             </div>
@@ -624,15 +661,15 @@ export default function HomePage() {
                   The brand workspace
                 </p>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
-                  Run the campaign in
+                  Create, fund, and review
                   <br />
-                  <em className="not-italic text-brand">one workspace.</em>
+                  <em className="not-italic text-brand">from one dashboard.</em>
                 </h2>
               </Reveal>
               <Reveal delay={120} className="lg:self-end">
                 <p className="max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-                  Brief a campaign, fund it in escrow, and review deliverables
-                  without switching tabs. Less switching, no lost context.
+                  Set the campaign terms, choose creators, fund each deal, and
+                  approve submitted videos from the brand dashboard.
                 </p>
               </Reveal>
             </div>
@@ -656,7 +693,7 @@ export default function HomePage() {
                           'font-display text-lg font-medium leading-snug transition-colors duration-300 ease-out sm:text-xl',
                           f.active
                             ? 'text-brand'
-                            : 'text-neutral-500 group-hover:text-neutral-900'
+                            : 'text-neutral-900 lg:text-neutral-500 lg:group-hover:text-neutral-900'
                         )}
                       >
                         {f.title}
@@ -666,7 +703,7 @@ export default function HomePage() {
                           'mt-2 max-w-[44ch] text-sm leading-relaxed transition-all duration-300 ease-out',
                           f.active
                             ? 'text-neutral-600 opacity-100'
-                            : 'text-neutral-600 opacity-0 group-hover:opacity-100'
+                            : 'text-neutral-600 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100'
                         )}
                       >
                         {f.desc}
@@ -771,7 +808,7 @@ export default function HomePage() {
                       <div className="mx-auto grid aspect-[9/16] w-full max-w-[160px] place-items-center rounded-lg border border-neutral-200 bg-neutral-100">
                         <span className="grid h-10 w-10 place-items-center rounded-full bg-brand-deep">
                           <Play
-                            className="ml-0.5 h-3 w-3 fill-white text-white"
+                            className="ml-0.5 h-3 w-3 fill-neutral-50 text-neutral-50"
                             aria-hidden
                           />
                         </span>
@@ -819,9 +856,9 @@ export default function HomePage() {
               </Reveal>
               <Reveal delay={120} className="lg:self-end">
                 <p className="max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-                  Apply once, get verified, and receive offers that match your
-                  niche — no cold DMs, no chasing invoices. The commission is
-                  shown before you accept, never after.
+                  Apply once and get verified. Brands can then send offers that
+                  match your niche. You see the work, price, and commission
+                  before you accept.
                 </p>
               </Reveal>
             </div>
@@ -911,23 +948,22 @@ export default function HomePage() {
                   Pricing
                 </p>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
-                  No subscription.
+                  Free to join.
                   <br />
                   <em className="not-italic text-brand">
-                    One transparent fee.
+                    15% on completed deals.
                   </em>
                 </h2>
               </Reveal>
               <Reveal delay={120} className="lg:self-end">
                 <p className="max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-                  Joining is free for both sides. The platform takes a flat 15%
-                  commission on completed deals — shown before you accept, never
-                  after.
+                  Brands and creators can join without a subscription. The
+                  platform takes 15% only when a deal is completed.
                 </p>
               </Reveal>
             </div>
 
-            <div className="mx-auto mt-16 grid max-w-4xl gap-6 md:grid-cols-2">
+            <div className="mx-auto mt-16 grid max-w-4xl overflow-hidden border-y border-neutral-200 md:grid-cols-2 md:divide-x md:divide-neutral-200">
               {[
                 {
                   title: 'For brands',
@@ -941,15 +977,15 @@ export default function HomePage() {
                 },
               ].map((card, i) => (
                 <Reveal key={card.title} delay={i * 100}>
-                  <div className="flex h-full flex-col rounded-2xl border border-neutral-200 bg-neutral-100 p-8 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-300">
+                  <div className="flex h-full flex-col px-1 py-10 md:px-10">
                     <p className="text-lg font-semibold text-neutral-900">
                       {card.title}
                     </p>
                     <div className="mt-4 flex items-baseline gap-2">
-                      <span className="text-4xl font-semibold tracking-tight text-neutral-900">
-                        $0
+                      <span className="font-display text-4xl font-medium tracking-tight text-neutral-900">
+                        Free
                       </span>
-                      <span className="text-sm text-neutral-600">/ month</span>
+                      <span className="text-sm text-neutral-600">to join</span>
                     </div>
                     <p className="mt-2 text-[13px] text-neutral-600">
                       No card required. No plans to pick.
@@ -971,13 +1007,14 @@ export default function HomePage() {
                         </li>
                       ))}
                     </ul>
-                    <Link
-                      href="/sign-up"
-                      className="btn-shine mt-6 inline-flex items-center justify-center gap-2 rounded-full bg-neutral-900 px-6 py-3 text-sm font-medium text-neutral-50 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-neutral-800 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
-                    >
-                      {card.cta}
-                      <ArrowRight className="h-4 w-4" aria-hidden />
-                    </Link>
+                    <div className="mt-6 border-t border-neutral-200 pt-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-brand">
+                        {card.cta}
+                      </p>
+                      <p className="mt-1 text-xs text-neutral-500">
+                        Free to join. Choose this account type when you sign up.
+                      </p>
+                    </div>
                   </div>
                 </Reveal>
               ))}
@@ -1001,7 +1038,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-3xl px-6">
             <Reveal className="mb-14">
               <h2 className="font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
-                Questions answered
+                Common questions
               </h2>
             </Reveal>
             <div>
@@ -1032,18 +1069,17 @@ export default function HomePage() {
           <Reveal className="mx-auto max-w-5xl px-6">
             <div className="rounded-[32px] bg-neutral-900 px-6 py-20 text-center sm:py-24">
               <h2 className="font-display text-4xl font-medium tracking-tight text-neutral-50 sm:text-5xl">
-                Start with a free account.
+                Create your free account.
               </h2>
               <p className="mx-auto mt-5 max-w-[50ch] text-neutral-400">
-                No credit card required. Sign up as a brand or creator and run
-                your first campaign in minutes.
+                Join as a brand or creator. No credit card is required.
               </p>
               <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <Link
                   href="/sign-up"
                   className="btn-shine inline-flex items-center justify-center gap-2 rounded-full bg-neutral-50 px-7 py-3 text-sm font-medium text-neutral-900 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:bg-neutral-100 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50"
                 >
-                  Create your account
+                  Create free account
                   <ArrowRight className="h-4 w-4" aria-hidden />
                 </Link>
                 <Link
@@ -1074,8 +1110,8 @@ export default function HomePage() {
               </span>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-neutral-600">
-              A two-sided marketplace connecting brands with TikTok creators —
-              with escrow-protected payments and verified-only talent.
+              Brands find verified TikTok creators, fund deals, review videos,
+              and release payment after approval.
             </p>
           </div>
 

@@ -120,7 +120,7 @@ export function ResolveDisputeForm({
   }
 
   return (
-    <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted/40 p-3">
+    <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 shadow-[0_16px_32px_-28px_rgba(23,23,23,0.4)]">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={`resolution-${dealId}`}>Resolution</Label>
         <select
@@ -129,7 +129,7 @@ export function ResolveDisputeForm({
           onChange={(event) =>
             setResolution(event.target.value as typeof resolution)
           }
-          className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+          className="h-10 rounded-lg border border-neutral-300 bg-neutral-50 px-3 text-sm font-medium text-neutral-800 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
         >
           {RESOLUTION_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
