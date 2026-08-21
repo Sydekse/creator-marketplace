@@ -15,14 +15,15 @@ import type { SelfRegisterableRole } from '@/lib/auth-policy';
 type RoleOption = SelfRegisterableRole;
 
 const ROLE_OPTIONS: { value: RoleOption; title: string; caption: string }[] = [
-  { value: 'brand', title: 'Brand', caption: 'Brief & fund campaigns' },
-  { value: 'creator', title: 'Creator', caption: 'Deliver & get paid' },
+  { value: 'brand', title: 'Brand', caption: 'Run campaigns' },
+  { value: 'creator', title: 'Creator', caption: 'Deliver videos' },
 ];
 
 type FieldErrors = {
   name?: string;
   email?: string;
   password?: string;
+  confirmPassword?: string;
   role?: string;
 };
 
@@ -31,6 +32,7 @@ export default function SignUpPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<RoleOption | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -49,6 +51,10 @@ export default function SignUpPage() {
         password: fieldErrors.password?.[0],
         role: fieldErrors.role?.[0],
       });
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrors({ confirmPassword: 'Passwords do not match.' });
       return;
     }
     setErrors({});
@@ -87,7 +93,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-8 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
+    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-7 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
       <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
         Create account
       </p>
@@ -95,8 +101,7 @@ export default function SignUpPage() {
         Join the marketplace.
       </h1>
       <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
-        Free to join for both sides — the platform takes a transparent 15%
-        commission on completed deals only.
+        Choose your account type and create a free profile.
       </p>
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
@@ -109,7 +114,7 @@ export default function SignUpPage() {
         <div className="flex flex-col gap-2">
           <label
             htmlFor="name"
-            className="text-[13px] font-medium text-neutral-700"
+            className="text-[13px] font-semibold text-neutral-700"
           >
             Name
           </label>
@@ -126,6 +131,7 @@ export default function SignUpPage() {
             autoComplete="name"
             aria-invalid={!!errors.name}
             aria-describedby={errors.name ? 'name-error' : undefined}
+            className="h-11 px-3.5"
           />
           <FieldError id="name-error" message={errors.name} />
         </div>
@@ -133,7 +139,7 @@ export default function SignUpPage() {
         <div className="flex flex-col gap-2">
           <label
             htmlFor="email"
-            className="text-[13px] font-medium text-neutral-700"
+            className="text-[13px] font-semibold text-neutral-700"
           >
             Email
           </label>
@@ -150,6 +156,7 @@ export default function SignUpPage() {
             autoComplete="email"
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? 'email-error' : undefined}
+            className="h-11 px-3.5"
           />
           <FieldError id="email-error" message={errors.email} />
         </div>
@@ -157,7 +164,7 @@ export default function SignUpPage() {
         <div className="flex flex-col gap-2">
           <label
             htmlFor="password"
-            className="text-[13px] font-medium text-neutral-700"
+            className="text-[13px] font-semibold text-neutral-700"
           >
             Password
           </label>
@@ -175,16 +182,47 @@ export default function SignUpPage() {
             autoComplete="new-password"
             aria-invalid={!!errors.password}
             aria-describedby={errors.password ? 'password-error' : undefined}
+            className="h-11 px-3.5"
           />
           <FieldError id="password-error" message={errors.password} />
+        </div>
+
+        <div className="flex flex-col gap-2">
+          <label
+            htmlFor="confirmPassword"
+            className="text-[13px] font-semibold text-neutral-700"
+          >
+            Confirm password
+          </label>
+          <PasswordInput
+            id="confirmPassword"
+            value={confirmPassword}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              if (errors.confirmPassword)
+                setErrors((p) => ({ ...p, confirmPassword: undefined }));
+            }}
+            placeholder="Re-enter your password"
+            required
+            autoComplete="new-password"
+            aria-invalid={!!errors.confirmPassword}
+            aria-describedby={
+              errors.confirmPassword ? 'confirm-password-error' : undefined
+            }
+            className="h-11 px-3.5"
+          />
+          <FieldError
+            id="confirm-password-error"
+            message={errors.confirmPassword}
+          />
         </div>
 
         <fieldset
           className="flex flex-col gap-2"
           aria-describedby={errors.role ? 'role-error' : undefined}
         >
-          <legend className="text-[13px] font-medium text-neutral-700">
-            I am a…
+          <legend className="text-[13px] font-semibold text-neutral-700">
+            Choose an account type
           </legend>
           <div className="grid grid-cols-2 gap-3">
             {ROLE_OPTIONS.map((option) => {
@@ -199,16 +237,16 @@ export default function SignUpPage() {
                       setErrors((p) => ({ ...p, role: undefined }));
                   }}
                   aria-pressed={selected}
-                  className={`flex flex-col items-start gap-0.5 rounded-xl border px-4 py-3.5 text-left transition-all duration-300 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 ${
+                  className={`flex min-h-[76px] flex-col items-start justify-center gap-1 rounded-xl border px-4 py-3.5 text-left transition-all duration-300 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
                     selected
-                      ? 'border-neutral-900 bg-neutral-900 text-neutral-50 shadow-[0_12px_32px_rgba(23,23,23,0.18)]'
-                      : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-400 hover:text-neutral-900'
+                      ? 'border-brand bg-brand-tint text-brand-ink shadow-[0_12px_32px_-18px_rgba(23,23,23,0.28)]'
+                      : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
                   }`}
                 >
                   <span className="text-sm font-medium">{option.title}</span>
                   <span
                     className={`text-xs ${
-                      selected ? 'text-neutral-400' : 'text-neutral-500'
+                      selected ? 'text-brand-ink/80' : 'text-neutral-500'
                     }`}
                   >
                     {option.caption}
@@ -239,7 +277,7 @@ export default function SignUpPage() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-[13px] text-neutral-500">
+      <p className="mt-7 text-center text-[13px] text-neutral-500">
         Already have an account?{' '}
         <Link
           href="/sign-in"

@@ -57,7 +57,7 @@ export function SignInForm() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-8 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
+    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-7 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
       <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
         Welcome back
       </p>
@@ -65,8 +65,7 @@ export function SignInForm() {
         Sign in.
       </h1>
       <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
-        Your deals, escrow, and messages are all here — pick up where you left
-        off.
+        Your deals, escrow, and messages are here when you need them.
       </p>
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
@@ -79,7 +78,7 @@ export function SignInForm() {
         <div className="flex flex-col gap-2">
           <label
             htmlFor="email"
-            className="text-[13px] font-medium text-neutral-700"
+            className="text-[13px] font-semibold text-neutral-700"
           >
             Email
           </label>
@@ -96,6 +95,7 @@ export function SignInForm() {
             autoComplete="email"
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? 'email-error' : undefined}
+            className="h-11 px-3.5"
           />
           <FieldError id="email-error" message={errors.email} />
         </div>
@@ -103,7 +103,7 @@ export function SignInForm() {
         <div className="flex flex-col gap-2">
           <label
             htmlFor="password"
-            className="text-[13px] font-medium text-neutral-700"
+            className="text-[13px] font-semibold text-neutral-700"
           >
             Password
           </label>
@@ -120,6 +120,7 @@ export function SignInForm() {
             autoComplete="current-password"
             aria-invalid={!!errors.password}
             aria-describedby={errors.password ? 'password-error' : undefined}
+            className="h-11 px-3.5"
           />
           <FieldError id="password-error" message={errors.password} />
         </div>
@@ -138,7 +139,7 @@ export function SignInForm() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-[13px] text-neutral-500">
+      <p className="mt-7 text-center text-[13px] text-neutral-500">
         New to Creator Marketplace?{' '}
         <Link
           href="/sign-up"
