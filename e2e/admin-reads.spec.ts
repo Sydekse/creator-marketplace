@@ -46,13 +46,10 @@ test('KAN-78: a campaign ledger lists entries and reconciles', async ({
   await expect(admin.locator('tbody')).toContainText('release_payout');
   await expect(admin.locator('tbody')).toContainText('commission');
 
-  // The totals cards render the money that left escrow. The heading role
-  // disambiguates from the ledger row below, whose commission cell also
-  // contains the word — getByText would resolve to both (strict mode
-  // violation).
-  await expect(admin.getByRole('heading', { name: 'Paid out' })).toBeVisible();
-  await expect(
-    admin.getByRole('heading', { name: 'Commission' })
-  ).toBeVisible();
+  // The totals cards render the money that left escrow. These are <dt>
+  // elements (definition terms), not headings. The role 'term' disambiguates
+  // from the ledger row below.
+  await expect(admin.getByRole('term', { name: 'Paid out' })).toBeVisible();
+  await expect(admin.getByRole('term', { name: 'Commission' })).toBeVisible();
   await admin.close();
 });

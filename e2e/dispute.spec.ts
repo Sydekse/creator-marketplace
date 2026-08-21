@@ -113,7 +113,9 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   // KAN-81 AC-031: the console links to the append-only audit log, which now
   // carries both admin actions — the flag and the resolution, note included.
   await admin.goto('/admin');
-  await admin.getByRole('link', { name: /Audit log/ }).click();
+  // The admin console has both a nav link and a card link to Audit log.
+  // Use the card link (the larger one) by scoping to the card grid.
+  await admin.locator('a[href="/admin/audit-log"]').last().click();
   await expect(admin.getByRole('heading', { name: 'Audit log' })).toBeVisible({
     timeout: 15_000,
   });
