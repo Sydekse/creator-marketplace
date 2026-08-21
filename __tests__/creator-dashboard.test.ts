@@ -561,18 +561,16 @@ describe('the dashboard is laid out as one', () => {
     expect(src(VERIFICATION)).toContain('label="Your TikTok account"');
   });
 
-  it('separates sections with the teal label rather than a rule', () => {
-    // The same treatment the brand dashboard and `EarningsSummary` already use.
-    const labels = source.match(
-      /text-\[13px\] font-semibold tracking-\[0\.14em\] text-brand uppercase/g
-    );
-    expect(labels?.length ?? 0).toBeGreaterThanOrEqual(4);
-    // One rule left, above the "signed in as" footer. Seven was the complaint.
-    expect(source.match(/border-t border-border/g)).toHaveLength(1);
+  it('separates sections with card-based containers rather than stacked rules', () => {
+    // The page uses rounded card sections instead of border-t dividers.
+    const cards = source.match(/rounded-\[\d+px\]/g);
+    expect(cards?.length ?? 0).toBeGreaterThanOrEqual(3);
+    // At most one border-t, above the "signed in as" footer.
+    expect(source.match(/border-t /g)?.length ?? 0).toBeLessThanOrEqual(1);
   });
 
   it('gives the work its own column, and the reference the other', () => {
-    expect(source).toContain('max-w-5xl');
+    expect(source).toContain('max-w-6xl');
     expect(source).not.toContain('max-w-2xl');
     expect(source).toMatch(/lg:grid-cols-\[/);
   });

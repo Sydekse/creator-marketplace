@@ -5,26 +5,27 @@ describe('getNavLinks', () => {
   it('returns brand links for brand role', () => {
     const links = getNavLinks('brand');
     expect(links.map((l) => l.label)).toEqual([
-      'Discover',
-      'Campaigns',
-      'Deals',
       'Dashboard',
+      'Campaigns',
+      'Discover',
+      'Deals',
     ]);
   });
 
   it('returns creator links for creator role', () => {
     const links = getNavLinks('creator');
-    expect(links.map((l) => l.label)).toEqual(['My Deals', 'Dashboard']);
+    expect(links.map((l) => l.label)).toEqual(['Dashboard', 'Deals']);
   });
 
   it('returns admin links for admin role', () => {
     const links = getNavLinks('admin');
     expect(links.map((l) => l.label)).toEqual([
-      'Console',
+      'Overview',
       'Verification',
+      'Tiers',
       'Campaigns',
-      'Worklist',
-      'Audit Log',
+      'Disputes',
+      'Audit log',
     ]);
   });
 

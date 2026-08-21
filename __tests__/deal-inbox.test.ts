@@ -1170,7 +1170,7 @@ describe('every path to the inbox names the same route', () => {
   const ROUTE = '/creator/deals';
 
   it('is where the creator nav points', () => {
-    const deals = getNavLinks('creator').find((l) => l.label === 'My Deals');
+    const deals = getNavLinks('creator').find((l) => l.label === 'Deals');
 
     expect(deals?.href).toBe(ROUTE);
   });

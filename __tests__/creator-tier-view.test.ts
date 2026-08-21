@@ -504,8 +504,10 @@ describe('the creator pricing block formats money through formatEtb only', () =>
     // out first — otherwise this guard is noise and gets deleted by the next
     // person who touches the layout.
     const literals = (
-      code.replace(/className="[^"]*"/g, '').match(/\b\d[\d_]*(\.\d+)?\b/g) ??
-      []
+      code
+        .replace(/className="[^"]*"/g, '')
+        .replace(/className=\{[^}]*\}/g, '')
+        .match(/\b\d[\d_]*(\.\d+)?\b/g) ?? []
     ).filter((n) => Number(n.replaceAll('_', '')) > 1);
     expect(literals).toEqual([]);
   });
