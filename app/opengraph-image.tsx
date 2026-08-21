@@ -153,8 +153,8 @@ export default async function Image() {
                 marginBottom: 28,
               }}
             >
-              Fund campaigns, verify creators, deliver content, and settle
-              payments — all with escrow protection and a full audit trail.
+              Post a deal, match with vetted creators, ship content.
+              Payment releases on approval. Escrow holds every deal safe.
             </div>
 
             {/* Stats */}
