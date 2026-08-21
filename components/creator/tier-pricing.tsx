@@ -55,18 +55,18 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dt className="text-sm text-neutral-400">{label}</dt>
       <dd className="flex items-baseline gap-2 text-right">
         <span
           className={
-            emphasis ? 'font-mono text-base font-medium' : 'font-mono text-sm'
+            emphasis
+              ? 'font-mono text-base font-semibold text-neutral-50'
+              : 'font-mono text-sm text-neutral-200'
           }
         >
           {value}
         </span>
-        {note ? (
-          <span className="text-xs text-muted-foreground">{note}</span>
-        ) : null}
+        {note ? <span className="text-xs text-neutral-400">{note}</span> : null}
       </dd>
     </div>
   );
@@ -74,7 +74,7 @@ function Row({
 
 function PricingTable({ pricing }: { pricing: TierPricing }) {
   return (
-    <dl className="divide-y divide-border">
+    <dl className="divide-y divide-neutral-700">
       <Row label="Your tier" value={pricing.tierName} />
       <Row
         label="A brand pays"
@@ -237,7 +237,7 @@ export function TierPricing({
   if (view.kind === 'hidden') return null;
 
   const heading = (
-    <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
+    <h2 className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
       Your rate
     </h2>
   );
@@ -251,7 +251,7 @@ export function TierPricing({
           {/* Load-bearing, not a disclaimer out of habit: invariant 8 snapshots
               `deal.commission_rate` onto each deal at offer time, so the split
               above is the current rate rather than a promise about a future one. */}
-          <p className="text-xs text-muted-foreground">
+          <p className="text-xs text-neutral-400">
             Your tier price and commission are confirmed on each offer you
             accept.
           </p>

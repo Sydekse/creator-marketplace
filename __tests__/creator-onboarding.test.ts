@@ -6,6 +6,7 @@ import {
   TIKTOK_HANDLE_PATTERN,
   isValidTiktokHandle,
   normalizeTiktokHandle,
+  displayTiktokHandle,
   tiktokProfileUrl,
 } from '../lib/creators/handle';
 import { isBookable } from '../lib/creators/queries';
@@ -151,6 +152,16 @@ describe('normalizeTiktokHandle', () => {
     expect(normalizeTiktokHandle(12345 as unknown as string)).toBe('');
     expect(normalizeTiktokHandle(null as unknown as string)).toBe('');
     expect(normalizeTiktokHandle(undefined as unknown as string)).toBe('');
+  });
+});
+
+describe('displayTiktokHandle', () => {
+  it.each([
+    ['@nate', '@nate'],
+    ['@@nate', '@nate'],
+    ['nate', '@nate'],
+  ])('renders one canonical prefix for %j', (input, expected) => {
+    expect(displayTiktokHandle(input)).toBe(expected);
   });
 });
 

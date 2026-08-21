@@ -1,6 +1,7 @@
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import * as schema from './schema';
+import { normalizeDatabaseUrl } from './connection-string';
 
 // One connection pool per process.
 //
@@ -13,7 +14,7 @@ const globalForDb = globalThis as typeof globalThis & { __dbPool?: Pool };
 const pool =
   globalForDb.__dbPool ??
   new Pool({
-    connectionString: process.env.DATABASE_URL,
+    connectionString: normalizeDatabaseUrl(process.env.DATABASE_URL),
     // Neon's pooled endpoint fronts the real connection limit, but serverless
     // functions scale horizontally — keep each instance's slice small.
     max: 5,

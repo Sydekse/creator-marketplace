@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import { buttonVariants } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
-import { EmptyState } from '@/components/feedback/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
@@ -13,6 +12,7 @@ import {
   campaignStatusTone,
 } from '@/lib/campaigns/status';
 import { formatEtb } from '@/lib/money';
+import { displayTiktokHandle } from '@/lib/creators/handle';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -36,7 +36,7 @@ export default async function BrandDashboardPage() {
   const dashboard = await readBrandDashboard();
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-10 py-4">
+    <div className="mx-auto flex max-w-6xl flex-col gap-12 py-4">
       <PageHeader
         label="Offering deals as"
         title={<span className="break-words">{profile.companyName}</span>}
@@ -57,11 +57,11 @@ export default async function BrandDashboardPage() {
          * summary sections below would all render empty. Collapse to one
          * getting-started view that points at the two useful next steps.
          */
-        <EmptyState
-          title="Create your first campaign"
-          description="Set a budget and a brief, fund it in escrow, and book verified creators. Your escrow balance and the deals awaiting your review will show up here."
-          action={
-            <div className="flex flex-wrap items-center justify-center gap-3">
+        <section className="rounded-[28px] border border-neutral-800 bg-neutral-900 p-8 text-center text-neutral-50 shadow-[0_24px_60px_-32px_rgba(23,23,23,0.45)] sm:p-10">
+          <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">First campaign</p>
+          <h2 className="mt-4 font-display text-3xl font-medium tracking-tight">Create your first campaign</h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-neutral-400">Set a budget and brief, then invite verified creators. Your escrow balance and review queue will appear here as work moves forward.</p>
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/campaigns/new"
                 className={buttonVariants({ variant: 'default', size: 'sm' })}
@@ -74,13 +74,12 @@ export default async function BrandDashboardPage() {
               >
                 Discover creators
               </Link>
-            </div>
-          }
-        />
+          </div>
+        </section>
       ) : (
         <>
           {/* §13: Campaign summary */}
-          <section className="flex flex-col gap-4">
+          <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-6 sm:p-8">
             <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
               Campaigns
             </h2>
@@ -103,39 +102,39 @@ export default async function BrandDashboardPage() {
             </div>
             <Link
               href="/campaigns"
-              className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+              className="mt-3 inline-flex rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
             >
               View all campaigns →
             </Link>
           </section>
 
           {/* §13: Money totals — ledger-derived */}
-          <section className="flex flex-col gap-4 border-t border-border pt-8">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
+          <section className="rounded-[28px] border border-neutral-800 bg-neutral-900 p-6 text-neutral-50 sm:p-8">
+            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
               Money
             </h2>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
               <div className="flex flex-col gap-1">
-                <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+                <dt className="text-xs tracking-wide text-neutral-400 uppercase">
                   Held in escrow
                 </dt>
-                <dd className="font-mono text-sm tabular-nums">
+                <dd className="mt-1 font-mono text-base tabular-nums">
                   {formatEtb(dashboard.money.held)}
                 </dd>
               </div>
               <div className="flex flex-col gap-1">
-                <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+                <dt className="text-xs tracking-wide text-neutral-400 uppercase">
                   Paid out
                 </dt>
-                <dd className="font-mono text-sm tabular-nums">
+                <dd className="mt-1 font-mono text-base tabular-nums">
                   {formatEtb(dashboard.money.paidOut)}
                 </dd>
               </div>
               <div className="flex flex-col gap-1">
-                <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+                <dt className="text-xs tracking-wide text-neutral-400 uppercase">
                   Commission
                 </dt>
-                <dd className="font-mono text-sm tabular-nums">
+                <dd className="mt-1 font-mono text-base tabular-nums">
                   {formatEtb(dashboard.money.commission)}
                 </dd>
               </div>
@@ -143,7 +142,7 @@ export default async function BrandDashboardPage() {
           </section>
 
           {/* §13: Deals awaiting review */}
-          <section className="flex flex-col gap-4 border-t border-border pt-8">
+          <section className="border-t border-neutral-200 pt-8">
             <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
               Awaiting review
             </h2>
@@ -152,18 +151,18 @@ export default async function BrandDashboardPage() {
                 No deliverables waiting on your review.
               </p>
             ) : (
-              <ul className="divide-y divide-border">
+              <ul className="mt-5 divide-y divide-neutral-200 border-y border-neutral-200">
                 {dashboard.awaitingReview.map((row) => (
                   <li key={row.dealId}>
                     <Link
                       href={`/deals/${row.dealId}`}
-                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md px-2 py-3 -mx-2 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-2 py-4 transition-colors duration-300 hover:bg-neutral-100/60 focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:px-4"
                     >
                       <div className="flex min-w-0 items-center gap-2">
                         <InitialsAvatar name={row.creatorHandle} size="sm" />
                         <div className="flex min-w-0 flex-col gap-0.5">
-                          <span className="truncate text-sm font-medium">
-                            @{row.creatorHandle}
+                          <span className="truncate text-sm font-semibold text-neutral-900">
+                        {displayTiktokHandle(row.creatorHandle)}
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {row.campaignName} · {row.videoCount}{' '}
@@ -187,7 +186,7 @@ export default async function BrandDashboardPage() {
             {dashboard.awaitingReview.length > 0 && (
               <Link
                 href="/deals"
-                className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                className="mt-5 inline-flex rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
               >
                 View all deals →
               </Link>
@@ -196,7 +195,7 @@ export default async function BrandDashboardPage() {
         </>
       )}
 
-      <div className="flex items-center gap-3 border-t border-border pt-8">
+      <div className="flex items-center gap-3 border-t border-neutral-200 pt-8">
         <InitialsAvatar name={user.name ?? user.email} />
         <p className="text-sm text-muted-foreground">
           Signed in as {user.name ?? user.email}.

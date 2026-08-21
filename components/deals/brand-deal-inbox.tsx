@@ -8,6 +8,7 @@ import type {
   BrandInboxDeal,
 } from '@/lib/deals/brand-inbox';
 import { formatEtb } from '@/lib/money';
+import { displayTiktokHandle } from '@/lib/creators/handle';
 
 /**
  * The brand's deals, grouped by campaign (§15).
@@ -33,7 +34,7 @@ function DealRow({ deal }: { deal: BrandInboxDeal }) {
           <InitialsAvatar name={deal.creatorHandle} size="sm" />
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-sm font-medium">
-              @{deal.creatorHandle}
+            {displayTiktokHandle(deal.creatorHandle)}
             </span>
             <div className="flex items-center gap-2">
               <Chip tone={dealStatusTone[deal.status] ?? 'gray'} size="sm">

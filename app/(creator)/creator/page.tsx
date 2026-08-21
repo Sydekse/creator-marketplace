@@ -89,31 +89,25 @@ export default async function CreatorDashboardPage() {
   const profileUrl = tiktokProfileUrl(profile.tiktokHandle);
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-10 py-4">
+    <div className="mx-auto flex max-w-6xl flex-col gap-12 py-4">
       <VerificationStatus
         status={profile.status}
         tiktokHandle={profile.tiktokHandle}
         hasTier={profile.tierId !== null}
       />
 
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-x-12">
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:items-start lg:gap-12">
         {/* Left: what moves. */}
-        <div className="flex flex-col gap-10">
+        <div className="flex flex-col gap-8">
           {/* AC-3 and AC-2. Earnings first: a creator opening this page
               mid-campaign is usually here for the money, and the deal list
               explains it. Both figures are ledger sums (AC-4) — nothing on this
               page computes a payout. */}
-          <section className="flex flex-col gap-4">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Earnings
-            </h2>
+          <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-8">
             <EarningsSummary earnings={dashboard.earnings} />
           </section>
 
-          <section className="flex flex-col gap-4">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Your deals
-            </h2>
+          <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-6 sm:p-8">
             {/* AC-5. Two different empty states, because "no offers yet" is the
                 wrong sentence for a creator who is not bookable: they are not
                 waiting on a brand, they are waiting on verification or a tier,
@@ -134,16 +128,16 @@ export default async function CreatorDashboardPage() {
         </div>
 
         {/* Right: what the creator told us, and what it priced them at. */}
-        <div className="flex flex-col gap-10">
+        <aside className="flex flex-col gap-8 lg:sticky lg:top-28">
           {/* Above the audience and the price on purpose: the tier is derived
               from these two numbers, so a creator reading down sees the inputs
               before the rate — and in the untiered case, the blank field the
               pricing block is about is directly above the sentence naming it. */}
-          <section className="flex flex-col gap-4">
+          <section className="rounded-[24px] border border-neutral-200 bg-neutral-100/70 p-6">
             <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
               Your profile
             </h2>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-6">
+            <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-6">
               <div className="flex flex-col gap-1">
                 <dt className="text-xs tracking-wide text-muted-foreground uppercase">
                   Niche
@@ -187,7 +181,7 @@ export default async function CreatorDashboardPage() {
                 href={profileUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="self-start text-sm text-muted-foreground underline-offset-4 hover:underline"
+                className="mt-5 inline-flex self-start rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
               >
                 {VIEW_ON_TIKTOK_LABEL} ↗
               </a>
@@ -197,17 +191,11 @@ export default async function CreatorDashboardPage() {
           {/* §11: The audience the creator submitted at onboarding — the same
               data brands see on the discovery detail page. Part of "who you
               are", not "what you earn", which is why it is on this side. */}
-          <section className="flex flex-col gap-4">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Your audience
-            </h2>
+          <section className="rounded-[24px] border border-neutral-200 bg-neutral-50 p-6">
             <AudienceSection audience={readAudience(profile.audience)} />
           </section>
 
-          <section className="flex flex-col gap-4">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Tier and price
-            </h2>
+          <section className="rounded-[24px] border border-neutral-200 bg-neutral-900 p-6 text-neutral-50 shadow-[0_20px_48px_-32px_rgba(23,23,23,0.6)]">
             <TierPricing
               tier={tier}
               profile={profile}
@@ -215,10 +203,10 @@ export default async function CreatorDashboardPage() {
               provisional={provisional}
             />
           </section>
-        </div>
+        </aside>
       </div>
 
-      <div className="flex items-center gap-3 border-t border-border pt-8">
+      <div className="flex items-center gap-3 border-t border-neutral-200 pt-8">
         <InitialsAvatar name={user.name ?? user.email} />
         <p className="text-sm text-muted-foreground">
           Signed in as {user.name ?? user.email}.

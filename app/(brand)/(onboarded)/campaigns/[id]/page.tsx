@@ -94,7 +94,7 @@ export default async function CampaignCartPage({
   };
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 py-4">
+    <div className="mx-auto flex max-w-6xl flex-col gap-10 py-4">
       <Link
         href="/campaigns"
         className="text-sm text-muted-foreground underline-offset-4 hover:underline"
@@ -175,8 +175,8 @@ export default async function CampaignCartPage({
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div className="md:col-span-2 flex flex-col gap-4">
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.8fr)_minmax(280px,0.8fr)]">
+        <div className="flex flex-col gap-4 lg:col-span-1">
           {/*
             The cart and the delivered videos are the same creators at two
             different stages, so the page shows one or the other rather than both.
@@ -196,12 +196,13 @@ export default async function CampaignCartPage({
             />
           ) : (
             <>
-              <h2 className="text-xl font-semibold tracking-tight">
+              <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
                 Cart ({items.length})
               </h2>
 
               {items.length === 0 ? (
                 <EmptyState
+                  align="start"
                   title="Your cart is empty"
                   description="Browse the marketplace to find creators and add them to this campaign."
                   action={
@@ -221,7 +222,7 @@ export default async function CampaignCartPage({
                   {items.map((item) => (
                     <li key={item.id}>
                       <Card>
-                        <CardContent className="p-6 flex flex-col sm:flex-row gap-6 items-start sm:items-center justify-between">
+                        <CardContent className="flex flex-col items-start justify-between gap-6 p-5 sm:flex-row sm:items-center">
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-2">
                               <Link
@@ -244,7 +245,7 @@ export default async function CampaignCartPage({
                               <span className="text-sm text-muted-foreground">
                                 Rate
                               </span>
-                              <span className="font-medium">
+                              <span className="font-mono text-sm">
                                 {formatEtb(item.unitPrice)}
                               </span>
                             </div>
@@ -252,7 +253,7 @@ export default async function CampaignCartPage({
                               <span className="text-sm text-muted-foreground">
                                 Videos
                               </span>
-                              <span className="font-medium">
+                              <span className="text-sm">
                                 x{item.videoCount}
                               </span>
                             </div>
@@ -260,7 +261,7 @@ export default async function CampaignCartPage({
                               <span className="text-sm text-muted-foreground">
                                 Total
                               </span>
-                              <span className="font-semibold text-primary">
+                              <span className="font-mono text-sm text-neutral-900">
                                 {formatEtb(item.totalPrice)}
                               </span>
                             </div>
@@ -287,8 +288,8 @@ export default async function CampaignCartPage({
           )}
         </div>
 
-        <div className="md:col-span-1">
-          <Card className="sticky top-6">
+        <div className="lg:col-span-1">
+          <Card className="sticky top-20 shadow-none">
             <CardHeader>
               <CardTitle className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
                 Budget summary

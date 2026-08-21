@@ -94,7 +94,7 @@ export default async function CreatorDetailPage({
   const profileUrl = tiktokProfileUrl(creator.tiktokHandle);
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
+    <div className="mx-auto flex max-w-4xl flex-col gap-10 py-4">
       {/* Cannot carry the brand's filters back: this page never sees them, and
           threading a `?return=` round-trip through the card is scope this ticket
           does not own. */}
@@ -105,8 +105,10 @@ export default async function CreatorDetailPage({
         ← Back to results
       </Link>
 
-      <div className="flex items-center gap-4">
-        <InitialsAvatar name={creator.tiktokHandle} size="lg" />
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-4 sm:gap-6">
+        <div className="pt-1">
+          <InitialsAvatar name={creator.tiktokHandle} size="lg" />
+        </div>
         <PageHeader
           title={creator.tiktokHandle}
           description={NICHE_LABELS[creator.niche as Niche] ?? creator.niche}

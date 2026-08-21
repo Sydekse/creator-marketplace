@@ -58,15 +58,15 @@ function ExpiryLine({
  */
 function DealRow({ deal, now }: { deal: InboxDealRow; now: Date }) {
   return (
-    <li>
+    <li className="border-b border-neutral-200 last:border-b-0">
       <Link
         href={`/creator/deals/${deal.id}`}
-        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md px-2 py-3 -mx-2 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="group -mx-3 flex min-h-20 flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl px-3 py-4 transition-all duration-300 ease-out hover:translate-x-1 hover:bg-neutral-100 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
       >
-        <div className="flex min-w-0 items-center gap-2">
-          <InitialsAvatar name={deal.companyName} size="sm" />
+        <div className="flex min-w-0 items-center gap-3">
+          <InitialsAvatar name={deal.companyName} />
           <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-sm font-medium">
+            <span className="truncate text-sm font-semibold text-neutral-900">
               {deal.campaignName}
             </span>
             <span className="text-xs text-muted-foreground">
@@ -79,7 +79,7 @@ function DealRow({ deal, now }: { deal: InboxDealRow; now: Date }) {
           </div>
         </div>
         <div className="flex flex-col items-end gap-0.5">
-          <span className="font-mono text-sm tabular-nums">
+          <span className="font-mono text-sm font-medium text-neutral-900 tabular-nums">
             {formatEtb(deal.totalPrice)}
           </span>
           <span className="text-xs text-muted-foreground">
@@ -100,9 +100,11 @@ function Group({ group, now }: { group: InboxGroup; now: Date }) {
   const { title, empty } = GROUP_LABELS[group.group];
 
   return (
-    <section className="flex flex-col gap-1">
-      <div className="flex items-baseline justify-between gap-4">
-        <h2 className="text-sm font-medium">{title}</h2>
+    <section className="flex flex-col gap-3">
+      <div className="flex items-center justify-between gap-4 border-b border-neutral-200 pb-3">
+        <h2 className="text-[13px] font-semibold tracking-[0.12em] text-neutral-700 uppercase">
+          {title}
+        </h2>
         {group.count > 0 ? (
           <span className="font-mono text-xs text-muted-foreground tabular-nums">
             {group.count}
@@ -111,13 +113,13 @@ function Group({ group, now }: { group: InboxGroup; now: Date }) {
       </div>
 
       {group.deals.length > 0 ? (
-        <ul className="divide-y divide-border">
+        <ul>
           {group.deals.map((deal) => (
             <DealRow key={deal.id} deal={deal} now={now} />
           ))}
         </ul>
       ) : (
-        <p className="py-1 text-sm text-muted-foreground">{empty}</p>
+        <p className="py-4 text-sm text-muted-foreground">{empty}</p>
       )}
     </section>
   );
@@ -131,7 +133,7 @@ export function DealInbox({
   now: Date;
 }) {
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       {groups.map((group) => (
         <Group key={group.group} group={group} now={now} />
       ))}

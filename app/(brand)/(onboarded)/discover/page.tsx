@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { FilterSelect } from '@/components/discovery/filter-select';
 import { CreatorCard } from '@/components/creator/creator-card';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
@@ -58,6 +59,7 @@ export const runtime = 'nodejs';
 function UnreadableFilters() {
   return (
     <EmptyState
+      align="start"
       title="Those filters could not be read."
       description="The link may be mistyped or out of date. Clear the filters and try again."
       action={
@@ -93,7 +95,7 @@ export default async function DiscoverPage({
   // Saying the filters were unreadable is the honest version of the same 422.
   if (conflicts.length > 0 || !parsed.success) {
     return (
-      <div className="mx-auto flex max-w-4xl flex-col gap-8 py-4">
+      <div className="mx-auto flex max-w-5xl flex-col gap-10 py-4">
         <Header />
         <UnreadableFilters />
       </div>
@@ -117,186 +119,202 @@ export default async function DiscoverPage({
     `/discover?${filterQuery ? `${filterQuery}&` : ''}page=${n}`;
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 py-4">
-      <Header />
+    <div className="mx-auto flex max-w-5xl flex-col gap-10 py-4">
+      <Header resultCount={creators.length} />
 
-      <form
-        method="GET"
-        action="/discover"
-        className="flex flex-col gap-4 rounded-lg border border-border p-4"
-      >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Niche</span>
-            <select
-              name="niche"
-              defaultValue={filters.niche ?? ''}
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-            >
-              <option value="">Any niche</option>
-              {NICHES.map((niche) => (
-                <option key={niche} value={niche}>
-                  {NICHE_LABELS[niche]}
-                </option>
-              ))}
-            </select>
-          </label>
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] lg:items-start">
+        <form
+          method="GET"
+          action="/discover"
+          className="flex flex-col gap-5 border-y border-neutral-200 bg-neutral-100/45 px-4 py-5 sm:px-5 lg:sticky lg:top-20"
+        >
+          <div className="border-b border-neutral-200 pb-3">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+              Refine shortlist
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Narrow by audience, rate, and engagement.
+            </p>
+          </div>
+          <div className="flex flex-col gap-4">
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium">Niche</span>
+              <FilterSelect
+                name="niche"
+                value={filters.niche}
+                placeholder="Any niche"
+                options={NICHES.map((niche) => ({
+                  value: niche,
+                  label: NICHE_LABELS[niche],
+                }))}
+              />
+            </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Audience market</span>
-            <select
-              name="audience"
-              defaultValue={filters.audience ?? ''}
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-            >
-              <option value="">Any market</option>
-              {AUDIENCE_MARKET_CODES.map((code) => (
-                <option key={code} value={code}>
-                  {AUDIENCE_MARKET_LABELS[code]}
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium">Audience market</span>
+              <FilterSelect
+                name="audience"
+                value={filters.audience}
+                placeholder="Any market"
+                options={AUDIENCE_MARKET_CODES.map((code) => ({
+                  value: code,
+                  label: AUDIENCE_MARKET_LABELS[code],
+                }))}
+              />
+            </label>
 
-          {/* Price is a pair of selects over real tier prices rather than two
+            {/* Price is a pair of selects over real tier prices rather than two
               number boxes. Prices are integer santim (invariant 4) and a brand
               thinks in birr; an option can carry the first as its value and the
               second as its label, where a text box would have to be one or the
               other. See `readTierPriceOptions`. */}
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Min price per video</span>
-            <select
-              name="price_min"
-              defaultValue={
-                filters.priceMin === undefined ? '' : String(filters.priceMin)
-              }
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-            >
-              <option value="">No minimum</option>
-              {tiers.map((tier) => (
-                <option key={tier.id} value={tier.pricePerVideo}>
-                  {formatEtb(tier.pricePerVideo)} ({tier.name})
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium">Min price per video</span>
+              <FilterSelect
+                name="price_min"
+                value={
+                  filters.priceMin === undefined
+                    ? undefined
+                    : String(filters.priceMin)
+                }
+                placeholder="No minimum"
+                options={tiers.map((tier) => ({
+                  value: String(tier.pricePerVideo),
+                  label: `${formatEtb(tier.pricePerVideo)} (${tier.name})`,
+                }))}
+              />
+            </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Max price per video</span>
-            <select
-              name="price_max"
-              defaultValue={
-                filters.priceMax === undefined ? '' : String(filters.priceMax)
-              }
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-            >
-              <option value="">No maximum</option>
-              {tiers.map((tier) => (
-                <option key={tier.id} value={tier.pricePerVideo}>
-                  {formatEtb(tier.pricePerVideo)} ({tier.name})
-                </option>
-              ))}
-            </select>
-          </label>
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium">Max price per video</span>
+              <FilterSelect
+                name="price_max"
+                value={
+                  filters.priceMax === undefined
+                    ? undefined
+                    : String(filters.priceMax)
+                }
+                placeholder="No maximum"
+                options={tiers.map((tier) => ({
+                  value: String(tier.pricePerVideo),
+                  label: `${formatEtb(tier.pricePerVideo)} (${tier.name})`,
+                }))}
+              />
+            </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Minimum engagement</span>
-            <input
-              type="number"
-              name="min_engagement"
-              min={0}
-              max={100}
-              step={0.1}
-              inputMode="decimal"
-              placeholder="Any"
-              defaultValue={filters.minEngagement ?? ''}
-              className="h-8 rounded-lg border border-input bg-transparent px-2.5 text-sm"
-            />
-            {/* The same sentence the creator saw when they entered the figure
+            <label className="flex flex-col gap-1.5 text-sm">
+              <span className="font-medium">Minimum engagement</span>
+              <input
+                type="number"
+                name="min_engagement"
+                min={0}
+                max={100}
+                step={0.1}
+                inputMode="decimal"
+                placeholder="Any"
+                defaultValue={filters.minEngagement ?? ''}
+                className="h-11 rounded-lg border border-neutral-300 bg-neutral-50 px-3 text-sm font-medium text-neutral-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors hover:border-neutral-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+              />
+              {/* The same sentence the creator saw when they entered the figure
                 (KAN-200). Filtering on a number nobody has defined is guessing,
                 and a filter that explained it differently from the field it
                 filters on would be worse than neither explaining it. */}
-            <span className="text-xs leading-normal font-normal text-muted-foreground">
-              {ENGAGEMENT_RATE_HINT}
-            </span>
-          </label>
-        </div>
+              <span className="text-xs leading-normal font-normal text-muted-foreground">
+                {ENGAGEMENT_RATE_HINT}
+              </span>
+            </label>
+          </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            className={buttonVariants({ variant: 'default', size: 'sm' })}
-          >
-            Apply filters
-          </button>
-          {/* A link, not a reset button: clearing means navigating to the
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              className={buttonVariants({ variant: 'default', size: 'sm' })}
+            >
+              Apply filters
+            </button>
+            {/* A link, not a reset button: clearing means navigating to the
               unfiltered URL, and `type="reset"` would only restore the inputs
               while leaving the query string — and the results — untouched. */}
-          <Link
-            href="/discover"
-            className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-          >
-            Clear
-          </Link>
-        </div>
-      </form>
-
-      {creators.length === 0 ? (
-        // AC-011's exact string, in two halves from one constant so the two
-        // cannot be paraphrased apart.
-        <EmptyState
-          title={NO_MATCHES_TITLE}
-          description={NO_MATCHES_DESCRIPTION}
-        />
-      ) : (
-        // One column on a phone, two from `sm:` up (NFR-007). A list, not a bare
-        // grid of divs: these are results, and a screen reader announcing "list,
-        // 12 items" is how a brand hears the size of what they filtered to.
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {creators.map((creator) => (
-            <li key={creator.id}>
-              <CreatorCard creator={creator} />
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {(page > 1 || hasMore) && (
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">
-            {creators.length > 0
-              ? `Showing ${offsetForPage(page) + 1}–${offsetForPage(page) + creators.length}`
-              : `Nothing on page ${page}`}
-          </p>
-          <div className="flex gap-2">
-            {page > 1 && (
-              <Link
-                href={pageHref(page - 1)}
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
-              >
-                Previous
-              </Link>
-            )}
-            {hasMore && (
-              <Link
-                href={pageHref(page + 1)}
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
-              >
-                Next
-              </Link>
-            )}
+            <Link
+              href="/discover"
+              className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+            >
+              Clear
+            </Link>
           </div>
+        </form>
+
+        <div className="min-w-0">
+          {creators.length === 0 ? (
+            // AC-011's exact string, in two halves from one constant so the two
+            // cannot be paraphrased apart.
+            <EmptyState
+              align="start"
+              title={NO_MATCHES_TITLE}
+              description={NO_MATCHES_DESCRIPTION}
+            />
+          ) : (
+            // One column on a phone, two from `sm:` up (NFR-007). A list, not a bare
+            // grid of divs: these are results, and a screen reader announcing "list,
+            // 12 items" is how a brand hears the size of what they filtered to.
+            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {creators.map((creator) => (
+                <li key={creator.id}>
+                  <CreatorCard creator={creator} />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {(page > 1 || hasMore) && (
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm text-muted-foreground">
+                {creators.length > 0
+                  ? `Showing ${offsetForPage(page) + 1}–${offsetForPage(page) + creators.length}`
+                  : `Nothing on page ${page}`}
+              </p>
+              <div className="flex gap-2">
+                {page > 1 && (
+                  <Link
+                    href={pageHref(page - 1)}
+                    className={buttonVariants({
+                      variant: 'outline',
+                      size: 'sm',
+                    })}
+                  >
+                    Previous
+                  </Link>
+                )}
+                {hasMore && (
+                  <Link
+                    href={pageHref(page + 1)}
+                    className={buttonVariants({
+                      variant: 'outline',
+                      size: 'sm',
+                    })}
+                  >
+                    Next
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-function Header() {
+function Header({ resultCount }: { resultCount?: number }) {
   return (
     <PageHeader
+      label="Creator discovery"
       title="Discover creators"
-      description="Verified creators with a published rate. Filters combine — each one narrows the list further."
+      description={
+        resultCount === undefined
+          ? 'Browse verified creators with published rates. Each filter narrows the results.'
+          : `${resultCount} ${resultCount === 1 ? 'creator' : 'creators'} match your current shortlist.`
+      }
     />
   );
 }

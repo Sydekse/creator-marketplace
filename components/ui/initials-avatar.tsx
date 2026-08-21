@@ -11,7 +11,8 @@ import { cn } from '@/lib/utils';
  */
 
 function getInitials(name: string): string {
-  const parts = name.trim().split(/\s+/);
+  const parts = name.trim().replace(/^@+/, '').split(/\s+/);
+  if (!parts[0]) return '?';
   if (parts.length >= 2) {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   }

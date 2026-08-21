@@ -59,6 +59,12 @@ export function normalizeTiktokHandle(input: string): string {
   return `@${withoutLeadingAt.toLowerCase()}`;
 }
 
+/** Return the canonical handle for UI labels without adding a second prefix. */
+export function displayTiktokHandle(handle: string): string {
+  const normalized = normalizeTiktokHandle(handle);
+  return normalized || handle;
+}
+
 /**
  * Whether a *already-normalised* handle is one we will store.
  *

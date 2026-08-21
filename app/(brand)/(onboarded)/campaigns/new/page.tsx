@@ -8,11 +8,11 @@ export const runtime = 'nodejs';
  */
 export default function NewCampaignPage() {
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-8 py-4">
+    <div className="mx-auto flex max-w-3xl flex-col gap-10 py-4">
       <PageHeader
         label="Campaign brief"
         title="Create a campaign brief"
-        description="Define your campaign parameters. Your brief will be saved as a draft, allowing you to add creators and confirm before funding."
+        description="Set the budget, deliverables, and goal. You can add creators before sending offers."
       />
 
       <CampaignBriefForm mode="create" />

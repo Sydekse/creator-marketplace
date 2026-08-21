@@ -235,6 +235,7 @@ export function VideoPerformance({
 
       {deals.length === 0 ? (
         <EmptyState
+          align="start"
           title={NO_VIDEOS_TITLE}
           description={NO_VIDEOS_DESCRIPTION}
         />

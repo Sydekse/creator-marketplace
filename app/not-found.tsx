@@ -8,23 +8,33 @@ import { buttonVariants } from '@/components/ui/button';
  */
 export default function NotFound() {
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <div className="flex w-full max-w-md flex-col items-center gap-3 rounded-lg border border-border bg-card p-8 text-center">
-        <p className="text-4xl font-bold tracking-tight">404</p>
-        <h1 className="text-xl font-semibold">Page not found</h1>
-        <p className="text-sm text-muted-foreground">
-          The page you are looking for does not exist or has moved.
-        </p>
-        <div className="mt-2 flex flex-wrap justify-center gap-2">
-          <Link href="/" className={buttonVariants()}>
-            Back to home
-          </Link>
-          <Link
-            href="/sign-in"
-            className={buttonVariants({ variant: 'outline' })}
-          >
-            Sign in
-          </Link>
+    <main className="min-h-dvh px-6 py-12 sm:px-10 sm:py-16">
+      <div className="mx-auto flex min-h-[70dvh] w-full max-w-5xl items-center">
+        <div className="grid w-full gap-10 border-t border-neutral-200 pt-8 md:grid-cols-[minmax(0,1fr)_minmax(240px,0.7fr)] md:gap-16">
+          <div className="flex max-w-xl flex-col items-start gap-4">
+            <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
+              Route not found
+            </p>
+            <h1 className="font-display text-4xl font-medium tracking-tight text-neutral-900 sm:text-5xl">
+              This page is not here.
+            </h1>
+            <p className="max-w-md text-base leading-relaxed text-muted-foreground">
+              The link may be outdated, or the page may have moved.
+            </p>
+          </div>
+          <div className="flex items-end justify-start md:justify-end">
+            <div className="flex flex-wrap gap-2">
+              <Link href="/" className={buttonVariants()}>
+                Go home
+              </Link>
+              <Link
+                href="/sign-in"
+                className={buttonVariants({ variant: 'outline' })}
+              >
+                Sign in
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     </main>

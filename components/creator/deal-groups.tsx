@@ -34,10 +34,10 @@ function DealRow({ deal }: { deal: CreatorDealRow }) {
           that is a full-width tap target instead of a 40px one (NFR-007). */}
       <Link
         href={`/creator/deals/${deal.id}`}
-        className="-mx-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 rounded-md px-2 py-3 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="group -mx-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl px-3 py-4 transition-all duration-300 ease-out hover:translate-x-1 hover:bg-neutral-100 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
       >
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-sm font-medium">
+          <span className="truncate text-sm font-semibold text-neutral-900">
             {deal.campaignName}
           </span>
           <span className="text-xs text-muted-foreground">
@@ -45,7 +45,7 @@ function DealRow({ deal }: { deal: CreatorDealRow }) {
           </span>
         </div>
         <div className="flex flex-col items-end gap-0.5">
-          <span className="font-mono text-sm tabular-nums">
+          <span className="font-mono text-sm font-medium tabular-nums">
             {formatEtb(deal.totalPrice)}
           </span>
           <span className="text-xs text-muted-foreground">Deal value</span>
@@ -59,9 +59,9 @@ function Group({ group }: { group: CreatorDealGroup }) {
   const { title, empty } = GROUP_LABELS[group.group];
 
   return (
-    <section className="flex flex-col gap-1">
+    <section className="flex flex-col gap-2">
       <div className="flex items-baseline justify-between gap-4">
-        <h3 className="text-sm font-medium">{title}</h3>
+        <h3 className="text-sm font-semibold text-neutral-900">{title}</h3>
         {/* The count is the useful part of a heading a creator is scanning:
             "how many are waiting on me". Hidden when zero, because the empty
             line below already says it and "0" twice reads as an error. */}
@@ -87,13 +87,13 @@ function Group({ group }: { group: CreatorDealGroup }) {
 
 export function DealGroups({ groups }: { groups: CreatorDealGroup[] }) {
   return (
-    <section className="flex flex-col gap-6">
+    <div className="flex flex-col gap-7">
       <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
         Your deals
       </h2>
       {groups.map((group) => (
         <Group key={group.group} group={group} />
       ))}
-    </section>
+    </div>
   );
 }

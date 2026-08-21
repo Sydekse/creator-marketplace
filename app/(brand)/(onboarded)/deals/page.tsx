@@ -35,14 +35,16 @@ export default async function BrandDealsPage() {
   const inbox = await readBrandDealInbox();
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 py-4">
+    <div className="mx-auto flex max-w-6xl flex-col gap-10 py-4">
       <PageHeader
+        label="Brand workspace"
         title={BRAND_INBOX_TITLE}
         description={BRAND_INBOX_DESCRIPTION}
       />
 
       {inbox === null || inbox.isEmpty ? (
         <EmptyState
+          align="start"
           title={BRAND_NO_DEALS_TITLE}
           description={BRAND_NO_DEALS_DESCRIPTION}
           action={
@@ -55,7 +57,17 @@ export default async function BrandDealsPage() {
           }
         />
       ) : (
-        <BrandDealInbox campaigns={inbox.campaigns} />
+        <div className="border-y border-neutral-200 bg-neutral-100/35 px-4 py-6 sm:px-6">
+          <div className="mb-5 flex items-end justify-between gap-4 border-b border-neutral-200 pb-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+              Review queue
+            </p>
+            <Link href="/campaigns" className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+              View campaigns
+            </Link>
+          </div>
+          <BrandDealInbox campaigns={inbox.campaigns} />
+        </div>
       )}
     </div>
   );

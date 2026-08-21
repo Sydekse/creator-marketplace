@@ -3,29 +3,43 @@ import type { UserRole } from '@/db/schema';
 export interface NavLink {
   label: string;
   href: string;
+  icon:
+    | 'dashboard'
+    | 'discover'
+    | 'campaigns'
+    | 'deals'
+    | 'verification'
+    | 'tiers'
+    | 'worklist'
+    | 'audit';
 }
 
 const NAV_LINKS: Record<UserRole, NavLink[]> = {
   brand: [
-    { label: 'Discover', href: '/discover' },
-    { label: 'Campaigns', href: '/campaigns' },
-    { label: 'Deals', href: '/deals' },
-    { label: 'Dashboard', href: '/brand' },
+    { label: 'Dashboard', href: '/brand', icon: 'dashboard' },
+    { label: 'Campaigns', href: '/campaigns', icon: 'campaigns' },
+    { label: 'Discover', href: '/discover', icon: 'discover' },
+    { label: 'Deals', href: '/deals', icon: 'deals' },
   ],
   creator: [
     // `/creator/deals`, not `/deals`. The route this points at is real as of
     // KAN-39, and it is the one the four email CTAs in
     // `lib/notifications/templates.tsx` already named — a nav item and an email
     // disagreeing about the same screen is how one of them stays broken.
-    { label: 'My Deals', href: '/creator/deals' },
-    { label: 'Dashboard', href: '/creator' },
+    { label: 'Dashboard', href: '/creator', icon: 'dashboard' },
+    { label: 'Deals', href: '/creator/deals', icon: 'deals' },
   ],
   admin: [
-    { label: 'Console', href: '/admin' },
-    { label: 'Verification', href: '/admin/verification' },
-    { label: 'Campaigns', href: '/admin/campaigns' },
-    { label: 'Worklist', href: '/admin/worklist' },
-    { label: 'Audit Log', href: '/admin/audit-log' },
+    { label: 'Overview', href: '/admin', icon: 'dashboard' },
+    {
+      label: 'Verification',
+      href: '/admin/verification',
+      icon: 'verification',
+    },
+    { label: 'Tiers', href: '/admin/tiers', icon: 'tiers' },
+    { label: 'Campaigns', href: '/admin/campaigns', icon: 'campaigns' },
+    { label: 'Disputes', href: '/admin/worklist', icon: 'worklist' },
+    { label: 'Audit log', href: '/admin/audit-log', icon: 'audit' },
   ],
 };
 

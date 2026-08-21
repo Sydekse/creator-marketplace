@@ -20,7 +20,7 @@ export default async function BrandSettingsPage() {
   if (!profile) return null;
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-10 py-4">
+    <div className="mx-auto flex max-w-3xl flex-col gap-10 py-4">
       <PageHeader
         label="Settings"
         title="Brand profile"

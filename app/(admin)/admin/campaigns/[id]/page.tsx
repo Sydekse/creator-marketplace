@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { Banknote, Lock, Percent, RotateCcw } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { PageHeader } from '@/components/layout/page-header';
@@ -38,7 +37,7 @@ export default async function AdminCampaignLedgerPage({
   const { campaign, entries, totals, reconciled } = ledger;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-10">
       <div className="flex flex-col gap-3">
         <Link
           href="/admin/campaigns"
@@ -47,83 +46,56 @@ export default async function AdminCampaignLedgerPage({
           ← Campaigns
         </Link>
         <PageHeader
+          label="Campaign ledger"
           title={campaign.name}
           action={
             <Chip tone={reconciled ? 'success' : 'red'} size="md">
               {reconciled ? 'Reconciled' : 'Ledger out of balance'}
             </Chip>
           }
-          description={`${campaign.status} · budget ${formatEtb(campaign.budget)}`}
+          description={`${campaign.status} · Budget ${formatEtb(campaign.budget)}`}
         />
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-neutral-200 bg-card p-5">
-          <div className="flex items-center gap-1.5">
-            <Lock
-              className="h-3.5 w-3.5 text-neutral-400"
-              strokeWidth={1.5}
-              aria-hidden
-            />
-            <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
-              Held in escrow
-            </h2>
-          </div>
-          <p className="mt-2 text-xl font-semibold tabular-nums">
+      <dl className="grid rounded-[24px] bg-neutral-900 text-neutral-50 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="border-b border-neutral-200 p-5 sm:border-r lg:border-b-0">
+          <dt className="text-xs tracking-wide text-neutral-400 uppercase">
+            Held in escrow
+          </dt>
+          <dd className="mt-2 font-mono text-base text-neutral-50">
             {formatEtb(totals.held)}
-          </p>
+          </dd>
         </div>
-        <div className="rounded-xl border border-neutral-200 bg-card p-5">
-          <div className="flex items-center gap-1.5">
-            <Banknote
-              className="h-3.5 w-3.5 text-neutral-400"
-              strokeWidth={1.5}
-              aria-hidden
-            />
-            <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
-              Paid out
-            </h2>
-          </div>
-          <p className="mt-2 text-xl font-semibold tabular-nums">
+        <div className="border-b border-neutral-200 p-5 lg:border-r lg:border-b-0">
+          <dt className="text-xs tracking-wide text-neutral-400 uppercase">
+            Paid out
+          </dt>
+          <dd className="mt-2 font-mono text-base text-neutral-50">
             {formatEtb(totals.paidOut)}
-          </p>
+          </dd>
         </div>
-        <div className="rounded-xl border border-neutral-200 bg-card p-5">
-          <div className="flex items-center gap-1.5">
-            <Percent
-              className="h-3.5 w-3.5 text-neutral-400"
-              strokeWidth={1.5}
-              aria-hidden
-            />
-            <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
-              Commission
-            </h2>
-          </div>
-          <p className="mt-2 text-xl font-semibold tabular-nums">
+        <div className="border-b border-neutral-200 p-5 sm:border-r sm:border-b-0">
+          <dt className="text-xs tracking-wide text-neutral-400 uppercase">
+            Commission
+          </dt>
+          <dd className="mt-2 font-mono text-base text-neutral-50">
             {formatEtb(totals.commission)}
-          </p>
+          </dd>
         </div>
-        <div className="rounded-xl border border-neutral-200 bg-card p-5">
-          <div className="flex items-center gap-1.5">
-            <RotateCcw
-              className="h-3.5 w-3.5 text-neutral-400"
-              strokeWidth={1.5}
-              aria-hidden
-            />
-            <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
-              Refunded
-            </h2>
-          </div>
-          <p className="mt-2 text-xl font-semibold tabular-nums">
+        <div className="p-5">
+          <dt className="text-xs tracking-wide text-neutral-400 uppercase">
+            Refunded
+          </dt>
+          <dd className="mt-2 font-mono text-base text-neutral-50">
             {formatEtb(totals.refunded)}
-          </p>
+          </dd>
         </div>
-      </div>
+      </dl>
 
-      <div className="overflow-x-auto rounded-lg border border-border">
+      <div className="overflow-x-auto border-y border-neutral-200 bg-neutral-50">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border bg-muted/40 text-left text-xs tracking-wide text-muted-foreground uppercase">
+            <tr className="border-b border-neutral-200 bg-neutral-100/70 text-left text-[11px] tracking-[0.12em] text-neutral-500 uppercase">
               <th className="px-4 py-3 font-medium">#</th>
               <th className="px-4 py-3 font-medium">Type</th>
               <th className="px-4 py-3 text-right font-medium">Amount</th>
@@ -139,16 +111,16 @@ export default async function AdminCampaignLedgerPage({
               <tr>
                 <td
                   colSpan={6}
-                  className="px-4 py-8 text-center text-muted-foreground"
+                  className="px-4 py-12 text-left text-muted-foreground"
                 >
-                  No ledger entries yet — money has not moved on this campaign.
+                  No ledger entries yet. Money has not moved on this campaign.
                 </td>
               </tr>
             ) : (
               entries.map((entry) => (
                 <tr
                   key={entry.id}
-                  className="border-b border-border last:border-b-0 hover:bg-muted/30"
+                  className="border-b border-neutral-200 last:border-b-0 hover:bg-neutral-100/60"
                 >
                   <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
                     {entry.seq}
@@ -161,7 +133,7 @@ export default async function AdminCampaignLedgerPage({
                     {formatEtb(entry.balanceAfter)}
                   </td>
                   <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
-                    {entry.providerRef ?? '—'}
+                    {entry.providerRef ?? 'Not provided'}
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground">
                     {formatDeadlineUtc(entry.createdAt)}

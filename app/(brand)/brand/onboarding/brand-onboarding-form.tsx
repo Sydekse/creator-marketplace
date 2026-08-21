@@ -91,25 +91,39 @@ export function BrandOnboardingForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate>
-      <FieldGroup className="gap-8">
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      className="rounded-[24px] border border-neutral-200 bg-white p-6 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-8"
+    >
+      <div className="mb-7 border-b border-neutral-200 pb-4">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">
+          Brand profile
+        </p>
+      </div>
+      <FieldGroup className="gap-7">
         <Field data-invalid={companyNameErrors !== undefined || undefined}>
-          <FieldLabel htmlFor="companyName">Company name</FieldLabel>
+          <FieldLabel
+            htmlFor="companyName"
+            className="text-[13px] font-semibold text-neutral-700"
+          >
+            Brand or company name
+          </FieldLabel>
           <Input
             id="companyName"
             name="companyName"
             value={companyName}
             onChange={(event) => setCompanyName(event.target.value)}
-            className="h-11 text-base"
+            className="h-12 bg-neutral-50 px-3.5 text-base transition-colors focus-visible:bg-white"
             placeholder="Habesha Coffee Roasters"
             maxLength={MAX_COMPANY_NAME_LENGTH}
             autoComplete="organization"
             autoFocus
             aria-invalid={companyNameErrors !== undefined || undefined}
           />
-          <FieldDescription>
-            Shown to creators on every offer. Up to {MAX_COMPANY_NAME_LENGTH}{' '}
-            characters.
+          <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
+            This appears on your offers and campaign pages. Up to{' '}
+            {MAX_COMPANY_NAME_LENGTH} characters.
           </FieldDescription>
           <FieldError errors={companyNameErrors} />
         </Field>
@@ -118,7 +132,7 @@ export function BrandOnboardingForm() {
           <FieldError errors={fieldErrorsAt(errors, '_root')} />
         )}
 
-        <div className="flex flex-col gap-3 border-t border-border pt-8">
+        <div className="flex flex-col gap-3 border-t border-neutral-200 pt-7">
           <Button
             type="submit"
             disabled={submitting}
@@ -126,10 +140,10 @@ export function BrandOnboardingForm() {
             className="w-full sm:w-auto sm:self-start"
           >
             {submitting && <Spinner />}
-            {submitting ? 'Saving…' : 'Continue'}
+            {submitting ? 'Creating profile…' : 'Create brand profile'}
           </Button>
-          <p className="text-sm text-muted-foreground">
-            Next you will brief a campaign and pick creators within its budget.
+          <p className="text-[13px] leading-relaxed text-neutral-500">
+            Next, you can create a campaign and invite creators.
           </p>
         </div>
       </FieldGroup>
