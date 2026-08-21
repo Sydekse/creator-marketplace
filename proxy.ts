@@ -5,6 +5,13 @@ import type { NextRequest } from 'next/server';
 const AUTH_ROUTES = ['/sign-in', '/sign-up'];
 
 /**
+ * Next.js metadata routes that must stay public — crawlers (Slack, Discord,
+ * iMessage, X) fetch these with zero cookies, so any auth redirect turns
+ * link previews into broken images or text-only cards.
+ */
+const PUBLIC_ROUTES = ['/opengraph-image', '/icon', '/apple-icon'];
+
+/**
  * Coarse routing only: it redirects on the *presence* of a session cookie and
  * never on its contents. Cookie presence is not proof of a valid session, so
  * this is a UX shortcut, not a security boundary — the real gates are the
@@ -18,7 +25,7 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSession = getSessionCookie(request) !== null;
 
-  if (pathname === '/') {
+  if (pathname === '/' || PUBLIC_ROUTES.includes(pathname)) {
     return NextResponse.next();
   }
 
@@ -40,6 +47,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|opengraph-image|icon|apple-icon).*)',
   ],
 };
