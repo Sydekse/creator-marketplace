@@ -693,7 +693,7 @@ export default function HomePage() {
                           'font-display text-lg font-medium leading-snug transition-colors duration-300 ease-out sm:text-xl',
                           f.active
                             ? 'text-brand'
-                            : 'text-neutral-500 group-hover:text-neutral-900'
+                            : 'text-neutral-900 lg:text-neutral-500 lg:group-hover:text-neutral-900'
                         )}
                       >
                         {f.title}
@@ -703,7 +703,7 @@ export default function HomePage() {
                           'mt-2 max-w-[44ch] text-sm leading-relaxed transition-all duration-300 ease-out',
                           f.active
                             ? 'text-neutral-600 opacity-100'
-                            : 'text-neutral-600 opacity-0 group-hover:opacity-100'
+                            : 'text-neutral-600 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100'
                         )}
                       >
                         {f.desc}
