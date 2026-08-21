@@ -108,9 +108,8 @@ const styles = {
     margin: 0,
   },
   brandMark: {
-    color: '#8fc7bd',
-    fontSize: '14px',
-    letterSpacing: '-2px',
+    display: 'inline-block',
+    verticalAlign: 'middle',
     marginRight: '10px',
   },
   content: {
@@ -210,7 +209,40 @@ function Layout({
           <Section style={styles.masthead}>
             <Text style={styles.brand}>
               <span style={styles.brandMark} aria-hidden="true">
-                ■ ■
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 20,
+                    height: 20,
+                    position: 'relative',
+                    verticalAlign: 'middle',
+                  }}
+                >
+                  <span
+                    style={{
+                      display: 'block',
+                      width: 12,
+                      height: 12,
+                      borderRadius: 4,
+                      backgroundColor: '#fafafa',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                    }}
+                  />
+                  <span
+                    style={{
+                      display: 'block',
+                      width: 12,
+                      height: 12,
+                      borderRadius: 4,
+                      backgroundColor: '#a1a1aa',
+                      position: 'absolute',
+                      bottom: 0,
+                      right: 0,
+                    }}
+                  />
+                </span>
               </span>{' '}
               Creator Marketplace
             </Text>
