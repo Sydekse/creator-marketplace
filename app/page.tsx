@@ -287,9 +287,9 @@ export default function HomePage() {
       {/* ------------------------------------------------------------------ */}
       <nav
         aria-label="Primary"
-        className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4"
+        className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-3"
       >
-        <div className="pointer-events-auto flex h-12 w-full max-w-[880px] items-center justify-between rounded-full border border-neutral-800 bg-neutral-900/95 pl-3 pr-2 shadow-[0_12px_32px_rgba(23,23,23,0.18)] backdrop-blur">
+        <div className="pointer-events-auto flex h-14 w-full max-w-6xl items-center justify-between rounded-full border border-neutral-800 bg-neutral-900/95 px-3 shadow-[0_12px_32px_rgba(23,23,23,0.18)] backdrop-blur">
           <Link
             href="/"
             className="flex items-center gap-3 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500"

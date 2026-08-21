@@ -41,6 +41,13 @@ describe('proxy with no session', () => {
   it.each(['/sign-in', '/sign-up', '/'])('lets %s through', (pathname) => {
     expect(locationOf(proxy(request(pathname)))).toBeNull();
   });
+
+  it.each(['/opengraph-image', '/icon', '/apple-icon'])(
+    'lets %s through without a session (metadata routes must be public for crawlers)',
+    (pathname) => {
+      expect(locationOf(proxy(request(pathname)))).toBeNull();
+    }
+  );
 });
 
 describe('proxy with a session', () => {

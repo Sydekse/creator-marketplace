@@ -34,7 +34,7 @@ const bungee = localFont({
 
 const SITE_NAME = 'Creator Marketplace';
 const SITE_DESCRIPTION =
-  'A two-sided marketplace connecting brands with TikTok creators — with escrow-protected payments and verified-only talent.';
+  'TikTok creator campaigns with built-in escrow. Brands post deals, vetted creators deliver, payment releases on approval.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.BETTER_AUTH_URL ?? 'http://localhost:3000'),
