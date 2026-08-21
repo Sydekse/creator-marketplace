@@ -66,89 +66,92 @@ export default async function CampaignsPage() {
               Campaign ledger
             </p>
             <p className="text-xs text-muted-foreground">
-              {campaigns.length} {campaigns.length === 1 ? 'campaign' : 'campaigns'}
+              {campaigns.length}{' '}
+              {campaigns.length === 1 ? 'campaign' : 'campaigns'}
             </p>
           </div>
           <ul>
-          {campaigns.map((camp) => (
-            <li key={camp.id} className="border-b border-neutral-200">
-              <div className="grid gap-5 px-1 py-5 transition-colors hover:bg-neutral-100/60 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="truncate text-base font-semibold text-neutral-900">
-                      {camp.name}
-                    </h2>
-                    <Chip
-                      tone={campaignStatusTone[camp.status] ?? 'gray'}
-                      className="capitalize"
-                    >
-                      {campaignStatusLabel(camp.status)}
-                    </Chip>
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Created on{' '}
-                    {new Date(camp.createdAt).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </p>
-                  <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-sm">
-                    <div className="flex flex-col gap-1">
-                      <dt className="text-xs text-muted-foreground">Budget</dt>
-                      <dd className="font-mono text-sm text-neutral-900">
-                        {formatEtb(camp.budget)}
-                      </dd>
+            {campaigns.map((camp) => (
+              <li key={camp.id} className="border-b border-neutral-200">
+                <div className="grid gap-5 px-1 py-5 transition-colors hover:bg-neutral-100/60 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h2 className="truncate text-base font-semibold text-neutral-900">
+                        {camp.name}
+                      </h2>
+                      <Chip
+                        tone={campaignStatusTone[camp.status] ?? 'gray'}
+                        className="capitalize"
+                      >
+                        {campaignStatusLabel(camp.status)}
+                      </Chip>
                     </div>
-                    <div className="flex flex-col gap-1">
-                      <dt className="text-xs text-muted-foreground">
-                        Deliverables
-                      </dt>
-                      <dd className="text-sm text-neutral-900">
-                        {camp.desiredVideos}{' '}
-                        {camp.desiredVideos === 1 ? 'video' : 'videos'}
-                      </dd>
-                    </div>
-                  </dl>
-                  {camp.goal && (
-                    <p className="mt-3 line-clamp-2 max-w-2xl text-sm text-muted-foreground">
-                      {camp.goal}
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Created on{' '}
+                      {new Date(camp.createdAt).toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      })}
                     </p>
-                  )}
-                </div>
-                <div className="flex items-center sm:justify-end">
-                  {/*
+                    <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3 text-sm">
+                      <div className="flex flex-col gap-1">
+                        <dt className="text-xs text-muted-foreground">
+                          Budget
+                        </dt>
+                        <dd className="font-mono text-sm text-neutral-900">
+                          {formatEtb(camp.budget)}
+                        </dd>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <dt className="text-xs text-muted-foreground">
+                          Deliverables
+                        </dt>
+                        <dd className="text-sm text-neutral-900">
+                          {camp.desiredVideos}{' '}
+                          {camp.desiredVideos === 1 ? 'video' : 'videos'}
+                        </dd>
+                      </div>
+                    </dl>
+                    {camp.goal && (
+                      <p className="mt-3 line-clamp-2 max-w-2xl text-sm text-muted-foreground">
+                        {camp.goal}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center sm:justify-end">
+                    {/*
                       A confirmed campaign has no brief to edit — the edit page
                       answers with a "cannot be edited" alert and a way back.
                       Sending them to the campaign itself is the useful link
                       once offers are out, and this list only shows non-draft
                       campaigns at all because confirmation exists.
                     */}
-                  {camp.status === 'draft' ? (
-                    <Link
-                      href={`/campaigns/${camp.id}/edit`}
-                      className={buttonVariants({
-                        variant: 'outline',
-                        size: 'sm',
-                      })}
-                    >
-                      Edit brief
-                    </Link>
-                  ) : (
-                    <Link
-                      href={`/campaigns/${camp.id}`}
-                      className={buttonVariants({
-                        variant: 'outline',
-                        size: 'sm',
-                      })}
-                    >
-                      View campaign
-                    </Link>
-                  )}
+                    {camp.status === 'draft' ? (
+                      <Link
+                        href={`/campaigns/${camp.id}/edit`}
+                        className={buttonVariants({
+                          variant: 'outline',
+                          size: 'sm',
+                        })}
+                      >
+                        Edit brief
+                      </Link>
+                    ) : (
+                      <Link
+                        href={`/campaigns/${camp.id}`}
+                        className={buttonVariants({
+                          variant: 'outline',
+                          size: 'sm',
+                        })}
+                      >
+                        View campaign
+                      </Link>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
+              </li>
+            ))}
           </ul>
         </section>
       )}

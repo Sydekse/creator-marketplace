@@ -34,7 +34,7 @@ function DealRow({ deal }: { deal: BrandInboxDeal }) {
           <InitialsAvatar name={deal.creatorHandle} size="sm" />
           <div className="flex min-w-0 flex-col gap-0.5">
             <span className="truncate text-sm font-medium">
-            {displayTiktokHandle(deal.creatorHandle)}
+              {displayTiktokHandle(deal.creatorHandle)}
             </span>
             <div className="flex items-center gap-2">
               <Chip tone={dealStatusTone[deal.status] ?? 'gray'} size="sm">

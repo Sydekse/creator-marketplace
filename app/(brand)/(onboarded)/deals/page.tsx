@@ -62,7 +62,10 @@ export default async function BrandDealsPage() {
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
               Review queue
             </p>
-            <Link href="/campaigns" className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
+            <Link
+              href="/campaigns"
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
               View campaigns
             </Link>
           </div>

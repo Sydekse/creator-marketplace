@@ -70,7 +70,8 @@ export default async function AdminWorklistPage() {
                     <InitialsAvatar name={row.brandCompanyName} size="sm" />
                     <InitialsAvatar name={row.creatorHandle} size="sm" />
                     <p className="text-sm text-muted-foreground">
-                      {row.brandCompanyName} · {displayTiktokHandle(row.creatorHandle)} ·{' '}
+                      {row.brandCompanyName} ·{' '}
+                      {displayTiktokHandle(row.creatorHandle)} ·{' '}
                       {row.videoCount} video{row.videoCount === 1 ? '' : 's'}
                     </p>
                   </div>

@@ -58,22 +58,29 @@ export default async function BrandDashboardPage() {
          * getting-started view that points at the two useful next steps.
          */
         <section className="rounded-[28px] border border-neutral-800 bg-neutral-900 p-8 text-center text-neutral-50 shadow-[0_24px_60px_-32px_rgba(23,23,23,0.45)] sm:p-10">
-          <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">First campaign</p>
-          <h2 className="mt-4 font-display text-3xl font-medium tracking-tight">Create your first campaign</h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-neutral-400">Set a budget and brief, then invite verified creators. Your escrow balance and review queue will appear here as work moves forward.</p>
+          <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
+            First campaign
+          </p>
+          <h2 className="mt-4 font-display text-3xl font-medium tracking-tight">
+            Create your first campaign
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-neutral-400">
+            Set a budget and brief, then invite verified creators. Your escrow
+            balance and review queue will appear here as work moves forward.
+          </p>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
-              <Link
-                href="/campaigns/new"
-                className={buttonVariants({ variant: 'default', size: 'sm' })}
-              >
-                Create a campaign
-              </Link>
-              <Link
-                href="/discover"
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
-              >
-                Discover creators
-              </Link>
+            <Link
+              href="/campaigns/new"
+              className={buttonVariants({ variant: 'default', size: 'sm' })}
+            >
+              Create a campaign
+            </Link>
+            <Link
+              href="/discover"
+              className={buttonVariants({ variant: 'outline', size: 'sm' })}
+            >
+              Discover creators
+            </Link>
           </div>
         </section>
       ) : (
@@ -162,7 +169,7 @@ export default async function BrandDashboardPage() {
                         <InitialsAvatar name={row.creatorHandle} size="sm" />
                         <div className="flex min-w-0 flex-col gap-0.5">
                           <span className="truncate text-sm font-semibold text-neutral-900">
-                        {displayTiktokHandle(row.creatorHandle)}
+                            {displayTiktokHandle(row.creatorHandle)}
                           </span>
                           <span className="text-xs text-muted-foreground">
                             {row.campaignName} · {row.videoCount}{' '}
