@@ -45,7 +45,7 @@ export function MainNav({ user }: MainNavProps) {
             prefetch
             data-active={isActive || undefined}
             aria-current={isActive ? 'page' : undefined}
-            className="group relative flex h-9 items-center gap-2 rounded-full px-3 text-[13px] font-medium text-neutral-300 transition-[color,transform] duration-300 ease-out hover:text-neutral-50 active:scale-[0.98] data-[active]:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50"
+            className="group relative flex h-9 items-center gap-2 rounded-full px-3 text-[13px] font-medium text-neutral-300 transition-[color] duration-300 ease-out hover:text-neutral-50 active:scale-[0.98] data-[active]:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50"
           >
             {isActive && (
               <motion.span
@@ -58,7 +58,7 @@ export function MainNav({ user }: MainNavProps) {
                     : {
                         type: 'spring',
                         stiffness: 520,
-                        damping: 38,
+                        damping: 42,
                         mass: 0.65,
                       }
                 }
