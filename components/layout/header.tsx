@@ -33,9 +33,9 @@ export async function Header({ user }: HeaderProps) {
           >
             <Mark
               tone="light"
-              className="h-5 w-5 rounded-md transition-transform duration-300 ease-out hover:rotate-3"
+              className="h-6 w-6 rounded-lg transition-transform duration-300 ease-out hover:rotate-3"
             />
-            <span className="hidden text-[13px] font-semibold tracking-tight text-neutral-50 sm:inline">
+            <span className="text-[13px] font-semibold tracking-tight text-neutral-50 max-[380px]:hidden">
               Creator Marketplace
             </span>
           </Link>
