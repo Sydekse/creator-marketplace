@@ -20,18 +20,18 @@ export function FilterSelect({
   placeholder: string;
   options: Array<{ value: string; label: string }>;
 }) {
-  const [selected, setSelected] = useState(value || '__any__');
+  const [selected, setSelected] = useState(value || 'any');
 
   return (
     <>
       <input
         type="hidden"
         name={name}
-        value={selected === '__any__' ? '' : selected}
+        value={selected === 'any' ? '' : selected}
       />
       <Select
         value={selected}
-        onValueChange={(next) => setSelected(next ?? '__any__')}
+        onValueChange={(next) => setSelected(next ?? 'any')}
       >
         <SelectTrigger
           size="default"
@@ -44,7 +44,7 @@ export function FilterSelect({
           className="rounded-xl border border-neutral-200 bg-neutral-50 p-1.5 shadow-[0_18px_40px_-20px_rgba(23,23,23,0.45)]"
         >
           <SelectItem
-            value="__any__"
+            value="any"
             className="rounded-lg px-3 py-2.5 text-sm text-neutral-600 data-[highlighted]:bg-brand-tint data-[highlighted]:text-brand-ink"
           >
             {placeholder}
