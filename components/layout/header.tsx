@@ -29,7 +29,7 @@ export async function Header({ user }: HeaderProps) {
           <Link
             href="/"
             aria-label="Creator Marketplace home"
-            className="flex shrink-0 items-center gap-2 rounded-full px-2 py-1.5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-50"
+            className="flex shrink-0 items-center gap-3 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500"
           >
             <Mark
               tone="light"
