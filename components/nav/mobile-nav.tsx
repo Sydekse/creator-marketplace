@@ -68,7 +68,7 @@ export function MobileNav({ user }: MobileNavProps) {
             aria-label="Creator Marketplace home"
             className="flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-900"
           >
-            <Mark tone="dark" className="h-6 w-6 rounded-md" />
+            <Mark tone="dark" className="h-6 w-6 rounded-lg" />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-neutral-900">
                 Creator Marketplace
