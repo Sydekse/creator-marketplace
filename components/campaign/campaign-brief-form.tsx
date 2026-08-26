@@ -134,7 +134,10 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
         mode === 'create' ? 'Campaign draft created.' : 'Campaign updated.'
       );
       router.refresh();
-      router.push('/campaigns');
+      // A new brief's next step is picking creators, so creation lands on
+      // discovery rather than the list. An edit has no such next step — the
+      // brand came from the list and goes back to it.
+      router.push(mode === 'create' ? '/discover' : '/campaigns');
       return;
     }
 
