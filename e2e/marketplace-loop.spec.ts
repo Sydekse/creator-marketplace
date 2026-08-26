@@ -155,18 +155,13 @@ test('flow 2: budget ceiling blocks adding an over-budget creator (AC-014)', asy
   await brand.locator('#goal').fill('Prove the ceiling holds.');
   await brand.locator('#targetAudience').fill('Everyone');
   await brand.getByRole('button', { name: 'Create draft campaign' }).click();
-  // The brief form returns to the campaign list after saving the draft — the
-  // detail page is the cart, which needs creators first. The list is where the
-  // new draft now appears.
-  await expect(brand).toHaveURL(/\/campaigns$/, { timeout: 15_000 });
+  // A new brief's next step is picking creators, so saving lands on discover.
+  await expect(brand).toHaveURL(/\/discover$/, { timeout: 15_000 });
 
   // Add the highest-tier creator with a video count the budget cannot cover.
-  await brand.goto('/discover');
-  // Discovery cards link by TikTok handle, not email.
-  await brand
-    .getByRole('link', { name: /@demo_beauty/i })
-    .first()
-    .click();
+  // Tiles mark rather than navigate — "See details" is the way into a profile.
+  const card = brand.locator('li', { hasText: '@demo_beauty' }).first();
+  await card.getByRole('link', { name: /see details/i }).click();
   await brand.locator('select[name="campaignId"]').selectOption({
     label: 'Tiny Budget Campaign',
   });

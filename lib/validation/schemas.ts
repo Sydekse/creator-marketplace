@@ -407,6 +407,28 @@ export const addCampaignItemSchema = z.object({
 
 export type AddCampaignItemInput = z.infer<typeof addCampaignItemSchema>;
 
+/**
+ * The discover grid's mark-and-add batch. One `videoCount` applies to every
+ * creator in the batch — per-creator counts are edited in the cart afterwards.
+ * The 50-creator cap keeps a single request inside a sane transaction size.
+ */
+export const bulkAddCampaignItemsSchema = z.object({
+  creatorIds: z
+    .array(z.string().uuid({ message: 'Valid creator ID is required.' }))
+    .min(1, { message: 'Select at least one creator.' })
+    .max(50, { message: 'Add at most 50 creators at once.' }),
+  videoCount: z
+    .number()
+    .int()
+    .positive({ message: 'Video count must be greater than zero.' })
+    .max(100, { message: 'Video count cannot exceed 100.' })
+    .default(1),
+});
+
+export type BulkAddCampaignItemsInput = z.infer<
+  typeof bulkAddCampaignItemsSchema
+>;
+
 export const acceptDealSchema = z.object({
   rightsTermsId: z
     .string()
