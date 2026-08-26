@@ -19,6 +19,7 @@ vi.mock('../db', () => {
     groupBy: vi.fn().mockReturnThis(),
     orderBy: vi.fn().mockReturnThis(),
     innerJoin: vi.fn().mockReturnThis(),
+    leftJoin: vi.fn().mockReturnThis(),
     limit: vi.fn().mockReturnThis(),
     then: vi.fn(async (resolve: (v: unknown) => void) =>
       resolve([
