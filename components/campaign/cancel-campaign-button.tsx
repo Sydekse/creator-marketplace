@@ -18,6 +18,14 @@ export interface CancelCampaignButtonProps {
   campaignId: string;
   /** For the confirm prompt — the brand named this campaign, so name it back. */
   campaignName: string;
+  /**
+   * Where the button is rendered. On the campaign **detail** page (`detail`,
+   * the default) a successful cancel pushes to `/campaigns` — the campaign it
+   * sat on no longer has anything to show. On the campaigns **list** (`list`)
+   * the brand is already standing where a success would send them, so the row
+   * refreshes in place and its chip reads `cancelled`.
+   */
+  context?: 'detail' | 'list';
 }
 
 /**
@@ -35,6 +43,7 @@ export interface CancelCampaignButtonProps {
 export function CancelCampaignButton({
   campaignId,
   campaignName,
+  context = 'detail',
 }: CancelCampaignButtonProps) {
   const router = useRouter();
   const [cancelling, setCancelling] = useState(false);
@@ -80,9 +89,14 @@ export function CancelCampaignButton({
 
     toast.success(CANCEL_CAMPAIGN_SUCCESS);
 
-    // `push`, not `refresh`: the page this button sits on is the campaign that no
-    // longer has anything to do. The list is where the brand goes next, and it
-    // re-reads the status from the server on arrival.
+    // From the detail page this navigates to the list, which re-reads the
+    // status on arrival. From the list itself there is nowhere to go — the row
+    // is already here — so success refreshes and the chip reads `cancelled`.
+    if (context === 'list') {
+      setCancelling(false);
+      router.refresh();
+      return;
+    }
     router.push('/campaigns');
   }
 

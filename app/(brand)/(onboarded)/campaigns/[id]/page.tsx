@@ -163,18 +163,15 @@ export default async function CampaignCartPage({
       />
       {/*
         AC-019. `confirmed` only: before it there is nothing accepted to hold,
-          and after it the money is already held — `POST /fund` answers a second
-          attempt with 409 `CAMPAIGN_NOT_FUNDABLE` regardless (AC bullet 7).
-        */}
-      {campaign.status === 'confirmed' && (
-        <div className="flex items-start gap-3">
-          <FundCampaignButton
-            campaignId={campaign.id}
-            acceptedCount={acceptedCount}
-          />
-        </div>
-      )}
+        and after it the money is already held — `POST /fund` answers a second
+        attempt with 409 `CAMPAIGN_NOT_FUNDABLE` regardless (AC bullet 7).
 
+        The button lives at the foot of the Budget Summary card, not marooned
+        between the header and the grid: the brand commits money while looking
+        at the figures, so the control belongs with them. Full-width and `lg` —
+        the action that moves the campaign's whole budget is the primary call
+        on this page, and `sm` read as a secondary beside it.
+      */}
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,1.8fr)_minmax(280px,0.8fr)]">
         <div className="flex flex-col gap-4 lg:col-span-1">
           {/*
@@ -414,6 +411,19 @@ export default async function CampaignCartPage({
                   {formatEtb(available)}
                 </span>
               </div>
+
+              {/* The money action sits at the bottom of the card that shows
+                  the money, right-aligned under the Remaining row — see the
+                  note where the confirmed block used to live above the grid. */}
+              {campaign.status === 'confirmed' && (
+                <div className="border-t border-border pt-4">
+                  <FundCampaignButton
+                    campaignId={campaign.id}
+                    acceptedCount={acceptedCount}
+                    size="lg"
+                  />
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

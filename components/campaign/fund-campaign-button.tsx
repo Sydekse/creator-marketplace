@@ -22,6 +22,11 @@ export interface FundCampaignButtonProps {
    * nothing to hold — the endpoint answers the same case with a 409.
    */
   acceptedCount: number;
+  /**
+   * `lg` where the button is the page's primary money action (the budget
+   * summary card), `sm` where it sits in a row of secondary controls.
+   */
+  size?: 'sm' | 'lg';
 }
 
 /**
@@ -36,6 +41,7 @@ export interface FundCampaignButtonProps {
 export function FundCampaignButton({
   campaignId,
   acceptedCount,
+  size = 'sm',
 }: FundCampaignButtonProps) {
   const router = useRouter();
   const [funding, setFunding] = useState(false);
@@ -108,7 +114,7 @@ export function FundCampaignButton({
         type="button"
         onClick={() => setConfirmOpen(true)}
         disabled={funding || nothingAccepted}
-        className={buttonVariants({ size: 'sm' })}
+        className={buttonVariants({ size, className: 'w-full' })}
       >
         {funding ? FUND_CAMPAIGN_PENDING_LABEL : FUND_CAMPAIGN_LABEL}
       </button>
