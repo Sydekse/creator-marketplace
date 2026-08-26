@@ -12,16 +12,27 @@ import { describe, expect, it, vi } from 'vitest';
 // -- Mock the DB module ------------------------------------------------------
 
 vi.mock('../db', () => {
-  const chain = {
-    select: vi.fn().mockReturnThis(),
-    from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockReturnThis(),
-    groupBy: vi.fn().mockReturnThis(),
-    orderBy: vi.fn().mockReturnThis(),
-    innerJoin: vi.fn().mockReturnThis(),
-    leftJoin: vi.fn().mockReturnThis(),
-    limit: vi.fn().mockReturnThis(),
-    then: vi.fn(async (resolve: (v: unknown) => void) =>
+  // A fresh chain per query, not one shared `mockReturnThis` object. The
+  // dashboard and inbox run several queries concurrently (`Promise.all`), and a
+  // single shared chain deadlocks them: the second `select()` re-enters the same
+  // object's `then` while the first query's promise is already settled against
+  // it, so the later query's `await` never resolves and the test times out.
+  // Handing each query its own awaitable chain is what lets them all settle.
+  const makeChain = (): unknown => {
+    const chain: Record<string, unknown> = {};
+    for (const m of [
+      'select',
+      'from',
+      'where',
+      'groupBy',
+      'orderBy',
+      'innerJoin',
+      'leftJoin',
+      'limit',
+    ]) {
+      chain[m] = vi.fn(() => chain);
+    }
+    chain.then = (resolve: (v: unknown) => void) =>
       resolve([
         {
           status: 'draft',
@@ -38,10 +49,10 @@ vi.mock('../db', () => {
           id: 'd0000000-0000-4000-8000-000000000001',
           creatorId: 'cr000000-0000-4000-8000-000000000001',
         },
-      ])
-    ),
+      ]);
+    return chain;
   };
-  return { db: chain };
+  return { db: { select: vi.fn(() => makeChain()) } };
 });
 
 // -- Mock authz to return a brand session ------------------------------------
