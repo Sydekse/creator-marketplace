@@ -36,10 +36,13 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Summer Dispute');
-  // Funding confirms via `window.confirm` — accept it (Playwright would
-  // otherwise auto-dismiss the dialog and cancel the funding).
-  brand.on('dialog', (d) => d.accept());
+  // Funding asks first through the shared ConfirmDialog — click Fund, then
+  // the dialog's confirm button.
   await brand.getByRole('button', { name: 'Fund campaign' }).click();
+  await brand
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Fund campaign' })
+    .click();
   // Funding places the hold in this server process — the escrow row is the
   // proof it landed (same signal flow 1 uses).
   await expect(

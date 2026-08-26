@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   FUND_CAMPAIGN_FAILED,
   FUND_CAMPAIGN_LABEL,
@@ -38,18 +39,11 @@ export function FundCampaignButton({
 }: FundCampaignButtonProps) {
   const router = useRouter();
   const [funding, setFunding] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const nothingAccepted = acceptedCount === 0;
 
   async function handleFund() {
     if (funding || nothingAccepted) return;
-
-    // Money leaves the brand's available balance here, so it asks first —
-    // `window.confirm` for the reason `confirm-campaign-button.tsx` gives: no
-    // dialog primitive is installed and adding one for a yes/no would widen the
-    // ticket.
-    if (!window.confirm(FUND_CAMPAIGN_PROMPT)) {
-      return;
-    }
 
     setFunding(true);
 
@@ -112,12 +106,20 @@ export function FundCampaignButton({
     <div className="flex flex-col gap-1">
       <button
         type="button"
-        onClick={handleFund}
+        onClick={() => setConfirmOpen(true)}
         disabled={funding || nothingAccepted}
         className={buttonVariants({ size: 'sm' })}
       >
         {funding ? FUND_CAMPAIGN_PENDING_LABEL : FUND_CAMPAIGN_LABEL}
       </button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={FUND_CAMPAIGN_LABEL}
+        description={FUND_CAMPAIGN_PROMPT}
+        confirmLabel={FUND_CAMPAIGN_LABEL}
+        onConfirm={handleFund}
+      />
       {/* Why it is disabled, in a sentence beside the control. A `title=`
           tooltip would tell a touch user nothing. */}
       {nothingAccepted && (

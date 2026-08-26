@@ -245,11 +245,13 @@ describe('the brand can reach the cancel path from the campaign page', () => {
   });
 
   it('confirms first, because nothing undoes this', () => {
-    // `window.confirm`, not a dialog primitive — the repo has none installed and
-    // `RemoveFromCartButton` set the precedent for a destructive one-click action.
+    // The shared ConfirmDialog — the repo has a dialog primitive now, so the
+    // native `window.confirm` precedent is retired.
+    expect(button).toContain('ConfirmDialog');
     expect(button).toContain(
-      'window.confirm(cancelCampaignPrompt(campaignName))'
+      'description={cancelCampaignPrompt(campaignName)}'
     );
+    expect(button).not.toContain('window.confirm');
     expect(cancelCampaignPrompt('Ramadan Push')).toContain('Ramadan Push');
     expect(cancelCampaignPrompt('Ramadan Push')).toMatch(/cannot be undone/i);
   });

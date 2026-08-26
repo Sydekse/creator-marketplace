@@ -1006,10 +1006,14 @@ describe('remove-from-cart button (AC-015 — the brand-facing half)', () => {
   });
 
   it('confirms before removing, since the action is destructive and one click away', () => {
-    expect(BUTTON).toContain('window.confirm');
+    // The shared ConfirmDialog — the native `window.confirm` precedent is gone.
+    expect(BUTTON).toContain('ConfirmDialog');
+    expect(BUTTON).not.toContain('window.confirm');
     // The confirm names the creator — "Remove this item?" on a list of five
     // does not tell a brand which one they are about to drop.
     expect(BUTTON).toContain('${creatorHandle}');
+    // Destructive, so the dialog's confirm button is the red one.
+    expect(BUTTON).toContain('tone="destructive"');
   });
 
   it('names the creator in the accessible label', () => {
@@ -1033,7 +1037,10 @@ describe('remove-from-cart button (AC-015 — the brand-facing half)', () => {
     expect(BUTTON).toContain('disabled={removing}');
     expect(BUTTON).toContain('REMOVE_FROM_CART_PENDING_LABEL');
     // A disabled control explains itself beside the control, never on hover.
-    expect(BUTTON).not.toContain('title=');
+    // Scoped to the trigger element — the ConfirmDialog's `title=` prop is its
+    // accessible heading, not a tooltip.
+    const trigger = BUTTON.match(/<button[\s\S]*?<\/button>/)?.[0] ?? '';
+    expect(trigger).not.toContain('title=');
   });
 
   it('distinguishes an already-gone item from a real failure', () => {

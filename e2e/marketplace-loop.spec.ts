@@ -34,11 +34,13 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Ramadan Beauty Push');
-  // Funding moves money, so the button confirms via `window.confirm` first —
-  // accept it, registered before the click (Playwright auto-dismisses
-  // unhandled dialogs, which would cancel the funding).
-  brand.on('dialog', (d) => d.accept());
+  // Funding moves money, so the shared ConfirmDialog asks first — click Fund,
+  // then the dialog's confirm button.
   await brand.getByRole('button', { name: 'Fund campaign' }).click();
+  await brand
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Fund campaign' })
+    .click();
   // Funding succeeds: the button's success toast, or the page re-reading a
   // funded campaign. The robust signal is the escrow row appearing.
   await expect(
@@ -96,10 +98,13 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   await signIn(approver, DEMO.brand);
   await openCampaign(approver, 'Ramadan Beauty Push');
   await approver.getByRole('link', { name: '@demo_creator' }).click();
-  // The approve control confirms with a window.dialog — accept it, registered
-  // before the click so the handler is live when the dialog fires.
-  approver.on('dialog', (d) => d.accept());
+  // The approve control asks first through the shared ConfirmDialog — click
+  // Approve, then the dialog's confirm button.
   await approver.getByRole('button', { name: 'Approve and pay' }).click();
+  await approver
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Approve and pay' })
+    .click();
   await expect(approver).toHaveURL(/\/deals\/[0-9a-f-]+/, { timeout: 15_000 });
   await approver.close();
 

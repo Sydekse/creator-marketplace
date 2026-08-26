@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   CANCEL_CAMPAIGN_FAILED,
   CANCEL_CAMPAIGN_LABEL,
@@ -37,13 +38,10 @@ export function CancelCampaignButton({
 }: CancelCampaignButtonProps) {
   const router = useRouter();
   const [cancelling, setCancelling] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   async function handleCancel() {
     if (cancelling) return;
-
-    // Destructive and irreversible. `confirm` rather than a dialog because the
-    // repo has no dialog primitive installed, following `RemoveFromCartButton`.
-    if (!window.confirm(cancelCampaignPrompt(campaignName))) return;
 
     setCancelling(true);
 
@@ -89,13 +87,24 @@ export function CancelCampaignButton({
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleCancel}
-      disabled={cancelling}
-      className={buttonVariants({ variant: 'outline', size: 'sm' })}
-    >
-      {cancelling ? CANCEL_CAMPAIGN_PENDING_LABEL : CANCEL_CAMPAIGN_LABEL}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        disabled={cancelling}
+        className={buttonVariants({ variant: 'outline', size: 'sm' })}
+      >
+        {cancelling ? CANCEL_CAMPAIGN_PENDING_LABEL : CANCEL_CAMPAIGN_LABEL}
+      </button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={CANCEL_CAMPAIGN_LABEL}
+        description={cancelCampaignPrompt(campaignName)}
+        confirmLabel={CANCEL_CAMPAIGN_LABEL}
+        tone="destructive"
+        onConfirm={handleCancel}
+      />
+    </>
   );
 }
