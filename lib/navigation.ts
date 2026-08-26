@@ -8,6 +8,7 @@ export interface NavLink {
     | 'discover'
     | 'campaigns'
     | 'deals'
+    | 'cart'
     | 'verification'
     | 'tiers'
     | 'worklist'
@@ -20,6 +21,10 @@ const NAV_LINKS: Record<UserRole, NavLink[]> = {
     { label: 'Campaigns', href: '/campaigns', icon: 'campaigns' },
     { label: 'Discover', href: '/discover', icon: 'discover' },
     { label: 'Deals', href: '/deals', icon: 'deals' },
+    // Not a fixed route — the cart is per-campaign, so MainNav resolves this
+    // entry to the active draft's cart (or /campaigns when there is none) and
+    // carries the item count as a badge. The href here is only a fallback.
+    { label: 'Cart', href: '/campaigns', icon: 'cart' },
   ],
   creator: [
     // `/creator/deals`, not `/deals`. The route this points at is real as of

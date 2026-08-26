@@ -1,9 +1,6 @@
 import { readFileSync } from 'fs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  CAMPAIGN_CREATOR_UNIQUE_CONSTRAINT,
-  addToCart,
-} from '../lib/campaigns/add-to-cart';
+import { addToCart } from '../lib/campaigns/add-to-cart';
 import type { AddToCartDeps } from '../lib/campaigns/add-to-cart';
 import { removeFromCart } from '../lib/campaigns/remove-from-cart';
 import type { RemoveFromCartDeps } from '../lib/campaigns/remove-from-cart';
@@ -61,13 +58,6 @@ function deleteRequest() {
     {
       method: 'DELETE',
     }
-  );
-}
-
-function uniqueViolation(constraint: string) {
-  return Object.assign(
-    new Error('duplicate key value violates unique constraint'),
-    { code: '23505', constraint }
   );
 }
 
@@ -166,7 +156,9 @@ describe('addToCart service', () => {
     return {
       getCampaign: vi.fn().mockResolvedValue(mockCampaign),
       getCreatorWithTier: vi.fn().mockResolvedValue(mockCreator),
+      getExistingItem: vi.fn().mockResolvedValue(null),
       insertItem: vi.fn().mockResolvedValue({ id: 'item-uuid-1' }),
+      updateItemCount: vi.fn().mockResolvedValue({ id: 'item-uuid-1' }),
       getRunningTotal: vi.fn().mockResolvedValue(0), // initial total 0
       transaction: async (fn) => fn({} as Tx),
       ...overrides,
@@ -359,11 +351,61 @@ describe('addToCart service', () => {
     expect(result).toEqual({ ok: false, reason: 'creator_not_bookable' });
   });
 
-  it('handles duplicate creator in campaign via unique violation', async () => {
+  it('re-adding a carted creator grows the count and reprices the delta', async () => {
+    // The creator is already carted at 1 video / 100000. Adding 2 more grows
+    // the row to 3 videos / 300000, and the ceiling applies to the increment
+    // (200000), not the whole new total.
+    const updateItemCount = vi.fn().mockResolvedValue({ id: 'item-uuid-1' });
+    const insertItem = vi.fn();
     const deps = createMockDeps({
-      insertItem: vi
+      getExistingItem: vi
         .fn()
-        .mockRejectedValue(uniqueViolation(CAMPAIGN_CREATOR_UNIQUE_CONSTRAINT)),
+        .mockResolvedValue({ id: 'item-uuid-1', videoCount: 1 }),
+      updateItemCount,
+      insertItem,
+      getRunningTotal: vi.fn().mockResolvedValue(100000), // the existing row
+    });
+
+    const result = await addToCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      { creatorId: CREATOR_ID, videoCount: 2 },
+      deps
+    );
+
+    expect(result).toEqual({
+      ok: true,
+      item: { id: 'item-uuid-1' },
+      updated: true,
+      runningTotal: 300000,
+      remainingBudget: 200000,
+    });
+    // Count grows and the row reprices off the same unit price, so the
+    // `total = unit * count` CHECK still holds.
+    expect(updateItemCount).toHaveBeenCalledWith(
+      expect.anything(),
+      'item-uuid-1',
+      {
+        videoCount: 3,
+        totalPrice: 300000,
+      }
+    );
+    // Never a second row for the same (campaign, creator).
+    expect(insertItem).not.toHaveBeenCalled();
+  });
+
+  it('the upsert ceiling applies to the increment, not the whole new total', async () => {
+    // Budget 250000, existing row 1 video / 100000 → 150000 free. Adding 1 more
+    // (100000) fits the increment (total 200000 ≤ 250000) even though a naive
+    // full-total re-check would see 300000 > 250000.
+    const deps = createMockDeps({
+      getCampaign: vi
+        .fn()
+        .mockResolvedValue({ ...mockCampaign, budget: 250000 }),
+      getExistingItem: vi
+        .fn()
+        .mockResolvedValue({ id: 'item-uuid-1', videoCount: 1 }),
+      getRunningTotal: vi.fn().mockResolvedValue(100000),
     });
 
     const result = await addToCart(
@@ -373,7 +415,37 @@ describe('addToCart service', () => {
       deps
     );
 
-    expect(result).toEqual({ ok: false, reason: 'creator_already_in_cart' });
+    expect(result.ok).toBe(true);
+  });
+
+  it('the upsert is still refused when the increment breaks the ceiling', async () => {
+    // Budget 150000, existing 100000 → 50000 free. Adding 1 more (100000) puts
+    // the total at 200000 > 150000, so it is refused by the real shortfall.
+    const updateItemCount = vi.fn();
+    const deps = createMockDeps({
+      getCampaign: vi
+        .fn()
+        .mockResolvedValue({ ...mockCampaign, budget: 150000 }),
+      getExistingItem: vi
+        .fn()
+        .mockResolvedValue({ id: 'item-uuid-1', videoCount: 1 }),
+      getRunningTotal: vi.fn().mockResolvedValue(100000),
+      updateItemCount,
+    });
+
+    const result = await addToCart(
+      CAMPAIGN_ID,
+      BRAND_PROFILE_ID,
+      { creatorId: CREATOR_ID, videoCount: 1 },
+      deps
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      reason: 'budget_exceeded',
+      excess: 50000,
+    });
+    expect(updateItemCount).not.toHaveBeenCalled();
   });
 });
 
@@ -399,7 +471,9 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
     return {
       getCampaign: vi.fn().mockResolvedValue(mockCampaign),
       getCreatorWithTier: vi.fn().mockResolvedValue(mockCreator),
+      getExistingItem: vi.fn().mockResolvedValue(null),
       insertItem: vi.fn().mockResolvedValue({ id: 'item-1' }),
+      updateItemCount: vi.fn().mockResolvedValue({ id: 'item-1' }),
       getRunningTotal: vi.fn().mockResolvedValue(0), // initial total 0
       transaction: async (fn) => fn({} as Tx),
       ...overrides,
@@ -418,6 +492,7 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
     const body = await response.json();
     expect(body).toEqual({
       item: { id: 'item-1' },
+      updated: false,
       running_total: 200000,
       remaining_budget: 300000,
     });
@@ -513,11 +588,14 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
     expect(body.error.code).toBe(ErrorCode.CREATOR_NOT_BOOKABLE);
   });
 
-  it('returns 409 CREATOR_ALREADY_IN_CART when creator is duplicate', async () => {
+  it('returns 200 updated when the creator is already carted', async () => {
+    // The duplicate-add path is gone: re-adding grows the count, and the body
+    // says `updated: true` so the client toast reads "updated", not "added".
     const deps = createMockAddToCartDeps({
-      insertItem: vi
+      getExistingItem: vi
         .fn()
-        .mockRejectedValue(uniqueViolation(CAMPAIGN_CREATOR_UNIQUE_CONSTRAINT)),
+        .mockResolvedValue({ id: 'item-1', videoCount: 1 }),
+      getRunningTotal: vi.fn().mockResolvedValue(100000),
     });
 
     const response = await handleAddCampaignItem(
@@ -526,9 +604,10 @@ describe('POST /api/campaigns/[id]/items route handler', () => {
       { addToCartDeps: deps }
     );
 
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.error.code).toBe(ErrorCode.CREATOR_ALREADY_IN_CART);
+    expect(body.updated).toBe(true);
+    expect(body.item).toEqual({ id: 'item-1' });
   });
 
   it('API route returns 409 for budget_exceeded', async () => {

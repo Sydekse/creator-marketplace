@@ -60,9 +60,7 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        if (data?.error?.code === 'CREATOR_ALREADY_IN_CART') {
-          toast.error('Creator is already in this campaign cart.');
-        } else if (data?.error?.code === 'CREATOR_NOT_BOOKABLE') {
+        if (data?.error?.code === 'CREATOR_NOT_BOOKABLE') {
           toast.error('This creator is not currently bookable.');
         } else if (data?.error?.code === 'CAMPAIGN_NOT_DRAFT') {
           toast.error(CAMPAIGN_NOT_DRAFT_MESSAGE);
@@ -78,7 +76,14 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
         return;
       }
 
-      toast.success('Creator added to campaign!');
+      // Re-adding a carted creator grows their count; the body says which, so
+      // the toast matches what actually happened rather than always "added".
+      const data = await res.json().catch(() => null);
+      toast.success(
+        data?.updated
+          ? 'Video count updated for that creator.'
+          : 'Creator added to campaign!'
+      );
       router.push(`/campaigns/${campaignId}`);
     } catch {
       toast.error('An unexpected error occurred.');

@@ -89,10 +89,6 @@ export async function handleAddCampaignItem(
         return Response.json(errorResponse(ErrorCode.CREATOR_NOT_BOOKABLE), {
           status: ErrorHttpStatus[ErrorCode.CREATOR_NOT_BOOKABLE],
         });
-      case 'creator_already_in_cart':
-        return Response.json(errorResponse(ErrorCode.CREATOR_ALREADY_IN_CART), {
-          status: ErrorHttpStatus[ErrorCode.CREATOR_ALREADY_IN_CART],
-        });
       case 'budget_exceeded': {
         const excess = result.excess;
         return Response.json(
@@ -112,6 +108,9 @@ export async function handleAddCampaignItem(
   return Response.json(
     {
       item: { id: result.item.id },
+      // `true` when the creator was already carted and their count grew —
+      // the toast says "updated" rather than "added" so the two read honestly.
+      updated: result.updated,
       running_total: result.runningTotal,
       remaining_budget: result.remainingBudget,
     },

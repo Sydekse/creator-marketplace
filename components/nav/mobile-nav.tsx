@@ -15,17 +15,21 @@ import {
   List,
   Megaphone,
   SealCheck,
+  ShoppingCart,
   Stack,
   WarningCircle,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
 import { motion, useReducedMotion } from 'framer-motion';
+import type { CartTarget } from '@/components/nav/main-nav';
 
 interface MobileNavProps {
   user: CurrentUser;
+  /** Brands only — resolved server-side, same as MainNav. */
+  cart?: CartTarget;
 }
 
-export function MobileNav({ user }: MobileNavProps) {
+export function MobileNav({ user, cart }: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const links = getNavLinks(user.role);
@@ -84,12 +88,20 @@ export function MobileNav({ user }: MobileNavProps) {
           className="flex flex-col gap-1 p-3"
         >
           {links.map((link) => {
-            const isActive = link.href === activeHref;
             const Icon = NAV_ICONS[link.icon];
+            // Same resolution as MainNav: the cart entry points at the active
+            // draft's cart and is active only when standing in it.
+            const isCart = link.icon === 'cart';
+            const href = isCart ? (cart?.href ?? link.href) : link.href;
+            const isActive = isCart
+              ? cart !== undefined && pathname === cart.href
+              : link.href === activeHref;
+            const badge =
+              isCart && cart && cart.itemCount > 0 ? cart.itemCount : 0;
             return (
               <Link
-                key={link.href}
-                href={link.href}
+                key={link.href + link.icon}
+                href={href}
                 onClick={() => setOpen(false)}
                 data-active={isActive || undefined}
                 aria-current={isActive ? 'page' : undefined}
@@ -119,6 +131,11 @@ export function MobileNav({ user }: MobileNavProps) {
                   aria-hidden
                 />
                 <span className="relative z-[1]">{link.label}</span>
+                {badge > 0 && (
+                  <span className="relative z-[1] ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-tint px-1.5 text-[11px] font-semibold text-brand-ink">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -133,6 +150,7 @@ const NAV_ICONS = {
   discover: Binoculars,
   campaigns: Megaphone,
   deals: Briefcase,
+  cart: ShoppingCart,
   verification: SealCheck,
   tiers: Stack,
   worklist: WarningCircle,

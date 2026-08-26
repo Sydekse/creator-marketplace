@@ -9,6 +9,9 @@ describe('getNavLinks', () => {
       'Campaigns',
       'Discover',
       'Deals',
+      // The cart is a nav element for brands; its href is a placeholder that
+      // MainNav/MobileNav resolve to the active draft's cart.
+      'Cart',
     ]);
   });
 
