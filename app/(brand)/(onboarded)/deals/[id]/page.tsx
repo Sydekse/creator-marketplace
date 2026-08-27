@@ -167,7 +167,7 @@ export default async function BrandDealReviewPage({
           {deal.deliverables.map((video, index) => (
             <div
               key={video.id}
-              className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5 transition-colors duration-300 hover:border-neutral-300"
+              className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5"
             >
               <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
               <a

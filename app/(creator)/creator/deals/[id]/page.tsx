@@ -264,9 +264,13 @@ export default async function CreatorDealDetailPage({
           {deal.deliverables.map((video, index) => (
             <div
               key={video.id}
-              className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5 transition-colors duration-300 ease-out hover:border-neutral-300"
+              className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5"
             >
               <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
+              {/* Text, never a link or an embed (AC-8) — nothing on the creator
+                  side navigates to the post. The card carries no hover state
+                  either: it is not clickable, and a hover border would claim
+                  otherwise. */}
               <p className="font-mono text-sm break-all">{video.tiktokUrl}</p>
               <p className="text-sm text-muted-foreground">
                 {SUBMITTED_AT_LABEL}: {formatDeadlineUtc(video.submittedAt)}

@@ -147,7 +147,7 @@ export function SelectableCreatorGrid({
                     toggle(creator.id);
                   }
                 }}
-                className={`relative h-full cursor-pointer rounded-xl transition-shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                className={`relative h-full cursor-pointer rounded-xl transition-[box-shadow,transform] duration-300 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
                   isSelected ? 'ring-2 ring-brand' : ''
                 }`}
               >

@@ -1,4 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+// Static imports, not the in-test dynamic imports `default-deps.test.ts`
+// uses: `vi.mock` is hoisted above them either way, and resolving these
+// modules mid-test is what times that file out under full-suite load.
+import { addToCart } from '../lib/campaigns/add-to-cart';
+import { bulkAddToCart } from '../lib/campaigns/bulk-add-to-cart';
+import { getActiveDraftCart } from '../lib/campaigns/queries';
+import {
+  getCartItem,
+  listCartItems,
+  sumCartTotal,
+} from '../lib/campaigns/cart-queries';
 
 /**
  * Default-dep smoke tests for the cart read/write paths — the same pattern as
@@ -15,13 +26,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * the contract.
  */
 
-const CREATOR_ID = '33333333-3333-4333-8333-333333333333';
-const BRAND_PROFILE_ID = 'b0000000-0000-4000-8000-000000000001';
-const CAMPAIGN_ID = 'c0000000-0000-4000-8000-000000000001';
+// Constants and the query counter live in the hoisted block: with static
+// imports, the `vi.mock` factories run before any top-level `const`, so
+// anything the factories read must be hoisted with them. The counter resets
+// per test — the mock resolves the first query of a run as the campaign row
+// and the rest as creator rows.
+const harness = vi.hoisted(() => ({
+  queryIndex: 0,
+  CREATOR_ID: '33333333-3333-4333-8333-333333333333',
+  BRAND_PROFILE_ID: 'b0000000-0000-4000-8000-000000000001',
+  CAMPAIGN_ID: 'c0000000-0000-4000-8000-000000000001',
+}));
 
-// Query counter shared with the mock below, reset per test — the mock resolves
-// the first query of a run as the campaign row and the rest as creator rows.
-const harness = vi.hoisted(() => ({ queryIndex: 0 }));
+const { CREATOR_ID, BRAND_PROFILE_ID, CAMPAIGN_ID } = harness;
 
 vi.mock('../db', () => {
   // One row that satisfies every reader — bookable creator, funded budget,
@@ -37,10 +54,10 @@ vi.mock('../db', () => {
   // The counter lives in `harness` so each test restarts the ordering.
 
   const baseRow = {
-    id: CREATOR_ID,
+    id: harness.CREATOR_ID,
     creatorId: 'cr000000-0000-4000-8000-000000000001',
-    campaignId: CAMPAIGN_ID,
-    brandId: BRAND_PROFILE_ID,
+    campaignId: harness.CAMPAIGN_ID,
+    brandId: harness.BRAND_PROFILE_ID,
     tierId: 't0000000-0000-4000-8000-000000000001',
     pricePerVideo: 100,
     tierActive: true,
@@ -103,7 +120,9 @@ vi.mock('../lib/authz', async (importOriginal) => {
   const actual: object = await importOriginal();
   return {
     ...actual,
-    guard: vi.fn(async () => ({ brandProfileId: BRAND_PROFILE_ID })),
+    guard: vi.fn(async () => ({
+      brandProfileId: harness.BRAND_PROFILE_ID,
+    })),
   };
 });
 
@@ -113,7 +132,6 @@ describe('default deps: cart writes', () => {
   });
 
   it('addToCart runs its default query deps without error', async () => {
-    const { addToCart } = await import('../lib/campaigns/add-to-cart');
     const result = await addToCart(CAMPAIGN_ID, BRAND_PROFILE_ID, {
       creatorId: CREATOR_ID,
       videoCount: 1,
@@ -124,7 +142,6 @@ describe('default deps: cart writes', () => {
   });
 
   it('bulkAddToCart runs its default query deps without error', async () => {
-    const { bulkAddToCart } = await import('../lib/campaigns/bulk-add-to-cart');
     const result = await bulkAddToCart(CAMPAIGN_ID, BRAND_PROFILE_ID, {
       creatorIds: [CREATOR_ID],
       videoCount: 1,
@@ -136,14 +153,11 @@ describe('default deps: cart writes', () => {
 
 describe('default deps: cart reads', () => {
   it('getActiveDraftCart resolves the newest draft row', async () => {
-    const { getActiveDraftCart } = await import('../lib/campaigns/queries');
     const result = await getActiveDraftCart(BRAND_PROFILE_ID);
     expect(result).toBeDefined();
   });
 
   it('sumCartTotal, listCartItems and getCartItem run without error', async () => {
-    const { sumCartTotal, listCartItems, getCartItem } =
-      await import('../lib/campaigns/cart-queries');
     expect(await sumCartTotal(CAMPAIGN_ID)).toBe(0);
     expect(Array.isArray(await listCartItems(CAMPAIGN_ID))).toBe(true);
     expect(await getCartItem(CAMPAIGN_ID, CREATOR_ID)).toBeDefined();
