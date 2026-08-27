@@ -7,7 +7,7 @@ import {
 } from '@phosphor-icons/react/dist/ssr';
 import { buttonVariants } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
-import { PageHeader } from '@/components/layout/page-header';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import { readCampaignBudget } from '@/lib/campaigns/budget';
@@ -42,6 +42,8 @@ import { FundCampaignButton } from '@/components/campaign/fund-campaign-button';
 import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-button';
 import { VideoPerformance } from '@/components/campaign/video-performance';
 import { EmptyState } from '@/components/feedback/empty-state';
+import { MagneticLink } from '@/components/motion/magnetic-link';
+import { StatusPulse } from '@/components/motion/status-pulse';
 import { StaggerIn } from '@/components/motion/stagger-in';
 import { cn, textLinkFeedback } from '@/lib/utils';
 
@@ -132,69 +134,79 @@ export default async function CampaignCartPage({
 
   return (
     <StaggerIn className="mx-auto flex max-w-6xl flex-col gap-10 py-4">
-      <Link
+      <MagneticLink
         href="/campaigns"
-        className={cn(
-          'inline-flex w-fit items-center gap-2 text-sm text-neutral-500',
-          textLinkFeedback
-        )}
+        className="group inline-flex w-fit items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-700 transition-[border-color,background-color,color,transform] duration-200 ease-[var(--ease-smooth)] hover:border-neutral-300 hover:bg-white hover:text-neutral-900 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
-        <ArrowLeft size={16} weight="regular" aria-hidden />
+        <ArrowLeft
+          size={14}
+          weight="regular"
+          aria-hidden
+          className="transition-transform duration-200 ease-[var(--ease-smooth)] group-hover:-translate-x-0.5"
+        />
         Back to campaigns
-      </Link>
+      </MagneticLink>
 
-      <PageHeader
-        label="Campaign"
-        title={campaign.name}
-        description={
-          <>
-            <Chip
-              tone={campaignStatusTone[campaign.status] ?? 'gray'}
-              className="mr-2 capitalize"
-            >
-              {campaignStatusLabel(campaign.status)}
-            </Chip>
-            Created on {created}
-          </>
-        }
-        action={
-          campaign.status === 'draft' && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href={`/campaigns/${campaign.id}/edit`}
-                className={cn(
-                  buttonVariants({ variant: 'outline', size: 'sm' }),
-                  'gap-1.5'
-                )}
+      <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.9fr)] lg:gap-16">
+        <div className="flex min-w-0 flex-col gap-10">
+          <header className="flex flex-col gap-5">
+            <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
+              Campaign
+            </p>
+            <h1 className="page-title max-w-[18ch]">{campaign.name}</h1>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-neutral-500">
+              <Chip
+                tone={campaignStatusTone[campaign.status] ?? 'gray'}
+                className="capitalize"
               >
-                <PencilSimple size={14} weight="regular" aria-hidden />
-                Edit brief
-              </Link>
-              <Link
-                href="/discover"
-                className={cn(
-                  buttonVariants({ variant: 'outline', size: 'sm' }),
-                  'gap-1.5'
-                )}
-              >
-                <MagnifyingGlass size={14} weight="regular" aria-hidden />
-                Find creators
-              </Link>
-              <ConfirmCampaignButton
-                campaignId={campaign.id}
-                itemCount={items.length}
-              />
-              <CancelCampaignButton
-                campaignId={campaign.id}
-                campaignName={campaign.name}
-              />
+                <StatusPulse className="mr-1.5" />
+                {campaignStatusLabel(campaign.status)}
+              </Chip>
+              <span>Opened {created}</span>
+              <span className="font-mono tabular-nums text-neutral-700">
+                {campaign.desiredVideos} videos
+              </span>
             </div>
-          )
-        }
-      />
+            {campaign.goal ? (
+              <p className="max-w-[62ch] text-base leading-relaxed text-neutral-600">
+                {campaign.goal}
+              </p>
+            ) : null}
+            {campaign.status === 'draft' && (
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/campaigns/${campaign.id}/edit`}
+                  className={cn(
+                    buttonVariants({ variant: 'outline', size: 'sm' }),
+                    'gap-1.5'
+                  )}
+                >
+                  <PencilSimple size={14} weight="regular" aria-hidden />
+                  Edit brief
+                </Link>
+                <Link
+                  href="/discover"
+                  className={cn(
+                    buttonVariants({ variant: 'outline', size: 'sm' }),
+                    'gap-1.5'
+                  )}
+                >
+                  <MagnifyingGlass size={14} weight="regular" aria-hidden />
+                  Find creators
+                </Link>
+                <ConfirmCampaignButton
+                  campaignId={campaign.id}
+                  itemCount={items.length}
+                />
+                <CancelCampaignButton
+                  campaignId={campaign.id}
+                  campaignName={campaign.name}
+                />
+              </div>
+            )}
+            <div className="border-b border-neutral-200" aria-hidden="true" />
+          </header>
 
-      <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.8fr)_minmax(280px,0.8fr)]">
-        <div className="flex min-w-0 flex-col gap-5">
           {settled ? (
             <VideoPerformance
               deals={performance.deals}
@@ -225,29 +237,38 @@ export default async function CampaignCartPage({
                 />
               ) : (
                 <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
-                  {items.map((item) => (
+                  {items.map((item, index) => (
                     <li
                       key={item.id}
-                      className="flex flex-col gap-4 py-5 transition-colors duration-200 ease-out hover:bg-neutral-100/60 sm:flex-row sm:items-center sm:justify-between sm:gap-8"
+                      className="flex flex-col gap-4 py-5 transition-colors duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-100/70 sm:flex-row sm:items-center sm:justify-between sm:gap-8"
                     >
-                      <div className="flex min-w-0 flex-col gap-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Link
-                            href={`/discover/${item.creatorId}`}
-                            className={cn(
-                              'text-base font-semibold text-neutral-900',
-                              textLinkFeedback
-                            )}
-                          >
-                            {item.creator.tiktokHandle}
-                          </Link>
-                          {item.tier?.id ? (
-                            <Chip tone="line">{item.tier.name} Tier</Chip>
-                          ) : null}
+                      <div className="flex min-w-0 items-start gap-4">
+                        <span className="mt-1 w-6 shrink-0 font-mono text-[11px] tabular-nums text-neutral-400">
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <InitialsAvatar
+                          name={item.creator.tiktokHandle}
+                          size="default"
+                        />
+                        <div className="flex min-w-0 flex-col gap-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Link
+                              href={`/discover/${item.creatorId}`}
+                              className={cn(
+                                'text-base font-semibold text-neutral-900',
+                                textLinkFeedback
+                              )}
+                            >
+                              {item.creator.tiktokHandle}
+                            </Link>
+                            {item.tier?.id ? (
+                              <Chip tone="line">{item.tier.name} Tier</Chip>
+                            ) : null}
+                          </div>
+                          <p className="text-sm capitalize text-neutral-500">
+                            {item.creator.niche} creator
+                          </p>
                         </div>
-                        <p className="text-sm capitalize text-neutral-500">
-                          {item.creator.niche} creator
-                        </p>
                       </div>
 
                       <div className="flex flex-wrap items-end gap-6 sm:items-center sm:justify-end">
@@ -263,7 +284,7 @@ export default async function CampaignCartPage({
                           <span className="text-[11px] font-semibold tracking-[0.14em] text-neutral-500 uppercase">
                             Videos
                           </span>
-                          <span className="text-sm tabular-nums text-neutral-900">
+                          <span className="font-mono text-sm tabular-nums text-neutral-900">
                             x{item.videoCount}
                           </span>
                         </div>
@@ -290,12 +311,17 @@ export default async function CampaignCartPage({
         </div>
 
         <aside className="lg:sticky lg:top-24">
-          <section className="flex flex-col gap-5 rounded-[24px] bg-neutral-900 p-6 text-neutral-50 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.45)] sm:p-7">
-            <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
-              Budget summary
-            </p>
+          <section className="flex flex-col gap-6 rounded-[24px] bg-neutral-900 p-6 text-neutral-50 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.45)] sm:p-8">
+            <div className="flex flex-col gap-2">
+              <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
+                Remaining
+              </p>
+              <p className="font-mono text-3xl font-medium tracking-tight text-neutral-50 tabular-nums sm:text-4xl">
+                {formatEtb(available)}
+              </p>
+            </div>
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4 border-t border-neutral-700 pt-5">
               <LedgerRow
                 label="Total budget"
                 value={formatEtb(campaign.budget)}
@@ -335,16 +361,8 @@ export default async function CampaignCartPage({
               ) : null}
             </div>
 
-            <div className="border-t border-neutral-700 pt-4">
-              <LedgerRow
-                label="Remaining"
-                value={formatEtb(available)}
-                strong
-              />
-            </div>
-
             {campaign.status === 'confirmed' ? (
-              <div className="border-t border-neutral-700 pt-4">
+              <div className="border-t border-neutral-700 pt-5">
                 <FundCampaignButton
                   campaignId={campaign.id}
                   acceptedCount={acceptedCount}
