@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import type { CurrentUser } from '@/lib/auth';
-import { getNavLinks } from '@/lib/navigation';
+import { getNavLinks, isNavLinkActive } from '@/lib/navigation';
 import { Mark } from '@/components/brand/mark';
 import {
   Binoculars,
@@ -34,11 +34,6 @@ export function MobileNav({ user, cart }: MobileNavProps) {
   const pathname = usePathname();
   const links = getNavLinks(user.role);
   const reduceMotion = useReducedMotion();
-  const activeHref = links
-    .filter(
-      (link) => pathname === link.href || pathname.startsWith(`${link.href}/`)
-    )
-    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -93,9 +88,7 @@ export function MobileNav({ user, cart }: MobileNavProps) {
             // draft's cart and is active only when standing in it.
             const isCart = link.icon === 'cart';
             const href = isCart ? (cart?.href ?? link.href) : link.href;
-            const isActive = isCart
-              ? cart !== undefined && pathname === cart.href
-              : link.href === activeHref;
+            const isActive = isNavLinkActive(link, pathname, cart?.href);
             const badge =
               isCart && cart && cart.itemCount > 0 ? cart.itemCount : 0;
             return (

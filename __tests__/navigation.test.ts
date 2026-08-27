@@ -1,5 +1,34 @@
 import { describe, expect, it } from 'vitest';
-import { getNavLinks, roleHomePath } from '../lib/navigation';
+import { getNavLinks, isNavLinkActive, roleHomePath } from '../lib/navigation';
+
+describe('isNavLinkActive', () => {
+  const campaigns = {
+    label: 'Campaigns',
+    href: '/campaigns',
+    icon: 'campaigns' as const,
+  };
+  const cart = { label: 'Cart', href: '/campaigns', icon: 'cart' as const };
+
+  it('lights Cart, not Campaigns, on the active draft cart', () => {
+    const cartHref = '/campaigns/aaaa-bbbb';
+    expect(isNavLinkActive(cart, cartHref, cartHref)).toBe(true);
+    expect(isNavLinkActive(campaigns, cartHref, cartHref)).toBe(false);
+  });
+
+  it('lights Campaigns on the list, not Cart', () => {
+    expect(isNavLinkActive(campaigns, '/campaigns', '/campaigns')).toBe(true);
+    expect(isNavLinkActive(cart, '/campaigns', '/campaigns')).toBe(false);
+  });
+
+  it('lights Campaigns on a non-cart campaign page', () => {
+    expect(
+      isNavLinkActive(campaigns, '/campaigns/aaaa-bbbb/edit', '/campaigns/cccc')
+    ).toBe(true);
+    expect(
+      isNavLinkActive(cart, '/campaigns/aaaa-bbbb/edit', '/campaigns/cccc')
+    ).toBe(false);
+  });
+});
 
 describe('getNavLinks', () => {
   it('returns brand links for brand role', () => {

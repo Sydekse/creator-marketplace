@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation';
+import { ArrowSquareOut, TiktokLogo } from '@phosphor-icons/react/dist/ssr';
 import { AudienceSection } from '@/components/creator/audience-section';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { DealGroups } from '@/components/creator/deal-groups';
@@ -181,9 +182,11 @@ export default async function CreatorDashboardPage() {
                 href={profileUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="mt-5 inline-flex self-start rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
+                className="mt-5 inline-flex items-center gap-1.5 self-start rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-[transform,border-color,color] duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
               >
-                {VIEW_ON_TIKTOK_LABEL} ↗
+                <TiktokLogo size={16} weight="regular" aria-hidden />
+                {VIEW_ON_TIKTOK_LABEL}
+                <ArrowSquareOut size={14} weight="regular" aria-hidden />
               </a>
             )}
           </section>

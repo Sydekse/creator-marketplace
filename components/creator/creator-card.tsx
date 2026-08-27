@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArrowSquareOut, TiktokLogo } from '@phosphor-icons/react/dist/ssr';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { NICHE_LABELS } from '@/lib/config/creator-profile';
@@ -86,7 +87,7 @@ export function CreatorCard({
     // `h-full` so cards in a row match height when one handle wraps. `relative`
     // is what makes the stretched link below work, and `focus-within` moves the
     // ring onto the card now that the link no longer wraps it.
-    <Card className="relative h-full border-neutral-200 bg-neutral-50 transition-all duration-300 hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_16px_32px_-24px_rgba(23,23,23,0.35)] focus-within:ring-2 focus-within:ring-ring">
+    <Card className="relative h-full border-neutral-200 bg-neutral-50 transition-[transform,border-color,box-shadow] duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-400 hover:shadow-[0_16px_32px_-24px_rgba(23,23,23,0.35)] focus-within:ring-2 focus-within:ring-ring">
       {/* The whole-card hit target. It covers the card instead of wrapping it
           because an `<a>` inside an `<a>` is invalid HTML — the browser closes
           the outer one early and the TikTok link ends up outside the card
@@ -153,11 +154,13 @@ export function CreatorCard({
             target="_blank"
             rel="noopener noreferrer nofollow"
             className={cn(
-              'relative z-10 self-start border-t border-neutral-200 pt-3 text-xs font-medium text-brand-ink',
+              'relative z-10 inline-flex items-center gap-1.5 self-start border-t border-neutral-200 pt-3 text-xs font-medium text-brand-ink',
               textLinkFeedback
             )}
           >
-            {VIEW_ON_TIKTOK_LABEL} ↗
+            <TiktokLogo size={14} weight="regular" aria-hidden />
+            {VIEW_ON_TIKTOK_LABEL}
+            <ArrowSquareOut size={12} weight="regular" aria-hidden />
           </a>
         )}
       </CardContent>
