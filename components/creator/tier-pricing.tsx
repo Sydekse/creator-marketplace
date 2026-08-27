@@ -1,4 +1,5 @@
 import { formatEtb } from '@/lib/money';
+import { SectionLabel } from '@/components/layout/section-label';
 import {
   formatCommissionRate,
   priceForTier,
@@ -55,18 +56,20 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline justify-between gap-4 py-2">
-      <dt className="text-sm text-neutral-400">{label}</dt>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd className="flex items-baseline gap-2 text-right">
         <span
           className={
             emphasis
-              ? 'font-mono text-base font-semibold text-neutral-50'
-              : 'font-mono text-sm text-neutral-200'
+              ? 'font-mono text-base font-semibold text-neutral-900'
+              : 'font-mono text-sm text-neutral-800'
           }
         >
           {value}
         </span>
-        {note ? <span className="text-xs text-neutral-400">{note}</span> : null}
+        {note ? (
+          <span className="text-xs text-muted-foreground">{note}</span>
+        ) : null}
       </dd>
     </div>
   );
@@ -74,7 +77,7 @@ function Row({
 
 function PricingTable({ pricing }: { pricing: TierPricing }) {
   return (
-    <dl className="divide-y divide-neutral-700">
+    <dl className="divide-y divide-neutral-200">
       <Row label="Your tier" value={pricing.tierName} />
       <Row
         label="A brand pays"
@@ -236,11 +239,7 @@ export function TierPricing({
   // Nothing to render for a rejected creator — see `resolveTierPricingView`.
   if (view.kind === 'hidden') return null;
 
-  const heading = (
-    <h2 className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
-      Your rate
-    </h2>
-  );
+  const heading = <SectionLabel>Your rate</SectionLabel>;
 
   return (
     <section className="flex flex-col gap-4">
@@ -251,7 +250,7 @@ export function TierPricing({
           {/* Load-bearing, not a disclaimer out of habit: invariant 8 snapshots
               `deal.commission_rate` onto each deal at offer time, so the split
               above is the current rate rather than a promise about a future one. */}
-          <p className="text-xs text-neutral-400">
+          <p className="text-xs text-muted-foreground">
             Your tier price and commission are confirmed on each offer you
             accept.
           </p>

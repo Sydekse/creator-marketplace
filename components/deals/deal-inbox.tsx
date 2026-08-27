@@ -8,8 +8,20 @@ import {
   VIEW_DEAL_LABEL,
 } from '@/lib/deals/inbox';
 import { GROUP_LABELS } from '@/lib/deals/groups';
+import type { DealGroup } from '@/lib/deals/groups';
+import { Chip, type ChipTone } from '@/components/ui/chip';
+import { buttonVariants } from '@/components/ui/button';
 import { TruncatedText } from '@/components/ui/truncated-text';
 import { formatEtb } from '@/lib/money';
+import { cn } from '@/lib/utils';
+
+const GROUP_PILL: Record<DealGroup, ChipTone> = {
+  pending: 'amber',
+  in_progress: 'teal',
+  awaiting_approval: 'amber',
+  completed: 'success',
+  closed: 'gray',
+};
 
 /**
  * The creator's deals, grouped, pending first (KAN-39, US-006, AC-1).
@@ -60,10 +72,10 @@ function ExpiryLine({
  */
 function DealRow({ deal, now }: { deal: InboxDealRow; now: Date }) {
   return (
-    <li className="border-b border-neutral-200 last:border-b-0">
+    <li>
       <Link
         href={`/creator/deals/${deal.id}`}
-        className="group flex min-h-20 cursor-pointer flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl px-3 py-4 transition-[background-color,box-shadow] duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-50 hover:shadow-[0_16px_32px_-24px_rgba(23,23,23,0.35)] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
+        className="surface-card group flex min-h-20 cursor-pointer flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl border border-neutral-200 px-3 py-3 transition-[transform,box-shadow,border-color] duration-200 ease-[var(--ease-smooth)] hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_16px_32px_-20px_rgba(23,23,23,0.4)] active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
       >
         <div className="flex min-w-0 items-center gap-3">
           <InitialsAvatar name={deal.companyName} />
@@ -85,7 +97,12 @@ function DealRow({ deal, now }: { deal: InboxDealRow; now: Date }) {
           <span className="font-mono text-sm font-medium text-neutral-900 tabular-nums">
             {formatEtb(deal.totalPrice)}
           </span>
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-neutral-500 transition-colors group-hover:text-neutral-900">
+          <span
+            className={cn(
+              buttonVariants({ variant: 'outline', size: 'xs' }),
+              'pointer-events-none'
+            )}
+          >
             {VIEW_DEAL_LABEL}
             <CaretRight size={12} weight="bold" aria-hidden />
           </span>
@@ -105,9 +122,11 @@ function Group({ group, now }: { group: InboxGroup; now: Date }) {
 
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-4 border-b border-neutral-200 pb-3">
-        <h2 className="text-[13px] font-semibold tracking-[0.12em] text-neutral-700 uppercase">
-          {title}
+      <div className="flex items-center justify-between gap-4">
+        <h2>
+          <Chip tone={GROUP_PILL[group.group]} size="md">
+            {title}
+          </Chip>
         </h2>
         {group.count > 0 ? (
           <span className="font-mono text-xs text-muted-foreground tabular-nums">
@@ -117,7 +136,7 @@ function Group({ group, now }: { group: InboxGroup; now: Date }) {
       </div>
 
       {group.deals.length > 0 ? (
-        <ul>
+        <ul className="flex flex-col gap-2">
           {group.deals.map((deal) => (
             <DealRow key={deal.id} deal={deal} now={now} />
           ))}

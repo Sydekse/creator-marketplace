@@ -1,3 +1,4 @@
+import { SectionLabel } from '@/components/layout/section-label';
 import type { rightsTerms } from '@/db/schema';
 
 export type RightsTermsRow = typeof rightsTerms.$inferSelect;
@@ -58,14 +59,14 @@ export function UsageRightsCard({
   // strip JSX `{/* … */}` with a non-greedy match, and a `/* … */` opening right
   // after a `{` lets that match run on to the next `*/}` and swallow real code.
   const body = (
-    <div className="max-h-64 overflow-y-auto rounded-xl border border-white/10 bg-black/25 p-4 text-sm text-neutral-100">
+    <div className="max-h-64 overflow-y-auto rounded-xl border border-neutral-200 bg-neutral-50/80 p-4 text-sm text-neutral-700">
       <p className="whitespace-pre-wrap">{terms.body}</p>
     </div>
   );
 
   if (collapsed) {
     return (
-      <section className="rounded-[24px] bg-brand-ink p-5 text-neutral-50 shadow-[0_20px_48px_-32px_rgba(23,23,23,0.55)] sm:p-6">
+      <section className="surface-card rounded-[24px] border border-neutral-200 p-5 sm:p-6">
         {/* `<details>` and `<summary>`, not a button and a `useState`: the
             browser owns the open state, so this stays a server component and
             keyboard and screen-reader behaviour come for free. The marker is
@@ -73,15 +74,15 @@ export function UsageRightsCard({
             default triangle rides on and removing it takes the affordance with
             it. */}
         <details className="group">
-          <summary className="flex cursor-pointer items-center gap-2 rounded-lg text-sm font-medium text-neutral-50 transition-colors duration-300 ease-out hover:text-neutral-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50 active:text-neutral-100 marker:content-none">
+          <summary className="flex cursor-pointer items-center gap-2 rounded-lg text-sm font-medium text-neutral-800 transition-colors duration-300 ease-out hover:text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 active:text-neutral-900 marker:content-none">
             <span
               aria-hidden="true"
-              className="text-neutral-400 transition-transform group-open:rotate-90"
+              className="text-muted-foreground transition-transform group-open:rotate-90"
             >
               ▸
             </span>
             <span>{USAGE_RIGHTS_AGREED_SUMMARY}</span>
-            <span className="font-normal text-neutral-400">
+            <span className="font-normal text-muted-foreground">
               {usageRightsVersionLabel(terms.version)}
             </span>
           </summary>
@@ -92,14 +93,12 @@ export function UsageRightsCard({
   }
 
   return (
-    <section className="rounded-[24px] bg-brand-ink p-5 text-neutral-50 shadow-[0_20px_48px_-32px_rgba(23,23,23,0.55)] sm:p-6">
-      <h2 className="text-base font-medium text-neutral-50">
-        {USAGE_RIGHTS_TITLE}
-      </h2>
+    <section className="surface-card rounded-[24px] border border-neutral-200 p-5 sm:p-6">
+      <SectionLabel>{USAGE_RIGHTS_TITLE}</SectionLabel>
       {/* Shown, not merely recorded: a creator agreeing to terms is entitled
           to see which terms, and this is the version `deal.rights_terms_id`
           will point at for the life of the deal (AC-5). */}
-      <p className="mt-1 text-sm text-neutral-400">
+      <p className="mt-3 text-sm text-muted-foreground">
         {usageRightsVersionLabel(terms.version)}
       </p>
       <div className="mt-4">{body}</div>

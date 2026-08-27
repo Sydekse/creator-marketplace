@@ -1,3 +1,4 @@
+import { SectionLabel } from '@/components/layout/section-label';
 import type { CreatorAudience } from '@/lib/creators/detail';
 import { NOT_PROVIDED } from '@/lib/creators/profile-facts';
 
@@ -26,9 +27,7 @@ export function AudienceSection({
 
   return (
     <div className="flex flex-col gap-5">
-      <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-        {title}
-      </h2>
+      <SectionLabel>{title}</SectionLabel>
       <dl className="grid gap-6 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
           <dt className="text-sm text-muted-foreground">Top markets</dt>

@@ -7,6 +7,7 @@ import {
   Wallet,
   X,
 } from '@phosphor-icons/react/dist/ssr';
+import { SectionLabel } from '@/components/layout/section-label';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { formatDeadlineUtc } from '@/lib/dates';
 import {
@@ -43,13 +44,15 @@ const STEP_ICON = {
 
 function Event({ event }: { event: DealHistoryEvent }) {
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-0.5 py-2">
+    <li className="surface-card flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 px-3 py-3">
       <div className="flex min-w-0 items-center gap-2">
         {event.actor ? (
           <InitialsAvatar name={event.actor.name} size="sm" />
         ) : null}
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-sm">{labelForStatus(event.toStatus)}</span>
+          <span className="text-sm font-medium text-neutral-900">
+            {labelForStatus(event.toStatus)}
+          </span>
           {event.reason ? (
             <span className="text-xs text-muted-foreground">
               {event.reason}
@@ -161,9 +164,7 @@ export function DealHistory({ events }: { events: DealHistoryEvent[] }) {
 
   return (
     <section className="flex flex-col gap-5">
-      <h2 className="text-xs tracking-wide text-muted-foreground uppercase">
-        {DEAL_HISTORY_TITLE}
-      </h2>
+      <SectionLabel>{DEAL_HISTORY_TITLE}</SectionLabel>
 
       {events.length > 0 ? (
         <>
@@ -182,22 +183,11 @@ export function DealHistory({ events }: { events: DealHistoryEvent[] }) {
               </p>
             ) : null}
           </div>
-          <details className="group">
-            <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground uppercase marker:content-none hover:text-neutral-700">
-              <span
-                aria-hidden
-                className="transition-transform group-open:rotate-90"
-              >
-                ▸
-              </span>
-              Timeline
-            </summary>
-            <ol className="mt-2 divide-y divide-border">
-              {events.map((event) => (
-                <Event key={event.id} event={event} />
-              ))}
-            </ol>
-          </details>
+          <ol className="flex flex-col gap-2">
+            {events.map((event) => (
+              <Event key={event.id} event={event} />
+            ))}
+          </ol>
         </>
       ) : (
         <p className="text-sm text-muted-foreground">{DEAL_HISTORY_EMPTY}</p>

@@ -5,6 +5,7 @@ import {
 } from '@/lib/creators/dashboard';
 import type { CreatorEarnings } from '@/lib/creators/dashboard';
 import { formatEtb } from '@/lib/money';
+import { SectionLabel } from '@/components/layout/section-label';
 
 /**
  * What a creator has been paid and what is still held for them (KAN-25, AC-3).
@@ -50,9 +51,7 @@ function Figure({
 export function EarningsSummary({ earnings }: { earnings: CreatorEarnings }) {
   return (
     <div className="flex flex-col gap-6">
-      <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-        Earnings
-      </h2>
+      <SectionLabel>Earnings</SectionLabel>
 
       {/* Stacked on a phone, two up from `sm:` — no fixed widths, nothing that
           scrolls sideways (NFR-007). */}

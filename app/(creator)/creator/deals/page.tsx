@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { DealInbox } from '@/components/deals/deal-inbox';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
+import { SectionLabel } from '@/components/layout/section-label';
 import {
   INBOX_DESCRIPTION,
   INBOX_TITLE,
@@ -43,7 +44,7 @@ export default async function CreatorDealsPage() {
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-12 py-4">
       <PageHeader
-        label="Creator workspace"
+        label={<SectionLabel as="p">Creator workspace</SectionLabel>}
         title={INBOX_TITLE}
         description={INBOX_DESCRIPTION}
       />
