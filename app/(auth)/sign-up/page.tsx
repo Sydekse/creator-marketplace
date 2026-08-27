@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
+import { ContinueWithTiktok } from '@/components/auth/continue-with-tiktok';
+import { RoleNotch } from '@/components/auth/role-notch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -15,10 +17,33 @@ import type { SelfRegisterableRole } from '@/lib/auth-policy';
 
 type RoleOption = SelfRegisterableRole;
 
-const ROLE_OPTIONS: { value: RoleOption; title: string; caption: string }[] = [
-  { value: 'brand', title: 'Brand', caption: 'Run campaigns' },
-  { value: 'creator', title: 'Creator', caption: 'Deliver videos' },
-];
+function AccordionPanel({
+  open,
+  children,
+}: {
+  open: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        'grid transition-[grid-template-rows] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
+        open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+      )}
+    >
+      <div
+        className={cn(
+          'min-h-0 overflow-hidden transition-opacity duration-200 ease-out motion-reduce:transition-none',
+          open ? 'opacity-100' : 'opacity-0'
+        )}
+        inert={!open}
+        aria-hidden={!open}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 type FieldErrors = {
   name?: string;
@@ -34,7 +59,7 @@ export default function SignUpPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState<RoleOption | null>(null);
+  const [role, setRole] = useState<RoleOption>('brand');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -94,7 +119,16 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-7 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
+    <div className="relative w-full max-w-md rounded-[24px] border border-neutral-200 bg-white px-7 pb-7 pt-14 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:px-10 sm:pb-10 sm:pt-16">
+      <RoleNotch
+        value={role}
+        onChange={(next) => {
+          setRole(next);
+          setFormError(null);
+          if (errors.role) setErrors((p) => ({ ...p, role: undefined }));
+        }}
+      />
+
       <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
         Create account
       </p>
@@ -102,181 +136,149 @@ export default function SignUpPage() {
         Join the marketplace.
       </h1>
       <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
-        Choose your account type and create a free profile.
+        {role === 'creator'
+          ? 'Creators continue with TikTok. We only ask for a public profile.'
+          : 'Brands create a free profile with email and password.'}
       </p>
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
-      <form
-        onSubmit={handleSubmit}
-        noValidate
-        className="mt-6 flex flex-col gap-5"
-      >
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="name"
-            className="text-[13px] font-semibold text-neutral-700"
-          >
-            Name
-          </label>
-          <Input
-            id="name"
-            type="text"
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              if (errors.name) setErrors((p) => ({ ...p, name: undefined }));
-            }}
-            placeholder="Your full name"
-            required
-            autoComplete="name"
-            aria-invalid={!!errors.name}
-            aria-describedby={errors.name ? 'name-error' : undefined}
-            className="h-11 px-3.5"
-          />
-          <FieldError id="name-error" message={errors.name} />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="email"
-            className="text-[13px] font-semibold text-neutral-700"
-          >
-            Email
-          </label>
-          <Input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
-            }}
-            placeholder="you@example.com"
-            required
-            autoComplete="email"
-            aria-invalid={!!errors.email}
-            aria-describedby={errors.email ? 'email-error' : undefined}
-            className="h-11 px-3.5"
-          />
-          <FieldError id="email-error" message={errors.email} />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="password"
-            className="text-[13px] font-semibold text-neutral-700"
-          >
-            Password
-          </label>
-          <PasswordInput
-            id="password"
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              if (errors.password)
-                setErrors((p) => ({ ...p, password: undefined }));
-            }}
-            placeholder="At least 8 characters"
-            required
-            minLength={8}
-            autoComplete="new-password"
-            aria-invalid={!!errors.password}
-            aria-describedby={errors.password ? 'password-error' : undefined}
-            className="h-11 px-3.5"
-          />
-          <FieldError id="password-error" message={errors.password} />
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <label
-            htmlFor="confirmPassword"
-            className="text-[13px] font-semibold text-neutral-700"
-          >
-            Confirm password
-          </label>
-          <PasswordInput
-            id="confirmPassword"
-            value={confirmPassword}
-            onChange={(e) => {
-              setConfirmPassword(e.target.value);
-              if (errors.confirmPassword)
-                setErrors((p) => ({ ...p, confirmPassword: undefined }));
-            }}
-            placeholder="Re-enter your password"
-            required
-            autoComplete="new-password"
-            aria-invalid={!!errors.confirmPassword}
-            aria-describedby={
-              errors.confirmPassword ? 'confirm-password-error' : undefined
-            }
-            className="h-11 px-3.5"
-          />
-          <FieldError
-            id="confirm-password-error"
-            message={errors.confirmPassword}
-          />
-        </div>
-
-        <fieldset
-          className="flex flex-col gap-2"
-          aria-describedby={errors.role ? 'role-error' : undefined}
-        >
-          <legend className="text-[13px] font-semibold text-neutral-700">
-            Choose an account type
-          </legend>
-          <div className="grid grid-cols-2 gap-3">
-            {ROLE_OPTIONS.map((option) => {
-              const selected = role === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => {
-                    setRole(option.value);
-                    if (errors.role)
-                      setErrors((p) => ({ ...p, role: undefined }));
-                  }}
-                  aria-pressed={selected}
-                  className={`flex min-h-[76px] flex-col items-start justify-center gap-1 rounded-xl border px-4 py-3.5 text-left transition-all duration-300 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
-                    selected
-                      ? 'border-brand bg-brand-tint text-brand-ink shadow-[0_12px_32px_-18px_rgba(23,23,23,0.28)]'
-                      : 'border-neutral-300 bg-white text-neutral-700 hover:border-neutral-500 hover:bg-neutral-50 hover:text-neutral-900'
-                  }`}
-                >
-                  <span className="text-sm font-medium">{option.title}</span>
-                  <span
-                    className={`text-xs ${
-                      selected ? 'text-brand-ink/80' : 'text-neutral-500'
-                    }`}
-                  >
-                    {option.caption}
-                  </span>
-                </button>
-              );
-            })}
+      <AccordionPanel open={role === 'brand'}>
+            <form
+              onSubmit={handleSubmit}
+              noValidate
+              className="mt-6 flex flex-col gap-5"
+            >
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="name"
+              className="text-[13px] font-semibold text-neutral-700"
+            >
+              Name
+            </label>
+            <Input
+              id="name"
+              type="text"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (errors.name) setErrors((p) => ({ ...p, name: undefined }));
+              }}
+              placeholder="Your full name"
+              required
+              autoComplete="name"
+              aria-invalid={!!errors.name}
+              aria-describedby={errors.name ? 'name-error' : undefined}
+              className="h-11 px-3.5"
+            />
+            <FieldError id="name-error" message={errors.name} />
           </div>
-          <FieldError id="role-error" message={errors.role} />
-        </fieldset>
 
-        {formError && (
-          <div
-            role="alert"
-            className="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-[13px] leading-snug text-destructive"
-          >
-            {formError}
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="email"
+              className="text-[13px] font-semibold text-neutral-700"
+            >
+              Email
+            </label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
+              }}
+              placeholder="you@example.com"
+              required
+              autoComplete="email"
+              aria-invalid={!!errors.email}
+              aria-describedby={errors.email ? 'email-error' : undefined}
+              className="h-11 px-3.5"
+            />
+            <FieldError id="email-error" message={errors.email} />
           </div>
-        )}
 
-        <Button
-          type="submit"
-          disabled={loading || !role}
-          size="xl"
-          className="w-full"
-        >
-          {loading ? 'Creating account…' : 'Create account'}
-        </Button>
-      </form>
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="password"
+              className="text-[13px] font-semibold text-neutral-700"
+            >
+              Password
+            </label>
+            <PasswordInput
+              id="password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password)
+                  setErrors((p) => ({ ...p, password: undefined }));
+              }}
+              placeholder="At least 8 characters"
+              required
+              minLength={8}
+              autoComplete="new-password"
+              aria-invalid={!!errors.password}
+              aria-describedby={errors.password ? 'password-error' : undefined}
+              className="h-11 px-3.5"
+            />
+            <FieldError id="password-error" message={errors.password} />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="confirmPassword"
+              className="text-[13px] font-semibold text-neutral-700"
+            >
+              Confirm password
+            </label>
+            <PasswordInput
+              id="confirmPassword"
+              value={confirmPassword}
+              onChange={(e) => {
+                setConfirmPassword(e.target.value);
+                if (errors.confirmPassword)
+                  setErrors((p) => ({ ...p, confirmPassword: undefined }));
+              }}
+              placeholder="Re-enter your password"
+              required
+              autoComplete="new-password"
+              aria-invalid={!!errors.confirmPassword}
+              aria-describedby={
+                errors.confirmPassword ? 'confirm-password-error' : undefined
+              }
+              className="h-11 px-3.5"
+            />
+            <FieldError
+              id="confirm-password-error"
+              message={errors.confirmPassword}
+            />
+          </div>
+
+          {formError && (
+            <div
+              role="alert"
+              className="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-[13px] leading-snug text-destructive"
+            >
+              {formError}
+            </div>
+          )}
+
+          <Button type="submit" disabled={loading} size="xl" className="w-full">
+            {loading ? 'Creating account…' : 'Create account'}
+          </Button>
+            </form>
+      </AccordionPanel>
+
+      <AccordionPanel open={role === 'creator'}>
+        <div className="mt-6 flex flex-col gap-4">
+          <ContinueWithTiktok callbackURL="/dashboard" />
+          <p className="text-[13px] leading-snug text-neutral-500">
+            TikTok does not share an email. We will ask for one later if we need
+            to reach you.
+          </p>
+        </div>
+      </AccordionPanel>
 
       <p className="mt-7 text-center text-[13px] text-neutral-500">
         Already have an account?{' '}

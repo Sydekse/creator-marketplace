@@ -6,6 +6,7 @@ import {
   assertSelfRegisterableRole,
   isSelfRegisterableRole,
   isUserRole,
+  resolveSignupRole,
 } from '@/lib/auth-policy';
 import { roleHomePath, safeRedirectPath } from '@/lib/navigation';
 
@@ -77,6 +78,24 @@ describe('assertSelfRegisterableRole', () => {
       expect(error).toBeInstanceOf(RoleNotSelfAssignableError);
       expect((error as RoleNotSelfAssignableError).received).toBe('admin');
     }
+  });
+});
+
+describe('resolveSignupRole', () => {
+  it('defaults a missing role to creator for social sign-up', () => {
+    expect(resolveSignupRole(undefined)).toBe('creator');
+    expect(resolveSignupRole(null)).toBe('creator');
+    expect(resolveSignupRole('')).toBe('creator');
+  });
+
+  it.each(SELF_REGISTERABLE_ROLES)('keeps an explicit %s', (role) => {
+    expect(resolveSignupRole(role)).toBe(role);
+  });
+
+  it('still refuses admin', () => {
+    expect(() => resolveSignupRole('admin')).toThrow(
+      RoleNotSelfAssignableError
+    );
   });
 });
 

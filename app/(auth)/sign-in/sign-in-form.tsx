@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
+import { ContinueWithTiktok } from '@/components/auth/continue-with-tiktok';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -71,10 +72,23 @@ export function SignInForm() {
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
+      <div className="mt-6 flex flex-col gap-4">
+        <ContinueWithTiktok
+          callbackURL={safeRedirectPath(searchParams.get('redirect')) ?? '/dashboard'}
+        />
+        <div className="flex items-center gap-3" aria-hidden>
+          <span className="h-px flex-1 bg-neutral-200" />
+          <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+            or email
+          </span>
+          <span className="h-px flex-1 bg-neutral-200" />
+        </div>
+      </div>
+
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="mt-6 flex flex-col gap-5"
+        className="mt-5 flex flex-col gap-5"
       >
         <div className="flex flex-col gap-2">
           <label

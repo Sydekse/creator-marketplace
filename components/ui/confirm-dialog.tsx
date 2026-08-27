@@ -75,7 +75,7 @@ export function ConfirmDialog({
             // tier (16px) since the popup carries no padding of its own frame.
             'flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-6',
             'shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)]',
-            'transition duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
+            'transition-[opacity,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
             // 4px on the grid — a whisper, not a bounce.
             'data-ending-style:-translate-y-[calc(50%+4px)] data-ending-style:opacity-0',
             'data-starting-style:-translate-y-[calc(50%-4px)] data-starting-style:opacity-0'
