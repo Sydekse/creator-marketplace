@@ -5,7 +5,10 @@ import { InEffectMark } from '@/components/legal/in-effect-mark';
 import { LegalSections } from '@/components/legal/legal-sections';
 import { MagneticLink } from '@/components/legal/magnetic-link';
 import { Reveal } from '@/components/marketing/reveal';
-import { cn, textLinkFeedback } from '@/lib/utils';
+import { cn } from '@/lib/utils';
+
+const LEGAL_LINK =
+  'rounded-[4px] underline-offset-4 transition-opacity duration-150 hover:underline active:opacity-70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand';
 
 export interface LegalTocItem {
   id: string;
@@ -95,7 +98,7 @@ export function LegalPage({
                 </p>
                 <Link
                   href={sibling.href}
-                  className={cn('text-sm text-neutral-600', textLinkFeedback)}
+                  className={cn('text-sm text-neutral-600', LEGAL_LINK)}
                 >
                   {sibling.label}
                 </Link>
@@ -155,13 +158,13 @@ export function LegalPage({
             </span>
           </Link>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-neutral-600">
-            <Link href="/terms" className={textLinkFeedback}>
+            <Link href="/terms" className={LEGAL_LINK}>
               Terms of Service
             </Link>
-            <Link href="/privacy" className={textLinkFeedback}>
+            <Link href="/privacy" className={LEGAL_LINK}>
               Privacy Policy
             </Link>
-            <Link href="/" className={textLinkFeedback}>
+            <Link href="/" className={LEGAL_LINK}>
               Home
             </Link>
           </div>
