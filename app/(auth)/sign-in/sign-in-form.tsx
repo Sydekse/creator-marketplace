@@ -10,6 +10,7 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { FieldError } from '@/components/ui/field-error';
 import { signInSchema } from '@/lib/validation/schemas';
 import { safeRedirectPath } from '@/lib/navigation';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 type FieldErrors = { email?: string; password?: string };
 
@@ -143,7 +144,10 @@ export function SignInForm() {
         New to Creator Marketplace?{' '}
         <Link
           href="/sign-up"
-          className="font-medium text-brand underline-offset-4 hover:text-brand-deep"
+          className={cn(
+            'font-medium text-brand hover:text-brand-deep',
+            textLinkFeedback
+          )}
         >
           Create an account
         </Link>

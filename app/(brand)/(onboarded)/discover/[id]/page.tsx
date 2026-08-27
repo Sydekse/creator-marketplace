@@ -16,6 +16,7 @@ import type { Niche } from '@/lib/config/creator-profile';
 
 import { AudienceSection } from '@/components/creator/audience-section';
 import { readCreatorDetail } from '@/lib/creators/detail';
+import { cn, textLinkFeedback } from '@/lib/utils';
 import { tiktokProfileUrl } from '@/lib/creators/handle';
 import {
   VIEW_ON_TIKTOK_LABEL,
@@ -100,7 +101,7 @@ export default async function CreatorDetailPage({
           does not own. */}
       <Link
         href="/discover"
-        className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+        className={cn('text-sm text-muted-foreground', textLinkFeedback)}
       >
         ← Back to results
       </Link>

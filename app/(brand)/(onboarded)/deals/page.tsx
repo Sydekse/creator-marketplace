@@ -13,6 +13,7 @@ import {
   BRAND_NO_DEALS_DESCRIPTION,
   readBrandDealInbox,
 } from '@/lib/deals/brand-inbox';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -64,7 +65,10 @@ export default async function BrandDealsPage() {
             </p>
             <Link
               href="/campaigns"
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              className={cn(
+                'text-sm text-muted-foreground hover:text-foreground',
+                textLinkFeedback
+              )}
             >
               View campaigns
             </Link>

@@ -11,6 +11,7 @@ import {
   formatFollowerCount,
 } from '@/lib/creators/profile-facts';
 import { formatEtb } from '@/lib/money';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 /**
  * One creator in the discovery results (KAN-29, US-004, AC-012).
@@ -151,7 +152,10 @@ export function CreatorCard({
             href={profileUrl}
             target="_blank"
             rel="noopener noreferrer nofollow"
-            className="relative z-10 self-start border-t border-neutral-200 pt-3 text-xs font-medium text-brand-ink underline-offset-4 hover:underline"
+            className={cn(
+              'relative z-10 self-start border-t border-neutral-200 pt-3 text-xs font-medium text-brand-ink',
+              textLinkFeedback
+            )}
           >
             {VIEW_ON_TIKTOK_LABEL} ↗
           </a>

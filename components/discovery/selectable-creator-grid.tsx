@@ -8,6 +8,7 @@ import { CheckCircle } from '@phosphor-icons/react';
 import { CreatorCard } from '@/components/creator/creator-card';
 import { Button } from '@/components/ui/button';
 import { CAMPAIGN_NOT_DRAFT_MESSAGE } from '@/lib/campaigns/constants';
+import { cn, textLinkFeedback } from '@/lib/utils';
 import type { DiscoveryCreator } from '@/lib/creators/discovery';
 
 /**
@@ -160,7 +161,10 @@ export function SelectableCreatorGrid({
                 <div className="absolute right-3 bottom-3 z-10">
                   <Link
                     href={`/discover/${creator.id}`}
-                    className="text-xs font-medium text-brand-ink underline-offset-4 hover:underline"
+                    className={cn(
+                      'text-xs font-medium text-brand-ink',
+                      textLinkFeedback
+                    )}
                   >
                     See details
                   </Link>
@@ -232,7 +236,10 @@ export function SelectableCreatorGrid({
             <button
               type="button"
               onClick={() => setSelected(new Set())}
-              className="text-xs font-medium text-neutral-400 underline-offset-4 hover:text-neutral-50 hover:underline"
+              className={cn(
+                'text-xs font-medium text-neutral-400 hover:text-neutral-50',
+                textLinkFeedback
+              )}
             >
               Clear
             </button>

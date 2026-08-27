@@ -9,6 +9,7 @@ import {
   campaignStatusTone,
 } from '@/lib/campaigns/status';
 import { formatEtb } from '@/lib/money';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -73,7 +74,7 @@ export default async function AdminCampaignsPage() {
                   <td className="px-4 py-3">
                     <Link
                       href={`/admin/campaigns/${campaign.id}`}
-                      className="font-medium underline-offset-4 hover:underline"
+                      className={cn('font-medium', textLinkFeedback)}
                     >
                       {campaign.name}
                     </Link>

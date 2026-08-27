@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/feedback/empty-state';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { labelForStatus } from '@/lib/deals';
 import { dealStatusTone } from '@/lib/deals/status-tone';
+import { cn, textLinkFeedback } from '@/lib/utils';
 import {
   AWAITING_DELIVERY_LABEL,
   CAMPAIGN_TOTAL_LABEL,
@@ -107,7 +108,7 @@ function VideoMetrics({ video }: { video: CampaignVideoRow }) {
             href={video.tiktokUrl}
             target="_blank"
             rel="noopener noreferrer nofollow"
-            className="text-sm underline-offset-4 hover:underline"
+            className={cn('text-sm', textLinkFeedback)}
           >
             {VIEW_POST_LABEL} ↗
           </a>
@@ -161,7 +162,7 @@ function DealCard({ deal }: { deal: CampaignDealGroup }) {
               ownership in its own `where` rather than trusting this href. */}
           <Link
             href={`/deals/${deal.dealId}`}
-            className="text-lg font-semibold hover:underline"
+            className={cn('text-lg font-semibold', textLinkFeedback)}
           >
             {deal.creatorHandle}
           </Link>

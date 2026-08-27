@@ -10,6 +10,7 @@ import { ageLabel } from '@/lib/dates';
 import { formatEtb } from '@/lib/money';
 import { ResolveDisputeForm } from '@/components/admin/resolve-dispute-form';
 import { displayTiktokHandle } from '@/lib/creators/handle';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -93,7 +94,10 @@ export default async function AdminWorklistPage() {
                   />
                   <Link
                     href={`/admin/deals/${row.id}?campaign=${encodeURIComponent(row.campaignName)}`}
-                    className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+                    className={cn(
+                      'text-sm text-muted-foreground',
+                      textLinkFeedback
+                    )}
                   >
                     View deal history
                   </Link>

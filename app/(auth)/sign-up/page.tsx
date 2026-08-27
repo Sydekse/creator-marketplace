@@ -10,6 +10,7 @@ import { PasswordInput } from '@/components/ui/password-input';
 import { FieldError } from '@/components/ui/field-error';
 import { toast } from 'sonner';
 import { signUpSchema } from '@/lib/validation/schemas';
+import { cn, textLinkFeedback } from '@/lib/utils';
 import type { SelfRegisterableRole } from '@/lib/auth-policy';
 
 type RoleOption = SelfRegisterableRole;
@@ -281,7 +282,10 @@ export default function SignUpPage() {
         Already have an account?{' '}
         <Link
           href="/sign-in"
-          className="font-medium text-brand underline-offset-4 hover:text-brand-deep"
+          className={cn(
+            'font-medium text-brand hover:text-brand-deep',
+            textLinkFeedback
+          )}
         >
           Sign in
         </Link>

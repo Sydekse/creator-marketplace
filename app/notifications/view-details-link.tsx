@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 export const VIEW_DETAILS_LABEL = 'View details';
 
@@ -50,7 +51,7 @@ export function ViewDetailsLink({
     <Link
       href={href}
       onClick={markRead}
-      className="text-sm font-medium text-neutral-900 underline-offset-4 hover:underline"
+      className={cn('text-sm font-medium text-neutral-900', textLinkFeedback)}
     >
       {VIEW_DETAILS_LABEL}
     </Link>

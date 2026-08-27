@@ -14,6 +14,7 @@ import type { AuditLogRow } from '@/lib/audit/queries';
 import { PAGE_SIZE, offsetForPage, pageFromParam } from '@/lib/paging';
 import { readParams, searchParamsFrom } from '@/lib/query-params';
 import { auditLogQuerySchema } from '@/lib/validation';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -339,7 +340,7 @@ function Masthead() {
     <div className="flex flex-col gap-3">
       <Link
         href="/admin"
-        className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+        className={cn('text-sm text-muted-foreground', textLinkFeedback)}
       >
         ← Admin console
       </Link>

@@ -38,6 +38,7 @@ import { FundCampaignButton } from '@/components/campaign/fund-campaign-button';
 import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-button';
 import { VideoPerformance } from '@/components/campaign/video-performance';
 import { EmptyState } from '@/components/feedback/empty-state';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 
@@ -97,7 +98,7 @@ export default async function CampaignCartPage({
     <div className="mx-auto flex max-w-6xl flex-col gap-10 py-4">
       <Link
         href="/campaigns"
-        className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+        className={cn('text-sm text-muted-foreground', textLinkFeedback)}
       >
         ← Back to campaigns
       </Link>
@@ -224,7 +225,10 @@ export default async function CampaignCartPage({
                             <div className="flex items-center gap-2">
                               <Link
                                 href={`/discover/${item.creatorId}`}
-                                className="font-semibold text-lg hover:underline"
+                                className={cn(
+                                  'font-semibold text-lg',
+                                  textLinkFeedback
+                                )}
                               >
                                 {item.creator.tiktokHandle}
                               </Link>
