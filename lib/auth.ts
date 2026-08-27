@@ -40,8 +40,15 @@ export const auth = betterAuth({
     ? {
         socialProviders: {
           tiktok: {
+            // Better Auth's shared social-provider guard only looks at
+            // `clientId`. TikTok's types forbid that field (`clientKey` only),
+            // so it is passed at runtime and asserted away for the type checker.
+            clientId: process.env.TIKTOK_CLIENT_KEY,
             clientKey: process.env.TIKTOK_CLIENT_KEY,
             clientSecret: process.env.TIKTOK_CLIENT_SECRET,
+          } as {
+            clientKey: string;
+            clientSecret: string;
           },
         },
       }
