@@ -201,7 +201,7 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
           onClick={handleAccept}
           disabled={accepting || declining || !canAccept}
           aria-describedby={terms && !agreed ? 'accept-note' : undefined}
-          className={buttonVariants({ size: 'sm' })}
+          className={`${buttonVariants({ size: 'sm' })} bg-brand text-neutral-50 hover:bg-brand-deep`}
         >
           {accepting ? ACCEPTING_LABEL : ACCEPT_DEAL_LABEL}
         </button>

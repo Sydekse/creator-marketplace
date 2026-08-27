@@ -42,7 +42,7 @@ export default async function CreatorDealsPage() {
   const now = new Date();
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-12 py-4">
+    <div className="flex flex-col gap-10 py-4">
       <PageHeader
         label={<SectionLabel as="p">Creator workspace</SectionLabel>}
         title={INBOX_TITLE}
@@ -50,11 +50,13 @@ export default async function CreatorDealsPage() {
       />
 
       {inbox.isEmpty ? (
-        <EmptyState title={NO_DEALS_TITLE} description={NO_DEALS_DESCRIPTION} />
+        <EmptyState
+          align="start"
+          title={NO_DEALS_TITLE}
+          description={NO_DEALS_DESCRIPTION}
+        />
       ) : (
-        <div className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-5 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.3)] sm:p-8">
-          <DealInbox groups={inbox.groups} now={now} />
-        </div>
+        <DealInbox groups={inbox.groups} now={now} />
       )}
     </div>
   );

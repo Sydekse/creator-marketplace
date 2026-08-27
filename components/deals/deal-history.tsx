@@ -44,7 +44,7 @@ const STEP_ICON = {
 
 function Event({ event }: { event: DealHistoryEvent }) {
   return (
-    <li className="surface-card flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 px-3 py-3">
+    <li className="surface-card surface-pop flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 px-3 py-3">
       <div className="flex min-w-0 items-center gap-2">
         {event.actor ? (
           <InitialsAvatar name={event.actor.name} size="sm" />
@@ -168,7 +168,7 @@ export function DealHistory({ events }: { events: DealHistoryEvent[] }) {
 
       {events.length > 0 ? (
         <>
-          <div className="rounded-[24px] border border-neutral-200 bg-gradient-to-br from-brand-tint/70 via-neutral-50 to-neutral-50 px-2 py-5 sm:px-4">
+          <div className="surface-pop rounded-[24px] border border-neutral-200 px-2 py-5 sm:px-4">
             <ProgressRail current={current} events={events} />
             <p className="mt-4 text-center text-sm font-medium text-neutral-800">
               {labelForStatus(current)}
