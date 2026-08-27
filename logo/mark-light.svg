@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 24 24" fill="none" role="img" aria-label="Creator Marketplace">
+  <!-- Light mark for dark surfaces. Three parts matching components/brand/mark.tsx tone="light". -->
+  <rect width="24" height="24" rx="8" fill="#fafafa"/>
+  <rect x="6" y="6" width="8" height="8" rx="4" fill="#171717"/>
+  <rect x="10" y="10" width="8" height="8" rx="4" fill="#d4d4d4"/>
+</svg>

@@ -239,20 +239,24 @@ export default async function CampaignCartPage({
               ) : (
                 <div className="overflow-x-auto">
                   <div className="min-w-[42rem]">
-                    <div className="grid grid-cols-[2rem_1.75rem_minmax(0,1fr)_7rem_3.5rem_7.5rem_auto] items-center gap-x-3 border-b border-neutral-200 px-1 py-2 text-[11px] font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-                      <span className="sr-only">Row</span>
-                      <span className="sr-only">Avatar</span>
-                      <span>Creator</span>
-                      <span className="text-right">Rate</span>
-                      <span className="text-right">Videos</span>
-                      <span className="text-right">Total</span>
-                      <span className="sr-only">Remove</span>
+                    <div className="grid grid-cols-[2rem_1.75rem_minmax(8rem,1fr)_7rem_3.5rem_7.5rem_auto] items-center gap-x-3 border-b border-neutral-200 px-1 py-2 text-[11px] font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+                      <span aria-hidden className="block min-h-px" />
+                      <span aria-hidden className="block min-h-px" />
+                      <span className="whitespace-nowrap">Creator</span>
+                      <span className="whitespace-nowrap text-right">Rate</span>
+                      <span className="whitespace-nowrap text-right">
+                        Videos
+                      </span>
+                      <span className="whitespace-nowrap text-right">
+                        Total
+                      </span>
+                      <span aria-hidden className="block min-h-px" />
                     </div>
                     <ul className="divide-y divide-neutral-200 border-b border-neutral-200">
                       {items.map((item, index) => (
                         <li
                           key={item.id}
-                          className="grid grid-cols-[2rem_1.75rem_minmax(0,1fr)_7rem_3.5rem_7.5rem_auto] items-center gap-x-3 px-1 py-3 transition-colors duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-100/70"
+                          className="grid grid-cols-[2rem_1.75rem_minmax(8rem,1fr)_7rem_3.5rem_7.5rem_auto] items-center gap-x-3 px-1 py-3 transition-colors duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-100/70"
                         >
                           <span className="font-mono text-[11px] tabular-nums text-neutral-400">
                             {String(index + 1).padStart(2, '0')}

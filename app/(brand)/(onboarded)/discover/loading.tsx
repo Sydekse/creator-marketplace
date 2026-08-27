@@ -1,5 +1,5 @@
-import { DiscoverSkeleton } from '@/components/layout/workspace-loading';
+import { WorkspaceLoading } from '@/components/layout/workspace-loading';
 
-export default function DiscoverLoading() {
-  return <DiscoverSkeleton />;
+export default function Loading() {
+  return <WorkspaceLoading />;
 }

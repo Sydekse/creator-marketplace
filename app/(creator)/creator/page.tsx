@@ -90,25 +90,25 @@ export default async function CreatorDashboardPage() {
   const profileUrl = tiktokProfileUrl(profile.tiktokHandle);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-12 py-4">
+    <div className="mx-auto flex max-w-6xl flex-col gap-8 py-4">
       <VerificationStatus
         status={profile.status}
         tiktokHandle={profile.tiktokHandle}
         hasTier={profile.tierId !== null}
       />
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:items-start lg:gap-12">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:items-start lg:gap-8">
         {/* Left: what moves. */}
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-5">
           {/* AC-3 and AC-2. Earnings first: a creator opening this page
               mid-campaign is usually here for the money, and the deal list
               explains it. Both figures are ledger sums (AC-4) — nothing on this
               page computes a payout. */}
-          <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-8">
+          <section className="surface-card rounded-[28px] border border-neutral-200 p-5 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-6">
             <EarningsSummary earnings={dashboard.earnings} />
           </section>
 
-          <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-6 sm:p-8">
+          <section className="surface-card rounded-[28px] border border-neutral-200 p-5 sm:p-6">
             {/* AC-5. Two different empty states, because "no offers yet" is the
                 wrong sentence for a creator who is not bookable: they are not
                 waiting on a brand, they are waiting on verification or a tier,
@@ -129,12 +129,12 @@ export default async function CreatorDashboardPage() {
         </div>
 
         {/* Right: what the creator told us, and what it priced them at. */}
-        <aside className="flex flex-col gap-8 lg:sticky lg:top-28">
+        <aside className="flex flex-col gap-5 lg:sticky lg:top-28">
           {/* Above the audience and the price on purpose: the tier is derived
               from these two numbers, so a creator reading down sees the inputs
               before the rate — and in the untiered case, the blank field the
               pricing block is about is directly above the sentence naming it. */}
-          <section className="rounded-[24px] border border-neutral-200 bg-neutral-100/70 p-6">
+          <section className="surface-card rounded-[24px] border border-neutral-200 p-5">
             <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
               Your profile
             </h2>
@@ -194,7 +194,7 @@ export default async function CreatorDashboardPage() {
           {/* §11: The audience the creator submitted at onboarding — the same
               data brands see on the discovery detail page. Part of "who you
               are", not "what you earn", which is why it is on this side. */}
-          <section className="rounded-[24px] border border-neutral-200 bg-neutral-50 p-6">
+          <section className="surface-card rounded-[24px] border border-neutral-200 p-5">
             <AudienceSection audience={readAudience(profile.audience)} />
           </section>
 

@@ -1,5 +1,5 @@
-import { DealDetailSkeleton } from '@/components/layout/workspace-loading';
+import { WorkspaceLoading } from '@/components/layout/workspace-loading';
 
-export default function BrandDealLoading() {
-  return <DealDetailSkeleton />;
+export default function Loading() {
+  return <WorkspaceLoading />;
 }

@@ -84,7 +84,7 @@ html {
      page with white cards is how a screen reads as an empty whiteboard. */
   --background: oklch(0.985 0 0);
   --foreground: oklch(0.205 0 0);
-  --card: oklch(1 0 0);
+  --card: oklch(0.975 0.018 185);
   --card-foreground: oklch(0.205 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
@@ -207,26 +207,47 @@ html {
     transform: translateX(160%);
   }
 
-  @keyframes bone-shimmer {
-    from {
-      transform: translateX(-120%);
-    }
+  @keyframes mark-load-spin {
     to {
-      transform: translateX(120%);
+      transform: rotate(360deg);
     }
   }
 
-  .bone-shimmer::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      105deg,
-      transparent 35%,
-      oklch(1 0 0 / 0.45) 50%,
-      transparent 65%
-    );
-    animation: bone-shimmer 1.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  @keyframes mark-load-a {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+    }
+    50% {
+      transform: translate(1.2px, 1.2px) scale(0.92);
+    }
+  }
+
+  @keyframes mark-load-b {
+    0%,
+    100% {
+      transform: translate(0, 0) scale(1);
+      opacity: 0.85;
+    }
+    50% {
+      transform: translate(-1.2px, -1.2px) scale(1.08);
+      opacity: 1;
+    }
+  }
+
+  .mark-load-pair {
+    transform-origin: 12px 12px;
+    animation: mark-load-spin 1.8s linear infinite;
+  }
+
+  .mark-load-a {
+    transform-origin: 10px 10px;
+    animation: mark-load-a 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  }
+
+  .mark-load-b {
+    transform-origin: 14px 14px;
+    animation: mark-load-b 1.4s cubic-bezier(0.45, 0, 0.55, 1) infinite;
   }
 
   /* Underline that draws in from the left on hover — for the nav links. */
@@ -268,33 +289,6 @@ html {
   }
 }
 
-.bone-shimmer {
-  position: relative;
-  overflow: hidden;
-  background-color: #e5e5e5;
-}
-
-.bone-shimmer-soft {
-  background-color: #f5f5f5;
-}
-
-.bone-shimmer-tint {
-  background-color: var(--brand-tint);
-}
-
-.bone-shimmer-ink {
-  background-color: #171717;
-}
-
-.bone-shimmer-ink::after {
-  background: linear-gradient(
-    105deg,
-    transparent 35%,
-    oklch(1 0 0 / 0.08) 50%,
-    transparent 65%
-  );
-}
-
 /* Static shimmering border (the sweep above is motion-gated). */
 .shimmer-border {
   border-radius: 9999px;
@@ -307,6 +301,18 @@ html {
     oklch(0.8 0.08 185)
   );
   background-size: 200% 100%;
+}
+
+/* Quiet brand wash on paper cards — enough tint to lift them off the
+   canvas without a second palette. */
+.surface-card {
+  background-image: linear-gradient(
+    165deg,
+    color-mix(in oklch, var(--brand-tint) 78%, white) 0%,
+    color-mix(in oklch, var(--background) 82%, var(--brand-tint)) 46%,
+    var(--background) 100%
+  );
+  border-color: color-mix(in oklch, var(--brand) 14%, var(--border));
 }
 
 /* Page-level h1 — the serif headline (design doc §4.3). Page openers only;

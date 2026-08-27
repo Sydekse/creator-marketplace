@@ -1,5 +1,5 @@
-import { AdminTableSkeleton } from '@/components/layout/workspace-loading';
+import { WorkspaceLoading } from '@/components/layout/workspace-loading';
 
-export default function AuditLogLoading() {
-  return <AdminTableSkeleton />;
+export default function Loading() {
+  return <WorkspaceLoading />;
 }

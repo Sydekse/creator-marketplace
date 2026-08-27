@@ -52,15 +52,22 @@ export function getNavLinks(role: UserRole): NavLink[] {
   return NAV_LINKS[role];
 }
 
+function pathMatchesHref(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
 /**
- * Which top-bar item is current. Cart href is a campaign cart, so a naive
- * `/campaigns` prefix match would light Campaigns (dark text, no pill) at
- * the same time as Cart.
+ * Which top-bar item is current.
+ *
+ * Prefix match alone is wrong for nested homes: `/creator` would also light
+ * on `/creator/deals`, and `/admin` on every admin page — two pills at once.
+ * Longest matching href wins. Cart stays exact-match against the draft cart.
  */
 export function isNavLinkActive(
   link: NavLink,
   pathname: string,
-  cartHref?: string
+  cartHref?: string,
+  siblings: readonly NavLink[] = []
 ): boolean {
   if (link.icon === 'cart') {
     return Boolean(
@@ -70,7 +77,15 @@ export function isNavLinkActive(
   if (cartHref && cartHref !== '/campaigns' && pathname === cartHref) {
     return false;
   }
-  return pathname === link.href || pathname.startsWith(`${link.href}/`);
+  if (!pathMatchesHref(pathname, link.href)) return false;
+
+  const pool = siblings.length > 0 ? siblings : [link];
+  return !pool.some(
+    (other) =>
+      other.icon !== 'cart' &&
+      other.href.length > link.href.length &&
+      pathMatchesHref(pathname, other.href)
+  );
 }
 
 /**

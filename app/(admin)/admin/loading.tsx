@@ -1,5 +1,5 @@
-import { AdminConsoleSkeleton } from '@/components/layout/workspace-loading';
+import { WorkspaceLoading } from '@/components/layout/workspace-loading';
 
-export default function AdminConsoleLoading() {
-  return <AdminConsoleSkeleton />;
+export default function Loading() {
+  return <WorkspaceLoading />;
 }

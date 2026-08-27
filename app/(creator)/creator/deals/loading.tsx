@@ -1,5 +1,5 @@
-import { DealInboxSkeleton } from '@/components/layout/workspace-loading';
+import { WorkspaceLoading } from '@/components/layout/workspace-loading';
 
-export default function CreatorDealsLoading() {
-  return <DealInboxSkeleton />;
+export default function Loading() {
+  return <WorkspaceLoading />;
 }

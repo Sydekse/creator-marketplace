@@ -87,7 +87,7 @@ export default async function BrandDashboardPage() {
       ) : (
         <>
           {/* §13: Campaign summary */}
-          <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-6 sm:p-8">
+          <section className="surface-card rounded-[28px] border border-neutral-200 p-6 sm:p-8">
             <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
               Campaigns
             </h2>

@@ -4,6 +4,7 @@ import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { buttonVariants } from '@/components/ui/button';
+import { inAppNotificationDetail } from '@/lib/notifications/copy';
 import { deepLink } from '@/lib/notifications/deep-link';
 import { listNotifications, unreadCount } from '@/lib/notifications/queries';
 import { requireUser } from '@/lib/auth';
@@ -29,7 +30,7 @@ const NOTIFICATION_LABELS: Record<string, string> = {
   revision_requested: 'Revision requested',
   dispute_resolved: 'Dispute resolved',
   offer_expired: 'Offer expired',
-  offer_accepted: 'Offer accepted',
+  offer_accepted: 'Ready to fund',
   offer_declined: 'Offer declined',
   metric_reminder: 'Metrics reminder',
 };
@@ -65,6 +66,7 @@ function NotificationItem({
   ) as Record<string, unknown>;
   const href = deepLink(row.type, payload, role);
   const isUnread = row.readAt === null;
+  const detail = inAppNotificationDetail(row.type, payload);
 
   // Use a person name from the payload when available, otherwise fall back
   // to the notification label (e.g. "Video approved" → "VA").
@@ -89,6 +91,11 @@ function NotificationItem({
           {formatTimestamp(row.createdAt)}
         </span>
       </div>
+      {detail ? (
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-700">
+          {detail}
+        </p>
+      ) : null}
       <div className="mt-2 flex items-center gap-3">
         {/* Opening a notification is reading it, so following this link clears
             the unread state on its own (KAN-200). `MarkReadButton` stays for a

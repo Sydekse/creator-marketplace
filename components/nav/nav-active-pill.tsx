@@ -44,11 +44,13 @@ export function NavActivePill({
       }
       const snap = !seen.current;
       seen.current = true;
+      const rootBox = root.getBoundingClientRect();
+      const activeBox = active.getBoundingClientRect();
       setBox({
-        x: active.offsetLeft,
-        y: active.offsetTop,
-        width: active.offsetWidth,
-        height: active.offsetHeight,
+        x: activeBox.left - rootBox.left + root.scrollLeft,
+        y: activeBox.top - rootBox.top + root.scrollTop,
+        width: activeBox.width,
+        height: activeBox.height,
         show: true,
         snap,
       });
@@ -57,14 +59,14 @@ export function NavActivePill({
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(root);
+    const active = root.querySelector('[data-active]');
+    if (active) observer.observe(active);
     window.addEventListener('resize', measure);
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', measure);
     };
   }, [activeKey, containerRef]);
-
-  const duration = reduceMotion || box.snap ? 0 : 0.28;
 
   if (!box.show) return null;
 
@@ -73,16 +75,21 @@ export function NavActivePill({
       ? { x: box.x, width: box.width, height: box.height, y: 0 }
       : { y: box.y, height: box.height, width: box.width, x: 0 };
 
+  const transition = {
+    duration: reduceMotion || box.snap ? 0 : 0.4,
+    ease: EASE,
+  };
+
   return (
     <motion.span
       aria-hidden
       className={cn(
-        'pointer-events-none absolute top-0 left-0 rounded-full',
+        'pointer-events-none absolute top-0 left-0 z-0 rounded-full',
         className
       )}
       initial={false}
       animate={animate}
-      transition={{ duration, ease: EASE }}
+      transition={transition}
     />
   );
 }

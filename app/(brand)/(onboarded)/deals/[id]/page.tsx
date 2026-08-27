@@ -64,10 +64,10 @@ export const runtime = 'nodejs';
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+      <dt className="text-xs tracking-wide text-neutral-400 uppercase">
         {label}
       </dt>
-      <dd className="font-mono text-sm">{value}</dd>
+      <dd className="font-mono text-sm text-neutral-50">{value}</dd>
     </div>
   );
 }
@@ -131,8 +131,8 @@ export default async function BrandDealReviewPage({
         />
       </div>
 
-      <section>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-6 border-y border-neutral-200 py-6 sm:grid-cols-3">
+      <section className="rounded-[24px] bg-neutral-900 p-5 text-neutral-50 shadow-[0_20px_48px_-32px_rgba(23,23,23,0.6)] sm:p-6">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-6 border-y border-neutral-700 py-6 sm:grid-cols-3">
           <Fact label={CREATOR_LABEL} value={deal.creatorHandle} />
           <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
           <Fact label={UNIT_PRICE_LABEL} value={formatEtb(deal.unitPrice)} />

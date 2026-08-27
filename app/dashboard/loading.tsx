@@ -1,6 +1,5 @@
-/**
- * /dashboard is a role redirect. Keep the auth paper canvas — never a fake nav.
- */
+import { WorkspaceLoading } from '@/components/layout/workspace-loading';
+
 export default function DashboardLoading() {
-  return <div className="min-h-[100dvh] bg-neutral-50" />;
+  return <WorkspaceLoading full />;
 }

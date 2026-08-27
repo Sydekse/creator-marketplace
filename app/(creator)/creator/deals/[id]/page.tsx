@@ -70,10 +70,10 @@ export const runtime = 'nodejs';
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+      <dt className="text-xs tracking-wide text-neutral-400 uppercase">
         {label}
       </dt>
-      <dd className="font-mono text-sm">{value}</dd>
+      <dd className="font-mono text-sm text-neutral-50">{value}</dd>
     </div>
   );
 }
@@ -158,12 +158,12 @@ export default async function CreatorDealDetailPage({
         }
       />
 
-      <section>
-        <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
+      <section className="rounded-[24px] bg-neutral-900 p-5 text-neutral-50 shadow-[0_20px_48px_-32px_rgba(23,23,23,0.6)] sm:p-6">
+        <h2 className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
           {DEAL_TERMS_TITLE}
         </h2>
         {/* Two columns on a phone, three from `sm:` up (NFR-007). */}
-        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-6 border-y border-neutral-200 py-6 sm:grid-cols-3">
+        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-6 border-y border-neutral-700 py-6 sm:grid-cols-3">
           <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
           <Fact label={UNIT_PRICE_LABEL} value={formatEtb(deal.unitPrice)} />
           <Fact label={TOTAL_PRICE_LABEL} value={formatEtb(deal.totalPrice)} />
@@ -177,9 +177,7 @@ export default async function CreatorDealDetailPage({
         {/* Labelled as an estimate, not decoration: a pending deal has no ledger
             rows, so this figure describes money that has not moved. KAN-25's
             AC-4 is why the dashboard's numbers are ledger sums instead. */}
-        <p className="mt-4 text-sm text-muted-foreground">
-          {PAYOUT_ESTIMATE_NOTE}
-        </p>
+        <p className="mt-4 text-sm text-neutral-400">{PAYOUT_ESTIMATE_NOTE}</p>
       </section>
 
       {/* AC-2's "full usage-rights terms", inline rather than behind a link.

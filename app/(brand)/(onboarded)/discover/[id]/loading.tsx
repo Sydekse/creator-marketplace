@@ -1,5 +1,5 @@
-import { CreatorDetailSkeleton } from '@/components/layout/workspace-loading';
+import { WorkspaceLoading } from '@/components/layout/workspace-loading';
 
-export default function CreatorDetailLoading() {
-  return <CreatorDetailSkeleton />;
+export default function Loading() {
+  return <WorkspaceLoading />;
 }
