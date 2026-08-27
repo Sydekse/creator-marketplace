@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { DealHistory } from '@/components/deals/deal-history';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import {
@@ -106,16 +107,16 @@ export default async function BrandDealReviewPage({
     <div className="mx-auto flex max-w-5xl flex-col gap-10 py-4">
       <Link
         href={`/campaigns/${deal.campaignId}`}
-        className="inline-flex self-start rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
+        className="inline-flex w-fit items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-700 transition-[border-color,box-shadow,color] duration-200 ease-[var(--ease-smooth)] hover:border-neutral-300 hover:text-neutral-900 hover:shadow-[0_12px_24px_-16px_rgba(23,23,23,0.35)] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
-        ← Back to {deal.campaignName}
+        <ArrowLeft size={14} weight="regular" aria-hidden />
+        Back to {deal.campaignName}
       </Link>
 
-      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-start gap-4 sm:gap-6">
-        <div className="pt-1">
-          <InitialsAvatar name={deal.creatorHandle} size="lg" />
-        </div>
+      <div className="flex items-start gap-5">
+        <InitialsAvatar name={deal.creatorHandle} size="lg" />
         <PageHeader
+          label="Deal"
           title={deal.creatorHandle}
           description={
             /* The shared vocabulary from `lib/deals/groups.ts`, not a second set
@@ -126,12 +127,12 @@ export default async function BrandDealReviewPage({
               {labelForStatus(deal.status)}
             </Chip>
           }
-          className="flex-1"
+          className="min-w-0 flex-1"
         />
       </div>
 
-      <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.3)] sm:p-8">
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-3">
+      <section>
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-6 border-y border-neutral-200 py-6 sm:grid-cols-3">
           <Fact label={CREATOR_LABEL} value={deal.creatorHandle} />
           <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
           <Fact label={UNIT_PRICE_LABEL} value={formatEtb(deal.unitPrice)} />

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { DealHistory } from '@/components/deals/deal-history';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
@@ -135,12 +136,14 @@ export default async function CreatorDealDetailPage({
     <div className="mx-auto flex max-w-5xl flex-col gap-10 py-4">
       <Link
         href="/creator/deals"
-        className="inline-flex self-start rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
+        className="inline-flex w-fit items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-700 transition-[border-color,box-shadow,color] duration-200 ease-[var(--ease-smooth)] hover:border-neutral-300 hover:text-neutral-900 hover:shadow-[0_12px_24px_-16px_rgba(23,23,23,0.35)] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
-        ← Back to your deals
+        <ArrowLeft size={14} weight="regular" aria-hidden />
+        Back to your deals
       </Link>
 
       <PageHeader
+        label="Deal"
         title={deal.campaignName}
         description={
           /* AC-2's brand name: the trading name the brand publishes, never a
@@ -155,12 +158,12 @@ export default async function CreatorDealDetailPage({
         }
       />
 
-      <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.3)] sm:p-8">
+      <section>
         <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
           {DEAL_TERMS_TITLE}
         </h2>
         {/* Two columns on a phone, three from `sm:` up (NFR-007). */}
-        <dl className="mt-6 grid grid-cols-2 gap-x-6 gap-y-7 sm:grid-cols-3">
+        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-6 border-y border-neutral-200 py-6 sm:grid-cols-3">
           <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
           <Fact label={UNIT_PRICE_LABEL} value={formatEtb(deal.unitPrice)} />
           <Fact label={TOTAL_PRICE_LABEL} value={formatEtb(deal.totalPrice)} />
@@ -174,7 +177,7 @@ export default async function CreatorDealDetailPage({
         {/* Labelled as an estimate, not decoration: a pending deal has no ledger
             rows, so this figure describes money that has not moved. KAN-25's
             AC-4 is why the dashboard's numbers are ledger sums instead. */}
-        <p className="mt-6 border-t border-neutral-200 pt-4 text-sm text-muted-foreground">
+        <p className="mt-4 text-sm text-muted-foreground">
           {PAYOUT_ESTIMATE_NOTE}
         </p>
       </section>

@@ -1,5 +1,5 @@
-import { CampaignListSkeleton } from '@/components/layout/workspace-loading';
+import { BrandDealsSkeleton } from '@/components/layout/workspace-loading';
 
 export default function BrandDealsLoading() {
-  return <CampaignListSkeleton />;
+  return <BrandDealsSkeleton />;
 }
