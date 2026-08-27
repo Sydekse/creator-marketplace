@@ -1,6 +1,5 @@
 'use client';
 
-import * as React from 'react';
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 
 import { cn } from '@/lib/utils';
@@ -13,8 +12,8 @@ import { Button } from '@/components/ui/button';
  * The native prompt blocked the main thread, wore the browser's chrome instead
  * of the product's, and announced itself to a screen reader as an unlabelled
  * system popup. This one is the same `Dialog` primitive `sheet.tsx` already
- * builds on: focus is trapped and restored, Escape and the backdrop cancel,
- * and the question is a labelled description rather than alert text.
+ * builds on: focus is trapped and restored, Escape and Cancel dismiss it, and
+ * the question is a labelled description rather than alert text.
  *
  * Design-system notes (docs/design.md):
  *  - Structure is a hairline and paper, not a glow: one soft ambient shadow on
@@ -32,7 +31,7 @@ import { Button } from '@/components/ui/button';
  */
 export interface ConfirmDialogProps {
   open: boolean;
-  /** Called for every close — confirm, cancel, Escape, backdrop. */
+  /** Called for every close — confirm, cancel, Escape. */
   onOpenChange: (open: boolean) => void;
   title: string;
   /** The sentence `window.confirm` used to carry. */
@@ -55,29 +54,15 @@ export function ConfirmDialog({
   tone = 'default',
   onConfirm,
 }: ConfirmDialogProps) {
-  // Call sites open this with a sibling button, not Dialog.Trigger. On touch
-  // WebKit the same gesture that set `open` can land as an outside-press once
-  // the popup mounts, which would close it before anyone sees it.
-  const wasOpenRef = React.useRef(open);
-  const openedAtRef = React.useRef(0);
-  if (open && !wasOpenRef.current) {
-    openedAtRef.current = performance.now();
-  }
-  wasOpenRef.current = open;
-
   return (
     <DialogPrimitive.Root
       open={open}
-      onOpenChange={(next, details) => {
-        if (
-          !next &&
-          details.reason === 'outside-press' &&
-          performance.now() - openedAtRef.current < 500
-        ) {
-          return;
-        }
-        onOpenChange(next);
-      }}
+      onOpenChange={onOpenChange}
+      // Call sites open this with a sibling button, not Dialog.Trigger. On
+      // touch WebKit the same gesture that set `open` can land as an
+      // outside-press once the popup mounts. A confirm must not vanish on
+      // that ghost tap — Escape and Cancel still close it.
+      disablePointerDismissal
     >
       <DialogPrimitive.Portal>
         {/* Backdrop dims, it does not blur — the paper underneath stays paper.
