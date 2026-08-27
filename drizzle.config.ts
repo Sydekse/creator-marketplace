@@ -1,5 +1,6 @@
 import { loadEnvConfig } from '@next/env';
 import { defineConfig } from 'drizzle-kit';
+import { normalizeDatabaseUrl } from './db/connection-string';
 
 // drizzle-kit runs outside the Next.js runtime, so `.env.local` is not loaded
 // for us. `@next/env` applies the exact same file precedence Next.js uses.
@@ -13,7 +14,9 @@ export default defineConfig({
   schema: ['./db/schema.ts', './db/auth-schema.ts'],
   out: './drizzle',
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
+    // Neon still issues `sslmode=require`. Rewrite it before pg connects so
+    // Node 22+ does not treat require/prefer/verify-ca as verify-full aliases.
+    url: normalizeDatabaseUrl(process.env.DATABASE_URL)!,
   },
   // Neon manages its own Postgres roles. Without this, drizzle-kit treats them
   // as drift and tries to drop them.

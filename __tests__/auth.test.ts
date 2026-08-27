@@ -89,6 +89,7 @@ describe('signInSchema', () => {
 describe('TikTok Login Kit wiring', () => {
   it('registers TikTok only when both env keys exist', () => {
     const source = readFileSync(join(ROOT, 'lib/auth.ts'), 'utf8');
+    expect(source).toContain('clientId: process.env.TIKTOK_CLIENT_KEY');
     expect(source).toContain('clientKey: process.env.TIKTOK_CLIENT_KEY');
     expect(source).toContain('TIKTOK_CLIENT_SECRET');
     expect(source).toContain('socialProviders');
