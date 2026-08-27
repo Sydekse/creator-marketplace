@@ -162,11 +162,12 @@ test('flow 2: budget ceiling blocks adding an over-budget creator (AC-014)', asy
   // Tiles mark rather than navigate — "See details" is the way into a profile.
   const card = brand.locator('li', { hasText: '@demo_beauty' }).first();
   await card.getByRole('link', { name: /see details/i }).click();
+  await expect(brand).toHaveURL(/\/discover\/[0-9a-f-]+/, { timeout: 15_000 });
   await brand.locator('select[name="campaignId"]').selectOption({
     label: 'Tiny Budget Campaign',
   });
   await brand.locator('input[name="videoCount"]').fill('3');
-  await brand.getByRole('button', { name: /add/i }).click();
+  await brand.getByRole('button', { name: 'Add to campaign' }).click();
 
   // The refusal surfaces via the form's error toast — the server's
   // BUDGET_EXCEEDED sentence. Asserted on the full sentence, not a /budget/

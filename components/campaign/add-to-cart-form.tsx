@@ -19,6 +19,7 @@ export interface AddToCartFormProps {
 export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (campaigns.length === 0) {
     return (
@@ -40,6 +41,7 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (loading) return;
+    setFormError(null);
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
@@ -60,19 +62,16 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        if (data?.error?.code === 'CREATOR_NOT_BOOKABLE') {
-          toast.error('This creator is not currently bookable.');
-        } else if (data?.error?.code === 'CAMPAIGN_NOT_DRAFT') {
-          toast.error(CAMPAIGN_NOT_DRAFT_MESSAGE);
-        } else {
-          // Any other refusal — `BUDGET_EXCEEDED` is the live one (AC-014),
-          // and the server's own sentence is the authority, so it is shown
-          // rather than a paraphrase that could drift from it. The fallback
-          // only covers a response shaped unlike the error envelope.
-          toast.error(
-            data?.error?.message ?? 'Failed to add creator to campaign.'
-          );
-        }
+        const message =
+          data?.error?.code === 'CREATOR_NOT_BOOKABLE'
+            ? 'This creator is not currently bookable.'
+            : data?.error?.code === 'CAMPAIGN_NOT_DRAFT'
+              ? CAMPAIGN_NOT_DRAFT_MESSAGE
+              : (data?.error?.message ?? 'Failed to add creator to campaign.');
+        // Inline as well as a toast: Sonner on WebKit can mount an empty
+        // alert, so AC-014 must not depend on the toaster being readable.
+        setFormError(message);
+        toast.error(message);
         return;
       }
 
@@ -86,7 +85,9 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
       );
       router.push(`/campaigns/${campaignId}`);
     } catch {
-      toast.error('An unexpected error occurred.');
+      const message = 'An unexpected error occurred.';
+      setFormError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -133,6 +134,11 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
           {loading ? 'Adding...' : ADD_TO_CAMPAIGN_LABEL}
         </button>
       </form>
+      {formError ? (
+        <p role="alert" className="text-sm leading-snug text-destructive">
+          {formError}
+        </p>
+      ) : null}
     </section>
   );
 }

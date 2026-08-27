@@ -128,10 +128,10 @@ export function SelectableCreatorGrid({
         {creators.map((creator) => {
           const isSelected = selected.has(creator.id);
           return (
-            <li key={creator.id}>
-              {/* The tile is a toggle, not a link. A click that lands on a real
-                  link inside the card (View on TikTok, See details) is left to
-                  navigate — `closest('a')` is what stops it also marking. */}
+            <li key={creator.id} className="relative">
+              {/* Marking lives on the checkbox; the profile link sits outside
+                  it. A link inside role=checkbox is swallowed on WebKit — the
+                  activation stays on the checkbox and never navigates. */}
               <div
                 role="checkbox"
                 aria-checked={isSelected}
@@ -148,7 +148,7 @@ export function SelectableCreatorGrid({
                     toggle(creator.id);
                   }
                 }}
-                className={`relative h-full cursor-pointer rounded-xl transition-[box-shadow,transform] duration-300 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
+                className={`h-full cursor-pointer rounded-xl transition-[box-shadow,transform] duration-300 ease-out active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand ${
                   isSelected ? 'ring-2 ring-brand' : ''
                 }`}
               >
@@ -158,18 +158,16 @@ export function SelectableCreatorGrid({
                   </span>
                 )}
                 <CreatorCard creator={creator} detailsHref={null} />
-                <div className="absolute right-3 bottom-3 z-10">
-                  <Link
-                    href={`/discover/${creator.id}`}
-                    className={cn(
-                      'text-xs font-medium text-brand-ink',
-                      textLinkFeedback
-                    )}
-                  >
-                    See details
-                  </Link>
-                </div>
               </div>
+              <Link
+                href={`/discover/${creator.id}`}
+                className={cn(
+                  'absolute right-3 bottom-3 z-10 text-xs font-medium text-brand-ink',
+                  textLinkFeedback
+                )}
+              >
+                See details
+              </Link>
             </li>
           );
         })}
