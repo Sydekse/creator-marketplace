@@ -42,8 +42,8 @@ describe('proxy with no session', () => {
     expect(locationOf(proxy(request(pathname)))).toBeNull();
   });
 
-  it.each(['/opengraph-image', '/icon', '/apple-icon'])(
-    'lets %s through without a session (metadata routes must be public for crawlers)',
+  it.each(['/opengraph-image', '/icon', '/apple-icon', '/privacy', '/terms'])(
+    'lets %s through without a session (crawlers must reach them)',
     (pathname) => {
       expect(locationOf(proxy(request(pathname)))).toBeNull();
     }

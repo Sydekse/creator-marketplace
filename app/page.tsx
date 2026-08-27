@@ -1187,14 +1187,20 @@ export default function HomePage() {
               </p>
               <ul className="space-y-3 text-[13px] text-neutral-600">
                 <li>
-                  <span className="cursor-not-allowed opacity-40">
+                  <Link
+                    href="/terms"
+                    className="rounded-sm transition-colors duration-300 ease-out hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+                  >
                     Terms of Service
-                  </span>
+                  </Link>
                 </li>
                 <li>
-                  <span className="cursor-not-allowed opacity-40">
+                  <Link
+                    href="/privacy"
+                    className="rounded-sm transition-colors duration-300 ease-out hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+                  >
                     Privacy Policy
-                  </span>
+                  </Link>
                 </li>
               </ul>
             </div>
