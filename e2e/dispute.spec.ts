@@ -93,7 +93,7 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
     timeout: 15_000,
   });
   await expect(admin.getByText(/Campaign: Summer Dispute/i)).toBeVisible();
-  await expect(admin.getByText('Video submitted')).toBeVisible();
+  await expect(admin.getByText('Video submitted').first()).toBeVisible();
   await admin.goBack();
   await expect(row).toBeVisible();
 
