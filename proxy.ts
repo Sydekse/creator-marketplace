@@ -16,6 +16,8 @@ const PUBLIC_ROUTES = [
   // TikTok (and any other reviewer) crawls these with no cookies.
   '/privacy',
   '/terms',
+  // TikTok URL-prefix signature file (public/, no session).
+  '/tiktokTvr1TjiPhSzEq4Umh3U7vMlwrphEwnAY.txt',
 ];
 
 /**
@@ -54,6 +56,6 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|opengraph-image|icon|apple-icon).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|opengraph-image|icon|apple-icon|tiktokTvr1TjiPhSzEq4Umh3U7vMlwrphEwnAY\\.txt).*)',
   ],
 };
