@@ -55,13 +55,37 @@ export function ConfirmDialog({
   tone = 'default',
   onConfirm,
 }: ConfirmDialogProps) {
+  // Call sites open this with a sibling button, not Dialog.Trigger. On touch
+  // WebKit the same gesture that set `open` can land as an outside-press once
+  // the popup mounts, which would close it before anyone sees it.
+  const wasOpenRef = React.useRef(open);
+  const openedAtRef = React.useRef(0);
+  if (open && !wasOpenRef.current) {
+    openedAtRef.current = performance.now();
+  }
+  wasOpenRef.current = open;
+
   return (
-    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+    <DialogPrimitive.Root
+      open={open}
+      onOpenChange={(next, details) => {
+        if (
+          !next &&
+          details.reason === 'outside-press' &&
+          performance.now() - openedAtRef.current < 500
+        ) {
+          return;
+        }
+        onOpenChange(next);
+      }}
+    >
       <DialogPrimitive.Portal>
-        {/* Backdrop dims, it does not blur — the paper underneath stays paper. */}
+        {/* Backdrop dims, it does not blur — the paper underneath stays paper.
+            z-[60] sits above the fixed header (z-50) so the question is not
+            trapped under the chrome on a phone. */}
         <DialogPrimitive.Backdrop
           className={cn(
-            'fixed inset-0 z-50 bg-neutral-900/40',
+            'fixed inset-0 z-[60] bg-neutral-900/40',
             'transition-opacity duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
             'data-ending-style:opacity-0 data-starting-style:opacity-0'
           )}
@@ -70,7 +94,7 @@ export function ConfirmDialog({
           className={cn(
             // Centered by transform so the entrance animates transform+opacity
             // only — never top/left/width/height.
-            'fixed top-1/2 left-1/2 z-50 w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2',
+            'fixed top-1/2 left-1/2 z-[60] w-[calc(100vw-2rem)] max-w-sm -translate-x-1/2 -translate-y-1/2',
             // Hairline + paper + one ambient shadow; the radius is the card
             // tier (16px) since the popup carries no padding of its own frame.
             'flex flex-col gap-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-6',
