@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { bulkAddToCart } from '../lib/campaigns/bulk-add-to-cart';
 import type { BulkAddToCartDeps } from '../lib/campaigns/bulk-add-to-cart';
@@ -23,7 +24,6 @@ vi.mock('../lib/authz', async (importOriginal) => {
 const { handleBulkAddCampaignItems } =
   await import('../app/api/campaigns/[id]/items/bulk/route');
 
-const BRAND_USER_ID = 'user-brand-bulk';
 const BRAND_PROFILE_ID = '11111111-1111-4111-8111-111111111111';
 const CAMPAIGN_ID = '22222222-2222-4222-8222-222222222222';
 const CREATOR_A = '33333333-3333-4333-8333-333333333333';
@@ -237,8 +237,7 @@ describe('bulkAddToCart', () => {
   it('locks the campaign row for update', () => {
     // The ceiling is only safe against concurrent batches because the campaign
     // row is taken FOR UPDATE before any total is read.
-    const fs = require('node:fs');
-    const source = fs.readFileSync('lib/campaigns/bulk-add-to-cart.ts', 'utf8');
+    const source = readFileSync('lib/campaigns/bulk-add-to-cart.ts', 'utf8');
     expect(source).toMatch(/\.for\(['"]update['"]\)/);
   });
 });

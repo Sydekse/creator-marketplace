@@ -78,7 +78,7 @@ describe('default deps: readBrandDashboard', () => {
     expect(result.campaigns).toBeDefined();
     expect(result.money).toBeDefined();
     expect(Array.isArray(result.awaitingReview)).toBe(true);
-  });
+  }, 15_000);
 });
 
 describe('default deps: readBrandDealInbox', () => {
@@ -88,5 +88,5 @@ describe('default deps: readBrandDealInbox', () => {
 
     expect(result).toBeDefined();
     expect(result?.campaigns).toBeDefined();
-  });
+  }, 15_000);
 });

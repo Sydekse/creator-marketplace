@@ -95,7 +95,10 @@ describe('TikTok Login Kit wiring', () => {
   });
 
   it('offers Continue with TikTok on sign-up and sign-in', () => {
-    const signUp = readFileSync(join(ROOT, 'app/(auth)/sign-up/page.tsx'), 'utf8');
+    const signUp = readFileSync(
+      join(ROOT, 'app/(auth)/sign-up/page.tsx'),
+      'utf8'
+    );
     const signIn = readFileSync(
       join(ROOT, 'app/(auth)/sign-in/sign-in-form.tsx'),
       'utf8'

@@ -144,11 +144,11 @@ export default function SignUpPage() {
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
       <AccordionPanel open={role === 'brand'}>
-            <form
-              onSubmit={handleSubmit}
-              noValidate
-              className="mt-6 flex flex-col gap-5"
-            >
+        <form
+          onSubmit={handleSubmit}
+          noValidate
+          className="mt-6 flex flex-col gap-5"
+        >
           <div className="flex flex-col gap-2">
             <label
               htmlFor="name"
@@ -187,7 +187,8 @@ export default function SignUpPage() {
               value={email}
               onChange={(e) => {
                 setEmail(e.target.value);
-                if (errors.email) setErrors((p) => ({ ...p, email: undefined }));
+                if (errors.email)
+                  setErrors((p) => ({ ...p, email: undefined }));
               }}
               placeholder="you@example.com"
               required
@@ -267,7 +268,7 @@ export default function SignUpPage() {
           <Button type="submit" disabled={loading} size="xl" className="w-full">
             {loading ? 'Creating account…' : 'Create account'}
           </Button>
-            </form>
+        </form>
       </AccordionPanel>
 
       <AccordionPanel open={role === 'creator'}>
