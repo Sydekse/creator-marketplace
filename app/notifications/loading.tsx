@@ -1,5 +1,5 @@
-import { NotificationsSkeleton } from '@/components/layout/workspace-loading';
+import { WorkspaceLoading } from '@/components/layout/workspace-loading';
 
-export default function NotificationsLoading() {
-  return <NotificationsSkeleton />;
+export default function Loading() {
+  return <WorkspaceLoading />;
 }

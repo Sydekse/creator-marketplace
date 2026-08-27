@@ -95,7 +95,7 @@ export function MobileNav({ user, cart }: MobileNavProps) {
             // draft's cart and is active only when standing in it.
             const isCart = link.icon === 'cart';
             const href = isCart ? (cart?.href ?? link.href) : link.href;
-            const isActive = isNavLinkActive(link, pathname, cart?.href);
+            const isActive = isNavLinkActive(link, pathname, cart?.href, links);
             const badge =
               isCart && cart && cart.itemCount > 0 ? cart.itemCount : 0;
             return (
@@ -105,7 +105,7 @@ export function MobileNav({ user, cart }: MobileNavProps) {
                 onClick={() => setOpen(false)}
                 data-active={isActive || undefined}
                 aria-current={isActive ? 'page' : undefined}
-                className="relative flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-neutral-600 transition-[color,background-color] duration-300 ease-out hover:text-neutral-900 active:scale-[0.98] data-[active]:bg-neutral-900 data-[active]:text-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+                className="relative z-[1] flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-neutral-600 transition-colors duration-200 ease-out hover:text-neutral-900 active:scale-[0.98] data-[active]:text-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
               >
                 <Icon
                   className="relative z-[1]"

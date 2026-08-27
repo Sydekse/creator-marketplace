@@ -1,5 +1,5 @@
-import { CampaignDetailSkeleton } from '@/components/layout/workspace-loading';
+import { WorkspaceLoading } from '@/components/layout/workspace-loading';
 
-export default function CampaignDetailLoading() {
-  return <CampaignDetailSkeleton />;
+export default function Loading() {
+  return <WorkspaceLoading />;
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   FUND_CAMPAIGN_FAILED,
@@ -114,11 +115,13 @@ export function FundCampaignButton({
         type="button"
         onClick={() => setConfirmOpen(true)}
         disabled={funding || nothingAccepted}
-        className={buttonVariants({
-          size,
-          className:
-            'w-full bg-neutral-50 text-neutral-900 hover:bg-neutral-100 active:bg-neutral-200',
-        })}
+        className={cn(
+          buttonVariants({ size }),
+          'w-full border-0 bg-brand text-neutral-50 shadow-[0_0_0_1px_rgba(250,250,250,0.12)] hover:bg-brand-soft hover:text-neutral-50 active:bg-brand-deep',
+          nothingAccepted
+            ? 'opacity-50'
+            : 'ring-2 ring-brand-tint/80 ring-offset-2 ring-offset-neutral-900'
+        )}
       >
         {funding ? FUND_CAMPAIGN_PENDING_LABEL : FUND_CAMPAIGN_LABEL}
       </button>

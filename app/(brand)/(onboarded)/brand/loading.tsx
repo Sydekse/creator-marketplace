@@ -1,5 +1,5 @@
-import { BrandDashboardSkeleton } from '@/components/layout/workspace-loading';
+import { WorkspaceLoading } from '@/components/layout/workspace-loading';
 
-export default function BrandDashboardLoading() {
-  return <BrandDashboardSkeleton />;
+export default function Loading() {
+  return <WorkspaceLoading />;
 }

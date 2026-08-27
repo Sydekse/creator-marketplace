@@ -28,6 +28,32 @@ describe('isNavLinkActive', () => {
       isNavLinkActive(cart, '/campaigns/aaaa-bbbb/edit', '/campaigns/cccc')
     ).toBe(false);
   });
+
+  it('lights only Deals on /creator/deals, not Dashboard', () => {
+    const links = getNavLinks('creator');
+    const dashboard = links.find((l) => l.icon === 'dashboard')!;
+    const deals = links.find((l) => l.icon === 'deals')!;
+    expect(isNavLinkActive(dashboard, '/creator/deals', undefined, links)).toBe(
+      false
+    );
+    expect(isNavLinkActive(deals, '/creator/deals', undefined, links)).toBe(
+      true
+    );
+    expect(isNavLinkActive(dashboard, '/creator', undefined, links)).toBe(true);
+    expect(isNavLinkActive(deals, '/creator', undefined, links)).toBe(false);
+  });
+
+  it('lights only the nested admin item, not Overview', () => {
+    const links = getNavLinks('admin');
+    const overview = links.find((l) => l.icon === 'dashboard')!;
+    const verification = links.find((l) => l.icon === 'verification')!;
+    expect(
+      isNavLinkActive(overview, '/admin/verification', undefined, links)
+    ).toBe(false);
+    expect(
+      isNavLinkActive(verification, '/admin/verification', undefined, links)
+    ).toBe(true);
+  });
 });
 
 describe('getNavLinks', () => {

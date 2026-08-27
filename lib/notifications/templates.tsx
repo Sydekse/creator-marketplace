@@ -365,7 +365,8 @@ const subjects: {
   revision_requested: (p) => `Changes requested for ${p.campaignTitle}`,
   dispute_resolved: (p) => `A decision was made on ${p.campaignTitle}`,
   offer_expired: (p) => `An offer for ${p.campaignTitle} expired`,
-  offer_accepted: (p) => `${p.creatorHandle} accepted your offer`,
+  offer_accepted: (p) =>
+    `Fund ${p.campaignTitle} — ${p.creatorHandle} accepted`,
   offer_declined: (p) => `${p.creatorHandle} declined your offer`,
   metric_reminder: (p) => `Metrics still pending for ${p.campaignTitle}`,
 };
@@ -592,23 +593,23 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
     case 'offer_accepted':
       return (
         <Layout
-          preview={`${payload.creatorHandle} is in for ${payload.campaignTitle}`}
-          heading="A creator accepted your offer"
+          preview={`Fund ${payload.campaignTitle} — accept is not funding`}
+          heading="Time to fund this campaign"
         >
           <Text style={styles.text}>
             <strong>{payload.creatorHandle}</strong> accepted your offer for{' '}
             {payload.campaignTitle} and agreed to the usage-rights terms.
           </Text>
           <Text style={styles.text}>
-            <strong>{formatEtb(payload.totalPrice)}</strong> is what this deal
-            comes to. Fund the campaign to move it into escrow — the creator
-            starts once the money is held.
+            Acceptance does not move money. Open the campaign and fund it so{' '}
+            <strong>{formatEtb(payload.totalPrice)}</strong> is held in escrow —
+            the creator starts only after that hold lands.
           </Text>
           {/* Deep-linked: this is the email that asks the brand to fund, and the
               fund button is on this page. */}
           <Cta
             href={appUrl(`/campaigns/${payload.campaignId}`)}
-            label="Open the campaign →"
+            label="Fund the campaign →"
           />
         </Layout>
       );
