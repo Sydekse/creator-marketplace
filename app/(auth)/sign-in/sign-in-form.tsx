@@ -54,8 +54,9 @@ export function SignInForm() {
     // /dashboard resolve the role server-side. The client never maps roles to
     // paths — it does not know the role until the server tells it.
     const requested = safeRedirectPath(searchParams.get('redirect'));
+    // Stay on this form (button still pending) until the destination layout
+    // has built the real nav. Do not refresh here — that unmounts auth early.
     router.push(requested ?? '/dashboard');
-    router.refresh();
   }
 
   return (

@@ -12,6 +12,7 @@ import {
   campaignStatusTone,
 } from '@/lib/campaigns/status';
 import { formatEtb } from '@/lib/money';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { displayTiktokHandle } from '@/lib/creators/handle';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
@@ -168,9 +169,10 @@ export default async function BrandDashboardPage() {
                       <div className="flex min-w-0 items-center gap-2">
                         <InitialsAvatar name={row.creatorHandle} size="sm" />
                         <div className="flex min-w-0 flex-col gap-0.5">
-                          <span className="truncate text-sm font-semibold text-neutral-900">
-                            {displayTiktokHandle(row.creatorHandle)}
-                          </span>
+                          <TruncatedText
+                            text={displayTiktokHandle(row.creatorHandle)}
+                            className="text-sm font-semibold text-neutral-900"
+                          />
                           <span className="text-xs text-muted-foreground">
                             {row.campaignName} · {row.videoCount}{' '}
                             {row.videoCount === 1 ? 'video' : 'videos'}

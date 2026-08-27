@@ -1,4 +1,6 @@
+import { Suspense } from 'react';
 import { Header } from '@/components/layout/header';
+import { WorkspacePageSkeleton } from '@/components/layout/workspace-loading';
 import { Toaster } from '@/components/ui/sonner';
 import { requireRole } from '@/lib/auth';
 
@@ -14,7 +16,7 @@ export default async function AdminLayout({
     <>
       <Header user={user} />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-12">
-        {children}
+        <Suspense fallback={<WorkspacePageSkeleton />}>{children}</Suspense>
       </main>
       <Toaster />
     </>

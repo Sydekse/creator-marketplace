@@ -71,6 +71,13 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+html {
+  /* Neutral-50, not browser default white — the first paint before CSS
+     variables resolve would otherwise flash #fff on sign-in. */
+  background-color: #fafafa;
+  color-scheme: light;
+}
+
 :root {
   /* Paper, not white — the app canvas matches the landing page (design doc
      §3.1): neutral-50 page, white cards, neutral-200 hairlines. A pure-white
@@ -200,6 +207,28 @@
     transform: translateX(160%);
   }
 
+  @keyframes bone-shimmer {
+    from {
+      transform: translateX(-120%);
+    }
+    to {
+      transform: translateX(120%);
+    }
+  }
+
+  .bone-shimmer::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      105deg,
+      transparent 35%,
+      oklch(1 0 0 / 0.45) 50%,
+      transparent 65%
+    );
+    animation: bone-shimmer 1.6s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  }
+
   /* Underline that draws in from the left on hover — for the nav links. */
   .nav-underline {
     position: relative;
@@ -237,6 +266,33 @@
       background-position: -100% 50%;
     }
   }
+}
+
+.bone-shimmer {
+  position: relative;
+  overflow: hidden;
+  background-color: #e5e5e5;
+}
+
+.bone-shimmer-soft {
+  background-color: #f5f5f5;
+}
+
+.bone-shimmer-tint {
+  background-color: var(--brand-tint);
+}
+
+.bone-shimmer-ink {
+  background-color: #171717;
+}
+
+.bone-shimmer-ink::after {
+  background: linear-gradient(
+    105deg,
+    transparent 35%,
+    oklch(1 0 0 / 0.08) 50%,
+    transparent 65%
+  );
 }
 
 /* Static shimmering border (the sweep above is motion-gated). */

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
+import { NavActivePill } from '@/components/nav/nav-active-pill';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import type { CurrentUser } from '@/lib/auth';
@@ -20,7 +21,6 @@ import {
   WarningCircle,
 } from '@phosphor-icons/react';
 import Link from 'next/link';
-import { motion, useReducedMotion } from 'framer-motion';
 import type { CartTarget } from '@/components/nav/main-nav';
 
 interface MobileNavProps {
@@ -33,7 +33,7 @@ export function MobileNav({ user, cart }: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const links = getNavLinks(user.role);
-  const reduceMotion = useReducedMotion();
+  const navRef = useRef<HTMLElement>(null);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -79,9 +79,16 @@ export function MobileNav({ user, cart }: MobileNavProps) {
           </Link>
         </div>
         <nav
+          ref={navRef}
           aria-label="Primary navigation"
-          className="flex flex-col gap-1 p-3"
+          className="relative flex flex-col gap-1 overflow-hidden p-3"
         >
+          <NavActivePill
+            containerRef={navRef}
+            activeKey={`${pathname}:${cart?.href ?? ''}`}
+            orientation="vertical"
+            className="rounded-lg bg-neutral-900"
+          />
           {links.map((link) => {
             const Icon = NAV_ICONS[link.icon];
             // Same resolution as MainNav: the cart entry points at the active
@@ -100,23 +107,6 @@ export function MobileNav({ user, cart }: MobileNavProps) {
                 aria-current={isActive ? 'page' : undefined}
                 className="relative flex h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-neutral-600 transition-[color] duration-300 ease-out hover:text-neutral-900 active:scale-[0.98] data-[active]:text-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
               >
-                {isActive && (
-                  <motion.span
-                    layoutId="mobile-nav-selector"
-                    className="absolute inset-0 rounded-lg bg-neutral-900"
-                    transition={
-                      reduceMotion
-                        ? { duration: 0 }
-                        : {
-                            type: 'spring',
-                            stiffness: 420,
-                            damping: 34,
-                            mass: 0.7,
-                          }
-                    }
-                    aria-hidden
-                  />
-                )}
                 <Icon
                   className="relative z-[1]"
                   size={18}

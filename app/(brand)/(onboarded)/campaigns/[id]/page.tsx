@@ -45,6 +45,7 @@ import { EmptyState } from '@/components/feedback/empty-state';
 import { MagneticLink } from '@/components/motion/magnetic-link';
 import { StatusPulse } from '@/components/motion/status-pulse';
 import { StaggerIn } from '@/components/motion/stagger-in';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { cn, textLinkFeedback } from '@/lib/utils';
 
 export const runtime = 'nodejs';
@@ -236,75 +237,74 @@ export default async function CampaignCartPage({
                   }
                 />
               ) : (
-                <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
-                  {items.map((item, index) => (
-                    <li
-                      key={item.id}
-                      className="flex flex-col gap-4 py-5 transition-colors duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-100/70 sm:flex-row sm:items-center sm:justify-between sm:gap-8"
-                    >
-                      <div className="flex min-w-0 items-start gap-4">
-                        <span className="mt-1 w-6 shrink-0 font-mono text-[11px] tabular-nums text-neutral-400">
-                          {String(index + 1).padStart(2, '0')}
-                        </span>
-                        <InitialsAvatar
-                          name={item.creator.tiktokHandle}
-                          size="default"
-                        />
-                        <div className="flex min-w-0 flex-col gap-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <Link
-                              href={`/discover/${item.creatorId}`}
-                              className={cn(
-                                'text-base font-semibold text-neutral-900',
-                                textLinkFeedback
-                              )}
-                            >
-                              {item.creator.tiktokHandle}
-                            </Link>
-                            {item.tier?.id ? (
-                              <Chip tone="line">{item.tier.name} Tier</Chip>
-                            ) : null}
-                          </div>
-                          <p className="text-sm capitalize text-neutral-500">
-                            {item.creator.niche} creator
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap items-end gap-6 sm:items-center sm:justify-end">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-                            Rate
+                <div className="overflow-x-auto">
+                  <div className="min-w-[42rem]">
+                    <div className="grid grid-cols-[2rem_1.75rem_minmax(0,1fr)_7rem_3.5rem_7.5rem_auto] items-center gap-x-3 border-b border-neutral-200 px-1 py-2 text-[11px] font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+                      <span className="sr-only">Row</span>
+                      <span className="sr-only">Avatar</span>
+                      <span>Creator</span>
+                      <span className="text-right">Rate</span>
+                      <span className="text-right">Videos</span>
+                      <span className="text-right">Total</span>
+                      <span className="sr-only">Remove</span>
+                    </div>
+                    <ul className="divide-y divide-neutral-200 border-b border-neutral-200">
+                      {items.map((item, index) => (
+                        <li
+                          key={item.id}
+                          className="grid grid-cols-[2rem_1.75rem_minmax(0,1fr)_7rem_3.5rem_7.5rem_auto] items-center gap-x-3 px-1 py-3 transition-colors duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-100/70"
+                        >
+                          <span className="font-mono text-[11px] tabular-nums text-neutral-400">
+                            {String(index + 1).padStart(2, '0')}
                           </span>
-                          <span className="font-mono text-sm tabular-nums text-neutral-900">
+                          <InitialsAvatar
+                            name={item.creator.tiktokHandle}
+                            size="sm"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <Link
+                                href={`/discover/${item.creatorId}`}
+                                className={cn('min-w-0', textLinkFeedback)}
+                              >
+                                <TruncatedText
+                                  text={item.creator.tiktokHandle}
+                                  className="text-sm font-semibold text-neutral-900"
+                                />
+                              </Link>
+                              {item.tier?.id ? (
+                                <Chip
+                                  tone="line"
+                                  className="shrink-0 whitespace-nowrap"
+                                >
+                                  {item.tier.name}
+                                </Chip>
+                              ) : null}
+                            </div>
+                            <TruncatedText
+                              text={item.creator.niche}
+                              className="text-xs capitalize text-neutral-500"
+                            />
+                          </div>
+                          <span className="text-right font-mono text-sm whitespace-nowrap tabular-nums text-neutral-900">
                             {formatEtb(item.unitPrice)}
                           </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-                            Videos
+                          <span className="text-right font-mono text-sm whitespace-nowrap tabular-nums text-neutral-900">
+                            ×{item.videoCount}
                           </span>
-                          <span className="font-mono text-sm tabular-nums text-neutral-900">
-                            x{item.videoCount}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[11px] font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-                            Total
-                          </span>
-                          <span className="font-mono text-sm font-medium tabular-nums text-neutral-900">
+                          <span className="text-right font-mono text-sm font-medium whitespace-nowrap tabular-nums text-neutral-900">
                             {formatEtb(item.totalPrice)}
                           </span>
-                        </div>
-                        <RemoveFromCartButton
-                          campaignId={campaign.id}
-                          creatorId={item.creatorId}
-                          creatorHandle={item.creator.tiktokHandle}
-                        />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                          <RemoveFromCartButton
+                            campaignId={campaign.id}
+                            creatorId={item.creatorId}
+                            creatorHandle={item.creator.tiktokHandle}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
               )}
             </>
           )}

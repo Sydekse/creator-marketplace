@@ -4,6 +4,7 @@ import type {
   CreatorDealRow,
 } from '@/lib/creators/dashboard';
 import { GROUP_LABELS } from '@/lib/deals/groups';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { formatEtb } from '@/lib/money';
 
 /**
@@ -37,9 +38,10 @@ function DealRow({ deal }: { deal: CreatorDealRow }) {
         className="group -mx-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl px-3 py-4 transition-all duration-300 ease-out hover:translate-x-1 hover:bg-neutral-100 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
       >
         <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-sm font-semibold text-neutral-900">
-            {deal.campaignName}
-          </span>
+          <TruncatedText
+            text={deal.campaignName}
+            className="text-sm font-semibold text-neutral-900"
+          />
           <span className="text-xs text-muted-foreground">
             {deal.videoCount} {deal.videoCount === 1 ? 'video' : 'videos'}
           </span>

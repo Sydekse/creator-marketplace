@@ -163,10 +163,9 @@ test('flow 2: budget ceiling blocks adding an over-budget creator (AC-014)', asy
   const card = brand.locator('li', { hasText: '@demo_beauty' }).first();
   await card.getByRole('link', { name: /see details/i }).click();
   await expect(brand).toHaveURL(/\/discover\/[0-9a-f-]+/, { timeout: 15_000 });
-  await brand.locator('select[name="campaignId"]').selectOption({
-    label: 'Tiny Budget Campaign',
-  });
-  await brand.locator('input[name="videoCount"]').fill('3');
+  await brand.getByRole('combobox', { name: /select draft campaign/i }).click();
+  await brand.getByRole('option', { name: 'Tiny Budget Campaign' }).click();
+  await brand.getByRole('spinbutton', { name: /^videos$/i }).fill('3');
   await brand.getByRole('button', { name: 'Add to campaign' }).click();
 
   // The refusal is the server's BUDGET_EXCEEDED sentence, shown inline on

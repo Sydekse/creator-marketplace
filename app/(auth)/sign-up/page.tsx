@@ -114,8 +114,8 @@ export default function SignUpPage() {
 
     toast.success('Account created. Welcome.');
     // /dashboard resolves the role server-side, so the client never has to.
+    // Stay pending until the destination layout has built the real nav.
     router.push('/dashboard');
-    router.refresh();
   }
 
   return (

@@ -12,6 +12,7 @@ import {
   campaignStatusTone,
 } from '@/lib/campaigns/status';
 import { listCampaignsByBrand } from '@/lib/campaigns/queries';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { formatEtb } from '@/lib/money';
 
 export const runtime = 'nodejs';
@@ -76,9 +77,9 @@ export default async function CampaignsPage() {
               <li key={camp.id} className="border-b border-neutral-200">
                 <div className="grid gap-5 px-1 py-5 transition-colors hover:bg-neutral-100/60 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:px-4">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <h2 className="truncate text-base font-semibold text-neutral-900">
-                        {camp.name}
+                    <div className="flex min-w-0 items-center gap-3">
+                      <h2 className="min-w-0 flex-1 text-base font-semibold text-neutral-900">
+                        <TruncatedText text={camp.name} />
                       </h2>
                       <Chip
                         tone={campaignStatusTone[camp.status] ?? 'gray'}

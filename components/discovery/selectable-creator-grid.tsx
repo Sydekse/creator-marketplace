@@ -4,9 +4,17 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { CaretDown, CaretUp, CheckCircle } from '@phosphor-icons/react';
+import { CheckCircle } from '@phosphor-icons/react';
+import { VideoStepper } from '@/components/campaign/video-stepper';
 import { CreatorCard } from '@/components/creator/creator-card';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { CAMPAIGN_NOT_DRAFT_MESSAGE } from '@/lib/campaigns/constants';
 import { cn, textLinkFeedback } from '@/lib/utils';
 import type { DiscoveryCreator } from '@/lib/creators/discovery';
@@ -183,66 +191,43 @@ export function SelectableCreatorGrid({
               </p>
             ) : (
               <>
-                <label className="flex min-w-40 flex-1 flex-col gap-1 text-[11px] font-medium tracking-[0.08em] text-neutral-400 uppercase">
+                <div className="flex min-w-40 flex-1 flex-col gap-1 text-[11px] font-medium tracking-[0.08em] text-neutral-400 uppercase">
                   Add to
-                  <span className="relative">
-                    <select
-                      value={campaignId}
-                      onChange={(e) => setCampaignId(e.target.value)}
-                      className="h-9 w-full appearance-none rounded-lg border border-neutral-700 bg-neutral-800 py-1 pr-8 pl-3 text-sm font-medium tracking-normal text-neutral-50 scheme-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50"
+                  <Select
+                    value={campaignId}
+                    onValueChange={(next) => {
+                      if (next) setCampaignId(next);
+                    }}
+                  >
+                    <SelectTrigger className="h-9 w-full rounded-lg border-neutral-700 bg-neutral-800 px-3 text-sm font-medium tracking-normal text-neutral-50 hover:border-neutral-500 focus-visible:border-neutral-50 focus-visible:ring-neutral-50/20 [&_svg]:text-neutral-400">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent
+                      align="start"
+                      alignItemWithTrigger={false}
+                      side="top"
+                      className="rounded-xl border border-neutral-700 bg-neutral-900 p-1.5 shadow-[0_18px_40px_-20px_rgba(23,23,23,0.7)] ring-neutral-50/10"
                     >
                       {draftCampaigns.map((c) => (
-                        <option key={c.id} value={c.id}>
+                        <SelectItem
+                          key={c.id}
+                          value={c.id}
+                          className="rounded-lg px-3 py-2 text-sm font-medium whitespace-nowrap text-neutral-100 data-[highlighted]:bg-neutral-800 data-[highlighted]:text-neutral-50"
+                        >
                           {c.name}
-                        </option>
+                        </SelectItem>
                       ))}
-                    </select>
-                    <CaretDown
-                      size={12}
-                      weight="bold"
-                      aria-hidden
-                      className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-neutral-400"
-                    />
-                  </span>
-                </label>
+                    </SelectContent>
+                  </Select>
+                </div>
 
                 <div className="flex flex-col gap-1 text-[11px] font-medium tracking-[0.08em] text-neutral-400 uppercase">
                   Videos each
-                  <div className="flex h-9 items-stretch overflow-hidden rounded-lg border border-neutral-700 bg-neutral-800">
-                    <button
-                      type="button"
-                      aria-label="Fewer videos"
-                      disabled={videoCount <= 1}
-                      onClick={() => setVideoCount((n) => Math.max(1, n - 1))}
-                      className="grid w-8 place-items-center text-neutral-300 transition-colors duration-150 hover:bg-neutral-700 hover:text-neutral-50 active:scale-[0.98] disabled:opacity-40"
-                    >
-                      <CaretDown size={12} weight="bold" aria-hidden />
-                    </button>
-                    <input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={videoCount}
-                      onChange={(e) => {
-                        const next = Number(e.target.value);
-                        setVideoCount(
-                          Number.isInteger(next) && next >= 1 && next <= 100
-                            ? next
-                            : 1
-                        );
-                      }}
-                      className="w-10 [appearance:textfield] border-x border-neutral-700 bg-transparent text-center text-sm font-medium tracking-normal text-neutral-50 tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    />
-                    <button
-                      type="button"
-                      aria-label="More videos"
-                      disabled={videoCount >= 100}
-                      onClick={() => setVideoCount((n) => Math.min(100, n + 1))}
-                      className="grid w-8 place-items-center text-neutral-300 transition-colors duration-150 hover:bg-neutral-700 hover:text-neutral-50 active:scale-[0.98] disabled:opacity-40"
-                    >
-                      <CaretUp size={12} weight="bold" aria-hidden />
-                    </button>
-                  </div>
+                  <VideoStepper
+                    size="sm"
+                    value={videoCount}
+                    onChange={setVideoCount}
+                  />
                 </div>
 
                 <Button
