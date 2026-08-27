@@ -72,7 +72,7 @@ export function MainNav({ user, cart }: MainNavProps) {
                 ? `Cart, ${badge} creator${badge === 1 ? '' : 's'}`
                 : undefined
             }
-            className="group relative z-[1] flex h-9 items-center gap-2 rounded-full px-3 text-[13px] font-medium text-neutral-300 transition-colors duration-200 ease-out hover:text-neutral-50 active:scale-[0.98] data-[active]:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50"
+            className="group relative z-[1] flex h-9 items-center gap-2 rounded-full px-3 text-[13px] font-medium text-neutral-300 transition-colors duration-200 ease-out hover:text-neutral-50 active:scale-[0.98] data-[active]:bg-neutral-50 data-[active]:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50"
           >
             <span className="relative z-[1] inline-flex">
               <Icon

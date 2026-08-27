@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { DealHistory } from '@/components/deals/deal-history';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
-import { PageHeader } from '@/components/layout/page-header';
 import { MetricsForm } from '@/components/deals/metrics-form';
 import { DeliverableForm } from '@/components/deals/deliverable-form';
 import { OfferActions } from '@/components/deals/offer-actions';
@@ -17,6 +16,9 @@ import {
   labelForStatus,
 } from '@/lib/deals';
 import { Chip } from '@/components/ui/chip';
+import { SectionLabel } from '@/components/layout/section-label';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { dealStatusTone } from '@/lib/deals/status-tone';
 import {
   COMMISSION_LABEL,
@@ -70,10 +72,10 @@ export const runtime = 'nodejs';
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <dt className="text-xs tracking-wide text-neutral-400 uppercase">
+      <dt className="text-xs tracking-wide text-muted-foreground uppercase">
         {label}
       </dt>
-      <dd className="font-mono text-sm text-neutral-50">{value}</dd>
+      <dd className="font-mono text-sm text-neutral-900">{value}</dd>
     </div>
   );
 }
@@ -136,34 +138,34 @@ export default async function CreatorDealDetailPage({
     <div className="mx-auto flex max-w-5xl flex-col gap-10 py-4">
       <Link
         href="/creator/deals"
-        className="inline-flex w-fit items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-700 transition-[border-color,box-shadow,color] duration-200 ease-[var(--ease-smooth)] hover:border-neutral-300 hover:text-neutral-900 hover:shadow-[0_12px_24px_-16px_rgba(23,23,23,0.35)] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+        className={cn(
+          buttonVariants({ variant: 'outline', size: 'sm' }),
+          'w-fit gap-1.5'
+        )}
       >
         <ArrowLeft size={14} weight="regular" aria-hidden />
         Back to your deals
       </Link>
 
-      <PageHeader
-        label="Deal"
-        title={deal.campaignName}
-        description={
-          /* AC-2's brand name: the trading name the brand publishes, never a
-             contact (NFR-010). */
-          <div className="flex items-center gap-2">
-            <InitialsAvatar name={deal.companyName} size="sm" />
-            <span>{deal.companyName}</span>
-            <Chip tone={dealStatusTone[deal.status]} size="sm">
-              {labelForStatus(deal.status)}
-            </Chip>
-          </div>
-        }
-      />
+      <header className="flex flex-col gap-4">
+        <SectionLabel as="p">Deal</SectionLabel>
+        <h1 className="page-title">{deal.campaignName}</h1>
+        {/* AC-2's brand name: the trading name the brand publishes, never a
+            contact (NFR-010). */}
+        <div className="flex flex-wrap items-center gap-2">
+          <InitialsAvatar name={deal.companyName} size="sm" />
+          <span className="text-sm text-neutral-800">{deal.companyName}</span>
+          <Chip tone={dealStatusTone[deal.status]} size="md">
+            {labelForStatus(deal.status)}
+          </Chip>
+        </div>
+        <div className="border-b border-neutral-200" aria-hidden="true" />
+      </header>
 
-      <section className="rounded-[24px] bg-neutral-900 p-5 text-neutral-50 shadow-[0_20px_48px_-32px_rgba(23,23,23,0.6)] sm:p-6">
-        <h2 className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
-          {DEAL_TERMS_TITLE}
-        </h2>
+      <section className="surface-card rounded-[24px] border border-neutral-200 p-5 sm:p-6">
+        <SectionLabel>{DEAL_TERMS_TITLE}</SectionLabel>
         {/* Two columns on a phone, three from `sm:` up (NFR-007). */}
-        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-6 border-y border-neutral-700 py-6 sm:grid-cols-3">
+        <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-6 border-y border-neutral-200 py-6 sm:grid-cols-3">
           <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
           <Fact label={UNIT_PRICE_LABEL} value={formatEtb(deal.unitPrice)} />
           <Fact label={TOTAL_PRICE_LABEL} value={formatEtb(deal.totalPrice)} />
@@ -177,7 +179,9 @@ export default async function CreatorDealDetailPage({
         {/* Labelled as an estimate, not decoration: a pending deal has no ledger
             rows, so this figure describes money that has not moved. KAN-25's
             AC-4 is why the dashboard's numbers are ledger sums instead. */}
-        <p className="mt-4 text-sm text-neutral-400">{PAYOUT_ESTIMATE_NOTE}</p>
+        <p className="mt-4 text-sm text-muted-foreground">
+          {PAYOUT_ESTIMATE_NOTE}
+        </p>
       </section>
 
       {/* AC-2's "full usage-rights terms", inline rather than behind a link.
@@ -218,14 +222,12 @@ export default async function CreatorDealDetailPage({
           creator is willing to start work, so it comes before the control that
           starts it. */}
       {isMoneyHeld(deal.status) ? (
-        <section className="rounded-[24px] border border-neutral-800 bg-neutral-900 p-6 text-neutral-50 shadow-[0_20px_48px_-32px_rgba(23,23,23,0.6)]">
-          <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
-            {FUNDS_HELD_LABEL}
-          </p>
-          <p className="mt-3 font-mono text-2xl font-medium">
+        <section className="surface-card rounded-[24px] border border-neutral-200 p-5 sm:p-6">
+          <SectionLabel>{FUNDS_HELD_LABEL}</SectionLabel>
+          <p className="mt-4 font-mono text-3xl font-semibold tracking-tight text-neutral-900">
             {formatEtb(deal.totalPrice)}
           </p>
-          <p className="mt-2 max-w-xl text-sm text-neutral-400">
+          <p className="mt-2 max-w-xl text-sm text-muted-foreground">
             {FUNDS_HELD_MESSAGE}
           </p>
         </section>
@@ -252,11 +254,9 @@ export default async function CreatorDealDetailPage({
           The URL is shown as text, not a link: nothing on this page navigates or
           fetches (AC-8), and the brand's screen is where the live post is opened. */}
       {deal.deliverables.length > 0 ? (
-        <section className="flex flex-col gap-5 border-t border-neutral-200 pt-8">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              {DELIVERABLES_TITLE}
-            </h2>
+        <section className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <SectionLabel>{DELIVERABLES_TITLE}</SectionLabel>
             <p className="text-sm text-muted-foreground">
               {deliveryProgress(standing, deal.videoCount)}
             </p>
@@ -265,7 +265,7 @@ export default async function CreatorDealDetailPage({
           {deal.deliverables.map((video, index) => (
             <div
               key={video.id}
-              className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5"
+              className="surface-card flex flex-col gap-2 rounded-[20px] border border-neutral-200 p-5"
             >
               <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
               {/* Text, never a link or an embed (AC-8) — nothing on the creator
@@ -341,7 +341,7 @@ export default async function CreatorDealDetailPage({
           a failure. Neither appears on the first video of a deal, where the form
           speaks for itself. */}
       {canDeliver(deal.status) ? (
-        <div className="rounded-[24px] border border-neutral-200 bg-neutral-100/70 p-5 sm:p-6">
+        <div className="surface-card rounded-[24px] border border-neutral-200 p-5 sm:p-6">
           <div className="flex flex-col gap-3">
             {rejectedIndex >= 0 ? (
               <p className="text-sm text-muted-foreground">
@@ -359,9 +359,7 @@ export default async function CreatorDealDetailPage({
 
       {/* AC-5. Last on the page: it is the reference a creator scrolls to, not
           the thing they came for. */}
-      <div className="border-t border-neutral-200 pt-8">
-        <DealHistory events={history} />
-      </div>
+      <DealHistory events={history} />
     </div>
   );
 }

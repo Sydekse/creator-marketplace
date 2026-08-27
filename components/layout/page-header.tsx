@@ -15,7 +15,7 @@ export function PageHeader({
   hairline = true,
   className,
 }: {
-  label?: string;
+  label?: ReactNode;
   title: ReactNode;
   description?: ReactNode;
   action?: ReactNode;
@@ -25,9 +25,13 @@ export function PageHeader({
   return (
     <header className={cn('flex flex-col gap-3', className)}>
       {label ? (
-        <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-          {label}
-        </p>
+        typeof label === 'string' || typeof label === 'number' ? (
+          <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
+            {label}
+          </p>
+        ) : (
+          label
+        )
       ) : null}
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <h1 className="page-title">{title}</h1>

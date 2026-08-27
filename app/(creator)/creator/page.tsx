@@ -7,6 +7,9 @@ import { EarningsSummary } from '@/components/creator/earnings-summary';
 import { TierPricing } from '@/components/creator/tier-pricing';
 import { VerificationStatus } from '@/components/creator/verification-status';
 import { EmptyState } from '@/components/feedback/empty-state';
+import { SectionLabel } from '@/components/layout/section-label';
+import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { requireRole } from '@/lib/auth';
 import {
   ENGAGEMENT_RATE_HINT,
@@ -108,7 +111,7 @@ export default async function CreatorDashboardPage() {
             <EarningsSummary earnings={dashboard.earnings} />
           </section>
 
-          <section className="surface-card rounded-[28px] border border-neutral-200 p-5 sm:p-6">
+          <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-5 sm:p-6">
             {/* AC-5. Two different empty states, because "no offers yet" is the
                 wrong sentence for a creator who is not bookable: they are not
                 waiting on a brand, they are waiting on verification or a tier,
@@ -135,9 +138,7 @@ export default async function CreatorDashboardPage() {
               before the rate — and in the untiered case, the blank field the
               pricing block is about is directly above the sentence naming it. */}
           <section className="surface-card rounded-[24px] border border-neutral-200 p-5">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Your profile
-            </h2>
+            <SectionLabel>Your profile</SectionLabel>
             <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-6">
               <div className="flex flex-col gap-1">
                 <dt className="text-xs tracking-wide text-muted-foreground uppercase">
@@ -182,7 +183,10 @@ export default async function CreatorDashboardPage() {
                 href={profileUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="mt-5 inline-flex items-center gap-1.5 self-start rounded-full border border-neutral-300 bg-neutral-50 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-[transform,border-color,color] duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+                className={cn(
+                  buttonVariants({ variant: 'outline', size: 'sm' }),
+                  'mt-5 gap-1.5'
+                )}
               >
                 <TiktokLogo size={16} weight="regular" aria-hidden />
                 {VIEW_ON_TIKTOK_LABEL}
@@ -198,7 +202,7 @@ export default async function CreatorDashboardPage() {
             <AudienceSection audience={readAudience(profile.audience)} />
           </section>
 
-          <section className="rounded-[24px] border border-neutral-200 bg-neutral-900 p-6 text-neutral-50 shadow-[0_20px_48px_-32px_rgba(23,23,23,0.6)]">
+          <section className="surface-card rounded-[24px] border border-neutral-200 p-5">
             <TierPricing
               tier={tier}
               profile={profile}
