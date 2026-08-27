@@ -16,8 +16,21 @@ export const metadata: Metadata = {
  */
 export default function TermsPage() {
   return (
-    <LegalPage label="Legal" title="Terms of Service" updated="27 August 2026">
-      <section>
+    <LegalPage
+      label="Legal"
+      title="Terms of Service"
+      updated="27 August 2026"
+      sibling={{ href: '/privacy', label: 'Privacy Policy' }}
+      toc={[
+        { id: 'service', n: '01', title: 'The service' },
+        { id: 'accounts', n: '02', title: 'Accounts' },
+        { id: 'money', n: '03', title: 'Campaigns, deals, and money' },
+        { id: 'content', n: '04', title: 'Content and TikTok' },
+        { id: 'availability', n: '05', title: 'Availability' },
+        { id: 'contact', n: '06', title: 'Contact' },
+      ]}
+    >
+      <section id="service">
         <h2>The service</h2>
         <p>
           Creator Marketplace lets brands brief and fund TikTok creator
@@ -27,7 +40,7 @@ export default function TermsPage() {
         </p>
       </section>
 
-      <section>
+      <section id="accounts">
         <h2>Accounts</h2>
         <ul>
           <li>
@@ -45,7 +58,7 @@ export default function TermsPage() {
         </ul>
       </section>
 
-      <section>
+      <section id="money">
         <h2>Campaigns, deals, and money</h2>
         <ul>
           <li>
@@ -64,7 +77,7 @@ export default function TermsPage() {
         </ul>
       </section>
 
-      <section>
+      <section id="content">
         <h2>Content and TikTok</h2>
         <p>
           Creators keep ownership of the videos they post on TikTok. By
@@ -74,7 +87,7 @@ export default function TermsPage() {
         </p>
       </section>
 
-      <section>
+      <section id="availability">
         <h2>Availability</h2>
         <p>
           The service is provided as-is. We may change or suspend features. We
@@ -83,7 +96,7 @@ export default function TermsPage() {
         </p>
       </section>
 
-      <section>
+      <section id="contact">
         <h2>Contact</h2>
         <p>
           Questions about these terms: use the contact details on the live

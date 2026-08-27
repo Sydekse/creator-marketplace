@@ -16,8 +16,22 @@ export const metadata: Metadata = {
  */
 export default function PrivacyPage() {
   return (
-    <LegalPage label="Legal" title="Privacy Policy" updated="27 August 2026">
-      <section>
+    <LegalPage
+      label="Legal"
+      title="Privacy Policy"
+      updated="27 August 2026"
+      sibling={{ href: '/terms', label: 'Terms of Service' }}
+      toc={[
+        { id: 'who', n: '01', title: 'Who we are' },
+        { id: 'collect', n: '02', title: 'What we collect' },
+        { id: 'tiktok', n: '03', title: 'TikTok data' },
+        { id: 'use', n: '04', title: 'How we use data' },
+        { id: 'keep', n: '05', title: 'How long we keep it' },
+        { id: 'sharing', n: '06', title: 'Sharing' },
+        { id: 'contact', n: '07', title: 'Contact' },
+      ]}
+    >
+      <section id="who">
         <h2>Who we are</h2>
         <p>
           Creator Marketplace is a web service that connects brands with
@@ -26,7 +40,7 @@ export default function PrivacyPage() {
         </p>
       </section>
 
-      <section>
+      <section id="collect">
         <h2>What we collect</h2>
         <p>Depending on how you use the service, we collect:</p>
         <ul>
@@ -48,7 +62,7 @@ export default function PrivacyPage() {
         </ul>
       </section>
 
-      <section>
+      <section id="tiktok">
         <h2>TikTok data</h2>
         <p>
           If you sign in or connect with TikTok Login Kit, TikTok may share data
@@ -79,7 +93,7 @@ export default function PrivacyPage() {
         </p>
       </section>
 
-      <section>
+      <section id="use">
         <h2>How we use data</h2>
         <ul>
           <li>Create and secure your account.</li>
@@ -92,7 +106,7 @@ export default function PrivacyPage() {
         </ul>
       </section>
 
-      <section>
+      <section id="keep">
         <h2>How long we keep it</h2>
         <p>
           We keep account and deal records for as long as your account is active
@@ -103,7 +117,7 @@ export default function PrivacyPage() {
         </p>
       </section>
 
-      <section>
+      <section id="sharing">
         <h2>Sharing</h2>
         <p>
           Brands see the creator profile and campaign performance they paid for.
@@ -113,7 +127,7 @@ export default function PrivacyPage() {
         </p>
       </section>
 
-      <section>
+      <section id="contact">
         <h2>Contact</h2>
         <p>
           Questions about this policy: use the contact details on the live
