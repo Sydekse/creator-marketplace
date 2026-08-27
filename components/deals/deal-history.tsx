@@ -169,12 +169,15 @@ export function DealHistory({ events }: { events: DealHistoryEvent[] }) {
         <>
           <div className="rounded-[24px] border border-neutral-200 bg-gradient-to-br from-brand-tint/70 via-neutral-50 to-neutral-50 px-2 py-5 sm:px-4">
             <ProgressRail current={current} events={events} />
+            <p className="mt-4 text-center text-sm font-medium text-neutral-800">
+              {labelForStatus(current)}
+            </p>
             {isBlockedDealStatus(current) ? (
-              <p className="mt-4 text-center text-sm text-muted-foreground">
+              <p className="mt-1 text-center text-sm text-muted-foreground">
                 This deal stopped at {labelForStatus(current)}.
               </p>
             ) : current === 'revision_requested' ? (
-              <p className="mt-4 text-center text-sm text-muted-foreground">
+              <p className="mt-1 text-center text-sm text-muted-foreground">
                 Changes requested — replace the video to move on.
               </p>
             ) : null}
