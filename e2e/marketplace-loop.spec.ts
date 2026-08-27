@@ -169,12 +169,13 @@ test('flow 2: budget ceiling blocks adding an over-budget creator (AC-014)', asy
   await brand.locator('input[name="videoCount"]').fill('3');
   await brand.getByRole('button', { name: 'Add to campaign' }).click();
 
-  // The refusal surfaces via the form's error toast — the server's
-  // BUDGET_EXCEEDED sentence. Asserted on the full sentence, not a /budget/
-  // fragment: the campaign list's own name ("Tiny Budget Campaign") contains
-  // "Budget" and would match first.
-  await expect(brand.getByText(/exceeds your remaining budget/i)).toBeVisible({
-    timeout: 15_000,
-  });
+  // The refusal is the server's BUDGET_EXCEEDED sentence, shown inline on
+  // the form (and also toasted). Assert the form alert so the toast copy
+  // cannot trip Playwright's strict locator. The campaign name contains
+  // "Budget", so a /budget/ fragment would match the wrong node.
+  await expect(brand.locator('form').getByRole('alert')).toHaveText(
+    /exceeds your remaining budget/i,
+    { timeout: 15_000 }
+  );
   await brand.close();
 });
