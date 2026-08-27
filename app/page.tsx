@@ -224,6 +224,33 @@ function TikTokIcon({ className }: { className?: string }) {
   );
 }
 
+function Eyebrow({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="inline-flex w-fit rounded-full bg-neutral-50 px-3 py-1 text-[13px] font-semibold tracking-[0.14em] text-brand uppercase shadow-[0_0_0_1px_rgba(23,23,23,0.06)]">
+      {children}
+    </p>
+  );
+}
+
+function MiniPayout() {
+  return (
+    <svg viewBox="0 0 320 72" className="h-16 w-full" aria-hidden>
+      <path
+        d="M0 58 C 40 58, 48 50, 80 46 S 120 40, 160 28 S 220 22, 260 14 S 300 10, 320 8"
+        fill="none"
+        className="stroke-brand"
+        strokeWidth="2.25"
+        strokeLinecap="round"
+      />
+      <path
+        d="M0 58 C 40 58, 48 50, 80 46 S 120 40, 160 28 S 220 22, 260 14 S 300 10, 320 8 L 320 72 L 0 72 Z"
+        fill="var(--brand)"
+        opacity="0.18"
+      />
+    </svg>
+  );
+}
+
 function Avatar({
   initials,
   className,
@@ -350,11 +377,9 @@ export default function HomePage() {
           />
           <div className="relative mx-auto w-full max-w-[1400px] px-5 sm:px-8 xl:px-12">
             <div className="relative z-[1] max-w-xl lg:ml-[4%] lg:max-w-2xl">
-              <div className="animate-rise-in inline-flex items-center gap-3 border-l border-brand pl-4">
+              <div className="animate-rise-in flex items-center gap-3">
                 <TikTokIcon className="h-4 w-4 text-neutral-900" />
-                <span className="text-[11px] font-semibold tracking-[0.16em] text-neutral-600 uppercase">
-                  Built for TikTok campaigns
-                </span>
+                <Eyebrow>Built for TikTok campaigns</Eyebrow>
               </div>
               <h1 className="animate-rise-in-1 mt-6 font-display text-[44px] font-medium leading-[1.04] tracking-tight text-neutral-900 sm:mt-8 sm:text-6xl lg:text-[68px] xl:text-[72px]">
                 Brands fund.
@@ -555,13 +580,8 @@ export default function HomePage() {
                   index === BAND.length - 1 && 'lg:pr-0'
                 )}
               >
-                <p className="font-mono text-[10px] tracking-[0.14em] text-neutral-500 uppercase">
-                  0{index + 1}
-                </p>
-                <p className="mt-4 text-[15px] font-semibold text-neutral-900">
-                  {item.title}
-                </p>
-                <p className="mt-2 text-[13px] leading-relaxed text-neutral-600">
+                <Eyebrow>{item.title}</Eyebrow>
+                <p className="mt-4 text-[13px] leading-relaxed text-neutral-600">
                   {item.desc}
                 </p>
               </div>
@@ -576,9 +596,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-8 lg:grid-cols-2">
               <Reveal>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
-                  How it works
-                </p>
+                <Eyebrow>How it works</Eyebrow>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
                   From brief to payout
                   <br />
@@ -625,9 +643,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-8 lg:grid-cols-2">
               <Reveal>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
-                  Why it works
-                </p>
+                <Eyebrow>Why it works</Eyebrow>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
                   One place for the deal,
                   <br />
@@ -657,9 +673,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-8 lg:grid-cols-2">
               <Reveal>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
-                  The brand workspace
-                </p>
+                <Eyebrow>The brand workspace</Eyebrow>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
                   Create, fund, and review
                   <br />
@@ -845,9 +859,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-8 lg:grid-cols-2">
               <Reveal>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
-                  For creators
-                </p>
+                <Eyebrow>For creators</Eyebrow>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
                   Get paid for what you
                   <br />
@@ -889,13 +901,16 @@ export default function HomePage() {
                 <div className="space-y-4 bg-neutral-50 p-4 sm:p-6">
                   <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
-                      <p className="text-[11px] text-neutral-500">This month</p>
+                      <p className="text-[11px] text-neutral-500">
+                        Payouts · last 12 weeks
+                      </p>
                       <p className="mt-1 font-display text-2xl font-medium text-neutral-900">
                         38,250 ETB
                       </p>
                     </div>
                     <Chip tone="teal">3 deals approved</Chip>
                   </div>
+                  <MiniPayout />
                   <div className="divide-y divide-neutral-200 border-y border-neutral-200">
                     {CREATOR_DEALS.map((d) => (
                       <div
@@ -944,9 +959,7 @@ export default function HomePage() {
           <div className="mx-auto max-w-6xl px-6">
             <div className="grid gap-8 lg:grid-cols-2">
               <Reveal>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
-                  Pricing
-                </p>
+                <Eyebrow>Pricing</Eyebrow>
                 <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
                   Free to join.
                   <br />
@@ -1037,7 +1050,8 @@ export default function HomePage() {
         >
           <div className="mx-auto max-w-3xl px-6">
             <Reveal className="mb-14">
-              <h2 className="font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
+              <Eyebrow>FAQ</Eyebrow>
+              <h2 className="mt-5 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
                 Common questions
               </h2>
             </Reveal>
