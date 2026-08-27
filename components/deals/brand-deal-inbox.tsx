@@ -8,6 +8,7 @@ import type {
   BrandInboxDeal,
 } from '@/lib/deals/brand-inbox';
 import { formatEtb } from '@/lib/money';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { displayTiktokHandle } from '@/lib/creators/handle';
 
 /**
@@ -33,9 +34,10 @@ function DealRow({ deal }: { deal: BrandInboxDeal }) {
         <div className="flex min-w-0 items-center gap-2">
           <InitialsAvatar name={deal.creatorHandle} size="sm" />
           <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-sm font-medium">
-              {displayTiktokHandle(deal.creatorHandle)}
-            </span>
+            <TruncatedText
+              text={displayTiktokHandle(deal.creatorHandle)}
+              className="text-sm font-medium"
+            />
             <div className="flex items-center gap-2">
               <Chip tone={dealStatusTone[deal.status] ?? 'gray'} size="sm">
                 {labelForStatus(deal.status)}

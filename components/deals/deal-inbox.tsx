@@ -7,6 +7,7 @@ import {
   VIEW_DEAL_LABEL,
 } from '@/lib/deals/inbox';
 import { GROUP_LABELS } from '@/lib/deals/groups';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { formatEtb } from '@/lib/money';
 
 /**
@@ -66,9 +67,10 @@ function DealRow({ deal, now }: { deal: InboxDealRow; now: Date }) {
         <div className="flex min-w-0 items-center gap-3">
           <InitialsAvatar name={deal.companyName} />
           <div className="flex min-w-0 flex-col gap-0.5">
-            <span className="truncate text-sm font-semibold text-neutral-900">
-              {deal.campaignName}
-            </span>
+            <TruncatedText
+              text={deal.campaignName}
+              className="text-sm font-semibold text-neutral-900"
+            />
             <span className="text-xs text-muted-foreground">
               {deal.companyName} · {deal.videoCount}{' '}
               {deal.videoCount === 1 ? 'video' : 'videos'}

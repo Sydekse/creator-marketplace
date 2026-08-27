@@ -12,6 +12,7 @@ import {
   formatFollowerCount,
 } from '@/lib/creators/profile-facts';
 import { formatEtb } from '@/lib/money';
+import { TruncatedText } from '@/components/ui/truncated-text';
 import { cn, textLinkFeedback } from '@/lib/utils';
 
 /**
@@ -54,12 +55,13 @@ function Fact({
       <dt className="text-[10px] font-semibold tracking-[0.12em] text-neutral-500 uppercase">
         {label}
       </dt>
-      <dd className="truncate text-sm font-semibold tabular-nums text-neutral-900">
-        <span>{value}</span>
+      <dd className="text-sm font-semibold tabular-nums text-neutral-900">
+        <TruncatedText text={value} />
         {note ? (
-          <span className="mt-0.5 block truncate text-[11px] font-normal text-neutral-500">
-            {note}
-          </span>
+          <TruncatedText
+            text={note}
+            className="mt-0.5 text-[11px] font-normal text-neutral-500"
+          />
         ) : null}
       </dd>
     </div>
@@ -104,10 +106,11 @@ export function CreatorCard({
         <CardTitle className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
             <InitialsAvatar name={creator.tiktokHandle} />
-            <div className="min-w-0">
-              <span className="block truncate text-base font-semibold text-neutral-900">
-                @{creator.tiktokHandle.replace(/^@+/, '')}
-              </span>
+            <div className="relative z-10 min-w-0">
+              <TruncatedText
+                text={`@${creator.tiktokHandle.replace(/^@+/, '')}`}
+                className="text-base font-semibold text-neutral-900"
+              />
               <span className="mt-0.5 block text-xs text-muted-foreground">
                 {NICHE_LABELS[creator.niche as Niche] ?? creator.niche}
               </span>
@@ -124,7 +127,7 @@ export function CreatorCard({
         {/* Two columns at phone widths and four from `sm:` up (NFR-007). No
             fixed widths anywhere, so nothing here can scroll sideways at
             375px — the facts reflow instead. */}
-        <dl className="grid grid-cols-3 divide-x divide-neutral-200 border-y border-neutral-200 py-4">
+        <dl className="relative z-10 grid grid-cols-3 divide-x divide-neutral-200 border-y border-neutral-200 py-4">
           {/* Absent is not zero. Both of these come from
               `lib/creators/profile-facts.ts`, which is also what the creator's
               own dashboard renders them through, so a blank optional field

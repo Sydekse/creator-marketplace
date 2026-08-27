@@ -3,8 +3,15 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { VideoStepper } from '@/components/campaign/video-stepper';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   ADD_TO_CAMPAIGN_LABEL,
   CAMPAIGN_NOT_DRAFT_MESSAGE,
@@ -17,13 +24,21 @@ export interface AddToCartFormProps {
   campaigns: Array<{ id: string; name: string }>;
 }
 
-const fieldClass =
-  'h-11 rounded-xl border border-neutral-700 bg-neutral-800 px-3.5 text-sm text-neutral-50 shadow-none transition-colors duration-200 ease-out focus-visible:border-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50';
+const triggerClass =
+  'h-11 w-full rounded-xl border-neutral-700 bg-neutral-800 px-3.5 text-sm text-neutral-50 shadow-none hover:border-neutral-500 focus-visible:border-neutral-50 focus-visible:ring-neutral-50/20 [&_svg]:text-neutral-400';
+
+const popupClass =
+  'rounded-xl border border-neutral-700 bg-neutral-900 p-1.5 shadow-[0_18px_40px_-20px_rgba(23,23,23,0.7)] ring-neutral-50/10';
+
+const itemClass =
+  'rounded-lg px-3 py-2.5 text-sm font-medium whitespace-nowrap text-neutral-100 data-[highlighted]:bg-neutral-800 data-[highlighted]:text-neutral-50';
 
 export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [campaignId, setCampaignId] = useState(campaigns[0]?.id ?? '');
+  const [videoCount, setVideoCount] = useState(1);
 
   if (campaigns.length === 0) {
     return (
@@ -46,13 +61,9 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (loading) return;
+    if (loading || !campaignId) return;
     setFormError(null);
     setLoading(true);
-
-    const formData = new FormData(e.currentTarget);
-    const campaignId = formData.get('campaignId') as string;
-    const videoCount = parseInt(formData.get('videoCount') as string, 10);
 
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/items`, {
@@ -110,34 +121,48 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-        <label className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-neutral-200">
+        <div className="flex flex-col gap-2 text-sm">
+          <span
+            id="add-to-cart-campaign-label"
+            className="font-medium text-neutral-200"
+          >
             Select draft campaign
           </span>
-          <select
-            name="campaignId"
-            required
-            className={cn(fieldClass, 'w-full')}
+          <input type="hidden" name="campaignId" value={campaignId} />
+          <Select
+            value={campaignId}
+            onValueChange={(next) => {
+              if (next) setCampaignId(next);
+            }}
           >
-            {campaigns.map((camp) => (
-              <option key={camp.id} value={camp.id}>
-                {camp.name}
-              </option>
-            ))}
-          </select>
-        </label>
+            <SelectTrigger
+              aria-labelledby="add-to-cart-campaign-label"
+              className={cn(triggerClass)}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent
+              align="start"
+              alignItemWithTrigger={false}
+              className={popupClass}
+            >
+              {campaigns.map((camp) => (
+                <SelectItem key={camp.id} value={camp.id} className={itemClass}>
+                  {camp.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <label className="flex flex-col gap-2 text-sm">
+        <div className="flex flex-col gap-2 text-sm">
           <span className="font-medium text-neutral-200">Videos</span>
-          <Input
-            type="number"
+          <VideoStepper
             name="videoCount"
-            min={1}
-            defaultValue={1}
-            required
-            className={cn(fieldClass, 'w-full')}
+            value={videoCount}
+            onChange={setVideoCount}
           />
-        </label>
+        </div>
 
         {formError ? (
           <p
