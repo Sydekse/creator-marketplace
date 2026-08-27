@@ -1,10 +1,14 @@
-import { desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { campaign, deal, ledgerEntry } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
 import { groupDeals } from '@/lib/deals/groups';
 import type { DealGroup } from '@/lib/deals/groups';
+import {
+  buildCumulativeWeeklyPayouts,
+  type PayoutPoint,
+} from '@/lib/creators/payout-series';
 
 /**
  * Everything the creator dashboard reads (KAN-25, US-001, AC-2 – AC-6).
@@ -63,6 +67,8 @@ export interface CreatorDashboard {
   groups: CreatorDealGroup[];
   /** True when this creator has no deals at all, in any group (AC-5). */
   isEmpty: boolean;
+  /** Cumulative weekly payouts for the dashboard chart, ledger-sourced. */
+  payouts: PayoutPoint[];
 }
 
 /**
@@ -119,6 +125,23 @@ export function earningsQuery(creatorProfileId: string) {
  * the drift AC-4 forbids, and `lib/creators/pricing.ts` already records why an
  * estimate must not be dressed up as a promise.
  */
+export function payoutEventsQuery(creatorProfileId: string) {
+  return db
+    .select({
+      createdAt: ledgerEntry.createdAt,
+      amount: ledgerEntry.amount,
+    })
+    .from(ledgerEntry)
+    .innerJoin(deal, eq(ledgerEntry.dealId, deal.id))
+    .where(
+      and(
+        eq(deal.creatorId, creatorProfileId),
+        eq(ledgerEntry.entryType, 'release_payout')
+      )
+    )
+    .orderBy(ledgerEntry.createdAt);
+}
+
 export function dealsQuery(creatorProfileId: string) {
   return db
     .select({
@@ -151,6 +174,9 @@ export interface CreatorDashboardDeps {
   requireCreator: () => Promise<{ creatorProfileId: string | null }>;
   selectEarnings: (creatorProfileId: string) => Promise<CreatorEarnings>;
   selectDeals: (creatorProfileId: string) => Promise<CreatorDealRow[]>;
+  selectPayoutEvents: (
+    creatorProfileId: string
+  ) => Promise<Array<{ createdAt: Date; amount: number }>>;
 }
 
 async function selectEarnings(
@@ -172,10 +198,17 @@ async function selectDeals(
   return dealsQuery(creatorProfileId);
 }
 
+async function selectPayoutEvents(
+  creatorProfileId: string
+): Promise<Array<{ createdAt: Date; amount: number }>> {
+  return payoutEventsQuery(creatorProfileId);
+}
+
 const defaultDeps: CreatorDashboardDeps = {
   requireCreator: () => guard({ roles: ['creator'] }),
   selectEarnings,
   selectDeals,
+  selectPayoutEvents,
 };
 
 /**
@@ -197,15 +230,23 @@ export async function readCreatorDashboard(
   const { creatorProfileId } = await deps.requireCreator();
   if (!creatorProfileId) return null;
 
-  const [earnings, rows] = await Promise.all([
+  const [earnings, rows, payoutEvents] = await Promise.all([
     deps.selectEarnings(creatorProfileId),
     deps.selectDeals(creatorProfileId),
+    deps.selectPayoutEvents(creatorProfileId),
   ]);
 
   return {
     earnings,
     groups: groupDeals(rows),
     isEmpty: rows.length === 0,
+    payouts: buildCumulativeWeeklyPayouts(
+      payoutEvents.map((event) => ({
+        createdAt: event.createdAt,
+        paidOut: -event.amount,
+      })),
+      new Date()
+    ),
   };
 }
 

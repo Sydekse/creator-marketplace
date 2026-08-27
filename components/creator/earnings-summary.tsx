@@ -27,10 +27,12 @@ function Figure({
   label,
   value,
   note,
+  compact,
 }: {
   label: string;
   value: string;
   note: string;
+  compact?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-1">
@@ -40,7 +42,13 @@ function Figure({
       {/* Money is the one number a creator scans for, so it gets the serif
           display treatment the landing page gives its headline figures
           (design doc §4.3) — the same place a brand's eye goes on the hero. */}
-      <dd className="mt-1 font-sans text-3xl font-semibold tracking-[-0.04em] text-neutral-900 tabular-nums">
+      <dd
+        className={
+          compact
+            ? 'mt-1 font-sans text-2xl font-semibold tracking-[-0.04em] text-brand-ink tabular-nums'
+            : 'mt-1 font-sans text-3xl font-semibold tracking-[-0.04em] text-brand-ink tabular-nums'
+        }
+      >
         {value}
       </dd>
       <p className="text-xs text-muted-foreground">{note}</p>
@@ -48,21 +56,29 @@ function Figure({
   );
 }
 
-export function EarningsSummary({ earnings }: { earnings: CreatorEarnings }) {
+export function EarningsSummary({
+  earnings,
+  headed = true,
+}: {
+  earnings: CreatorEarnings;
+  headed?: boolean;
+}) {
   return (
-    <div className="flex flex-col gap-6">
-      <SectionLabel>Earnings</SectionLabel>
+    <div className={headed ? 'flex flex-col gap-6' : 'flex flex-col gap-4'}>
+      {headed ? <SectionLabel>Earnings</SectionLabel> : null}
 
       {/* Stacked on a phone, two up from `sm:` — no fixed widths, nothing that
           scrolls sideways (NFR-007). */}
-      <dl className="grid gap-6 sm:grid-cols-2 sm:divide-x sm:divide-neutral-200">
+      <dl className="grid gap-5 sm:grid-cols-2 sm:divide-x sm:divide-neutral-200">
         <Figure
+          compact={!headed}
           label={EARNINGS_PAID_OUT_LABEL}
           value={formatEtb(earnings.paidOut)}
           note="Released to you on approved deliverables."
         />
         <div className="sm:pl-6">
           <Figure
+            compact={!headed}
             label={EARNINGS_IN_ESCROW_LABEL}
             value={formatEtb(earnings.inEscrow)}
             note="Committed by brands, released when work is approved."

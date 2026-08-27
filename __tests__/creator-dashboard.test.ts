@@ -79,6 +79,7 @@ const okDeps = (
   requireCreator: async () => ({ creatorProfileId: CREATOR_PROFILE_ID }),
   selectEarnings: async () => earnings,
   selectDeals: async () => rows,
+  selectPayoutEvents: async () => [],
 });
 
 const src = (file: string) =>
@@ -411,15 +412,18 @@ describe('readCreatorDashboard', () => {
   it('queries with the id the gate returned, not one it was given', async () => {
     const selectEarnings = vi.fn(async () => ({ paidOut: 0, inEscrow: 0 }));
     const selectDeals = vi.fn(async () => []);
+    const selectPayoutEvents = vi.fn(async () => []);
 
     await readCreatorDashboard({
       requireCreator: async () => ({ creatorProfileId: CREATOR_PROFILE_ID }),
       selectEarnings,
       selectDeals,
+      selectPayoutEvents,
     });
 
     expect(selectEarnings).toHaveBeenCalledWith(CREATOR_PROFILE_ID);
     expect(selectDeals).toHaveBeenCalledWith(CREATOR_PROFILE_ID);
+    expect(selectPayoutEvents).toHaveBeenCalledWith(CREATOR_PROFILE_ID);
     expect(selectEarnings).not.toHaveBeenCalledWith(OTHER_PROFILE_ID);
   });
 
@@ -430,6 +434,7 @@ describe('readCreatorDashboard', () => {
       // learn whether a creator has deals.
       const selectEarnings = vi.fn();
       const selectDeals = vi.fn();
+      const selectPayoutEvents = vi.fn();
 
       await expect(
         readCreatorDashboard({
@@ -438,11 +443,13 @@ describe('readCreatorDashboard', () => {
           },
           selectEarnings,
           selectDeals,
+          selectPayoutEvents,
         })
       ).rejects.toBeInstanceOf(ForbiddenError);
 
       expect(selectEarnings).not.toHaveBeenCalled();
       expect(selectDeals).not.toHaveBeenCalled();
+      expect(selectPayoutEvents).not.toHaveBeenCalled();
     }
   );
 
@@ -451,17 +458,20 @@ describe('readCreatorDashboard', () => {
     // rendering an empty dashboard.
     const selectEarnings = vi.fn();
     const selectDeals = vi.fn();
+    const selectPayoutEvents = vi.fn();
 
     await expect(
       readCreatorDashboard({
         requireCreator: async () => ({ creatorProfileId: null }),
         selectEarnings,
         selectDeals,
+        selectPayoutEvents,
       })
     ).resolves.toBeNull();
 
     expect(selectEarnings).not.toHaveBeenCalled();
     expect(selectDeals).not.toHaveBeenCalled();
+    expect(selectPayoutEvents).not.toHaveBeenCalled();
   });
 
   it('reports an empty dashboard as empty (AC-5)', async () => {
@@ -487,7 +497,7 @@ describe('the creator dashboard page', () => {
       'VerificationStatus',
       'TierPricing',
       'EarningsSummary',
-      'DealGroups',
+      'PayoutChart',
     ]) {
       expect(source).toContain(component);
     }
@@ -570,8 +580,8 @@ describe('the dashboard is laid out as one', () => {
   });
 
   it('gives the work its own column, and the reference the other', () => {
-    expect(source).toContain('max-w-6xl');
     expect(source).not.toContain('max-w-2xl');
+    expect(source).not.toContain('max-w-6xl');
     expect(source).toMatch(/lg:grid-cols-\[/);
   });
 
@@ -579,13 +589,13 @@ describe('the dashboard is laid out as one', () => {
     // Below `lg:` the columns stack in source order, so "left" and "first" are
     // the same decision. Earnings and deals must precede the profile facts.
     const earnings = source.indexOf('<EarningsSummary');
-    const deals = source.indexOf('<DealGroups');
+    const deals = source.indexOf('<PayoutChart');
     // The call, not the import — the import list is at the top of every file.
     const facts = source.indexOf('formatFollowerCount(profile');
     const pricing = source.indexOf('<TierPricing');
-    expect(earnings).toBeGreaterThan(-1);
-    expect(deals).toBeGreaterThan(earnings);
-    expect(facts).toBeGreaterThan(deals);
+    expect(deals).toBeGreaterThan(-1);
+    expect(earnings).toBeGreaterThan(deals);
+    expect(facts).toBeGreaterThan(earnings);
     expect(pricing).toBeGreaterThan(facts);
   });
 

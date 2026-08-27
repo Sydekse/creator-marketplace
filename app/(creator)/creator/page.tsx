@@ -2,8 +2,8 @@ import { redirect } from 'next/navigation';
 import { ArrowSquareOut, TiktokLogo } from '@phosphor-icons/react/dist/ssr';
 import { AudienceSection } from '@/components/creator/audience-section';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
-import { DealGroups } from '@/components/creator/deal-groups';
 import { EarningsSummary } from '@/components/creator/earnings-summary';
+import { PayoutChart } from '@/components/creator/payout-chart';
 import { TierPricing } from '@/components/creator/tier-pricing';
 import { VerificationStatus } from '@/components/creator/verification-status';
 import { EmptyState } from '@/components/feedback/empty-state';
@@ -93,7 +93,7 @@ export default async function CreatorDashboardPage() {
   const profileUrl = tiktokProfileUrl(profile.tiktokHandle);
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8 py-4">
+    <div className="flex flex-col gap-8 py-4">
       <VerificationStatus
         status={profile.status}
         tiktokHandle={profile.tiktokHandle}
@@ -103,31 +103,25 @@ export default async function CreatorDashboardPage() {
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:items-start lg:gap-8">
         {/* Left: what moves. */}
         <div className="flex flex-col gap-5">
-          {/* AC-3 and AC-2. Earnings first: a creator opening this page
-              mid-campaign is usually here for the money, and the deal list
-              explains it. Both figures are ledger sums (AC-4) — nothing on this
-              page computes a payout. */}
-          <section className="surface-card rounded-[28px] border border-neutral-200 p-5 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-6">
-            <EarningsSummary earnings={dashboard.earnings} />
-          </section>
-
-          <section className="rounded-[28px] border border-neutral-200 bg-neutral-50 p-5 sm:p-6">
-            {/* AC-5. Two different empty states, because "no offers yet" is the
-                wrong sentence for a creator who is not bookable: they are not
-                waiting on a brand, they are waiting on verification or a tier,
-                and there is nothing for them to do about it. `isBookable` is the
-                same predicate discovery filters on, so the two cannot disagree
-                about whether this creator is visible to brands. */}
+          {/* AC-3 and AC-2. The line is the thesis; paid/held sit under it.
+              Both figures are ledger sums (AC-4) — nothing on this page
+              computes a payout. */}
+          <section className="surface-card surface-pop rounded-[28px] border border-neutral-200 p-5 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-6">
+            <PayoutChart points={dashboard.payouts} />
+            <div className="mt-8">
+              <EarningsSummary earnings={dashboard.earnings} headed={false} />
+            </div>
             {dashboard.isEmpty ? (
-              <EmptyState
-                title={bookable ? NO_DEALS_TITLE : NOT_BOOKABLE_TITLE}
-                description={
-                  bookable ? NO_DEALS_DESCRIPTION : NOT_BOOKABLE_DESCRIPTION
-                }
-              />
-            ) : (
-              <DealGroups groups={dashboard.groups} />
-            )}
+              <div className="mt-4">
+                <EmptyState
+                  align="start"
+                  title={bookable ? NO_DEALS_TITLE : NOT_BOOKABLE_TITLE}
+                  description={
+                    bookable ? NO_DEALS_DESCRIPTION : NOT_BOOKABLE_DESCRIPTION
+                  }
+                />
+              </div>
+            ) : null}
           </section>
         </div>
 
@@ -137,7 +131,7 @@ export default async function CreatorDashboardPage() {
               from these two numbers, so a creator reading down sees the inputs
               before the rate — and in the untiered case, the blank field the
               pricing block is about is directly above the sentence naming it. */}
-          <section className="surface-card rounded-[24px] border border-neutral-200 p-5">
+          <section className="surface-card surface-pop rounded-[24px] border border-neutral-200 p-5">
             <SectionLabel>Your profile</SectionLabel>
             <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-6">
               <div className="flex flex-col gap-1">
@@ -198,11 +192,11 @@ export default async function CreatorDashboardPage() {
           {/* §11: The audience the creator submitted at onboarding — the same
               data brands see on the discovery detail page. Part of "who you
               are", not "what you earn", which is why it is on this side. */}
-          <section className="surface-card rounded-[24px] border border-neutral-200 p-5">
+          <section className="surface-card surface-pop rounded-[24px] border border-neutral-200 p-5">
             <AudienceSection audience={readAudience(profile.audience)} />
           </section>
 
-          <section className="surface-card rounded-[24px] border border-neutral-200 p-5">
+          <section className="surface-card surface-pop rounded-[24px] border border-neutral-200 p-5">
             <TierPricing
               tier={tier}
               profile={profile}

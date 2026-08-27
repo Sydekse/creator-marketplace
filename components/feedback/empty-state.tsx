@@ -21,8 +21,10 @@ export function EmptyState({
 
   return (
     <div
-      className={`flex flex-col gap-3 py-20 ${
-        centered ? 'items-center text-center' : 'items-start text-left'
+      className={`flex flex-col gap-3 ${
+        centered
+          ? 'items-center py-20 text-center'
+          : 'items-start py-4 text-left'
       }`}
     >
       <h3 className="font-display text-xl font-medium text-foreground">
