@@ -114,7 +114,11 @@ export function FundCampaignButton({
         type="button"
         onClick={() => setConfirmOpen(true)}
         disabled={funding || nothingAccepted}
-        className={buttonVariants({ size, className: 'w-full' })}
+        className={buttonVariants({
+          size,
+          className:
+            'w-full bg-neutral-50 text-neutral-900 hover:bg-neutral-100 active:bg-neutral-200',
+        })}
       >
         {funding ? FUND_CAMPAIGN_PENDING_LABEL : FUND_CAMPAIGN_LABEL}
       </button>
@@ -129,7 +133,7 @@ export function FundCampaignButton({
       {/* Why it is disabled, in a sentence beside the control. A `title=`
           tooltip would tell a touch user nothing. */}
       {nothingAccepted && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-neutral-400">
           {FUND_NO_ACCEPTED_DEALS_MESSAGE}
         </p>
       )}

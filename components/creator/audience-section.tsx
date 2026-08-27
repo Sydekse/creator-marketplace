@@ -14,13 +14,20 @@ import { NOT_PROVIDED } from '@/lib/creators/profile-facts';
  * Shared between the brand-facing creator detail page and the creator's own
  * dashboard (§11), so both see the same rendering for the same data.
  */
-export function AudienceSection({ audience }: { audience: CreatorAudience }) {
+export function AudienceSection({
+  audience,
+  title = 'Your audience',
+}: {
+  audience: CreatorAudience;
+  /** Brand-facing pages pass "Audience"; creators keep the original voice. */
+  title?: string;
+}) {
   const { markets, ageRange } = audience;
 
   return (
     <div className="flex flex-col gap-5">
       <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-        Your audience
+        {title}
       </h2>
       <dl className="grid gap-6 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
