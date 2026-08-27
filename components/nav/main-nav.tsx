@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { CurrentUser } from '@/lib/auth';
-import { getNavLinks } from '@/lib/navigation';
+import { getNavLinks, isNavLinkActive } from '@/lib/navigation';
 import {
   Binoculars,
   Briefcase,
@@ -38,11 +38,6 @@ export function MainNav({ user, cart }: MainNavProps) {
   const pathname = usePathname();
   const links = getNavLinks(user.role);
   const reduceMotion = useReducedMotion();
-  const activeHref = links
-    .filter(
-      (link) => pathname === link.href || pathname.startsWith(`${link.href}/`)
-    )
-    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
 
   return (
     <nav
@@ -56,9 +51,7 @@ export function MainNav({ user, cart }: MainNavProps) {
         // that cart, not whenever any /campaigns page is open.
         const isCart = link.icon === 'cart';
         const href = isCart ? (cart?.href ?? link.href) : link.href;
-        const isActive = isCart
-          ? cart !== undefined && pathname === cart.href
-          : link.href === activeHref;
+        const isActive = isNavLinkActive(link, pathname, cart?.href);
         const badge = isCart && cart && cart.itemCount > 0 ? cart.itemCount : 0;
         return (
           <Link

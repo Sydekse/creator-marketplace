@@ -53,6 +53,27 @@ export function getNavLinks(role: UserRole): NavLink[] {
 }
 
 /**
+ * Which top-bar item is current. Cart href is a campaign cart, so a naive
+ * `/campaigns` prefix match would light Campaigns (dark text, no pill) at
+ * the same time as Cart.
+ */
+export function isNavLinkActive(
+  link: NavLink,
+  pathname: string,
+  cartHref?: string
+): boolean {
+  if (link.icon === 'cart') {
+    return Boolean(
+      cartHref && cartHref !== '/campaigns' && pathname === cartHref
+    );
+  }
+  if (cartHref && cartHref !== '/campaigns' && pathname === cartHref) {
+    return false;
+  }
+  return pathname === link.href || pathname.startsWith(`${link.href}/`);
+}
+
+/**
  * Where each role lands after signing in. One table, so the sign-in page, the
  * sign-up page, the role gates, and `/dashboard` cannot disagree.
  */

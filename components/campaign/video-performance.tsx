@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ArrowSquareOut } from '@phosphor-icons/react/dist/ssr';
 import { Chip } from '@/components/ui/chip';
 import { Card, CardContent } from '@/components/ui/card';
 import { EmptyState } from '@/components/feedback/empty-state';
@@ -108,9 +109,13 @@ function VideoMetrics({ video }: { video: CampaignVideoRow }) {
             href={video.tiktokUrl}
             target="_blank"
             rel="noopener noreferrer nofollow"
-            className={cn('text-sm', textLinkFeedback)}
+            className={cn(
+              'inline-flex items-center gap-1.5 text-sm',
+              textLinkFeedback
+            )}
           >
-            {VIEW_POST_LABEL} ↗
+            {VIEW_POST_LABEL}
+            <ArrowSquareOut size={14} weight="regular" aria-hidden />
           </a>
         ) : null}
       </div>

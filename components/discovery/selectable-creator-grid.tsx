@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { CheckCircle } from '@phosphor-icons/react';
+import { CaretDown, CaretUp, CheckCircle } from '@phosphor-icons/react';
 import { CreatorCard } from '@/components/creator/creator-card';
 import { Button } from '@/components/ui/button';
 import { CAMPAIGN_NOT_DRAFT_MESSAGE } from '@/lib/campaigns/constants';
@@ -161,10 +161,7 @@ export function SelectableCreatorGrid({
               </div>
               <Link
                 href={`/discover/${creator.id}`}
-                className={cn(
-                  'absolute right-3 bottom-3 z-10 text-xs font-medium text-brand-ink',
-                  textLinkFeedback
-                )}
+                className="absolute right-3 bottom-3 z-10 inline-flex min-h-8 items-center rounded-full border border-neutral-300 bg-neutral-50 px-3 text-xs font-medium text-neutral-900 shadow-[0_8px_20px_-12px_rgba(23,23,23,0.35)] transition-[transform,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:bg-neutral-100 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
               >
                 See details
               </Link>
@@ -175,7 +172,7 @@ export function SelectableCreatorGrid({
 
       {selected.size > 0 && (
         <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
-          <div className="flex w-full max-w-2xl flex-wrap items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/95 px-4 py-3 shadow-[0_12px_32px_rgba(23,23,23,0.18)] backdrop-blur">
+          <div className="flex w-full max-w-2xl flex-wrap items-center gap-3 rounded-2xl border border-neutral-800 bg-neutral-900/95 px-4 py-3 shadow-[0_12px_32px_rgba(23,23,23,0.18),inset_0_1px_0_rgba(255,255,255,0.1)] backdrop-blur">
             <p className="text-sm font-medium text-neutral-50">
               {selected.size} marked
             </p>
@@ -186,45 +183,74 @@ export function SelectableCreatorGrid({
               </p>
             ) : (
               <>
-                <label className="flex min-w-40 flex-1 items-center gap-2 text-xs text-neutral-400">
-                  <span className="shrink-0">Add to</span>
-                  <select
-                    value={campaignId}
-                    onChange={(e) => setCampaignId(e.target.value)}
-                    className="h-9 min-w-0 flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-2 text-sm text-neutral-50 focus-visible:outline-2 focus-visible:outline-neutral-50"
-                  >
-                    {draftCampaigns.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                <label className="flex min-w-40 flex-1 flex-col gap-1 text-[11px] font-medium tracking-[0.08em] text-neutral-400 uppercase">
+                  Add to
+                  <span className="relative">
+                    <select
+                      value={campaignId}
+                      onChange={(e) => setCampaignId(e.target.value)}
+                      className="h-9 w-full appearance-none rounded-lg border border-neutral-700 bg-neutral-800 py-1 pr-8 pl-3 text-sm font-medium tracking-normal text-neutral-50 scheme-dark focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50"
+                    >
+                      {draftCampaigns.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                    <CaretDown
+                      size={12}
+                      weight="bold"
+                      aria-hidden
+                      className="pointer-events-none absolute top-1/2 right-2.5 -translate-y-1/2 text-neutral-400"
+                    />
+                  </span>
                 </label>
 
-                <label className="flex items-center gap-2 text-xs text-neutral-400">
-                  <span className="shrink-0">Videos each</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={100}
-                    value={videoCount}
-                    onChange={(e) => {
-                      const next = Number(e.target.value);
-                      setVideoCount(
-                        Number.isInteger(next) && next >= 1 && next <= 100
-                          ? next
-                          : 1
-                      );
-                    }}
-                    className="h-9 w-16 rounded-lg border border-neutral-700 bg-neutral-900 px-2 text-sm text-neutral-50 focus-visible:outline-2 focus-visible:outline-neutral-50"
-                  />
-                </label>
+                <div className="flex flex-col gap-1 text-[11px] font-medium tracking-[0.08em] text-neutral-400 uppercase">
+                  Videos each
+                  <div className="flex h-9 items-stretch overflow-hidden rounded-lg border border-neutral-700 bg-neutral-800">
+                    <button
+                      type="button"
+                      aria-label="Fewer videos"
+                      disabled={videoCount <= 1}
+                      onClick={() => setVideoCount((n) => Math.max(1, n - 1))}
+                      className="grid w-8 place-items-center text-neutral-300 transition-colors duration-150 hover:bg-neutral-700 hover:text-neutral-50 active:scale-[0.98] disabled:opacity-40"
+                    >
+                      <CaretDown size={12} weight="bold" aria-hidden />
+                    </button>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={videoCount}
+                      onChange={(e) => {
+                        const next = Number(e.target.value);
+                        setVideoCount(
+                          Number.isInteger(next) && next >= 1 && next <= 100
+                            ? next
+                            : 1
+                        );
+                      }}
+                      className="w-10 [appearance:textfield] border-x border-neutral-700 bg-transparent text-center text-sm font-medium tracking-normal text-neutral-50 tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    />
+                    <button
+                      type="button"
+                      aria-label="More videos"
+                      disabled={videoCount >= 100}
+                      onClick={() => setVideoCount((n) => Math.min(100, n + 1))}
+                      className="grid w-8 place-items-center text-neutral-300 transition-colors duration-150 hover:bg-neutral-700 hover:text-neutral-50 active:scale-[0.98] disabled:opacity-40"
+                    >
+                      <CaretUp size={12} weight="bold" aria-hidden />
+                    </button>
+                  </div>
+                </div>
 
                 <Button
                   type="button"
                   onClick={handleBulkAdd}
                   disabled={submitting || campaignId === ''}
                   size="sm"
+                  className="bg-neutral-50 text-neutral-900 hover:bg-neutral-100 active:bg-neutral-200"
                 >
                   {submitting ? 'Adding…' : `Add ${selected.size} to cart`}
                 </Button>
