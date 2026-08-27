@@ -103,5 +103,11 @@ describe('TikTok Login Kit wiring', () => {
     expect(signUp).toContain('ContinueWithTiktok');
     expect(signUp).toContain("role === 'creator'");
     expect(signIn).toContain('ContinueWithTiktok');
+    const cta = readFileSync(
+      join(ROOT, 'components/auth/continue-with-tiktok.tsx'),
+      'utf8'
+    );
+    expect(cta).toContain('disabled');
+    expect(cta).not.toContain('signIn.social');
   });
 });

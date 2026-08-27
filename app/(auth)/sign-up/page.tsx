@@ -272,7 +272,7 @@ export default function SignUpPage() {
 
       <AccordionPanel open={role === 'creator'}>
         <div className="mt-6 flex flex-col gap-4">
-          <ContinueWithTiktok callbackURL="/dashboard" />
+          <ContinueWithTiktok />
           <p className="text-[13px] leading-snug text-neutral-500">
             TikTok does not share an email. We will ask for one later if we need
             to reach you.

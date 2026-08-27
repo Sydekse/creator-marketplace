@@ -73,9 +73,7 @@ export function SignInForm() {
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
       <div className="mt-6 flex flex-col gap-4">
-        <ContinueWithTiktok
-          callbackURL={safeRedirectPath(searchParams.get('redirect')) ?? '/dashboard'}
-        />
+        <ContinueWithTiktok />
         <div className="flex items-center gap-3" aria-hidden>
           <span className="h-px flex-1 bg-neutral-200" />
           <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
