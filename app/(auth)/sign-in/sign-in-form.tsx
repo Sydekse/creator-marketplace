@@ -59,7 +59,7 @@ export function SignInForm() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-7 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
+    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-neutral-50 p-7 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
       <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
         Welcome back
       </p>

@@ -119,7 +119,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="relative w-full max-w-md rounded-[24px] border border-neutral-200 bg-white px-7 pb-7 pt-14 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:px-10 sm:pb-10 sm:pt-16">
+    <div className="relative w-full max-w-md rounded-[24px] border border-neutral-200 bg-neutral-50 px-7 pb-7 pt-14 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:px-10 sm:pb-10 sm:pt-16">
       <RoleNotch
         value={role}
         onChange={(next) => {
