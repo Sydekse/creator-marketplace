@@ -1,12 +1,12 @@
-import { addToCart } from '@/lib/campaigns/add-to-cart';
-import type { AddToCartDeps } from '@/lib/campaigns/add-to-cart';
+import { bulkAddToCart } from '@/lib/campaigns/bulk-add-to-cart';
+import type { BulkAddToCartDeps } from '@/lib/campaigns/bulk-add-to-cart';
 import { ForbiddenError, guard, toErrorResponse } from '@/lib/authz';
 import type { AuthzContext, GuardOptions } from '@/lib/authz';
 import {
   ErrorCode,
   ErrorHttpStatus,
   UUID_REGEX,
-  addCampaignItemSchema,
+  bulkAddCampaignItemsSchema,
   errorResponse,
   fromZodError,
   validationError,
@@ -17,14 +17,19 @@ import { formatEtb } from '@/lib/money';
 export const runtime = 'nodejs';
 
 export interface RouteDeps {
-  addToCartDeps?: AddToCartDeps;
+  bulkAddToCartDeps?: BulkAddToCartDeps;
   guard?: (opts: GuardOptions) => Promise<AuthzContext>;
 }
 
 /**
- * `POST /api/campaigns/{id}/items` — add creator + video count to campaign cart (KAN-30, AC-013).
+ * `POST /api/campaigns/{id}/items/bulk` — add several marked creators to the
+ * cart in one transaction (the discover grid's mark-and-add flow).
+ *
+ * Same contract as the single-item route, plus `added`/`updated` counts so the
+ * client can say what the batch did. The batch is atomic: one bad creator or a
+ * broken budget ceiling refuses all of it.
  */
-export async function handleAddCampaignItem(
+export async function handleBulkAddCampaignItems(
   request: Request,
   id: string,
   deps?: RouteDeps
@@ -60,18 +65,18 @@ export async function handleAddCampaignItem(
     );
   }
 
-  const parsed = addCampaignItemSchema.safeParse(body);
+  const parsed = bulkAddCampaignItemsSchema.safeParse(body);
   if (!parsed.success) {
     return Response.json(fromZodError(parsed.error), {
       status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR],
     });
   }
 
-  const result = await addToCart(
+  const result = await bulkAddToCart(
     id,
     brandProfileId,
     parsed.data,
-    deps?.addToCartDeps
+    deps?.bulkAddToCartDeps
   );
 
   if (!result.ok) {
@@ -86,15 +91,18 @@ export async function handleAddCampaignItem(
         });
       case 'creator_not_found':
       case 'creator_not_bookable':
-        return Response.json(errorResponse(ErrorCode.CREATOR_NOT_BOOKABLE), {
-          status: ErrorHttpStatus[ErrorCode.CREATOR_NOT_BOOKABLE],
-        });
+        return Response.json(
+          errorResponse(ErrorCode.CREATOR_NOT_BOOKABLE, {
+            // The batch names the creator it stopped on, so the brand can
+            // unmark them rather than guess which tile broke the add.
+            creator: [result.creatorId ?? 'unknown'],
+          }),
+          { status: ErrorHttpStatus[ErrorCode.CREATOR_NOT_BOOKABLE] }
+        );
       case 'budget_exceeded': {
         const excess = result.excess;
         return Response.json(
           errorResponse(ErrorCode.BUDGET_EXCEEDED, {
-            // No trailing ` ETB` — `formatEtb` already ends in it (`lib/money.ts`),
-            // and appending one rendered "by 0.01 ETB ETB." to the brand.
             excess: [
               `This exceeds your remaining budget by ${formatEtb(excess)}.`,
             ],
@@ -107,9 +115,7 @@ export async function handleAddCampaignItem(
 
   return Response.json(
     {
-      item: { id: result.item.id },
-      // `true` when the creator was already carted and their count grew —
-      // the toast says "updated" rather than "added" so the two read honestly.
+      added: result.added,
       updated: result.updated,
       running_total: result.runningTotal,
       remaining_budget: result.remainingBudget,
@@ -123,5 +129,5 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   const { id } = await params;
-  return handleAddCampaignItem(request, id);
+  return handleBulkAddCampaignItems(request, id);
 }

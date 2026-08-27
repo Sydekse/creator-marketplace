@@ -1,11 +1,38 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { campaign, deal } from '@/db/schema';
+import { campaign, campaignItem, deal } from '@/db/schema';
 import { UUID_REGEX } from '@/lib/validation';
 
 /**
  * Read paths for `campaign`.
  */
+
+/**
+ * The cart the top-bar icon points at: the brand's most recently created draft
+ * campaign, with a count of the creators carted in it.
+ *
+ * Carts are per-campaign, so a single icon cannot point at "the" cart — it
+ * resolves to the newest draft, which is the one a brand actively shopping is
+ * almost always building. `null` (no draft) means the icon links to `/campaigns`
+ * with no badge — the honest empty state, not a dead control.
+ */
+export async function getActiveDraftCart(brandProfileId: string) {
+  const [row] = await db
+    .select({
+      campaignId: campaign.id,
+      itemCount: sql<number>`count(${campaignItem.id})::int`,
+    })
+    .from(campaign)
+    .leftJoin(campaignItem, eq(campaignItem.campaignId, campaign.id))
+    .where(
+      and(eq(campaign.brandId, brandProfileId), eq(campaign.status, 'draft'))
+    )
+    .groupBy(campaign.id)
+    .orderBy(desc(campaign.createdAt))
+    .limit(1);
+
+  return row ?? null;
+}
 
 /**
  * Lists all draft campaigns belonging to a brand profile, ordered by creation date descending.

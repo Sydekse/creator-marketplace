@@ -1,9 +1,12 @@
 import Link from 'next/link';
 import { FilterSelect } from '@/components/discovery/filter-select';
-import { CreatorCard } from '@/components/creator/creator-card';
+import { SelectableCreatorGrid } from '@/components/discovery/selectable-creator-grid';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
 import { buttonVariants } from '@/components/ui/button';
+import { requireRole } from '@/lib/auth';
+import { getBrandProfileByUserId } from '@/lib/brands/queries';
+import { listDraftCampaignsByBrand } from '@/lib/campaigns/queries';
 import {
   AUDIENCE_MARKET_CODES,
   AUDIENCE_MARKET_LABELS,
@@ -47,9 +50,11 @@ export const runtime = 'nodejs';
  * value — a client bundle bought for nothing.
  *
  * What a result shows is `CreatorCard`'s business, not this page's. This one
- * owns the URL, the filter form and the pager; the card owns AC-012's four facts
- * and the link into the detail view. Both stay server-rendered, so the whole
- * screen still ships no client JavaScript.
+ * owns the URL, the filter form and the pager; the card owns AC-012's four
+ * facts. The results grid is the one client island: `SelectableCreatorGrid`
+ * turns tiles into mark-and-add toggles (click marks, "See details" opens the
+ * profile) with a batch bar posting to `/items/bulk`. Selection deliberately
+ * does not live in the URL — it is a shopping gesture, not a shareable view.
  *
  * The bookable rule appears nowhere below. `readDiscovery` owns it, seeded into
  * the query before any filter here is read (AC-006).
@@ -103,13 +108,18 @@ export default async function DiscoverPage({
   }
 
   const filters = parsed.data;
-  const [{ creators, hasMore }, tiers] = await Promise.all([
+  const user = await requireRole('brand');
+  const profile = await getBrandProfileByUserId(user.id);
+  const [{ creators, hasMore }, tiers, draftCampaigns] = await Promise.all([
     readDiscovery({
       ...filters,
       limit: PAGE_SIZE,
       offset: offsetForPage(page),
     }),
     readTierPriceOptions(),
+    // The mark-and-add bar's "add to" picker. Empty when the brand has no
+    // drafts — the bar says so rather than offering a dead select.
+    profile ? listDraftCampaignsByBrand(profile.id) : Promise.resolve([]),
   ]);
 
   // Carried onto the pager links so paging keeps the filters — otherwise page 2
@@ -257,13 +267,17 @@ export default async function DiscoverPage({
             // One column on a phone, two from `sm:` up (NFR-007). A list, not a bare
             // grid of divs: these are results, and a screen reader announcing "list,
             // 12 items" is how a brand hears the size of what they filtered to.
-            <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {creators.map((creator) => (
-                <li key={creator.id}>
-                  <CreatorCard creator={creator} />
-                </li>
-              ))}
-            </ul>
+            //
+            // The tiles mark rather than navigate — the grid is a client island
+            // owning selection, with "See details" as the explicit way into a
+            // profile. The detail route still answers `/discover/[id]` directly.
+            <SelectableCreatorGrid
+              creators={creators}
+              draftCampaigns={draftCampaigns.map((c) => ({
+                id: c.id,
+                name: c.name,
+              }))}
+            />
           )}
 
           {(page > 1 || hasMore) && (

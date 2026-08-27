@@ -377,9 +377,15 @@ describe('the creator card shows AC-012 in full', () => {
   });
 
   it('links into the detail view rather than handling a click', () => {
-    expect(source).toContain('href={`/discover/${creator.id}`}');
+    // The default is still the stretched link to the detail view, with no
+    // client interactivity on the card itself.
+    expect(source).toContain('`/discover/${creator.id}`');
     expect(source).not.toContain('onClick');
     expect(source).not.toContain("'use client'");
+    // …but the selection grid opts out: `detailsHref={null}` suppresses the
+    // stretched link so the wrapping toggle owns the tile's click.
+    expect(source).toContain('detailsHref === undefined');
+    expect(source).toContain('{href && (');
   });
 
   it('shows no contact details (NFR-010)', () => {
@@ -448,8 +454,14 @@ describe('the card keeps two working links', () => {
 describe('the discovery page renders results through the card', () => {
   const source = src(DISCOVER_PAGE);
 
-  it('delegates the row to CreatorCard', () => {
-    expect(source).toContain('CreatorCard');
+  it('delegates the row to the selection grid, which renders the card', () => {
+    // The mark-and-add flow: tiles toggle selection in a client island and the
+    // card renders inside it with the stretched link suppressed.
+    expect(source).toContain('SelectableCreatorGrid');
+    expect(source).not.toContain("from '@/components/creator/creator-card'");
+    const grid = src('components/discovery/selectable-creator-grid.tsx');
+    expect(grid).toContain('CreatorCard');
+    expect(grid).toContain('detailsHref={null}');
   });
 
   it('no longer inlines what the card owns', () => {

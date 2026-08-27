@@ -38,11 +38,13 @@ test('flow 5: a failed payment leaves the campaign unfunded (AC-020)', async ({
   // "View campaign" link inside the card (same shape the shared helper opens).
   const card = brand.locator('li').filter({ hasText: 'Coffee Launch' });
   await card.getByRole('link', { name: /View campaign/i }).click();
-  // Funding confirms via `window.confirm` — accept it, registered before the
-  // click (Playwright auto-dismisses unhandled dialogs, which would cancel
-  // the funding before it ever reaches the failing provider).
-  brand.on('dialog', (d) => d.accept());
+  // Funding asks first through the shared ConfirmDialog — click Fund, then the
+  // dialog's confirm button. Only then does the call reach the failing provider.
   await brand.getByRole('button', { name: 'Fund campaign' }).click();
+  await brand
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Fund campaign' })
+    .click();
 
   // The failure surfaces (toast or inline), and the campaign is not funded —
   // no escrow row, and the button is offered again rather than a funded state.

@@ -718,11 +718,12 @@ describe('the decline surface', () => {
 
   it('confirms before an action that cannot be undone', () => {
     // `LEGAL_TRANSITIONS.declined` is empty and this button sits beside Accept.
-    // `confirm` rather than a dialog, per `remove-from-cart-button.tsx` — no
-    // dialog primitive is installed and adding one would widen the ticket.
+    // The shared ConfirmDialog asks first — the native-confirm precedent is gone.
+    expect(ACTIONS_COMPONENT).toContain('ConfirmDialog');
     expect(ACTIONS_COMPONENT).toContain(
-      'window.confirm(DECLINE_CONFIRM_MESSAGE)'
+      'description={DECLINE_CONFIRM_MESSAGE}'
     );
+    expect(ACTIONS_COMPONENT).not.toContain('window.confirm');
   });
 
   it('is not gated on the agreement checkbox', () => {
@@ -734,7 +735,8 @@ describe('the decline surface', () => {
     );
 
     expect(declineButton).toHaveLength(1);
-    expect(declineButton[0]).toContain('onClick={handleDecline}');
+    // The button opens the dialog; the dialog's confirm runs the decline.
+    expect(declineButton[0]).toContain('onClick={() => setDeclineOpen(true)}');
     expect(declineButton[0]).not.toContain('canAccept');
   });
 
@@ -803,7 +805,7 @@ describe('AC-018 — the brand’s remaining budget reflects the decline', () =>
   it('names the committed figure for what it is on a confirmed campaign', () => {
     // "Running Total" over a deals-derived number would name the wrong thing.
     expect(CAMPAIGN_PAGE).toMatch(
-      /campaign\.status === 'draft' \? 'Running Total' : 'Committed'/
+      /campaign\.status === 'draft' \? 'Running total' : 'Committed'/
     );
   });
 

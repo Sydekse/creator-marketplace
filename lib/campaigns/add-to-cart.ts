@@ -13,17 +13,12 @@ import type { AddCampaignItemInput } from '@/lib/validation';
 import type { Tx } from '@/lib/authz';
 import { sumCartTotal } from './cart-queries';
 
-/** Postgres error codes */
-const UNIQUE_VIOLATION = '23505';
-
-/** Constraint name from `db/schema.ts` */
-export const CAMPAIGN_CREATOR_UNIQUE_CONSTRAINT =
-  'campaign_item_campaign_creator_unique';
-
 export type AddToCartResult =
   | {
       ok: true;
       item: { id: string };
+      /** `true` when the creator was already carted and the count grew. */
+      updated: boolean;
       runningTotal: number;
       remainingBudget: number;
     }
@@ -34,8 +29,7 @@ export type AddToCartResult =
         | 'not_found'
         | 'not_draft'
         | 'creator_not_found'
-        | 'creator_not_bookable'
-        | 'creator_already_in_cart';
+        | 'creator_not_bookable';
     };
 
 export interface AddToCartDeps {
@@ -59,6 +53,12 @@ export interface AddToCartDeps {
     pricePerVideo: number | null;
     tierActive: boolean | null;
   } | null>;
+  /** The existing cart row for (campaign, creator), if one is carted. */
+  getExistingItem: (
+    tx: Tx,
+    campaignId: string,
+    creatorId: string
+  ) => Promise<{ id: string; videoCount: number } | null>;
   insertItem: (
     tx: Tx,
     values: {
@@ -69,6 +69,12 @@ export interface AddToCartDeps {
       totalPrice: number;
       commissionRate: string;
     }
+  ) => Promise<{ id: string }>;
+  /** Grows an existing row's count and reprices it off the same unit price. */
+  updateItemCount: (
+    tx: Tx,
+    itemId: string,
+    values: { videoCount: number; totalPrice: number }
   ) => Promise<{ id: string }>;
   getRunningTotal: (tx: Tx, campaignId: string) => Promise<number>;
   transaction: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
@@ -108,6 +114,20 @@ const defaultDeps: AddToCartDeps = {
 
     return row ?? null;
   },
+  getExistingItem: async (tx, campaignId, creatorId) => {
+    const [row] = await tx
+      .select({ id: campaignItem.id, videoCount: campaignItem.videoCount })
+      .from(campaignItem)
+      .where(
+        and(
+          eq(campaignItem.campaignId, campaignId),
+          eq(campaignItem.creatorId, creatorId)
+        )
+      )
+      .limit(1);
+
+    return row ?? null;
+  },
   insertItem: async (tx, values) => {
     const [row] = await tx
       .insert(campaignItem)
@@ -123,21 +143,21 @@ const defaultDeps: AddToCartDeps = {
 
     return row;
   },
+  updateItemCount: async (tx, itemId, values) => {
+    const [row] = await tx
+      .update(campaignItem)
+      .set({
+        videoCount: values.videoCount,
+        totalPrice: values.totalPrice,
+      })
+      .where(eq(campaignItem.id, itemId))
+      .returning({ id: campaignItem.id });
+
+    return row;
+  },
   getRunningTotal: (tx, campaignId) => sumCartTotal(campaignId, tx),
   transaction: (fn) => db.transaction(fn),
 };
-
-function isUniqueViolation(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false;
-  const { code, constraint } = error as {
-    code?: unknown;
-    constraint?: unknown;
-  };
-  return (
-    code === UNIQUE_VIOLATION &&
-    constraint === CAMPAIGN_CREATOR_UNIQUE_CONSTRAINT
-  );
-}
 
 /**
  * Adds a creator to a brand's draft campaign cart (KAN-30, AC-009, AC-013).
@@ -172,10 +192,22 @@ export async function addToCart(
     }
 
     const unitPrice = creator.pricePerVideo;
-    const totalPrice = unitPrice * input.videoCount;
-
     const currentTotal = await deps.getRunningTotal(tx, campaignId);
-    const newTotal = currentTotal + totalPrice;
+    const existing = await deps.getExistingItem(
+      tx,
+      campaignId,
+      input.creatorId
+    );
+
+    // Re-adding a carted creator grows their video count instead of failing.
+    // The budget ceiling then applies to the *delta* — the increment's cost —
+    // not the row's whole new total: the videos already carted were charged
+    // against the ceiling when they were added, and charging them again would
+    // double-count them. `excess` is still measured against the full running
+    // total so the message names the real shortfall.
+    const addCount = input.videoCount;
+    const delta = unitPrice * addCount;
+    const newTotal = currentTotal + delta;
     // AC-014: Enforce budget ceiling server-side. Total cannot exceed budget.
     if (newTotal > camp.budget) {
       return {
@@ -188,26 +220,39 @@ export async function addToCart(
     // We insert into `campaignItem` instead of `deal` to prevent leaking `pending` offers
     // before campaign confirmation (PRD AC-013, AC-009, AC-016) and to respect Tech Spec
     // NFR-012 (audit logging). Cart items have not transitioned into the deal state machine yet.
-    let inserted: { id: string };
-    try {
-      inserted = await deps.insertItem(tx, {
-        campaignId,
-        creatorId: input.creatorId,
-        videoCount: input.videoCount,
-        unitPrice,
-        totalPrice,
-        commissionRate: COMMISSION_RATE,
+    if (existing) {
+      // The count grows and the row reprices off the same snapshotted unit
+      // price, so `total = unit * count` (the CHECK) still holds. The campaign
+      // row is locked `for update` above, so two concurrent re-adds serialize —
+      // the second reads the count the first wrote.
+      const videoCount = existing.videoCount + addCount;
+      const updated = await deps.updateItemCount(tx, existing.id, {
+        videoCount,
+        totalPrice: unitPrice * videoCount,
       });
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        return { ok: false, reason: 'creator_already_in_cart' };
-      }
-      throw error;
+
+      return {
+        ok: true,
+        item: updated,
+        updated: true,
+        runningTotal: newTotal,
+        remainingBudget: camp.budget - newTotal,
+      };
     }
+
+    const inserted = await deps.insertItem(tx, {
+      campaignId,
+      creatorId: input.creatorId,
+      videoCount: addCount,
+      unitPrice,
+      totalPrice: delta,
+      commissionRate: COMMISSION_RATE,
+    });
 
     return {
       ok: true,
       item: inserted,
+      updated: false,
       runningTotal: newTotal,
       remainingBudget: camp.budget - newTotal,
     };

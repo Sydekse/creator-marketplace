@@ -4,12 +4,14 @@ import { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
+import { ContinueWithTiktok } from '@/components/auth/continue-with-tiktok';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
 import { FieldError } from '@/components/ui/field-error';
 import { signInSchema } from '@/lib/validation/schemas';
 import { safeRedirectPath } from '@/lib/navigation';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 type FieldErrors = { email?: string; password?: string };
 
@@ -57,7 +59,7 @@ export function SignInForm() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-white p-7 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
+    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-neutral-50 p-7 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
       <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
         Welcome back
       </p>
@@ -70,10 +72,21 @@ export function SignInForm() {
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
+      <div className="mt-6 flex flex-col gap-4">
+        <ContinueWithTiktok />
+        <div className="flex items-center gap-3" aria-hidden>
+          <span className="h-px flex-1 bg-neutral-200" />
+          <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+            or email
+          </span>
+          <span className="h-px flex-1 bg-neutral-200" />
+        </div>
+      </div>
+
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="mt-6 flex flex-col gap-5"
+        className="mt-5 flex flex-col gap-5"
       >
         <div className="flex flex-col gap-2">
           <label
@@ -143,7 +156,10 @@ export function SignInForm() {
         New to Creator Marketplace?{' '}
         <Link
           href="/sign-up"
-          className="font-medium text-brand underline-offset-4 hover:text-brand-deep"
+          className={cn(
+            'font-medium text-brand hover:text-brand-deep',
+            textLinkFeedback
+          )}
         >
           Create an account
         </Link>

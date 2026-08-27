@@ -3,36 +3,43 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { buttonVariants } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   ADD_TO_CAMPAIGN_LABEL,
   CAMPAIGN_NOT_DRAFT_MESSAGE,
   NO_DRAFT_CAMPAIGN_MESSAGE,
 } from '@/lib/campaigns/constants';
+import { cn } from '@/lib/utils';
 
 export interface AddToCartFormProps {
   creatorId: string;
   campaigns: Array<{ id: string; name: string }>;
 }
 
+const fieldClass =
+  'h-11 rounded-xl border border-neutral-700 bg-neutral-800 px-3.5 text-sm text-neutral-50 shadow-none transition-colors duration-200 ease-out focus-visible:border-neutral-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-50';
+
 export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (campaigns.length === 0) {
     return (
-      <section className="flex flex-col items-start gap-2 border-t border-border pt-8">
-        <button
-          type="button"
-          disabled
-          className={buttonVariants({ variant: 'default', size: 'sm' })}
-        >
-          {ADD_TO_CAMPAIGN_LABEL}
-        </button>
-        <p className="text-sm text-muted-foreground">
+      <section className="flex flex-col gap-3 rounded-[24px] bg-neutral-900 p-6 text-neutral-50 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.45)] sm:p-8">
+        <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
+          Shortlist
+        </p>
+        <h2 className="font-display text-2xl font-medium tracking-tight">
+          Add to a campaign
+        </h2>
+        <p className="max-w-[36ch] text-sm leading-relaxed text-neutral-400">
           {NO_DRAFT_CAMPAIGN_MESSAGE}
         </p>
+        <Button type="button" size="xl" className="mt-2 w-full" disabled>
+          {ADD_TO_CAMPAIGN_LABEL}
+        </Button>
       </section>
     );
   }
@@ -40,6 +47,7 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (loading) return;
+    setFormError(null);
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
@@ -60,45 +68,56 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
 
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        if (data?.error?.code === 'CREATOR_ALREADY_IN_CART') {
-          toast.error('Creator is already in this campaign cart.');
-        } else if (data?.error?.code === 'CREATOR_NOT_BOOKABLE') {
-          toast.error('This creator is not currently bookable.');
-        } else if (data?.error?.code === 'CAMPAIGN_NOT_DRAFT') {
-          toast.error(CAMPAIGN_NOT_DRAFT_MESSAGE);
-        } else {
-          // Any other refusal — `BUDGET_EXCEEDED` is the live one (AC-014),
-          // and the server's own sentence is the authority, so it is shown
-          // rather than a paraphrase that could drift from it. The fallback
-          // only covers a response shaped unlike the error envelope.
-          toast.error(
-            data?.error?.message ?? 'Failed to add creator to campaign.'
-          );
-        }
+        const message =
+          data?.error?.code === 'CREATOR_NOT_BOOKABLE'
+            ? 'This creator is not currently bookable.'
+            : data?.error?.code === 'CAMPAIGN_NOT_DRAFT'
+              ? CAMPAIGN_NOT_DRAFT_MESSAGE
+              : (data?.error?.message ?? 'Failed to add creator to campaign.');
+        setFormError(message);
+        toast.error(message);
         return;
       }
 
-      toast.success('Creator added to campaign!');
+      const data = await res.json().catch(() => null);
+      toast.success(
+        data?.updated
+          ? 'Video count updated for that creator.'
+          : 'Creator added to campaign!'
+      );
       router.push(`/campaigns/${campaignId}`);
     } catch {
-      toast.error('An unexpected error occurred.');
+      const message = 'An unexpected error occurred.';
+      setFormError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <section className="flex flex-col items-start gap-4 border-t border-border pt-8">
-      <form
-        onSubmit={handleSubmit}
-        className="flex flex-wrap items-end gap-3 w-full"
-      >
-        <label className="flex flex-col gap-1.5 text-sm flex-1 min-w-[200px]">
-          <span className="font-medium">Select draft campaign</span>
+    <section className="flex flex-col gap-5 rounded-[24px] bg-neutral-900 p-6 text-neutral-50 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.45)] sm:p-8">
+      <div className="flex flex-col gap-2">
+        <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
+          Shortlist
+        </p>
+        <h2 className="font-display text-2xl font-medium tracking-tight">
+          Add to a campaign
+        </h2>
+        <p className="max-w-[36ch] text-sm leading-relaxed text-neutral-400">
+          Pick a draft and how many videos you want from this creator.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="font-medium text-neutral-200">
+            Select draft campaign
+          </span>
           <select
             name="campaignId"
             required
-            className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+            className={cn(fieldClass, 'w-full')}
           >
             {campaigns.map((camp) => (
               <option key={camp.id} value={camp.id}>
@@ -108,25 +127,35 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
           </select>
         </label>
 
-        <label className="flex flex-col gap-1.5 text-sm w-[120px]">
-          <span className="font-medium">Videos</span>
+        <label className="flex flex-col gap-2 text-sm">
+          <span className="font-medium text-neutral-200">Videos</span>
           <Input
             type="number"
             name="videoCount"
             min={1}
             defaultValue={1}
             required
-            className="h-9 w-[120px]"
+            className={cn(fieldClass, 'w-full')}
           />
         </label>
 
-        <button
+        {formError ? (
+          <p
+            role="alert"
+            className="rounded-lg border border-red-400/30 bg-red-500/10 px-3.5 py-2.5 text-[13px] leading-snug text-red-300"
+          >
+            {formError}
+          </p>
+        ) : null}
+
+        <Button
           type="submit"
           disabled={loading}
-          className={buttonVariants({ variant: 'default', size: 'default' })}
+          size="xl"
+          className="mt-1 w-full bg-neutral-50 text-neutral-900 hover:bg-neutral-100"
         >
           {loading ? 'Adding...' : ADD_TO_CAMPAIGN_LABEL}
-        </button>
+        </Button>
       </form>
     </section>
   );

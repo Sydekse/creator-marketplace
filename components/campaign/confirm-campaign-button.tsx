@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   CAMPAIGN_NOT_DRAFT_MESSAGE,
   CONFIRM_CAMPAIGN_FAILED,
@@ -35,18 +36,11 @@ export function ConfirmCampaignButton({
 }: ConfirmCampaignButtonProps) {
   const router = useRouter();
   const [sending, setSending] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const empty = itemCount === 0;
 
   async function handleConfirm() {
     if (sending || empty) return;
-
-    // Irreversible in both directions the brand cares about — creators are
-    // notified immediately, and the brief locks. `confirm` rather than a dialog
-    // for the same reason the remove button uses it: no dialog primitive is
-    // installed, and adding one for a single yes/no would widen this ticket.
-    if (!window.confirm(CONFIRM_CAMPAIGN_PROMPT)) {
-      return;
-    }
 
     setSending(true);
 
@@ -99,12 +93,20 @@ export function ConfirmCampaignButton({
     <div className="flex flex-col gap-1">
       <button
         type="button"
-        onClick={handleConfirm}
+        onClick={() => setConfirmOpen(true)}
         disabled={sending || empty}
         className={buttonVariants({ size: 'sm' })}
       >
         {sending ? CONFIRM_CAMPAIGN_PENDING_LABEL : CONFIRM_CAMPAIGN_LABEL}
       </button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={CONFIRM_CAMPAIGN_LABEL}
+        description={CONFIRM_CAMPAIGN_PROMPT}
+        confirmLabel={CONFIRM_CAMPAIGN_LABEL}
+        onConfirm={handleConfirm}
+      />
       {/* Why it is disabled, in a sentence beside the control. A `title=`
           tooltip would tell a touch user nothing. */}
       {empty && (

@@ -764,9 +764,9 @@ describe('ReviewActions posts to the endpoints and re-reads the server', () => {
   });
 
   it('confirms before an irreversible payment, naming the whole deal', () => {
-    expect(source).toContain(
-      'window.confirm(approveConfirmMessage(videoCount))'
-    );
+    expect(source).toContain('ConfirmDialog');
+    expect(source).toContain('description={approveConfirmMessage(videoCount)}');
+    expect(source).not.toContain('window.confirm');
     // The sentence has to say what cannot be undone, not merely ask — and it
     // has to say how much is being accepted, because one click pays for every
     // video on the deal (F38).
@@ -836,8 +836,9 @@ describe('ReviewActions posts to the endpoints and re-reads the server', () => {
   it('keeps approve out of the form’s submit path', () => {
     // Otherwise Enter in the reason field pays the creator. Now structural as
     // well as typed: approve is a different component from the form entirely.
+    // The trigger opens the ConfirmDialog; the dialog's confirm runs the approve.
     expect(source).toMatch(
-      /<Button\s+type="button"\s+onClick=\{handleApprove\}/
+      /<Button\s+type="button"\s+onClick=\{\(\) => setConfirmOpen\(true\)\}/
     );
     expect(source).toMatch(/<Button\s+type="submit"/);
     const approve = source.slice(

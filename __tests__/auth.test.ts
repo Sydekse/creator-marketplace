@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { signUpSchema, signInSchema } from '../lib/validation/schemas';
+
+const ROOT = join(__dirname, '..');
 
 describe('signUpSchema', () => {
   const valid = {
@@ -79,5 +83,34 @@ describe('signInSchema', () => {
   it('rejects empty object', () => {
     const result = signInSchema.safeParse({});
     expect(result.success).toBe(false);
+  });
+});
+
+describe('TikTok Login Kit wiring', () => {
+  it('registers TikTok only when both env keys exist', () => {
+    const source = readFileSync(join(ROOT, 'lib/auth.ts'), 'utf8');
+    expect(source).toContain('clientKey: process.env.TIKTOK_CLIENT_KEY');
+    expect(source).toContain('TIKTOK_CLIENT_SECRET');
+    expect(source).toContain('socialProviders');
+  });
+
+  it('offers Continue with TikTok on sign-up and sign-in', () => {
+    const signUp = readFileSync(
+      join(ROOT, 'app/(auth)/sign-up/page.tsx'),
+      'utf8'
+    );
+    const signIn = readFileSync(
+      join(ROOT, 'app/(auth)/sign-in/sign-in-form.tsx'),
+      'utf8'
+    );
+    expect(signUp).toContain('ContinueWithTiktok');
+    expect(signUp).toContain("role === 'creator'");
+    expect(signIn).toContain('ContinueWithTiktok');
+    const cta = readFileSync(
+      join(ROOT, 'components/auth/continue-with-tiktok.tsx'),
+      'utf8'
+    );
+    expect(cta).toContain('disabled');
+    expect(cta).not.toContain('signIn.social');
   });
 });

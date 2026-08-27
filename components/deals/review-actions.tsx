@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Field,
   FieldDescription,
@@ -84,6 +85,7 @@ export function ApproveDealButton({
 }) {
   const router = useRouter();
   const [approving, setApproving] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   async function handleApprove() {
     // Re-entry guard, the shape `offer-actions.tsx` and `deliverable-form.tsx`
@@ -92,14 +94,6 @@ export function ApproveDealButton({
     // `completed -> completed`, refused with a message about a deal that no
     // longer needs this control.
     if (approving) return;
-
-    // Irreversible, and it moves money: the hold is released to the creator net
-    // of commission and `LEGAL_TRANSITIONS.completed` is empty, so there is no
-    // path back. `confirm` rather than a dialog because no dialog primitive is
-    // installed and adding one for a yes/no would widen the ticket —
-    // `remove-from-cart-button.tsx` set that precedent and `offer-actions.tsx`
-    // followed it for decline.
-    if (!window.confirm(approveConfirmMessage(videoCount))) return;
 
     setApproving(true);
 
@@ -142,10 +136,27 @@ export function ApproveDealButton({
   }
 
   return (
-    <Button type="button" onClick={handleApprove} disabled={approving}>
-      {approving && <Spinner />}
-      {approving ? APPROVING_LABEL : APPROVE_DELIVERABLE_LABEL}
-    </Button>
+    <>
+      <Button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        disabled={approving}
+      >
+        {approving && <Spinner />}
+        {approving ? APPROVING_LABEL : APPROVE_DELIVERABLE_LABEL}
+      </Button>
+      {/* Irreversible and moves money — the hold releases to the creator net of
+          commission and `LEGAL_TRANSITIONS.completed` is empty, so the dialog
+          says exactly what approving does before it happens. */}
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={APPROVE_DELIVERABLE_LABEL}
+        description={approveConfirmMessage(videoCount)}
+        confirmLabel={APPROVE_DELIVERABLE_LABEL}
+        onConfirm={handleApprove}
+      />
+    </>
   );
 }
 

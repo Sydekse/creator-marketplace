@@ -28,7 +28,7 @@ function DealRow({ deal }: { deal: BrandInboxDeal }) {
     <li>
       <Link
         href={`/deals/${deal.id}`}
-        className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md px-2 py-3 -mx-2 hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="-mx-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-md px-2 py-3 transition-[background-color,transform] duration-300 ease-out hover:bg-muted/50 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <div className="flex min-w-0 items-center gap-2">
           <InitialsAvatar name={deal.creatorHandle} size="sm" />

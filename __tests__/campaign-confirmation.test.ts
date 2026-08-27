@@ -1003,8 +1003,11 @@ describe('confirm button and campaign pages', () => {
 
   it('explains the disabled state in a sentence, not a tooltip', () => {
     expect(CONFIRM_BUTTON).toContain('CONFIRM_EMPTY_CART_MESSAGE');
-    // A `title=` tells a touch user nothing.
-    expect(CONFIRM_BUTTON).not.toMatch(/\stitle=/);
+    // A `title=` tells a touch user nothing. Scoped to the trigger element —
+    // the ConfirmDialog's `title=` prop is its accessible heading, not a tooltip.
+    const trigger =
+      CONFIRM_BUTTON.match(/<button[\s\S]*?<\/button>/)?.[0] ?? '';
+    expect(trigger).not.toMatch(/\stitle=/);
   });
 
   it('uses buttonVariants on a plain button, not Base UI’s Button', () => {
@@ -1014,7 +1017,9 @@ describe('confirm button and campaign pages', () => {
   });
 
   it('confirms before sending, because offers cannot be recalled', () => {
-    expect(CONFIRM_BUTTON).toContain('window.confirm(CONFIRM_CAMPAIGN_PROMPT)');
+    expect(CONFIRM_BUTTON).toContain('ConfirmDialog');
+    expect(CONFIRM_BUTTON).toContain('description={CONFIRM_CAMPAIGN_PROMPT}');
+    expect(CONFIRM_BUTTON).not.toContain('window.confirm');
   });
 
   it('refreshes from the server rather than patching state locally', () => {

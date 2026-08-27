@@ -806,8 +806,10 @@ describe('fund button', () => {
     expect(FUND_BUTTON).toContain('acceptedCount === 0');
     expect(FUND_BUTTON).toContain('disabled={funding || nothingAccepted}');
     expect(FUND_BUTTON).toContain('FUND_NO_ACCEPTED_DEALS_MESSAGE');
-    // A `title=` tells a touch user nothing.
-    expect(FUND_BUTTON).not.toMatch(/\stitle=/);
+    // A `title=` tells a touch user nothing. Scoped to the trigger element —
+    // the ConfirmDialog's `title=` prop is its accessible heading, not a tooltip.
+    const trigger = FUND_BUTTON.match(/<button[\s\S]*?<\/button>/)?.[0] ?? '';
+    expect(trigger).not.toMatch(/\stitle=/);
   });
 
   it('uses buttonVariants on a plain button, not Base UI’s Button', () => {
@@ -817,7 +819,9 @@ describe('fund button', () => {
   });
 
   it('confirms before moving money', () => {
-    expect(FUND_BUTTON).toContain('window.confirm(FUND_CAMPAIGN_PROMPT)');
+    expect(FUND_BUTTON).toContain('ConfirmDialog');
+    expect(FUND_BUTTON).toContain('description={FUND_CAMPAIGN_PROMPT}');
+    expect(FUND_BUTTON).not.toContain('window.confirm');
   });
 
   it('refreshes from the server rather than patching state locally', () => {

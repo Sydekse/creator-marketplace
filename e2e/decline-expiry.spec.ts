@@ -9,8 +9,8 @@ import { DEMO, openCampaign, openCreatorDeal, signIn } from './helpers';
  * The decline is *walked* through the real UI on 'Spring Style Drop' — a
  * pending offer the seed reserves for this flow ('Ramadan Beauty Push' is
  * consumed by flow 1, which accepts it). The decline is irreversible
- * (LEGAL_TRANSITIONS.declined is empty), so the action confirms via
- * `window.confirm`; the dialog handler must be registered before the click.
+ * (LEGAL_TRANSITIONS.declined is empty), so the action asks first through the
+ * shared ConfirmDialog — click Decline, then confirm in the dialog.
  *
  * The *expiry* leg of AC-018 is not UI-walkable here: an offer expires on the
  * scheduler's clock (KAN-38, `expireOffersJob`), not by a button. It is
@@ -20,12 +20,16 @@ import { DEMO, openCampaign, openCreatorDeal, signIn } from './helpers';
 test('flow 3: declining an offer releases the deal on both sides (AC-018)', async ({
   browser,
 }) => {
-  // Creator declines the pending offer — the real KAN-37 action.
+  // Creator declines the pending offer — the real KAN-37 action. The shared
+  // ConfirmDialog asks first: click Decline, then the dialog's confirm button.
   const creator = await browser.newPage();
   await signIn(creator, DEMO.creator);
   await openCreatorDeal(creator, 'Spring Style Drop');
-  creator.on('dialog', (d) => d.accept());
   await creator.getByRole('button', { name: 'Decline offer' }).click();
+  await creator
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Decline offer' })
+    .click();
   // The detail page re-reads the deal as declined — not pending, not accepted.
   await expect(creator.getByText(/declined/i).first()).toBeVisible({
     timeout: 15_000,

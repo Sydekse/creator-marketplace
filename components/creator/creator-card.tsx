@@ -11,6 +11,7 @@ import {
   formatFollowerCount,
 } from '@/lib/creators/profile-facts';
 import { formatEtb } from '@/lib/money';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 /**
  * One creator in the discovery results (KAN-29, US-004, AC-012).
@@ -64,8 +65,22 @@ function Fact({
   );
 }
 
-export function CreatorCard({ creator }: { creator: DiscoveryCreator }) {
+export function CreatorCard({
+  creator,
+  detailsHref,
+}: {
+  creator: DiscoveryCreator;
+  /**
+   * Where the whole-card hit target goes. Defaults to the detail view. Pass
+   * `null` when a wrapping component owns the card's click — the discover
+   * grid's mark-and-add selection does, and a stretched link under it would
+   * navigate on the click that was meant to mark the tile.
+   */
+  detailsHref?: string | null;
+}) {
   const profileUrl = tiktokProfileUrl(creator.tiktokHandle);
+  const href =
+    detailsHref === undefined ? `/discover/${creator.id}` : detailsHref;
 
   return (
     // `h-full` so cards in a row match height when one handle wraps. `relative`
@@ -77,11 +92,13 @@ export function CreatorCard({ creator }: { creator: DiscoveryCreator }) {
           the outer one early and the TikTok link ends up outside the card
           (KAN-200). Empty, so it needs an `aria-label`: the handle is the only
           name a screen reader could announce it by. */}
-      <Link
-        href={`/discover/${creator.id}`}
-        aria-label={creator.tiktokHandle}
-        className="absolute inset-0 rounded-xl"
-      />
+      {href && (
+        <Link
+          href={href}
+          aria-label={creator.tiktokHandle}
+          className="absolute inset-0 rounded-xl"
+        />
+      )}
       <CardHeader className="pb-3">
         <CardTitle className="flex items-start justify-between gap-4">
           <div className="flex min-w-0 items-center gap-3">
@@ -135,7 +152,10 @@ export function CreatorCard({ creator }: { creator: DiscoveryCreator }) {
             href={profileUrl}
             target="_blank"
             rel="noopener noreferrer nofollow"
-            className="relative z-10 self-start border-t border-neutral-200 pt-3 text-xs font-medium text-brand-ink underline-offset-4 hover:underline"
+            className={cn(
+              'relative z-10 self-start border-t border-neutral-200 pt-3 text-xs font-medium text-brand-ink',
+              textLinkFeedback
+            )}
           >
             {VIEW_ON_TIKTOK_LABEL} ↗
           </a>

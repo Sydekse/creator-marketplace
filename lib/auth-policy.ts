@@ -52,6 +52,15 @@ export function assertSelfRegisterableRole(
   return value;
 }
 
+/**
+ * Social sign-up (TikTok) does not send `role`. Treat a missing value as
+ * creator — that is the only OAuth path — and still refuse anything else.
+ */
+export function resolveSignupRole(value: unknown): SelfRegisterableRole {
+  if (value == null || value === '') return 'creator';
+  return assertSelfRegisterableRole(value);
+}
+
 export class RoleNotSelfAssignableError extends Error {
   readonly received: unknown;
 

@@ -22,6 +22,7 @@ export type {
   DiscoverCreatorsInput,
   AuditLogQueryInput,
   AddCampaignItemInput,
+  BulkAddCampaignItemsInput,
 } from './schemas';
 
 export {
@@ -46,6 +47,7 @@ export {
   createCampaignSchema,
   updateCampaignSchema,
   addCampaignItemSchema,
+  bulkAddCampaignItemsSchema,
   acceptDealSchema,
   submitDeliverableSchema,
   rejectDeliverableSchema,

@@ -7,7 +7,7 @@ import * as authSchema from '@/db/auth-schema';
 import type { UserRole } from '@/db/schema';
 import {
   RoleNotSelfAssignableError,
-  assertSelfRegisterableRole,
+  resolveSignupRole,
   isUserRole,
 } from '@/lib/auth-policy';
 import { roleHomePath } from '@/lib/navigation';
@@ -34,6 +34,18 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  // TikTok Login Kit. Keys live in env — never commit them. If either is
+  // missing the provider is omitted so local/CI without TikTok still boots.
+  ...(process.env.TIKTOK_CLIENT_KEY && process.env.TIKTOK_CLIENT_SECRET
+    ? {
+        socialProviders: {
+          tiktok: {
+            clientKey: process.env.TIKTOK_CLIENT_KEY,
+            clientSecret: process.env.TIKTOK_CLIENT_SECRET,
+          },
+        },
+      }
+    : {}),
   user: {
     additionalFields: {
       role: {
@@ -53,7 +65,8 @@ export const auth = betterAuth({
           // Allowlist brand/creator. Anything else — including 'admin' and any
           // string outside the union — is refused (NFR-005).
           try {
-            assertSelfRegisterableRole((user as { role?: unknown }).role);
+            const role = resolveSignupRole((user as { role?: unknown }).role);
+            return { data: { ...user, role } };
           } catch (error) {
             if (!(error instanceof RoleNotSelfAssignableError)) throw error;
             // Better Auth turns an APIError into the documented status; a bare
@@ -70,7 +83,6 @@ export const auth = betterAuth({
               }
             );
           }
-          return { data: user };
         },
       },
       update: {

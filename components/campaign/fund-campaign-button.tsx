@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   FUND_CAMPAIGN_FAILED,
   FUND_CAMPAIGN_LABEL,
@@ -21,6 +22,11 @@ export interface FundCampaignButtonProps {
    * nothing to hold — the endpoint answers the same case with a 409.
    */
   acceptedCount: number;
+  /**
+   * `lg` where the button is the page's primary money action (the budget
+   * summary card), `sm` where it sits in a row of secondary controls.
+   */
+  size?: 'sm' | 'lg';
 }
 
 /**
@@ -35,21 +41,15 @@ export interface FundCampaignButtonProps {
 export function FundCampaignButton({
   campaignId,
   acceptedCount,
+  size = 'sm',
 }: FundCampaignButtonProps) {
   const router = useRouter();
   const [funding, setFunding] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const nothingAccepted = acceptedCount === 0;
 
   async function handleFund() {
     if (funding || nothingAccepted) return;
-
-    // Money leaves the brand's available balance here, so it asks first —
-    // `window.confirm` for the reason `confirm-campaign-button.tsx` gives: no
-    // dialog primitive is installed and adding one for a yes/no would widen the
-    // ticket.
-    if (!window.confirm(FUND_CAMPAIGN_PROMPT)) {
-      return;
-    }
 
     setFunding(true);
 
@@ -112,16 +112,28 @@ export function FundCampaignButton({
     <div className="flex flex-col gap-1">
       <button
         type="button"
-        onClick={handleFund}
+        onClick={() => setConfirmOpen(true)}
         disabled={funding || nothingAccepted}
-        className={buttonVariants({ size: 'sm' })}
+        className={buttonVariants({
+          size,
+          className:
+            'w-full bg-neutral-50 text-neutral-900 hover:bg-neutral-100 active:bg-neutral-200',
+        })}
       >
         {funding ? FUND_CAMPAIGN_PENDING_LABEL : FUND_CAMPAIGN_LABEL}
       </button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={FUND_CAMPAIGN_LABEL}
+        description={FUND_CAMPAIGN_PROMPT}
+        confirmLabel={FUND_CAMPAIGN_LABEL}
+        onConfirm={handleFund}
+      />
       {/* Why it is disabled, in a sentence beside the control. A `title=`
           tooltip would tell a touch user nothing. */}
       {nothingAccepted && (
-        <p className="text-muted-foreground text-sm">
+        <p className="text-sm text-neutral-400">
           {FUND_NO_ACCEPTED_DEALS_MESSAGE}
         </p>
       )}

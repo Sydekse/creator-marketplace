@@ -8,7 +8,7 @@ export default function SignInPage() {
   return (
     <Suspense
       fallback={
-        <div className="h-[26rem] w-full max-w-md rounded-[24px] border border-neutral-200 bg-white shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)]" />
+        <div className="h-[26rem] w-full max-w-md rounded-[24px] border border-neutral-200 bg-neutral-50 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)]" />
       }
     >
       <SignInForm />

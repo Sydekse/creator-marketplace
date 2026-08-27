@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { getCampaignLedgerForAdmin } from '@/lib/admin/overview';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { formatEtb } from '@/lib/money';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -41,7 +42,7 @@ export default async function AdminCampaignLedgerPage({
       <div className="flex flex-col gap-3">
         <Link
           href="/admin/campaigns"
-          className="text-sm text-muted-foreground underline-offset-4 hover:underline"
+          className={cn('text-sm text-muted-foreground', textLinkFeedback)}
         >
           ← Campaigns
         </Link>

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { UsageRightsAgreement } from '@/components/deals/usage-rights-agreement';
 import type { RightsTermsRow } from '@/components/deals/usage-rights';
 import { buttonVariants } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   ACCEPT_DEAL_LABEL,
   ACCEPT_FAILED_MESSAGE,
@@ -68,6 +69,7 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
   const [agreed, setAgreed] = useState(false);
   const [accepting, setAccepting] = useState(false);
   const [declining, setDeclining] = useState(false);
+  const [declineOpen, setDeclineOpen] = useState(false);
 
   // Nothing to agree to when the deal carries no terms row. The page renders the
   // missing-terms sentence in that case; the buttons still show, because AC-3 is
@@ -140,13 +142,11 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
   /**
    * AC-018's creator side. No body, no terms, and no `agreed` gate — a creator
    * refusing the terms should not have to tick that they accept them first.
+   * Irreversible (`LEGAL_TRANSITIONS.declined` is empty), so the dialog asks
+   * first.
    */
   async function handleDecline() {
     if (accepting || declining) return;
-
-    // Irreversible: `LEGAL_TRANSITIONS.declined` is empty, so there is no path
-    // back. `confirm` rather than a dialog, per `remove-from-cart-button.tsx`.
-    if (!window.confirm(DECLINE_CONFIRM_MESSAGE)) return;
 
     setDeclining(true);
 
@@ -210,13 +210,23 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
             request is in flight, so the two buttons cannot both be firing. */}
         <button
           type="button"
-          onClick={handleDecline}
+          onClick={() => setDeclineOpen(true)}
           disabled={accepting || declining}
           className={buttonVariants({ variant: 'outline', size: 'sm' })}
         >
           {declining ? DECLINING_LABEL : DECLINE_DEAL_LABEL}
         </button>
       </div>
+
+      <ConfirmDialog
+        open={declineOpen}
+        onOpenChange={setDeclineOpen}
+        title={DECLINE_DEAL_LABEL}
+        description={DECLINE_CONFIRM_MESSAGE}
+        confirmLabel={DECLINE_DEAL_LABEL}
+        tone="destructive"
+        onConfirm={handleDecline}
+      />
 
       {/* Linked by `aria-describedby` rather than merely adjacent, so a screen
           reader reaches the reason from the disabled control itself. Rendered

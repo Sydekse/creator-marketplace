@@ -109,7 +109,7 @@ export default async function BrandDashboardPage() {
             </div>
             <Link
               href="/campaigns"
-              className="mt-3 inline-flex rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
+              className="mt-3 inline-flex rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-[transform,border-color,color] duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
             >
               View all campaigns →
             </Link>
@@ -163,7 +163,7 @@ export default async function BrandDashboardPage() {
                   <li key={row.dealId}>
                     <Link
                       href={`/deals/${row.dealId}`}
-                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-2 py-4 transition-colors duration-300 hover:bg-neutral-100/60 focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:px-4"
+                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-2 py-4 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/60 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:px-4"
                     >
                       <div className="flex min-w-0 items-center gap-2">
                         <InitialsAvatar name={row.creatorHandle} size="sm" />
@@ -193,7 +193,7 @@ export default async function BrandDashboardPage() {
             {dashboard.awaitingReview.length > 0 && (
               <Link
                 href="/deals"
-                className="mt-5 inline-flex rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
+                className="mt-5 inline-flex rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-[transform,border-color,color] duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
               >
                 View all deals →
               </Link>

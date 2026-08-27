@@ -31,6 +31,7 @@ import {
 } from '@/lib/deals/brand-detail';
 import { getDealHistory } from '@/lib/deals/queries';
 import { formatEtb } from '@/lib/money';
+import { cn, textLinkFeedback } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -167,14 +168,14 @@ export default async function BrandDealReviewPage({
           {deal.deliverables.map((video, index) => (
             <div
               key={video.id}
-              className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5 transition-colors duration-300 hover:border-neutral-300"
+              className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5"
             >
               <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
               <a
                 href={video.tiktokUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
-                className="font-mono text-sm break-all underline-offset-4 hover:underline"
+                className={cn('font-mono text-sm break-all', textLinkFeedback)}
               >
                 {video.tiktokUrl}
               </a>

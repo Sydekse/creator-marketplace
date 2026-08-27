@@ -81,7 +81,7 @@ export function UsageRightsCard({
               default triangle rides on and removing it takes the affordance with
               it. */}
           <details className="group">
-            <summary className="flex cursor-pointer items-center gap-2 text-sm font-medium marker:content-none">
+            <summary className="flex cursor-pointer items-center gap-2 rounded-lg text-sm font-medium transition-colors duration-300 ease-out hover:text-neutral-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 active:text-neutral-900 marker:content-none">
               <span
                 aria-hidden="true"
                 className="text-muted-foreground transition-transform group-open:rotate-90"

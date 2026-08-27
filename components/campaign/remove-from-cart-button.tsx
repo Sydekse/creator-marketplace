@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   CAMPAIGN_NOT_DRAFT_MESSAGE,
   REMOVE_FROM_CART_FAILED,
@@ -34,16 +35,10 @@ export function RemoveFromCartButton({
 }: RemoveFromCartButtonProps) {
   const router = useRouter();
   const [removing, setRemoving] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   async function handleRemove() {
     if (removing) return;
-
-    // Destructive and one click away. `confirm` rather than a dialog because
-    // the repo has no dialog primitive installed, and adding one for a single
-    // yes/no would widen this ticket.
-    if (!window.confirm(`Remove ${creatorHandle} from this campaign's cart?`)) {
-      return;
-    }
 
     setRemoving(true);
 
@@ -90,14 +85,25 @@ export function RemoveFromCartButton({
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleRemove}
-      disabled={removing}
-      aria-label={`${REMOVE_FROM_CART_LABEL} ${creatorHandle}`}
-      className={buttonVariants({ variant: 'outline', size: 'sm' })}
-    >
-      {removing ? REMOVE_FROM_CART_PENDING_LABEL : REMOVE_FROM_CART_LABEL}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        disabled={removing}
+        aria-label={`${REMOVE_FROM_CART_LABEL} ${creatorHandle}`}
+        className={buttonVariants({ variant: 'outline', size: 'sm' })}
+      >
+        {removing ? REMOVE_FROM_CART_PENDING_LABEL : REMOVE_FROM_CART_LABEL}
+      </button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={`${REMOVE_FROM_CART_LABEL} ${creatorHandle}`}
+        description={`Remove ${creatorHandle} from this campaign's cart?`}
+        confirmLabel={REMOVE_FROM_CART_LABEL}
+        tone="destructive"
+        onConfirm={handleRemove}
+      />
+    </>
   );
 }

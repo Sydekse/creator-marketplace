@@ -146,7 +146,7 @@ export function LegalPage({
         </div>
       </main>
 
-      <footer className="relative z-[2] border-t border-neutral-200 bg-white">
+      <footer className="relative z-[2] border-t border-neutral-200 bg-neutral-50">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-6 py-10 sm:flex-row sm:items-center sm:justify-between">
           <Link
             href="/"

@@ -35,8 +35,9 @@ const buttonVariants = cva(
         destructive:
           'bg-destructive/10 text-destructive hover:bg-destructive/20 active:bg-destructive/30 focus-visible:border-destructive/40 focus-visible:ring-destructive/20',
         // The one variant with no background to darken — it is text. A pressed
-        // link stays underlined and deepens instead.
-        link: 'text-brand underline-offset-4 hover:underline active:text-brand-ink active:underline',
+        // link stays underlined and deepens instead, and it carries the same
+        // focus ring every other interactive element gets.
+        link: 'text-brand underline-offset-4 rounded-[4px] hover:underline active:text-brand-ink active:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand',
       },
       size: {
         default:

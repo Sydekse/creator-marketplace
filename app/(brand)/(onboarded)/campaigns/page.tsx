@@ -6,6 +6,7 @@ import { PageHeader } from '@/components/layout/page-header';
 import { buttonVariants } from '@/components/ui/button';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
+import { CancelCampaignButton } from '@/components/campaign/cancel-campaign-button';
 import {
   campaignStatusLabel,
   campaignStatusTone,
@@ -119,24 +120,37 @@ export default async function CampaignsPage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center sm:justify-end">
+                  <div className="flex items-center gap-2 sm:justify-end">
                     {/*
                       A confirmed campaign has no brief to edit — the edit page
                       answers with a "cannot be edited" alert and a way back.
                       Sending them to the campaign itself is the useful link
                       once offers are out, and this list only shows non-draft
                       campaigns at all because confirmation exists.
+
+                      Cancel sits beside Edit for drafts — the two things a
+                      brand does to a brief that has no offers yet. It is the
+                      same CancelCampaignButton the detail page renders, in its
+                      `list` context so success refreshes the row rather than
+                      navigating to the page the brand is already on.
                     */}
                     {camp.status === 'draft' ? (
-                      <Link
-                        href={`/campaigns/${camp.id}/edit`}
-                        className={buttonVariants({
-                          variant: 'outline',
-                          size: 'sm',
-                        })}
-                      >
-                        Edit brief
-                      </Link>
+                      <>
+                        <Link
+                          href={`/campaigns/${camp.id}/edit`}
+                          className={buttonVariants({
+                            variant: 'outline',
+                            size: 'sm',
+                          })}
+                        >
+                          Edit brief
+                        </Link>
+                        <CancelCampaignButton
+                          campaignId={camp.id}
+                          campaignName={camp.name}
+                          context="list"
+                        />
+                      </>
                     ) : (
                       <Link
                         href={`/campaigns/${camp.id}`}

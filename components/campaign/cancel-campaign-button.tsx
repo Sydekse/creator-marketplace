@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   CANCEL_CAMPAIGN_FAILED,
   CANCEL_CAMPAIGN_LABEL,
@@ -17,6 +18,14 @@ export interface CancelCampaignButtonProps {
   campaignId: string;
   /** For the confirm prompt — the brand named this campaign, so name it back. */
   campaignName: string;
+  /**
+   * Where the button is rendered. On the campaign **detail** page (`detail`,
+   * the default) a successful cancel pushes to `/campaigns` — the campaign it
+   * sat on no longer has anything to show. On the campaigns **list** (`list`)
+   * the brand is already standing where a success would send them, so the row
+   * refreshes in place and its chip reads `cancelled`.
+   */
+  context?: 'detail' | 'list';
 }
 
 /**
@@ -34,16 +43,14 @@ export interface CancelCampaignButtonProps {
 export function CancelCampaignButton({
   campaignId,
   campaignName,
+  context = 'detail',
 }: CancelCampaignButtonProps) {
   const router = useRouter();
   const [cancelling, setCancelling] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   async function handleCancel() {
     if (cancelling) return;
-
-    // Destructive and irreversible. `confirm` rather than a dialog because the
-    // repo has no dialog primitive installed, following `RemoveFromCartButton`.
-    if (!window.confirm(cancelCampaignPrompt(campaignName))) return;
 
     setCancelling(true);
 
@@ -82,20 +89,36 @@ export function CancelCampaignButton({
 
     toast.success(CANCEL_CAMPAIGN_SUCCESS);
 
-    // `push`, not `refresh`: the page this button sits on is the campaign that no
-    // longer has anything to do. The list is where the brand goes next, and it
-    // re-reads the status from the server on arrival.
+    // From the detail page this navigates to the list, which re-reads the
+    // status on arrival. From the list itself there is nowhere to go — the row
+    // is already here — so success refreshes and the chip reads `cancelled`.
+    if (context === 'list') {
+      setCancelling(false);
+      router.refresh();
+      return;
+    }
     router.push('/campaigns');
   }
 
   return (
-    <button
-      type="button"
-      onClick={handleCancel}
-      disabled={cancelling}
-      className={buttonVariants({ variant: 'outline', size: 'sm' })}
-    >
-      {cancelling ? CANCEL_CAMPAIGN_PENDING_LABEL : CANCEL_CAMPAIGN_LABEL}
-    </button>
+    <>
+      <button
+        type="button"
+        onClick={() => setConfirmOpen(true)}
+        disabled={cancelling}
+        className={buttonVariants({ variant: 'outline', size: 'sm' })}
+      >
+        {cancelling ? CANCEL_CAMPAIGN_PENDING_LABEL : CANCEL_CAMPAIGN_LABEL}
+      </button>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title={CANCEL_CAMPAIGN_LABEL}
+        description={cancelCampaignPrompt(campaignName)}
+        confirmLabel={CANCEL_CAMPAIGN_LABEL}
+        tone="destructive"
+        onConfirm={handleCancel}
+      />
+    </>
   );
 }

@@ -2,10 +2,13 @@ import Link from 'next/link';
 import type { CurrentUser } from '@/lib/auth';
 import { Mark } from '@/components/brand/mark';
 import { MainNav } from '@/components/nav/main-nav';
+import type { CartTarget } from '@/components/nav/main-nav';
 import { MobileNav } from '@/components/nav/mobile-nav';
 import { UserMenu } from '@/components/nav/user-menu';
 import { NotificationBell } from './notification-bell';
 import { unreadCount } from '@/lib/notifications/queries';
+import { getBrandProfileByUserId } from '@/lib/brands/queries';
+import { getActiveDraftCart } from '@/lib/campaigns/queries';
 
 interface HeaderProps {
   user: CurrentUser;
@@ -21,11 +24,27 @@ export async function Header({ user }: HeaderProps) {
     // Swallow — the bell simply shows no badge.
   }
 
+  // The cart icon is brand-only and resolves to the active draft's cart. Like
+  // the bell, a failure must not break the header — the icon just falls back to
+  // the campaigns list with no badge.
+  let cart: CartTarget | undefined;
+  if (user.role === 'brand') {
+    try {
+      const profile = await getBrandProfileByUserId(user.id);
+      const draft = profile ? await getActiveDraftCart(profile.id) : null;
+      cart = draft
+        ? { href: `/campaigns/${draft.campaignId}`, itemCount: draft.itemCount }
+        : { href: '/campaigns', itemCount: 0 };
+    } catch {
+      cart = { href: '/campaigns', itemCount: 0 };
+    }
+  }
+
   return (
     <>
       <header className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-3">
         <div className="pointer-events-auto flex h-14 w-full max-w-6xl items-center gap-2 rounded-full border border-neutral-800 bg-neutral-900/95 px-3 shadow-[0_12px_32px_rgba(23,23,23,0.18)] backdrop-blur sm:gap-3">
-          <MobileNav user={user} />
+          <MobileNav user={user} cart={cart} />
           <Link
             href="/"
             aria-label="Creator Marketplace home"
@@ -39,7 +58,7 @@ export async function Header({ user }: HeaderProps) {
               Creator Marketplace
             </span>
           </Link>
-          <MainNav user={user} />
+          <MainNav user={user} cart={cart} />
           <div className="ml-auto flex items-center gap-1 border-l border-neutral-50/15 pl-2 sm:gap-2 sm:pl-3">
             <NotificationBell unreadCount={count} />
             <UserMenu user={user} />

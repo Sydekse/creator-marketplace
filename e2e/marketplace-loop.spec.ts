@@ -34,11 +34,13 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Ramadan Beauty Push');
-  // Funding moves money, so the button confirms via `window.confirm` first —
-  // accept it, registered before the click (Playwright auto-dismisses
-  // unhandled dialogs, which would cancel the funding).
-  brand.on('dialog', (d) => d.accept());
+  // Funding moves money, so the shared ConfirmDialog asks first — click Fund,
+  // then the dialog's confirm button.
   await brand.getByRole('button', { name: 'Fund campaign' }).click();
+  await brand
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Fund campaign' })
+    .click();
   // Funding succeeds: the button's success toast, or the page re-reading a
   // funded campaign. The robust signal is the escrow row appearing.
   await expect(
@@ -96,10 +98,13 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   await signIn(approver, DEMO.brand);
   await openCampaign(approver, 'Ramadan Beauty Push');
   await approver.getByRole('link', { name: '@demo_creator' }).click();
-  // The approve control confirms with a window.dialog — accept it, registered
-  // before the click so the handler is live when the dialog fires.
-  approver.on('dialog', (d) => d.accept());
+  // The approve control asks first through the shared ConfirmDialog — click
+  // Approve, then the dialog's confirm button.
   await approver.getByRole('button', { name: 'Approve and pay' }).click();
+  await approver
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Approve and pay' })
+    .click();
   await expect(approver).toHaveURL(/\/deals\/[0-9a-f-]+/, { timeout: 15_000 });
   await approver.close();
 
@@ -150,30 +155,27 @@ test('flow 2: budget ceiling blocks adding an over-budget creator (AC-014)', asy
   await brand.locator('#goal').fill('Prove the ceiling holds.');
   await brand.locator('#targetAudience').fill('Everyone');
   await brand.getByRole('button', { name: 'Create draft campaign' }).click();
-  // The brief form returns to the campaign list after saving the draft — the
-  // detail page is the cart, which needs creators first. The list is where the
-  // new draft now appears.
-  await expect(brand).toHaveURL(/\/campaigns$/, { timeout: 15_000 });
+  // A new brief's next step is picking creators, so saving lands on discover.
+  await expect(brand).toHaveURL(/\/discover$/, { timeout: 15_000 });
 
   // Add the highest-tier creator with a video count the budget cannot cover.
-  await brand.goto('/discover');
-  // Discovery cards link by TikTok handle, not email.
-  await brand
-    .getByRole('link', { name: /@demo_beauty/i })
-    .first()
-    .click();
+  // Tiles mark rather than navigate — "See details" is the way into a profile.
+  const card = brand.locator('li', { hasText: '@demo_beauty' }).first();
+  await card.getByRole('link', { name: /see details/i }).click();
+  await expect(brand).toHaveURL(/\/discover\/[0-9a-f-]+/, { timeout: 15_000 });
   await brand.locator('select[name="campaignId"]').selectOption({
     label: 'Tiny Budget Campaign',
   });
   await brand.locator('input[name="videoCount"]').fill('3');
-  await brand.getByRole('button', { name: /add/i }).click();
+  await brand.getByRole('button', { name: 'Add to campaign' }).click();
 
-  // The refusal surfaces via the form's error toast — the server's
-  // BUDGET_EXCEEDED sentence. Asserted on the full sentence, not a /budget/
-  // fragment: the campaign list's own name ("Tiny Budget Campaign") contains
-  // "Budget" and would match first.
-  await expect(brand.getByText(/exceeds your remaining budget/i)).toBeVisible({
-    timeout: 15_000,
-  });
+  // The refusal is the server's BUDGET_EXCEEDED sentence, shown inline on
+  // the form (and also toasted). Assert the form alert so the toast copy
+  // cannot trip Playwright's strict locator. The campaign name contains
+  // "Budget", so a /budget/ fragment would match the wrong node.
+  await expect(brand.locator('form').getByRole('alert')).toHaveText(
+    /exceeds your remaining budget/i,
+    { timeout: 15_000 }
+  );
   await brand.close();
 });
