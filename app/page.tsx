@@ -232,6 +232,36 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
   );
 }
 
+function SectionIntro({
+  label,
+  title,
+  description,
+}: {
+  label: React.ReactNode;
+  title: React.ReactNode;
+  description: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-5">
+      <Reveal>
+        <Eyebrow>{label}</Eyebrow>
+      </Reveal>
+      <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:gap-x-16">
+        <Reveal>
+          <h2 className="font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 text-balance sm:text-4xl lg:text-5xl">
+            {title}
+          </h2>
+        </Reveal>
+        <Reveal delay={80}>
+          <p className="max-w-[40ch] text-[15px] leading-[1.65] text-neutral-600 lg:pt-2">
+            {description}
+          </p>
+        </Reveal>
+      </div>
+    </div>
+  );
+}
+
 function MiniPayout() {
   return (
     <svg viewBox="0 0 320 72" className="h-16 w-full" aria-hidden>
@@ -594,22 +624,17 @@ export default function HomePage() {
         {/* ---------------------------------------------------------------- */}
         <section id="how-it-works" className="scroll-mt-28 py-24 sm:py-32">
           <div className="mx-auto max-w-6xl px-6">
-            <div className="grid gap-8 lg:grid-cols-2">
-              <Reveal>
-                <Eyebrow>How it works</Eyebrow>
-                <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
+            <SectionIntro
+              label="How it works"
+              title={
+                <>
                   From brief to payout
                   <br />
                   <em className="not-italic text-brand">in four steps.</em>
-                </h2>
-              </Reveal>
-              <Reveal delay={120} className="lg:self-end">
-                <p className="max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-                  The brand creates an offer and funds it. The creator accepts,
-                  posts the video, and gets paid after approval.
-                </p>
-              </Reveal>
-            </div>
+                </>
+              }
+              description="The brand creates an offer and funds it. The creator accepts, posts the video, and gets paid after approval."
+            />
 
             <Reveal className="mt-16">
               <ol className="divide-y divide-neutral-200 border-y border-neutral-200">
@@ -641,25 +666,19 @@ export default function HomePage() {
         {/* ---------------------------------------------------------------- */}
         <section id="platform" className="scroll-mt-28 py-16 sm:py-20">
           <div className="mx-auto max-w-6xl px-6">
-            <div className="grid gap-8 lg:grid-cols-2">
-              <Reveal>
-                <Eyebrow>Why it works</Eyebrow>
-                <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
+            <SectionIntro
+              label="Why it works"
+              title={
+                <>
                   One place for the deal,
                   <br />
                   <em className="not-italic text-brand">
                     the work, and the payment.
                   </em>
-                </h2>
-              </Reveal>
-              <Reveal delay={120} className="lg:self-end">
-                <p className="max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-                  Brands can see the brief, creator, deliverable, payment, and
-                  deal history in the same workspace. Nothing has to be pieced
-                  together from messages and spreadsheets.
-                </p>
-              </Reveal>
-            </div>
+                </>
+              }
+              description="Brands can see the brief, creator, deliverable, payment, and deal history in the same workspace. Nothing has to be pieced together from messages and spreadsheets."
+            />
           </div>
         </section>
 
@@ -671,22 +690,17 @@ export default function HomePage() {
           className="scroll-mt-28 border-t border-neutral-200 py-24 sm:py-32"
         >
           <div className="mx-auto max-w-6xl px-6">
-            <div className="grid gap-8 lg:grid-cols-2">
-              <Reveal>
-                <Eyebrow>The brand workspace</Eyebrow>
-                <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
+            <SectionIntro
+              label="The brand workspace"
+              title={
+                <>
                   Create, fund, and review
                   <br />
                   <em className="not-italic text-brand">from one dashboard.</em>
-                </h2>
-              </Reveal>
-              <Reveal delay={120} className="lg:self-end">
-                <p className="max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-                  Set the campaign terms, choose creators, fund each deal, and
-                  approve submitted videos from the brand dashboard.
-                </p>
-              </Reveal>
-            </div>
+                </>
+              }
+              description="Set the campaign terms, choose creators, fund each deal, and approve submitted videos from the brand dashboard."
+            />
 
             <div className="mt-16 grid items-start gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-16">
               {/* Feature list — active item carries the ink border */}
@@ -857,23 +871,17 @@ export default function HomePage() {
           className="scroll-mt-28 border-t border-neutral-200 py-24 sm:py-32"
         >
           <div className="mx-auto max-w-6xl px-6">
-            <div className="grid gap-8 lg:grid-cols-2">
-              <Reveal>
-                <Eyebrow>For creators</Eyebrow>
-                <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
+            <SectionIntro
+              label="For creators"
+              title={
+                <>
                   Get paid for what you
                   <br />
                   <em className="not-italic text-brand">already do.</em>
-                </h2>
-              </Reveal>
-              <Reveal delay={120} className="lg:self-end">
-                <p className="max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-                  Apply once and get verified. Brands can then send offers that
-                  match your niche. You see the work, price, and commission
-                  before you accept.
-                </p>
-              </Reveal>
-            </div>
+                </>
+              }
+              description="Apply once and get verified. Brands can then send offers that match your niche. You see the work, price, and commission before you accept."
+            />
 
             <Reveal delay={80}>
               <div className="mt-16 grid gap-8 border-y border-neutral-200 py-10 sm:grid-cols-3 sm:gap-0">
@@ -957,24 +965,19 @@ export default function HomePage() {
           className="scroll-mt-28 border-t border-neutral-200 py-24 sm:py-32"
         >
           <div className="mx-auto max-w-6xl px-6">
-            <div className="grid gap-8 lg:grid-cols-2">
-              <Reveal>
-                <Eyebrow>Pricing</Eyebrow>
-                <h2 className="mt-5 font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 sm:text-4xl lg:text-5xl">
+            <SectionIntro
+              label="Pricing"
+              title={
+                <>
                   Free to join.
                   <br />
                   <em className="not-italic text-brand">
                     15% on completed deals.
                   </em>
-                </h2>
-              </Reveal>
-              <Reveal delay={120} className="lg:self-end">
-                <p className="max-w-[52ch] text-base leading-relaxed text-neutral-600 sm:text-lg">
-                  Brands and creators can join without a subscription. The
-                  platform takes 15% only when a deal is completed.
-                </p>
-              </Reveal>
-            </div>
+                </>
+              }
+              description="Brands and creators can join without a subscription. The platform takes 15% only when a deal is completed."
+            />
 
             <div className="mx-auto mt-16 grid max-w-4xl overflow-hidden border-y border-neutral-200 md:grid-cols-2 md:divide-x md:divide-neutral-200">
               {[
