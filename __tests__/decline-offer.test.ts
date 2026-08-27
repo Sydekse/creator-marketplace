@@ -805,7 +805,7 @@ describe('AC-018 — the brand’s remaining budget reflects the decline', () =>
   it('names the committed figure for what it is on a confirmed campaign', () => {
     // "Running Total" over a deals-derived number would name the wrong thing.
     expect(CAMPAIGN_PAGE).toMatch(
-      /campaign\.status === 'draft' \? 'Running Total' : 'Committed'/
+      /campaign\.status === 'draft' \? 'Running total' : 'Committed'/
     );
   });
 

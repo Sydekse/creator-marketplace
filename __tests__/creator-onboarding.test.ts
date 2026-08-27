@@ -316,8 +316,20 @@ describe('tiktokProfileUrl', () => {
       // One label, so the three cannot come to say different things.
       expect(src).toContain('VIEW_ON_TIKTOK_LABEL');
       // The tab we open must get no handle on ours, and we are not vouching for
-      // an account nobody has checked.
-      expect(src).toContain('noopener noreferrer nofollow');
+      // an account nobody has checked. The detail page delegates the <a> to
+      // MagneticAnchor; the rel still has to exist on whatever actually renders.
+      const relSrc = src.includes('MagneticAnchor')
+        ? readFileSync(
+            fileURLToPath(
+              new URL(
+                '../components/motion/magnetic-anchor.tsx',
+                import.meta.url
+              )
+            ),
+            'utf8'
+          )
+        : src;
+      expect(relSrc).toContain('noopener noreferrer nofollow');
     }
   });
 });
