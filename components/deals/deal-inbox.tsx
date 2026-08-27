@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CaretRight } from '@phosphor-icons/react/dist/ssr';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { expiryLabel } from '@/lib/dates';
 import {
@@ -62,7 +63,7 @@ function DealRow({ deal, now }: { deal: InboxDealRow; now: Date }) {
     <li className="border-b border-neutral-200 last:border-b-0">
       <Link
         href={`/creator/deals/${deal.id}`}
-        className="group -mx-3 flex min-h-20 flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl px-3 py-4 transition-all duration-300 ease-out hover:translate-x-1 hover:bg-neutral-100 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
+        className="group flex min-h-20 cursor-pointer flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-xl px-3 py-4 transition-[background-color,box-shadow] duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-50 hover:shadow-[0_16px_32px_-24px_rgba(23,23,23,0.35)] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
       >
         <div className="flex min-w-0 items-center gap-3">
           <InitialsAvatar name={deal.companyName} />
@@ -84,8 +85,9 @@ function DealRow({ deal, now }: { deal: InboxDealRow; now: Date }) {
           <span className="font-mono text-sm font-medium text-neutral-900 tabular-nums">
             {formatEtb(deal.totalPrice)}
           </span>
-          <span className="text-xs text-muted-foreground">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-neutral-500 transition-colors group-hover:text-neutral-900">
             {VIEW_DEAL_LABEL}
+            <CaretRight size={12} weight="bold" aria-hidden />
           </span>
         </div>
       </Link>

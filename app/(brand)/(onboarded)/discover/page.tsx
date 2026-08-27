@@ -329,6 +329,11 @@ function Header({ resultCount }: { resultCount?: number }) {
           ? 'Browse verified creators with published rates. Each filter narrows the results.'
           : `${resultCount} ${resultCount === 1 ? 'creator' : 'creators'} match your current shortlist.`
       }
+      action={
+        <p className="max-w-[15rem] rounded-full border border-neutral-200 bg-neutral-50 px-4 py-2.5 text-sm leading-snug text-neutral-600">
+          Mark a card to shortlist it
+        </p>
+      }
     />
   );
 }

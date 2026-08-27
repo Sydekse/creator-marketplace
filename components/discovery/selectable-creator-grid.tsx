@@ -13,7 +13,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 import { CAMPAIGN_NOT_DRAFT_MESSAGE } from '@/lib/campaigns/constants';
 import { cn, textLinkFeedback } from '@/lib/utils';
@@ -132,7 +131,7 @@ export function SelectableCreatorGrid({
 
   return (
     <>
-      <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <ul className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         {creators.map((creator) => {
           const isSelected = selected.has(creator.id);
           return (
@@ -169,7 +168,7 @@ export function SelectableCreatorGrid({
               </div>
               <Link
                 href={`/discover/${creator.id}`}
-                className="absolute right-3 bottom-3 z-10 inline-flex min-h-8 items-center rounded-full border border-neutral-300 bg-neutral-50 px-3 text-xs font-medium text-neutral-900 shadow-[0_8px_20px_-12px_rgba(23,23,23,0.35)] transition-[transform,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:bg-neutral-100 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+                className="absolute right-3 bottom-3 z-10 inline-flex min-h-8 items-center rounded-full border border-neutral-300 bg-neutral-50 px-3 text-xs font-medium text-neutral-900 shadow-[0_8px_20px_-12px_rgba(23,23,23,0.35)] transition-[border-color,box-shadow,background-color] duration-200 ease-[var(--ease-smooth)] hover:border-neutral-400 hover:bg-neutral-100 hover:shadow-[0_12px_24px_-16px_rgba(23,23,23,0.4)] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
               >
                 See details
               </Link>
@@ -199,8 +198,11 @@ export function SelectableCreatorGrid({
                       if (next) setCampaignId(next);
                     }}
                   >
-                    <SelectTrigger className="h-9 w-full rounded-lg border-neutral-700 bg-neutral-800 px-3 text-sm font-medium tracking-normal text-neutral-50 hover:border-neutral-500 focus-visible:border-neutral-50 focus-visible:ring-neutral-50/20 [&_svg]:text-neutral-400">
-                      <SelectValue />
+                    <SelectTrigger className="h-9 w-full min-w-0 rounded-lg border-neutral-700 bg-neutral-800 px-3 text-sm font-medium tracking-normal text-neutral-50 hover:border-neutral-500 focus-visible:border-neutral-50 focus-visible:ring-neutral-50/20 [&_svg]:text-neutral-400">
+                      <span className="min-w-0 flex-1 truncate text-left normal-case">
+                        {draftCampaigns.find((c) => c.id === campaignId)
+                          ?.name ?? 'Choose a campaign'}
+                      </span>
                     </SelectTrigger>
                     <SelectContent
                       align="start"

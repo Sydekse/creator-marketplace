@@ -58,9 +58,9 @@ export default async function BrandDealsPage() {
           }
         />
       ) : (
-        <div className="border-y border-neutral-200 bg-neutral-100/35 px-4 py-6 sm:px-6">
-          <div className="mb-5 flex items-end justify-between gap-4 border-b border-neutral-200 pb-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
+        <div className="flex flex-col gap-6">
+          <div className="flex items-end justify-between gap-4">
+            <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
               Review queue
             </p>
             <Link

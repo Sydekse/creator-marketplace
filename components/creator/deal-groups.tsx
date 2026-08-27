@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { CaretRight } from '@phosphor-icons/react/dist/ssr';
 import type {
   CreatorDealGroup,
   CreatorDealRow,
@@ -35,7 +36,7 @@ function DealRow({ deal }: { deal: CreatorDealRow }) {
           that is a full-width tap target instead of a 40px one (NFR-007). */}
       <Link
         href={`/creator/deals/${deal.id}`}
-        className="group -mx-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl px-3 py-4 transition-all duration-300 ease-out hover:translate-x-1 hover:bg-neutral-100 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
+        className="group flex cursor-pointer flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl px-3 py-4 transition-[background-color,box-shadow] duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-50 hover:shadow-[0_16px_32px_-24px_rgba(23,23,23,0.35)] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
       >
         <div className="flex min-w-0 flex-col gap-0.5">
           <TruncatedText
@@ -50,7 +51,10 @@ function DealRow({ deal }: { deal: CreatorDealRow }) {
           <span className="font-mono text-sm font-medium tabular-nums">
             {formatEtb(deal.totalPrice)}
           </span>
-          <span className="text-xs text-muted-foreground">Deal value</span>
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-neutral-500 transition-colors group-hover:text-neutral-900">
+            Open deal
+            <CaretRight size={12} weight="bold" aria-hidden />
+          </span>
         </div>
       </Link>
     </li>

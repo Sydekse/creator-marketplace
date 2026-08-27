@@ -10,7 +10,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from '@/components/ui/select';
 import {
   ADD_TO_CAMPAIGN_LABEL,
@@ -139,7 +138,10 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
               aria-labelledby="add-to-cart-campaign-label"
               className={cn(triggerClass)}
             >
-              <SelectValue />
+              <span className="min-w-0 flex-1 truncate text-left">
+                {campaigns.find((c) => c.id === campaignId)?.name ??
+                  'Choose a campaign'}
+              </span>
             </SelectTrigger>
             <SelectContent
               align="start"
