@@ -9,7 +9,14 @@ const AUTH_ROUTES = ['/sign-in', '/sign-up'];
  * iMessage, X) fetch these with zero cookies, so any auth redirect turns
  * link previews into broken images or text-only cards.
  */
-const PUBLIC_ROUTES = ['/opengraph-image', '/icon', '/apple-icon'];
+const PUBLIC_ROUTES = [
+  '/opengraph-image',
+  '/icon',
+  '/apple-icon',
+  // TikTok (and any other reviewer) crawls these with no cookies.
+  '/privacy',
+  '/terms',
+];
 
 /**
  * Coarse routing only: it redirects on the *presence* of a session cookie and
