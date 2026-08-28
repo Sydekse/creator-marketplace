@@ -60,6 +60,7 @@ export default function SignUpPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<RoleOption>('brand');
+  const [creatorDemo, setCreatorDemo] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -143,7 +144,12 @@ export default function SignUpPage() {
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
-      <AccordionPanel open={role === 'brand'}>
+      {/* One credential form, two placements: brands always, creators only
+          once the demo fallback has revealed it. The same `handleSubmit` runs
+          either way — the only difference is which accordion it sits in. */}
+      <AccordionPanel
+        open={role === 'brand' || (role === 'creator' && creatorDemo)}
+      >
         <form
           onSubmit={handleSubmit}
           noValidate
@@ -271,13 +277,9 @@ export default function SignUpPage() {
         </form>
       </AccordionPanel>
 
-      <AccordionPanel open={role === 'creator'}>
+      <AccordionPanel open={role === 'creator' && !creatorDemo}>
         <div className="mt-6 flex flex-col gap-4">
-          <ContinueWithTiktok />
-          <p className="text-[13px] leading-snug text-neutral-500">
-            TikTok does not share an email. We will ask for one later if we need
-            to reach you.
-          </p>
+          <ContinueWithTiktok onDemoFallback={() => setCreatorDemo(true)} />
         </div>
       </AccordionPanel>
 

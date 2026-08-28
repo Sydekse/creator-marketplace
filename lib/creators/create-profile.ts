@@ -39,6 +39,13 @@ export interface CreateProfileDeps {
     followerCount: number | null;
     engagementRate: string | null;
   }) => Promise<{ id: string; status: string; tiktokHandle: string }>;
+  /**
+   * The handle the session itself carries (Login Kit, phase 1). Read here so
+   * tests can inject it without standing up the `user` table. The route wires
+   * `sessionTiktokHandle` in as the default, so the module stays free of the
+   * DB read.
+   */
+  sessionHandle?: (userId: string) => Promise<string | null>;
 }
 
 const defaultDeps: CreateProfileDeps = {
@@ -88,12 +95,19 @@ export async function createCreatorProfile(
   deps: CreateProfileDeps = defaultDeps
 ): Promise<CreateProfileResult> {
   try {
+    // The handle the session was created with wins over the body. A Login Kit
+    // user cannot rename themselves into somebody else's TikTok by editing
+    // the request (phase 1); email sign-ups still carry a typed handle.
+    const sessionHandle = deps.sessionHandle
+      ? await deps.sessionHandle(userId)
+      : null;
     const profile = await deps.insert({
       userId,
       // Already canonicalised by `createCreatorSchema`'s transform — the type
       // says `string`, but the only way to obtain a `CreateCreatorInput` is to
-      // parse, and parsing normalises.
-      tiktokHandle: input.tiktokHandle,
+      // parse, and parsing normalises. `sessionTiktokHandle` returns the same
+      // canonical form (`mapProfileToUser` runs it through `normalizeTiktokHandle`).
+      tiktokHandle: sessionHandle ?? input.tiktokHandle,
       niche: input.niche,
       audience: input.audience,
       followerCount: input.followerCount ?? null,

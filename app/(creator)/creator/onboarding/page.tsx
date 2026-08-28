@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
-import { requireRole } from '@/lib/auth';
+import { needsCredentials, requireRole } from '@/lib/auth';
 import { getCreatorProfileByUserId } from '@/lib/creators/queries';
 import { CreatorOnboardingForm } from './creator-onboarding-form';
 
@@ -14,6 +14,9 @@ import { CreatorOnboardingForm } from './creator-onboarding-form';
  */
 export default async function CreatorOnboardingPage() {
   const user = await requireRole('creator');
+  // Login Kit first, credentials second: a TikTok sign-up has no real email
+  // until that step, so onboarding cannot start on the synthetic one.
+  if (needsCredentials(user)) redirect('/creator/credentials');
 
   const profile = await getCreatorProfileByUserId(user.id);
   if (profile) redirect('/creator');

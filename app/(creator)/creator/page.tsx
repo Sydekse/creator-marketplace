@@ -10,7 +10,7 @@ import { EmptyState } from '@/components/feedback/empty-state';
 import { SectionLabel } from '@/components/layout/section-label';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { requireRole } from '@/lib/auth';
+import { needsCredentials, requireRole } from '@/lib/auth';
 import {
   ENGAGEMENT_RATE_HINT,
   NICHE_LABELS,
@@ -70,6 +70,7 @@ export const runtime = 'nodejs';
  */
 export default async function CreatorDashboardPage() {
   const user = await requireRole('creator');
+  if (needsCredentials(user)) redirect('/creator/credentials');
 
   const row = await getCreatorProfileWithTier(user.id);
   if (!row) redirect('/creator/onboarding');

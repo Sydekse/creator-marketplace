@@ -11,6 +11,7 @@ import {
   isUserRole,
 } from '@/lib/auth-policy';
 import { roleHomePath } from '@/lib/navigation';
+import { normalizeTiktokHandle } from '@/lib/creators/handle';
 
 export const auth = betterAuth({
   // Better Auth mints ids in application code, and its default is a random
@@ -46,9 +47,20 @@ export const auth = betterAuth({
             clientId: process.env.TIKTOK_CLIENT_KEY,
             clientKey: process.env.TIKTOK_CLIENT_KEY,
             clientSecret: process.env.TIKTOK_CLIENT_SECRET,
+            // TikTok never sends an email; Better Auth stores the Login Kit
+            // `username` in the email column instead. The handle the creator
+            // signs up with is the one their profile is built on, so it is
+            // captured onto the user here and locked on onboarding.
+            mapProfileToUser: (profile) => ({
+              tiktokHandle: normalizeTiktokHandle(
+                (profile as { data?: { user?: { username?: string } } }).data
+                  ?.user?.username ?? ''
+              ),
+            }),
           } as {
             clientKey: string;
             clientSecret: string;
+            mapProfileToUser: (profile: unknown) => Record<string, unknown>;
           },
         },
       }
@@ -63,6 +75,20 @@ export const auth = betterAuth({
         // database hooks below are what make that safe.
         input: true,
       },
+      // The TikTok username from Login Kit (KAN-39 phase 1). Not an input: it
+      // arrives from the provider, never from the request body.
+      tiktokHandle: {
+        type: 'string',
+        required: false,
+        input: false,
+      },
+    },
+    // The credentials step moves a TikTok user from the synthetic email to a
+    // real one. Verification is optional in phase 1 (Resend may be off in
+    // sandbox), so the update is allowed while the placeholder is unverified.
+    changeEmail: {
+      enabled: true,
+      updateEmailWithoutVerification: true,
     },
   },
   databaseHooks: {
@@ -122,6 +148,8 @@ export interface CurrentUser {
   email: string;
   name: string | null;
   role: UserRole;
+  /** The TikTok username Login Kit wrote at sign-up, when there is one. */
+  tiktokHandle?: string | null;
 }
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
@@ -132,6 +160,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (!session) return null;
 
   const role = (session.user as { role?: unknown }).role;
+  const handle = (session.user as { tiktokHandle?: unknown }).tiktokHandle;
   return {
     id: session.user.id,
     email: session.user.email,
@@ -139,7 +168,19 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     // A row with an unrecognised role is treated as the least-privileged one
     // rather than being trusted into a gate.
     role: isUserRole(role) ? role : 'creator',
+    tiktokHandle: typeof handle === 'string' && handle !== '' ? handle : null,
   };
+}
+
+/**
+ * Whether this session still owes the credentials step (phase 1).
+ *
+ * A TikTok sign-up has no real email — Better Auth stores the Login Kit
+ * `username` in the email column, never `@` — and no password until the
+ * creator sets one. Both must exist before onboarding.
+ */
+export function needsCredentials(user: CurrentUser): boolean {
+  return !user.email.includes('@');
 }
 
 /** Requires a session. Redirects to sign-in when there isn't one. */

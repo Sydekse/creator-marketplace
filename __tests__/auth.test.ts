@@ -106,12 +106,17 @@ describe('TikTok Login Kit wiring', () => {
     );
     expect(signUp).toContain('ContinueWithTiktok');
     expect(signUp).toContain("role === 'creator'");
+    // Sign-up keeps the demo fallback; sign-in shows the button disabled
+    // during the sandbox testing phase.
+    expect(signUp).toContain('onDemoFallback');
+    expect(signIn).toContain('disabledNote');
     expect(signIn).toContain('ContinueWithTiktok');
+
     const cta = readFileSync(
       join(ROOT, 'components/auth/continue-with-tiktok.tsx'),
       'utf8'
     );
-    expect(cta).toContain('disabled');
-    expect(cta).not.toContain('signIn.social');
+    expect(cta).toContain('signIn.social');
+    expect(cta).toContain('TIKTOK_OAUTH_ENABLED');
   });
 });
