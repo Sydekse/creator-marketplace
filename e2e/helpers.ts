@@ -47,28 +47,32 @@ export async function openCreatorDeal(page: Page, campaignName: string) {
 }
 
 /**
- * Run `act` (a click that fires a client-side POST) and require the matching
- * response to arrive ok before the caller moves on.
+ * Run `act` (a click that fires a client-side mutation) and require the
+ * matching response to arrive ok before the caller moves on.
  *
  * Every mutating step in these flows is a client `fetch` — accept, fund,
- * deliver, approve, metrics — followed by `router.refresh()`. Two traps:
- * closing the page right after the click aborts the in-flight POST, and any
- * "did it work" assertion that can be satisfied by pre-existing copy (the
- * fund dialog's own prompt contains "escrow") passes before the money moved.
- * Waiting on the response pins each step to the thing that actually matters.
+ * deliver, approve (POST), metrics (PUT) — followed by `router.refresh()`.
+ * Two traps: closing the page right after the click aborts the in-flight
+ * request, and any "did it work" assertion that can be satisfied by
+ * pre-existing copy (the fund dialog's own prompt contains "escrow") passes
+ * before the money moved. Waiting on the response pins each step to the
+ * thing that actually matters.
  */
-export async function expectPostOk(
+export async function expectMutationOk(
   page: Page,
   pathSuffix: string,
-  act: () => Promise<void>
+  act: () => Promise<void>,
+  method: 'POST' | 'PUT' = 'POST'
 ): Promise<void> {
-  const posted = page.waitForResponse(
+  const responded = page.waitForResponse(
     (response) =>
       response.url().includes(pathSuffix) &&
-      response.request().method() === 'POST'
+      response.request().method() === method
   );
   await act();
-  expect((await posted).ok(), `POST ${pathSuffix} must succeed`).toBe(true);
+  expect((await responded).ok(), `${method} ${pathSuffix} must succeed`).toBe(
+    true
+  );
 }
 
 /**
@@ -93,7 +97,7 @@ export async function submitVideo(
   progressCopy: string
 ): Promise<void> {
   await page.locator('#tiktokUrl').fill(videoUrl);
-  await expectPostOk(page, '/deliverable', () =>
+  await expectMutationOk(page, '/deliverable', () =>
     page.getByRole('button', { name: 'Submit your video' }).click()
   );
   await expect(async () => {

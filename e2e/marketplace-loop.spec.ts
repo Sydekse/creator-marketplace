@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   DEMO,
-  expectPostOk,
+  expectMutationOk,
   openCampaign,
   openCreatorDeal,
   signIn,
@@ -43,7 +43,7 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   // is deliberately unticked (and cannot be pre-ticked), so the e2e ticks it
   // exactly as a creator would before the accept control enables.
   await creator.getByRole('checkbox', { name: /Usage Rights terms/i }).check();
-  await expectPostOk(creator, '/accept', () =>
+  await expectMutationOk(creator, '/accept', () =>
     creator.getByRole('button', { name: 'Accept offer' }).click()
   );
   await expect(creator).toHaveURL(/\/creator\/deals\/[0-9a-f-]+/);
@@ -60,7 +60,7 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   // and leave the campaign confirmed-but-unfunded (the CI failure where the
   // creator's deliverable form never rendered).
   await brand.getByRole('button', { name: 'Fund campaign' }).click();
-  await expectPostOk(brand, '/fund', () =>
+  await expectMutationOk(brand, '/fund', () =>
     brand
       .getByRole('dialog')
       .getByRole('button', { name: 'Fund campaign' })
@@ -117,7 +117,7 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   // The approve control asks first through the shared ConfirmDialog — click
   // Approve, then the dialog's confirm button, and hold for the payout POST.
   await approver.getByRole('button', { name: 'Approve and pay' }).click();
-  await expectPostOk(approver, '/approve', () =>
+  await expectMutationOk(approver, '/approve', () =>
     approver
       .getByRole('dialog')
       .getByRole('button', { name: 'Approve and pay' })
@@ -137,9 +137,13 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   await metrics.locator('#metric-shares').first().fill('90');
   await metrics.locator('#metric-comments').first().fill('37');
   // Same abort trap as every other mutation: the close below kills any
-  // request still in flight, so hold for the metrics POST first.
-  await expectPostOk(metrics, '/metrics', () =>
-    metrics.getByRole('button', { name: 'Submit metrics' }).first().click()
+  // request still in flight, so hold for the metrics PUT first.
+  await expectMutationOk(
+    metrics,
+    '/metrics',
+    () =>
+      metrics.getByRole('button', { name: 'Submit metrics' }).first().click(),
+    'PUT'
   );
   await metrics.close();
 
