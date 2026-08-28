@@ -339,6 +339,13 @@ html {
   border-color: color-mix(in oklch, var(--brand) 32%, var(--border));
 }
 
+/* Auth forms read on paper, not wash — the one-card pages do not need the
+   gradient the dashboard uses to separate a section from the shell. */
+.auth-card {
+  background-image: none;
+  background-color: var(--background);
+}
+
 /* Page-level h1 — the serif headline (design doc §4.3). Page openers only;
    titles inside cards, tables, and forms stay DM Sans. */
 .page-title {

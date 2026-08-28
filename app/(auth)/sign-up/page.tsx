@@ -120,7 +120,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="surface-card surface-pop relative w-full max-w-md rounded-[28px] border border-neutral-200 px-7 pb-7 pt-14 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:px-10 sm:pb-10 sm:pt-16">
+    <div className="surface-card auth-card relative w-full max-w-md rounded-[28px] border border-neutral-200 px-7 pb-6 pt-12 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:px-9 sm:pb-8 sm:pt-13">
       <RoleNotch
         value={role}
         onChange={(next) => {
@@ -140,13 +140,13 @@ export default function SignUpPage() {
           : 'Brands create a free profile with email and password.'}
       </p>
 
-      <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
+      <div className="mt-5 border-b border-neutral-200" aria-hidden="true" />
 
       {/* The button comes first for a creator, even while Login Kit is in
           testing — it is the reason the notch exists. The form it sits over
           is the email one either way. */}
       {role === 'creator' ? (
-        <div className="mt-6">
+        <div className="mt-5">
           <ContinueWithTiktok />
         </div>
       ) : null}
@@ -155,9 +155,9 @@ export default function SignUpPage() {
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="mt-5 flex flex-col gap-4"
+          className="mt-4 flex flex-col gap-3.5"
         >
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="name"
               className="text-[13px] font-semibold text-neutral-700"
@@ -182,7 +182,7 @@ export default function SignUpPage() {
             <FieldError id="name-error" message={errors.name} />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="email"
               className="text-[13px] font-semibold text-neutral-700"
@@ -208,7 +208,7 @@ export default function SignUpPage() {
             <FieldError id="email-error" message={errors.email} />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="password"
               className="text-[13px] font-semibold text-neutral-700"
@@ -234,7 +234,7 @@ export default function SignUpPage() {
             <FieldError id="password-error" message={errors.password} />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="confirmPassword"
               className="text-[13px] font-semibold text-neutral-700"
@@ -284,7 +284,7 @@ export default function SignUpPage() {
         </form>
       </AccordionPanel>
 
-      <p className="mt-7 text-center text-[13px] text-neutral-500">
+      <p className="mt-5 text-center text-[13px] text-neutral-500">
         Already have an account?{' '}
         <Link
           href="/sign-in"

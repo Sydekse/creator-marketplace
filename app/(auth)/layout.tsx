@@ -18,7 +18,7 @@ export default function AuthLayout({
       {/* The landing's ledger grid, faded before it can compete with the card. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-40"
+        className="pointer-events-none absolute inset-0 opacity-15"
         style={{
           backgroundImage:
             'linear-gradient(to right, oklch(0.88 0 0 / 0.3) 1px, transparent 1px), linear-gradient(to bottom, oklch(0.88 0 0 / 0.3) 1px, transparent 1px)',
@@ -30,7 +30,7 @@ export default function AuthLayout({
       <header className="flex justify-center px-6 pt-8 sm:pt-10">
         <Link
           href="/"
-          className="flex items-center gap-3 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500"
+          className="flex items-center gap-3 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
         >
           <Mark tone="dark" />
           <span className="text-[13px] font-semibold tracking-tight text-neutral-900">
