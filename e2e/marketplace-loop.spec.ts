@@ -1,5 +1,32 @@
 import { expect, test } from '@playwright/test';
-import { DEMO, openCampaign, openCreatorDeal, signIn } from './helpers';
+import {
+  DEMO,
+  expectMutationOk,
+  openCampaign,
+  openConfirmDialog,
+  openCreatorDeal,
+  signIn,
+  submitVideo,
+} from './helpers';
+
+/**
+ * Flow 1 consumes its seeded state in the first step: once the offer is
+ * accepted, no retry can ever find the usage-rights checkbox again. A retry
+ * therefore burns the full test timeout at that checkbox and reports the
+ * wrong failure — the CI logs on main (33079554962) and #121 both show it.
+ * Fail once, fail honestly. (Flow 2 creates its own campaign, but a re-run
+ * would collide with the leftover 'Tiny Budget Campaign' all the same.)
+ */
+test.describe.configure({ retries: 0 });
+
+/**
+ * Flow 1 walks eight fresh sign-in sessions end to end. On the webkit-mobile
+ * CI runner that legitimately outgrows the suite's 120s default — its last
+ * failure snapshot is an empty <main>, a page still loading when the budget
+ * ran out, not a bug. Give the walk room; every step inside it still has its
+ * own tight assertion timeout.
+ */
+test.setTimeout(300_000);
 
 /**
  * KAN-60 flow 1 — the full marketplace loop, start to finish (AC-1):
@@ -26,7 +53,9 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   // is deliberately unticked (and cannot be pre-ticked), so the e2e ticks it
   // exactly as a creator would before the accept control enables.
   await creator.getByRole('checkbox', { name: /Usage Rights terms/i }).check();
-  await creator.getByRole('button', { name: 'Accept offer' }).click();
+  await expectMutationOk(creator, '/accept', () =>
+    creator.getByRole('button', { name: 'Accept offer' }).click()
+  );
   await expect(creator).toHaveURL(/\/creator\/deals\/[0-9a-f-]+/);
   await creator.close();
 
@@ -34,32 +63,31 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Ramadan Beauty Push');
-  // Funding moves money, so the shared ConfirmDialog asks first — click Fund,
-  // then the dialog's confirm button.
-  await brand.getByRole('button', { name: 'Fund campaign' }).click();
-  await brand
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Fund campaign' })
-    .click();
-  // Funding succeeds: the button's success toast, or the page re-reading a
-  // funded campaign. The robust signal is the escrow row appearing.
-  await expect(
-    brand.getByText(/held in escrow|Funds held|escrow/i).first()
-  ).toBeVisible({ timeout: 15_000 });
+  // Funding moves money, so the shared ConfirmDialog asks first — open it
+  // (hydration-safe), then confirm. The dialog's own prompt contains the
+  // word "escrow", so no text assertion can prove the hold: only the POST
+  // response can. Closing the page early would abort that in-flight request
+  // and leave the campaign confirmed-but-unfunded (the CI failure where the
+  // creator's deliverable form never rendered).
+  await openConfirmDialog(brand, 'Fund campaign');
+  await expectMutationOk(brand, '/fund', () =>
+    brand
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Fund campaign' })
+      .click()
+  );
   await brand.close();
 
   // -- Creator submits the first of two videos ------------------------------
   const submitter = await browser.newPage();
   await signIn(submitter, DEMO.creator);
   await openCreatorDeal(submitter, 'Ramadan Beauty Push');
-  await submitter
-    .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/1234567890123456789');
-  await submitter.getByRole('button', { name: 'Submit your video' }).click();
   // One of two: the page reports the progress and the form is still there.
-  await expect(submitter.getByText('1 of 2 videos submitted')).toBeVisible({
-    timeout: 15_000,
-  });
+  await submitVideo(
+    submitter,
+    'https://www.tiktok.com/@creator.demo/video/1234567890123456789',
+    '1 of 2 videos submitted'
+  );
   await submitter.close();
 
   // -- The brand has nothing to approve yet (F38) ---------------------------
@@ -81,13 +109,11 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const finisher = await browser.newPage();
   await signIn(finisher, DEMO.creator);
   await openCreatorDeal(finisher, 'Ramadan Beauty Push');
-  await finisher
-    .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/2234567890123456789');
-  await finisher.getByRole('button', { name: 'Submit your video' }).click();
-  await expect(finisher.getByText('2 of 2 videos submitted')).toBeVisible({
-    timeout: 15_000,
-  });
+  await submitVideo(
+    finisher,
+    'https://www.tiktok.com/@creator.demo/video/2234567890123456789',
+    '2 of 2 videos submitted'
+  );
   await finisher.close();
 
   // -- Brand approves (payout net of commission) ----------------------------
@@ -98,13 +124,15 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   await signIn(approver, DEMO.brand);
   await openCampaign(approver, 'Ramadan Beauty Push');
   await approver.getByRole('link', { name: '@demo_creator' }).click();
-  // The approve control asks first through the shared ConfirmDialog — click
-  // Approve, then the dialog's confirm button.
-  await approver.getByRole('button', { name: 'Approve and pay' }).click();
-  await approver
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Approve and pay' })
-    .click();
+  // The approve control asks first through the shared ConfirmDialog — open
+  // it (hydration-safe), confirm, and hold for the payout POST.
+  await openConfirmDialog(approver, 'Approve and pay');
+  await expectMutationOk(approver, '/approve', () =>
+    approver
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Approve and pay' })
+      .click()
+  );
   await expect(approver).toHaveURL(/\/deals\/[0-9a-f-]+/, { timeout: 15_000 });
   await approver.close();
 
@@ -118,7 +146,15 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   await metrics.locator('#metric-likes').first().fill('840');
   await metrics.locator('#metric-shares').first().fill('90');
   await metrics.locator('#metric-comments').first().fill('37');
-  await metrics.getByRole('button', { name: 'Submit metrics' }).first().click();
+  // Same abort trap as every other mutation: the close below kills any
+  // request still in flight, so hold for the metrics PUT first.
+  await expectMutationOk(
+    metrics,
+    '/metrics',
+    () =>
+      metrics.getByRole('button', { name: 'Submit metrics' }).first().click(),
+    'PUT'
+  );
   await metrics.close();
 
   const dashboard = await browser.newPage();

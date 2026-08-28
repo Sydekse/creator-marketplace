@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { DEMO } from './helpers';
+import { DEMO, openConfirmDialog } from './helpers';
 
 /**
  * KAN-60 flow 5 — payment failure (AC-020). When the provider's hold fails,
@@ -38,9 +38,11 @@ test('flow 5: a failed payment leaves the campaign unfunded (AC-020)', async ({
   // "View campaign" link inside the card (same shape the shared helper opens).
   const card = brand.locator('li').filter({ hasText: 'Coffee Launch' });
   await card.getByRole('link', { name: /View campaign/i }).click();
-  // Funding asks first through the shared ConfirmDialog — click Fund, then the
-  // dialog's confirm button. Only then does the call reach the failing provider.
-  await brand.getByRole('button', { name: 'Fund campaign' }).click();
+  // Funding asks first through the shared ConfirmDialog — open it
+  // (hydration-safe: the first click can land before React attaches the
+  // handler, which is how this spec once idled to the full test timeout),
+  // then confirm. Only then does the call reach the failing provider.
+  await openConfirmDialog(brand, 'Fund campaign');
   await brand
     .getByRole('dialog')
     .getByRole('button', { name: 'Fund campaign' })
