@@ -1,5 +1,21 @@
 import { expect, test } from '@playwright/test';
-import { DEMO, openCampaign, openCreatorDeal, signIn } from './helpers';
+import {
+  DEMO,
+  openCampaign,
+  openCreatorDeal,
+  signIn,
+  submitVideo,
+} from './helpers';
+
+/**
+ * Flow 1 consumes its seeded state in the first step: once the offer is
+ * accepted, no retry can ever find the usage-rights checkbox again. A retry
+ * therefore burns the full test timeout at that checkbox and reports the
+ * wrong failure — the CI logs on main (33079554962) and #121 both show it.
+ * Fail once, fail honestly. (Flow 2 creates its own campaign, but a re-run
+ * would collide with the leftover 'Tiny Budget Campaign' all the same.)
+ */
+test.describe.configure({ retries: 0 });
 
 /**
  * KAN-60 flow 1 — the full marketplace loop, start to finish (AC-1):
@@ -52,14 +68,12 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const submitter = await browser.newPage();
   await signIn(submitter, DEMO.creator);
   await openCreatorDeal(submitter, 'Ramadan Beauty Push');
-  await submitter
-    .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/1234567890123456789');
-  await submitter.getByRole('button', { name: 'Submit your video' }).click();
   // One of two: the page reports the progress and the form is still there.
-  await expect(submitter.getByText('1 of 2 videos submitted')).toBeVisible({
-    timeout: 15_000,
-  });
+  await submitVideo(
+    submitter,
+    'https://www.tiktok.com/@creator.demo/video/1234567890123456789',
+    '1 of 2 videos submitted'
+  );
   await submitter.close();
 
   // -- The brand has nothing to approve yet (F38) ---------------------------
@@ -81,13 +95,11 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const finisher = await browser.newPage();
   await signIn(finisher, DEMO.creator);
   await openCreatorDeal(finisher, 'Ramadan Beauty Push');
-  await finisher
-    .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/2234567890123456789');
-  await finisher.getByRole('button', { name: 'Submit your video' }).click();
-  await expect(finisher.getByText('2 of 2 videos submitted')).toBeVisible({
-    timeout: 15_000,
-  });
+  await submitVideo(
+    finisher,
+    'https://www.tiktok.com/@creator.demo/video/2234567890123456789',
+    '2 of 2 videos submitted'
+  );
   await finisher.close();
 
   // -- Brand approves (payout net of commission) ----------------------------

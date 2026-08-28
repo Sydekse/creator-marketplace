@@ -46,6 +46,45 @@ export async function openCreatorDeal(page: Page, campaignName: string) {
     .click();
 }
 
+/**
+ * Submit a live TikTok URL on the creator deal page and wait until the
+ * server-rendered progress copy ("N of M videos submitted") reflects it.
+ *
+ * Two races live here, and chromium-mobile in CI lost both (flow 1 on the
+ * main run 33079554962 and again on #121):
+ *
+ * 1. The click returns before the POST commits — the form's handler fetches
+ *    `/deliverable` asynchronously. Asserting straight after the click races
+ *    the request itself, so wait for the response and require it ok.
+ * 2. The copy is server-rendered and only swaps in after the form's
+ *    `router.refresh()`. On the mobile-chromium runner that refresh can
+ *    outlive a fixed expect window even though the POST has long committed.
+ *    A reload re-reads the same server truth without trusting the refresh,
+ *    so poll: check, reload, check again.
+ */
+export async function submitVideo(
+  page: Page,
+  videoUrl: string,
+  progressCopy: string
+): Promise<void> {
+  await page.locator('#tiktokUrl').fill(videoUrl);
+  const posted = page.waitForResponse(
+    (response) =>
+      response.url().includes('/deliverable') &&
+      response.request().method() === 'POST'
+  );
+  await page.getByRole('button', { name: 'Submit your video' }).click();
+  expect((await posted).ok()).toBe(true);
+  await expect(async () => {
+    if (!(await page.getByText(progressCopy).isVisible())) {
+      await page.reload();
+    }
+    await expect(page.getByText(progressCopy)).toBeVisible({
+      timeout: 4_000,
+    });
+  }).toPass({ timeout: 45_000 });
+}
+
 /** Open the brand's campaign page by name. */
 export async function openCampaign(page: Page, campaignName: string) {
   await page.goto('/campaigns');
