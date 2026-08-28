@@ -5,6 +5,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
+import { PayoutChart } from '@/components/creator/payout-chart';
 import { SectionLabel } from '@/components/layout/section-label';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
@@ -89,12 +90,18 @@ export default async function BrandDashboardPage() {
         </section>
       ) : (
         <>
-          {/* Money is the thesis: one hairline band, not three boxes (the
-              taste doc's "metrics breathe without being boxed in"). Held is
-              the number a brand opens this page for, so it is the largest. */}
-          <section className="flex flex-col gap-3">
-            <SectionLabel>Money</SectionLabel>
-            <dl className="grid gap-6 border-y border-neutral-200 py-6 sm:grid-cols-3 sm:divide-x sm:divide-neutral-200">
+          {/* Money is the thesis: the line, then the band. Spent tracks the
+              ledger's outflow; held is what is still sitting in escrow. Same
+              chart grammar as the creator dashboard (one line, hairline grid,
+              brand ink) — a brand reading both sides should not learn two
+              charts. */}
+          <section className="surface-card surface-pop rounded-[28px] border border-neutral-200 p-5 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-6">
+            <PayoutChart
+              label="Spend"
+              note="Last 12 weeks"
+              points={dashboard.spent}
+            />
+            <dl className="mt-8 grid gap-5 border-y border-neutral-200 py-5 sm:grid-cols-3 sm:divide-x sm:divide-neutral-200">
               <div className="flex flex-col gap-1">
                 <dt className="text-xs tracking-wide text-muted-foreground uppercase">
                   Held in escrow

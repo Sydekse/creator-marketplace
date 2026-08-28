@@ -41,7 +41,15 @@ function smoothPath(
   return d;
 }
 
-export function PayoutChart({ points }: { points: PayoutPoint[] }) {
+export function PayoutChart({
+  points,
+  label = 'Payouts',
+  note = 'Last 12 weeks · net',
+}: {
+  points: PayoutPoint[];
+  label?: React.ReactNode;
+  note?: React.ReactNode;
+}) {
   const gradientId = useId();
   const [active, setActive] = useState<number | null>(null);
 
@@ -73,9 +81,9 @@ export function PayoutChart({ points }: { points: PayoutPoint[] }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SectionLabel>Payouts</SectionLabel>
+        <SectionLabel>{label}</SectionLabel>
         <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
-          Last 12 weeks · net
+          {note}
         </p>
       </div>
 
