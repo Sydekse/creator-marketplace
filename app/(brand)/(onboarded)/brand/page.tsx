@@ -1,12 +1,16 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { CaretRight } from '@phosphor-icons/react/dist/ssr';
 import { buttonVariants } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
+import { PayoutChart } from '@/components/creator/payout-chart';
+import { SectionLabel } from '@/components/layout/section-label';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import { readBrandDashboard } from '@/lib/brands/dashboard';
+import { cn } from '@/lib/utils';
 import {
   campaignStatusLabel,
   campaignStatusTone,
@@ -37,9 +41,9 @@ export default async function BrandDashboardPage() {
   const dashboard = await readBrandDashboard();
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-12 py-4">
+    <div className="flex flex-col gap-10 py-4">
       <PageHeader
-        label="Offering deals as"
+        label={<SectionLabel as="p">Offering deals as</SectionLabel>}
         title={<span className="break-words">{profile.companyName}</span>}
         action={
           <Link
@@ -58,8 +62,8 @@ export default async function BrandDashboardPage() {
          * summary sections below would all render empty. Collapse to one
          * getting-started view that points at the two useful next steps.
          */
-        <section className="rounded-[28px] border border-neutral-800 bg-neutral-900 p-8 text-center text-neutral-50 shadow-[0_24px_60px_-32px_rgba(23,23,23,0.45)] sm:p-10">
-          <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
+        <section className="rounded-[28px] border border-brand-ink/40 bg-brand-ink p-8 text-center text-neutral-50 shadow-[0_24px_60px_-32px_rgba(23,23,23,0.45)] sm:p-10">
+          <p className="text-[13px] font-semibold tracking-[0.14em] text-brand-tint uppercase">
             First campaign
           </p>
           <h2 className="mt-4 font-display text-3xl font-medium tracking-tight">
@@ -86,121 +90,143 @@ export default async function BrandDashboardPage() {
         </section>
       ) : (
         <>
-          {/* §13: Campaign summary */}
-          <section className="surface-card rounded-[28px] border border-neutral-200 p-6 sm:p-8">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Campaigns
-            </h2>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-muted-foreground">
-                {dashboard.campaigns.total}{' '}
-                {dashboard.campaigns.total === 1 ? 'campaign' : 'campaigns'}
-              </span>
-              {Object.entries(dashboard.campaigns.byStatus)
-                .filter(([, count]) => count > 0)
-                .map(([status, count]) => (
-                  <Chip
-                    key={status}
-                    tone={campaignStatusTone[status] ?? 'gray'}
-                    size="sm"
-                  >
-                    {count} {campaignStatusLabel(status)}
-                  </Chip>
-                ))}
-            </div>
-            <Link
-              href="/campaigns"
-              className="mt-3 inline-flex rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-[transform,border-color,color] duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
-            >
-              View all campaigns →
-            </Link>
-          </section>
-
-          {/* §13: Money totals — ledger-derived */}
-          <section className="rounded-[28px] border border-neutral-800 bg-neutral-900 p-6 text-neutral-50 sm:p-8">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
-              Money
-            </h2>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3">
+          {/* Money is the thesis: the line, then the band. Spent tracks the
+              ledger's outflow; held is what is still sitting in escrow. Same
+              chart grammar as the creator dashboard (one line, hairline grid,
+              brand ink) — a brand reading both sides should not learn two
+              charts. */}
+          <section className="surface-card surface-pop rounded-[28px] border border-neutral-200 p-5 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-6">
+            <PayoutChart
+              label="Spend"
+              note="Last 12 weeks"
+              points={dashboard.spent}
+            />
+            <dl className="mt-8 grid gap-5 border-y border-neutral-200 py-5 sm:grid-cols-3 sm:divide-x sm:divide-neutral-200">
               <div className="flex flex-col gap-1">
-                <dt className="text-xs tracking-wide text-neutral-400 uppercase">
+                <dt className="text-xs tracking-wide text-muted-foreground uppercase">
                   Held in escrow
                 </dt>
-                <dd className="mt-1 font-mono text-base tabular-nums">
+                <dd className="mt-1 font-mono text-3xl font-semibold tracking-[-0.04em] text-brand-ink tabular-nums">
                   {formatEtb(dashboard.money.held)}
                 </dd>
               </div>
-              <div className="flex flex-col gap-1">
-                <dt className="text-xs tracking-wide text-neutral-400 uppercase">
+              <div className="flex flex-col gap-1 sm:pl-6">
+                <dt className="text-xs tracking-wide text-muted-foreground uppercase">
                   Paid out
                 </dt>
-                <dd className="mt-1 font-mono text-base tabular-nums">
+                <dd className="mt-1 font-mono text-2xl font-semibold tracking-[-0.04em] text-neutral-900 tabular-nums">
                   {formatEtb(dashboard.money.paidOut)}
                 </dd>
               </div>
-              <div className="flex flex-col gap-1">
-                <dt className="text-xs tracking-wide text-neutral-400 uppercase">
+              <div className="flex flex-col gap-1 sm:pl-6">
+                <dt className="text-xs tracking-wide text-muted-foreground uppercase">
                   Commission
                 </dt>
-                <dd className="mt-1 font-mono text-base tabular-nums">
+                <dd className="mt-1 font-mono text-2xl font-semibold tracking-[-0.04em] text-neutral-900 tabular-nums">
                   {formatEtb(dashboard.money.commission)}
                 </dd>
               </div>
             </dl>
           </section>
 
-          {/* §13: Deals awaiting review */}
-          <section className="border-t border-neutral-200 pt-8">
-            <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Awaiting review
-            </h2>
-            {dashboard.awaitingReview.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No deliverables waiting on your review.
-              </p>
-            ) : (
-              <ul className="mt-5 divide-y divide-neutral-200 border-y border-neutral-200">
-                {dashboard.awaitingReview.map((row) => (
-                  <li key={row.dealId}>
-                    <Link
-                      href={`/deals/${row.dealId}`}
-                      className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-2 py-4 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/60 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:px-4"
-                    >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <InitialsAvatar name={row.creatorHandle} size="sm" />
-                        <div className="flex min-w-0 flex-col gap-0.5">
-                          <TruncatedText
-                            text={displayTiktokHandle(row.creatorHandle)}
-                            className="text-sm font-semibold text-neutral-900"
-                          />
-                          <span className="text-xs text-muted-foreground">
-                            {row.campaignName} · {row.videoCount}{' '}
-                            {row.videoCount === 1 ? 'video' : 'videos'}
+          {/* §13: the work — review queue first, campaign state under it. */}
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:items-start lg:gap-10">
+            <section className="flex flex-col gap-3">
+              <SectionLabel>Awaiting review</SectionLabel>
+              {dashboard.awaitingReview.length === 0 ? (
+                <div className="flex min-h-20 items-center rounded-2xl border border-dashed border-neutral-200 bg-[color-mix(in_oklch,var(--brand-tint)_45%,white)] px-4 py-3">
+                  <p className="text-sm text-muted-foreground italic">
+                    No deliverables waiting on your review
+                  </p>
+                </div>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {dashboard.awaitingReview.map((row) => (
+                    <li key={row.dealId}>
+                      <Link
+                        href={`/deals/${row.dealId}`}
+                        className="surface-pop group flex min-h-20 cursor-pointer flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border border-neutral-200 px-4 py-3 transition-[transform,box-shadow,border-color] duration-200 ease-[var(--ease-smooth)] hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-20px_rgba(23,23,23,0.4)] active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <InitialsAvatar name={row.creatorHandle} size="sm" />
+                          <div className="flex min-w-0 flex-col gap-0.5">
+                            <TruncatedText
+                              text={displayTiktokHandle(row.creatorHandle)}
+                              className="text-sm font-semibold text-neutral-900"
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {row.campaignName} · {row.videoCount}{' '}
+                              {row.videoCount === 1 ? 'video' : 'videos'}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="font-mono text-sm font-medium text-neutral-900 tabular-nums">
+                            {formatEtb(row.totalPrice)}
+                          </span>
+                          <span
+                            className={cn(
+                              buttonVariants({
+                                variant: 'outline',
+                                size: 'xs',
+                              }),
+                              'pointer-events-none transition-colors group-hover:bg-brand group-hover:text-neutral-50'
+                            )}
+                          >
+                            Review
+                            <CaretRight size={12} weight="bold" aria-hidden />
                           </span>
                         </div>
-                      </div>
-                      <div className="flex flex-col items-end gap-0.5">
-                        <span className="font-mono text-sm tabular-nums">
-                          {formatEtb(row.totalPrice)}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          Review
-                        </span>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-            {dashboard.awaitingReview.length > 0 && (
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {dashboard.awaitingReview.length > 0 && (
+                <Link
+                  href="/deals"
+                  className={cn(
+                    buttonVariants({ variant: 'outline', size: 'sm' }),
+                    'mt-2 w-fit gap-1.5'
+                  )}
+                >
+                  View all deals
+                  <CaretRight size={12} weight="bold" aria-hidden />
+                </Link>
+              )}
+            </section>
+
+            <section className="surface-card surface-pop flex flex-col gap-3 rounded-[24px] border border-neutral-200 p-5 sm:p-6">
+              <SectionLabel>Campaigns</SectionLabel>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-mono text-sm text-neutral-900 tabular-nums">
+                  {dashboard.campaigns.total}{' '}
+                  {dashboard.campaigns.total === 1 ? 'campaign' : 'campaigns'}
+                </span>
+                {Object.entries(dashboard.campaigns.byStatus)
+                  .filter(([, count]) => count > 0)
+                  .map(([status, count]) => (
+                    <Chip
+                      key={status}
+                      tone={campaignStatusTone[status] ?? 'gray'}
+                      size="sm"
+                    >
+                      {count} {campaignStatusLabel(status)}
+                    </Chip>
+                  ))}
+              </div>
               <Link
-                href="/deals"
-                className="mt-5 inline-flex rounded-full border border-neutral-300 px-3 py-1.5 text-sm font-medium text-neutral-700 transition-[transform,border-color,color] duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:text-neutral-900 active:scale-[0.98]"
+                href="/campaigns"
+                className={cn(
+                  buttonVariants({ variant: 'outline', size: 'sm' }),
+                  'w-fit gap-1.5'
+                )}
               >
-                View all deals →
+                View all campaigns
+                <CaretRight size={12} weight="bold" aria-hidden />
               </Link>
-            )}
-          </section>
+            </section>
+          </div>
         </>
       )}
 
