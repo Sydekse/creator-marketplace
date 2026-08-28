@@ -15,10 +15,18 @@ import {
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
 
-const credentialsSchema = z.object({
-  email: z.email('Enter a valid email address.'),
-  password: z.string().min(8, 'Password must be at least 8 characters.'),
-});
+const credentialsSchema = z
+  .object({
+    email: z.email('Enter a valid email address.').optional(),
+    password: z
+      .string()
+      .min(8, 'Password must be at least 8 characters.')
+      .optional(),
+  })
+  .refine((data) => data.email !== undefined || data.password !== undefined, {
+    message: 'Nothing to save.',
+    path: ['_root'],
+  });
 
 /** What the form reads before it renders anything. */
 export async function GET(): Promise<Response> {
@@ -32,15 +40,19 @@ export async function GET(): Promise<Response> {
 
 /**
  * Phase 1's post-OAuth step: a real email and a password, on the user who just
- * signed in with TikTok.
+ * signed in with TikTok. Partial by design — the form only sends what the
+ * status said was missing, so each field is optional and validated alone.
  *
- * Both mutations go through Better Auth with the request's own headers, so the
- * session the framework is acting on is the caller's — never a `userId` field,
- * which is the account-takeover version of this endpoint.
+ * The password mutation goes through Better Auth with the request's own
+ * headers, so the session the framework is acting on is the caller's — never
+ * a `userId` field, which is the account-takeover version of this endpoint.
+ * The email write is guarded by the session user's placeholder state inside
+ * `setCreatorCredentials`.
  */
 export async function POST(request: Request): Promise<Response> {
+  let user;
   try {
-    await guard({ roles: ['creator'] });
+    ({ user } = await guard({ roles: ['creator'] }));
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -65,6 +77,7 @@ export async function POST(request: Request): Promise<Response> {
   try {
     await setCreatorCredentials(
       request,
+      user,
       parsed.data.email,
       parsed.data.password
     );

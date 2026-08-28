@@ -50,32 +50,69 @@ export async function readCredentialsStatus(
 }
 
 /**
- * Sets the real email, then the password, in that order. An email that fails
- * (taken, malformed) leaves the password untouched, so a retried call never
- * hits `PASSWORD_ALREADY_SET` with the old email still in place.
+ * Writes the missing credentials for this session's user: the real email, then
+ * the password, in that order. Either part may be absent — the form only sends
+ * what the status said was missing — and an email that fails (taken) leaves
+ * the password untouched, so a retry never half-applies.
  *
- * Both calls go through Better Auth rather than through `db` directly, so the
- * password hash and the session cookie stay the library's problem. The email
- * uniqueness check is the framework's (`updateUserByEmail`), and the
- * caller-visible conflict comes out of `mapCredentialsError`.
+ * The email is written directly rather than through `auth.api.changeEmail`:
+ * that flow defers the change behind a confirmation link mailed to the
+ * *current* address — which here is the TikTok placeholder that the
+ * notification providers deliberately refuse to mail. The change would never
+ * confirm and the creator would loop on this screen forever. The direct write
+ * is safe precisely because it is only allowed while the stored email is that
+ * placeholder (`needsCredentials`); a real address can never be overwritten
+ * through this path. Uniqueness stays the column's UNIQUE constraint, surfaced
+ * as EMAIL_TAKEN by `mapCredentialsError`.
+ *
+ * The password still goes through Better Auth (`setPassword` reads the session
+ * from the request's own headers), so the hash and cookie remain the
+ * library's problem.
  */
 export async function setCreatorCredentials(
   request: Request,
-  email: string,
-  password: string
+  user: CurrentUser,
+  email: string | undefined,
+  password: string | undefined
 ): Promise<void> {
-  await auth.api.changeEmail({
-    body: { newEmail: email },
-    headers: request.headers,
-  });
-  await (auth.api.setPassword as PasswordApi)({
-    body: { newPassword: password },
-    headers: request.headers,
-  });
+  if (email !== undefined) {
+    if (!needsCredentials(user)) {
+      throw new CredentialsAlreadySetError('email');
+    }
+    await db
+      .update(userTable)
+      .set({ email, emailVerified: false, updatedAt: new Date() })
+      .where(eq(userTable.id, user.id));
+  }
+  if (password !== undefined) {
+    await (auth.api.setPassword as PasswordApi)({
+      body: { newPassword: password },
+      headers: request.headers,
+    });
+  }
+}
+
+/** Thrown when a credential this endpoint may only set once already exists. */
+export class CredentialsAlreadySetError extends Error {
+  constructor(which: 'email' | 'password') {
+    super(`${which} already set`);
+    this.name = 'CredentialsAlreadySetError';
+  }
+}
+
+/** Postgres unique-violation, as pg surfaces it (SQLSTATE 23505). */
+function isUniqueViolation(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { code?: unknown }).code === '23505'
+  );
 }
 
 /** Better Auth's APIError names → the envelope code the route answers with. */
 export function mapCredentialsError(error: unknown): 'EMAIL_TAKEN' | 'RETRY' {
+  if (error instanceof CredentialsAlreadySetError) return 'RETRY';
+  if (isUniqueViolation(error)) return 'EMAIL_TAKEN';
   const message = error instanceof APIError ? error.body?.code : undefined;
   if (message === 'EMAIL_IS_THE_SAME' || message === 'PASSWORD_ALREADY_SET') {
     return 'RETRY';
