@@ -137,13 +137,22 @@ export default function SignUpPage() {
       </h1>
       <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
         {role === 'creator'
-          ? 'Creators continue with TikTok. We only ask for a public profile.'
+          ? 'Creators sign up with email for now. TikTok is in testing.'
           : 'Brands create a free profile with email and password.'}
       </p>
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
-      <AccordionPanel open={role === 'brand'}>
+      {/* The button comes first for a creator, even while Login Kit is in
+          testing — it is the reason the notch exists. The form it sits over
+          is the email one either way. */}
+      {role === 'creator' ? (
+        <div className="mt-6">
+          <ContinueWithTiktok />
+        </div>
+      ) : null}
+
+      <AccordionPanel open={role === 'brand' || role === 'creator'}>
         <form
           onSubmit={handleSubmit}
           noValidate
@@ -269,16 +278,6 @@ export default function SignUpPage() {
             {loading ? 'Creating account…' : 'Create account'}
           </Button>
         </form>
-      </AccordionPanel>
-
-      <AccordionPanel open={role === 'creator'}>
-        <div className="mt-6 flex flex-col gap-4">
-          <ContinueWithTiktok />
-          <p className="text-[13px] leading-snug text-neutral-500">
-            TikTok does not share an email. We will ask for one later if we need
-            to reach you.
-          </p>
-        </div>
       </AccordionPanel>
 
       <p className="mt-7 text-center text-[13px] text-neutral-500">
