@@ -108,7 +108,7 @@ export function SignInForm() {
             autoComplete="email"
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? 'email-error' : undefined}
-            className="h-11 px-3.5"
+            className="h-10 px-3"
           />
           <FieldError id="email-error" message={errors.email} />
         </div>
@@ -133,7 +133,7 @@ export function SignInForm() {
             autoComplete="current-password"
             aria-invalid={!!errors.password}
             aria-describedby={errors.password ? 'password-error' : undefined}
-            className="h-11 px-3.5"
+            className="h-10 px-3"
           />
           <FieldError id="password-error" message={errors.password} />
         </div>

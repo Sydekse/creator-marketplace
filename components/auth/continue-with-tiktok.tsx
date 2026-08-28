@@ -16,7 +16,6 @@ export function ContinueWithTiktok() {
         type="button"
         size="xl"
         className="w-full"
-        aria-describedby="tiktok-signin-pending"
         onClick={() =>
           toast('TikTok sign-in is in testing. Use email and password.')
         }
@@ -24,12 +23,6 @@ export function ContinueWithTiktok() {
         <TiktokLogo size={16} weight="regular" aria-hidden />
         Continue with TikTok
       </Button>
-      <p
-        id="tiktok-signin-pending"
-        className="text-[13px] leading-snug text-neutral-500"
-      >
-        TikTok sign-in is in testing.
-      </p>
     </div>
   );
 }

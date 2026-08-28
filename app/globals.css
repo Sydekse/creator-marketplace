@@ -111,7 +111,9 @@ html {
   --brand-soft: oklch(0.55 0.12 185);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* The focus ring is the brand, not neutral gray — on paper, a teal halo is
+     the same affordance the workspace uses on its clickables. */
+  --ring: oklch(0.55 0.12 185);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
