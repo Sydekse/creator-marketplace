@@ -25,17 +25,22 @@ const deploymentURL =
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
 
 /**
- * `VERCEL_BRANCH_URL` is the stable per-branch alias (and any custom domain
- * pinned to the branch resolves alongside it). Trusting it as well as the
- * deployment URL covers the case where the page is served from the branch
- * alias while `baseURL` was derived from the deployment host — without it,
- * Better Auth rejects the request as an invalid origin on previews.
+ * `VERCEL_BRANCH_URL` is the stable per-branch alias. A custom domain pinned
+ * to a branch (e.g. `dev-creator-marketplace.vercel.app`) is NOT any of the
+ * URLs Vercel exposes in env, so it must be trusted explicitly —
+ * `BETTER_AUTH_EXTRA_ORIGINS` takes a comma-separated list for that, and the
+ * pinned dev domain is baked in so previews work with zero dashboard config.
+ * Without these, Better Auth rejects requests arriving through the pinned
+ * domain as an invalid origin.
  */
 const trustedOrigins = [
   deploymentURL,
   process.env.VERCEL_BRANCH_URL
     ? `https://${process.env.VERCEL_BRANCH_URL}`
     : undefined,
+  'https://dev-creator-marketplace.vercel.app',
+  ...(process.env.BETTER_AUTH_EXTRA_ORIGINS?.split(',').map((o) => o.trim()) ??
+    []),
 ].filter((origin): origin is string => Boolean(origin));
 
 export const auth = betterAuth({
