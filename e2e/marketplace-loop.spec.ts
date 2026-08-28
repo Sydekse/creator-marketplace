@@ -3,6 +3,7 @@ import {
   DEMO,
   expectMutationOk,
   openCampaign,
+  openConfirmDialog,
   openCreatorDeal,
   signIn,
   submitVideo,
@@ -17,6 +18,15 @@ import {
  * would collide with the leftover 'Tiny Budget Campaign' all the same.)
  */
 test.describe.configure({ retries: 0 });
+
+/**
+ * Flow 1 walks eight fresh sign-in sessions end to end. On the webkit-mobile
+ * CI runner that legitimately outgrows the suite's 120s default — its last
+ * failure snapshot is an empty <main>, a page still loading when the budget
+ * ran out, not a bug. Give the walk room; every step inside it still has its
+ * own tight assertion timeout.
+ */
+test.setTimeout(300_000);
 
 /**
  * KAN-60 flow 1 — the full marketplace loop, start to finish (AC-1):
@@ -53,13 +63,13 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Ramadan Beauty Push');
-  // Funding moves money, so the shared ConfirmDialog asks first — click Fund,
-  // then the dialog's confirm button. The dialog's own prompt contains the
+  // Funding moves money, so the shared ConfirmDialog asks first — open it
+  // (hydration-safe), then confirm. The dialog's own prompt contains the
   // word "escrow", so no text assertion can prove the hold: only the POST
   // response can. Closing the page early would abort that in-flight request
   // and leave the campaign confirmed-but-unfunded (the CI failure where the
   // creator's deliverable form never rendered).
-  await brand.getByRole('button', { name: 'Fund campaign' }).click();
+  await openConfirmDialog(brand, 'Fund campaign');
   await expectMutationOk(brand, '/fund', () =>
     brand
       .getByRole('dialog')
@@ -114,9 +124,9 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   await signIn(approver, DEMO.brand);
   await openCampaign(approver, 'Ramadan Beauty Push');
   await approver.getByRole('link', { name: '@demo_creator' }).click();
-  // The approve control asks first through the shared ConfirmDialog — click
-  // Approve, then the dialog's confirm button, and hold for the payout POST.
-  await approver.getByRole('button', { name: 'Approve and pay' }).click();
+  // The approve control asks first through the shared ConfirmDialog — open
+  // it (hydration-safe), confirm, and hold for the payout POST.
+  await openConfirmDialog(approver, 'Approve and pay');
   await expectMutationOk(approver, '/approve', () =>
     approver
       .getByRole('dialog')

@@ -47,6 +47,27 @@ export async function openCreatorDeal(page: Page, campaignName: string) {
 }
 
 /**
+ * Open the shared ConfirmDialog by clicking its trigger button.
+ *
+ * The trigger is a client component: on the slow mobile runners the first
+ * click can land before hydration attaches the onClick, and nothing opens
+ * (flow 5's failure snapshot shows exactly that — the button focused,
+ * no dialog). Clicking a not-yet-hydrated button is unobservable from the
+ * outside, so retry: click, give the dialog a beat, click again if needed.
+ */
+export async function openConfirmDialog(
+  page: Page,
+  buttonName: string
+): Promise<void> {
+  await expect(async () => {
+    if (!(await page.getByRole('dialog').isVisible())) {
+      await page.getByRole('button', { name: buttonName }).first().click();
+    }
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+}
+
+/**
  * Run `act` (a click that fires a client-side mutation) and require the
  * matching response to arrive ok before the caller moves on.
  *
