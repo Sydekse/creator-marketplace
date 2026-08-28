@@ -155,7 +155,7 @@ export default function SignUpPage() {
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="mt-6 flex flex-col gap-5"
+          className="mt-5 flex flex-col gap-4"
         >
           <div className="flex flex-col gap-2">
             <label
@@ -177,7 +177,7 @@ export default function SignUpPage() {
               autoComplete="name"
               aria-invalid={!!errors.name}
               aria-describedby={errors.name ? 'name-error' : undefined}
-              className="h-11 px-3.5"
+              className="h-10 px-3"
             />
             <FieldError id="name-error" message={errors.name} />
           </div>
@@ -203,7 +203,7 @@ export default function SignUpPage() {
               autoComplete="email"
               aria-invalid={!!errors.email}
               aria-describedby={errors.email ? 'email-error' : undefined}
-              className="h-11 px-3.5"
+              className="h-10 px-3"
             />
             <FieldError id="email-error" message={errors.email} />
           </div>
@@ -229,7 +229,7 @@ export default function SignUpPage() {
               autoComplete="new-password"
               aria-invalid={!!errors.password}
               aria-describedby={errors.password ? 'password-error' : undefined}
-              className="h-11 px-3.5"
+              className="h-10 px-3"
             />
             <FieldError id="password-error" message={errors.password} />
           </div>
@@ -256,7 +256,7 @@ export default function SignUpPage() {
               aria-describedby={
                 errors.confirmPassword ? 'confirm-password-error' : undefined
               }
-              className="h-11 px-3.5"
+              className="h-10 px-3"
             />
             <FieldError
               id="confirm-password-error"
