@@ -655,6 +655,9 @@ describe('POST /api/creators', () => {
       status: 'pending_verification',
       tiktokHandle: values.tiktokHandle,
     }),
+    // No Login Kit handle in these fixtures — an email sign-up. A `null`
+    // session handle, not an absent one, keeps the route off the `user` table.
+    sessionHandle: async () => null,
   };
 
   it('returns 201 with a snake_case body on success (AC-001)', async () => {
@@ -687,6 +690,7 @@ describe('POST /api/creators', () => {
       insert: async () => {
         throw uniqueViolation(HANDLE_CONSTRAINT);
       },
+      sessionHandle: async () => null,
     });
 
     expect(response.status).toBe(409);
@@ -719,6 +723,7 @@ describe('POST /api/creators', () => {
             tiktokHandle: values.tiktokHandle,
           };
         },
+        sessionHandle: async () => null,
       }
     );
 
@@ -732,6 +737,7 @@ describe('POST /api/creators', () => {
       insert: async () => {
         throw uniqueViolation(USER_CONSTRAINT);
       },
+      sessionHandle: async () => null,
     });
 
     expect(response.status).toBe(409);
@@ -771,6 +777,7 @@ describe('POST /api/creators', () => {
 
     const response = await handleCreateCreator(postRequest(validPayload()), {
       insert,
+      sessionHandle: async () => null,
     });
 
     expect(response.status).toBe(403);
@@ -808,7 +815,7 @@ describe('POST /api/creators', () => {
 
     await handleCreateCreator(
       postRequest(validPayload({ userId: 'someone-else' })),
-      { insert }
+      { insert, sessionHandle: async () => null }
     );
 
     expect(insert.mock.calls[0][0].userId).toBe(CREATOR_ID);

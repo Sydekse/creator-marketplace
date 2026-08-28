@@ -73,7 +73,9 @@ export function SignInForm() {
       <div className="mt-5 border-b border-neutral-200" aria-hidden="true" />
 
       <div className="mt-5 flex flex-col gap-4">
-        <ContinueWithTiktok />
+        {/* Not wired for sign-in during sandbox testing: the button stays
+            visible, disabled, so a returning creator knows the path exists. */}
+        <ContinueWithTiktok disabledNote="On testing phase, use email and password." />
         <div className="flex items-center gap-3" aria-hidden>
           <span className="h-px flex-1 bg-neutral-200" />
           <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">

@@ -1,11 +1,13 @@
 import { createCreatorProfile } from '@/lib/creators/create-profile';
 import type { CreateProfileDeps } from '@/lib/creators/create-profile';
+import { sessionTiktokHandle } from '@/lib/creators/credentials';
 import {
   DISCOVERY_PARAM_ALIASES,
   readDiscovery,
 } from '@/lib/creators/discovery';
 import type { DiscoveryDeps, DiscoveryPage } from '@/lib/creators/discovery';
 import { guard, toErrorResponse } from '@/lib/authz';
+import { needsCredentials } from '@/lib/auth';
 import { conflictDetails, readParams } from '@/lib/query-params';
 import {
   ErrorCode,
@@ -47,6 +49,17 @@ export async function handleCreateCreator(
     // source of the owner: a `userId` in the body would be an account-takeover
     // vector and is ignored (the schema does not even declare the field).
     const ctx = await guard({ roles: ['creator'] });
+    // A TikTok sign-up has no real email until the credentials step. Creating
+    // a profile before that would park onboarding on an address Resend cannot
+    // reach, so the profile can only exist once the email does (phase 1).
+    if (needsCredentials(ctx.user)) {
+      return Response.json(
+        errorResponse(ErrorCode.VALIDATION_ERROR, {
+          _root: ['Add an email and password first.'],
+        }),
+        { status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR] }
+      );
+    }
     userId = ctx.user.id;
   } catch (error) {
     return toErrorResponse(error);
@@ -69,7 +82,22 @@ export async function handleCreateCreator(
     });
   }
 
-  const result = await createCreatorProfile(userId, parsed.data, deps);
+  // The handle the account was created with wins over the body. A Login Kit
+  // user cannot rename themselves into somebody else's TikTok by editing the
+  // request (phase 1); email sign-ups still type theirs. The seam lives on
+  // `CreateProfileDeps` so a test can stand in for the session read — and an
+  // explicit `null` there means "no Login Kit handle", not "read the database".
+  const result = await createCreatorProfile(
+    userId,
+    parsed.data,
+    deps
+      ? {
+          insert: deps.insert,
+          sessionHandle:
+            'sessionHandle' in deps ? deps.sessionHandle : sessionTiktokHandle,
+        }
+      : undefined
+  );
 
   if (!result.ok) {
     // AC-003's exact user-facing string comes from `ErrorMessage`, so it cannot

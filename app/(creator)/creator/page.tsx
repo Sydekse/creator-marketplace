@@ -17,7 +17,7 @@ import { Chip } from '@/components/ui/chip';
 import { cn } from '@/lib/utils';
 import { formatEtb } from '@/lib/money';
 import { labelForStatus } from '@/lib/deals/groups';
-import { requireRole } from '@/lib/auth';
+import { needsCredentials, requireRole } from '@/lib/auth';
 import {
   ENGAGEMENT_RATE_HINT,
   NICHE_LABELS,
@@ -77,6 +77,7 @@ export const runtime = 'nodejs';
  */
 export default async function CreatorDashboardPage() {
   const user = await requireRole('creator');
+  if (needsCredentials(user)) redirect('/creator/credentials');
 
   const row = await getCreatorProfileWithTier(user.id);
   if (!row) redirect('/creator/onboarding');

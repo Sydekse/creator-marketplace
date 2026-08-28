@@ -11,11 +11,27 @@ import { redactEmail } from './redact';
  * deploy reaches a creator's inbox by forgetting something.
  */
 
+/**
+ * Login Kit's placeholder (phase 1). Better Auth writes the TikTok `username`
+ * into `user.email` because TikTok never sends one, so that column is not an
+ * address until the credentials step replaces it. Mailing it would be a
+ * Resend rejection at best; this is the one rule every provider shares.
+ */
+export const TIKTOK_PLACEHOLDER_SUFFIX = 'tiktok.placeholder.invalid';
+
+export function isUnaddressable(email: string): boolean {
+  const at = email.indexOf('@');
+  // No `@` at all is Better Auth's `username` in the email column; with one,
+  // the framework's older builds used the `.invalid` domain instead.
+  return at < 0 || email.slice(at + 1).endsWith(TIKTOK_PLACEHOLDER_SUFFIX);
+}
+
 /** Writes the email to the server log instead of sending it (AC-6). */
 export class ConsoleEmailProvider implements EmailProvider {
   readonly name = 'console';
 
   async send(to: string, message: EmailMessage): Promise<EmailSendResult> {
+    if (isUnaddressable(to)) return { id: null };
     // Redacted even here. This is the *dev* provider, but dev logs get pasted
     // into tickets and chat, and NFR-010 does not have an exception for that.
     console.log(
@@ -31,6 +47,7 @@ export class InMemoryEmailProvider implements EmailProvider {
   readonly sent: Array<{ to: string; message: EmailMessage }> = [];
 
   async send(to: string, message: EmailMessage): Promise<EmailSendResult> {
+    if (isUnaddressable(to)) return { id: null };
     this.sent.push({ to, message });
     return { id: `mem_${this.sent.length}` };
   }
@@ -56,6 +73,7 @@ export class ResendEmailProvider implements EmailProvider {
   ) {}
 
   async send(to: string, message: EmailMessage): Promise<EmailSendResult> {
+    if (isUnaddressable(to)) return { id: null };
     let response: Awaited<ReturnType<Resend['emails']['send']>>;
     try {
       response = await this.client.emails.send({

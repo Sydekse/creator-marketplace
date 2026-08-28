@@ -61,6 +61,7 @@ export default function SignUpPage() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<RoleOption>('brand');
+  const [creatorDemo, setCreatorDemo] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -136,22 +137,18 @@ export default function SignUpPage() {
       </h1>
       <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
         {role === 'creator'
-          ? 'Creators sign up with email for now. TikTok is in testing.'
+          ? 'Creators continue with TikTok. We only ask for a public profile.'
           : 'Brands create a free profile with email and password.'}
       </p>
 
       <div className="mt-5 border-b border-neutral-200" aria-hidden="true" />
 
-      {/* The button comes first for a creator, even while Login Kit is in
-          testing — it is the reason the notch exists. The form it sits over
-          is the email one either way. */}
-      {role === 'creator' ? (
-        <div className="mt-5">
-          <ContinueWithTiktok />
-        </div>
-      ) : null}
-
-      <AccordionPanel open={role === 'brand' || role === 'creator'}>
+      {/* One credential form, two placements: brands always, creators only
+          once the demo fallback has revealed it. The same `handleSubmit` runs
+          either way — the only difference is which accordion it sits in. */}
+      <AccordionPanel
+        open={role === 'brand' || (role === 'creator' && creatorDemo)}
+      >
         <form
           onSubmit={handleSubmit}
           noValidate
@@ -284,7 +281,13 @@ export default function SignUpPage() {
         </form>
       </AccordionPanel>
 
-      <p className="mt-5 text-center text-[13px] text-neutral-500">
+      <AccordionPanel open={role === 'creator' && !creatorDemo}>
+        <div className="mt-6 flex flex-col gap-4">
+          <ContinueWithTiktok onDemoFallback={() => setCreatorDemo(true)} />
+        </div>
+      </AccordionPanel>
+
+      <p className="mt-7 text-center text-[13px] text-neutral-500">
         Already have an account?{' '}
         <Link
           href="/sign-in"
