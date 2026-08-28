@@ -13,7 +13,34 @@ import {
 import { roleHomePath } from '@/lib/navigation';
 import { normalizeTiktokHandle } from '@/lib/creators/handle';
 
+/**
+ * The deployment's own URL on Vercel. `VERCEL_URL` is set automatically on
+ * every deploy (production and preview alike) and carries no scheme; previews
+ * get a fresh random host each build, which is exactly why it cannot be a
+ * static env var. `BETTER_AUTH_URL` still wins where it is set (local dev,
+ * e2e), so nothing changes off Vercel.
+ */
+const deploymentURL =
+  process.env.BETTER_AUTH_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined);
+
+/**
+ * `VERCEL_BRANCH_URL` is the stable per-branch alias (and any custom domain
+ * pinned to the branch resolves alongside it). Trusting it as well as the
+ * deployment URL covers the case where the page is served from the branch
+ * alias while `baseURL` was derived from the deployment host — without it,
+ * Better Auth rejects the request as an invalid origin on previews.
+ */
+const trustedOrigins = [
+  deploymentURL,
+  process.env.VERCEL_BRANCH_URL
+    ? `https://${process.env.VERCEL_BRANCH_URL}`
+    : undefined,
+].filter((origin): origin is string => Boolean(origin));
+
 export const auth = betterAuth({
+  ...(deploymentURL ? { baseURL: deploymentURL } : {}),
+  ...(trustedOrigins.length > 0 ? { trustedOrigins } : {}),
   // Better Auth mints ids in application code, and its default is a random
   // string. The project keeps uuid primary keys throughout (Tech Spec §3), so
   // it is told to mint UUIDs — this is what lets `db/auth-schema.ts` declare
