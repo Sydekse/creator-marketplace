@@ -14,7 +14,19 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen flex-col bg-neutral-50 text-neutral-900 antialiased">
+    <div className="relative flex min-h-screen flex-col overflow-hidden bg-neutral-50 text-neutral-900 antialiased">
+      {/* The landing's ledger grid, faded before it can compete with the card. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-40"
+        style={{
+          backgroundImage:
+            'linear-gradient(to right, oklch(0.88 0 0 / 0.3) 1px, transparent 1px), linear-gradient(to bottom, oklch(0.88 0 0 / 0.3) 1px, transparent 1px)',
+          backgroundSize: '72px 72px',
+          maskImage:
+            'radial-gradient(ellipse at center, black, transparent 85%)',
+        }}
+      />
       <header className="flex justify-center px-6 pt-8 sm:pt-10">
         <Link
           href="/"
@@ -27,11 +39,11 @@ export default function AuthLayout({
         </Link>
       </header>
 
-      <main className="flex flex-1 items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
+      <main className="relative flex flex-1 items-center justify-center px-4 py-12 sm:px-6 sm:py-16">
         {children}
       </main>
 
-      <footer className="pb-8 text-center text-xs text-neutral-500">
+      <footer className="relative pb-8 text-center text-xs text-neutral-500">
         Free to join for brands and creators
       </footer>
 

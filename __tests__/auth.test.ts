@@ -111,7 +111,7 @@ describe('TikTok Login Kit wiring', () => {
       join(ROOT, 'components/auth/continue-with-tiktok.tsx'),
       'utf8'
     );
-    expect(cta).toContain('disabled');
+    expect(cta).toContain('in testing');
     expect(cta).not.toContain('signIn.social');
   });
 });

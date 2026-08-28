@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { ContinueWithTiktok } from '@/components/auth/continue-with-tiktok';
 import { RoleNotch } from '@/components/auth/role-notch';
+import { SectionLabel } from '@/components/layout/section-label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -119,7 +120,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="relative w-full max-w-md rounded-[24px] border border-neutral-200 bg-neutral-50 px-7 pb-7 pt-14 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:px-10 sm:pb-10 sm:pt-16">
+    <div className="surface-card surface-pop relative w-full max-w-md rounded-[28px] border border-neutral-200 px-7 pb-7 pt-14 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:px-10 sm:pb-10 sm:pt-16">
       <RoleNotch
         value={role}
         onChange={(next) => {
@@ -129,21 +130,28 @@ export default function SignUpPage() {
         }}
       />
 
-      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
-        Create account
-      </p>
+      <SectionLabel as="p">Create account</SectionLabel>
       <h1 className="mt-3 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
         Join the marketplace.
       </h1>
       <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
         {role === 'creator'
-          ? 'Creators continue with TikTok. We only ask for a public profile.'
+          ? 'Creators sign up with email for now. TikTok is in testing.'
           : 'Brands create a free profile with email and password.'}
       </p>
 
       <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
 
-      <AccordionPanel open={role === 'brand'}>
+      {/* The button comes first for a creator, even while Login Kit is in
+          testing — it is the reason the notch exists. The form it sits over
+          is the email one either way. */}
+      {role === 'creator' ? (
+        <div className="mt-6">
+          <ContinueWithTiktok />
+        </div>
+      ) : null}
+
+      <AccordionPanel open={role === 'brand' || role === 'creator'}>
         <form
           onSubmit={handleSubmit}
           noValidate
@@ -265,20 +273,15 @@ export default function SignUpPage() {
             </div>
           )}
 
-          <Button type="submit" disabled={loading} size="xl" className="w-full">
+          <Button
+            type="submit"
+            disabled={loading}
+            size="xl"
+            className="w-full bg-brand text-neutral-50 hover:bg-brand-deep"
+          >
             {loading ? 'Creating account…' : 'Create account'}
           </Button>
         </form>
-      </AccordionPanel>
-
-      <AccordionPanel open={role === 'creator'}>
-        <div className="mt-6 flex flex-col gap-4">
-          <ContinueWithTiktok />
-          <p className="text-[13px] leading-snug text-neutral-500">
-            TikTok does not share an email. We will ask for one later if we need
-            to reach you.
-          </p>
-        </div>
       </AccordionPanel>
 
       <p className="mt-7 text-center text-[13px] text-neutral-500">

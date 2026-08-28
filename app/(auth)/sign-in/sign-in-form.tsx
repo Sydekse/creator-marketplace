@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { ContinueWithTiktok } from '@/components/auth/continue-with-tiktok';
+import { SectionLabel } from '@/components/layout/section-label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -60,10 +61,8 @@ export function SignInForm() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-neutral-50 p-7 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
-      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
-        Welcome back
-      </p>
+    <div className="surface-card surface-pop w-full max-w-md rounded-[28px] border border-neutral-200 p-7 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-10">
+      <SectionLabel as="p">Welcome back</SectionLabel>
       <h1 className="mt-3 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
         Sign in.
       </h1>
@@ -148,7 +147,12 @@ export function SignInForm() {
           </div>
         )}
 
-        <Button type="submit" disabled={loading} size="xl" className="w-full">
+        <Button
+          type="submit"
+          disabled={loading}
+          size="xl"
+          className="w-full bg-brand text-neutral-50 hover:bg-brand-deep"
+        >
           {loading ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
