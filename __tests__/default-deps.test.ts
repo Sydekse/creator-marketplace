@@ -48,6 +48,10 @@ vi.mock('../db', () => {
           totalPrice: 100_000,
           id: 'd0000000-0000-4000-8000-000000000001',
           creatorId: 'cr000000-0000-4000-8000-000000000001',
+          // The spend chart buckets by week; a mock without a timestamp would
+          // throw inside the series builder.
+          createdAt: new Date('2026-08-01T00:00:00.000Z'),
+          amount: 100_000,
         },
       ]);
     return chain;

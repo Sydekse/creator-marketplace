@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { ContinueWithTiktok } from '@/components/auth/continue-with-tiktok';
 import { RoleNotch } from '@/components/auth/role-notch';
+import { SectionLabel } from '@/components/layout/section-label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -120,7 +121,7 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="relative w-full max-w-md rounded-[24px] border border-neutral-200 bg-neutral-50 px-7 pb-7 pt-14 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:px-10 sm:pb-10 sm:pt-16">
+    <div className="surface-card auth-card relative w-full max-w-md rounded-[28px] border border-neutral-200 px-7 pb-6 pt-12 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:px-9 sm:pb-8 sm:pt-13">
       <RoleNotch
         value={role}
         onChange={(next) => {
@@ -130,9 +131,7 @@ export default function SignUpPage() {
         }}
       />
 
-      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
-        Create account
-      </p>
+      <SectionLabel as="p">Create account</SectionLabel>
       <h1 className="mt-3 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
         Join the marketplace.
       </h1>
@@ -142,7 +141,7 @@ export default function SignUpPage() {
           : 'Brands create a free profile with email and password.'}
       </p>
 
-      <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
+      <div className="mt-5 border-b border-neutral-200" aria-hidden="true" />
 
       {/* One credential form, two placements: brands always, creators only
           once the demo fallback has revealed it. The same `handleSubmit` runs
@@ -153,9 +152,9 @@ export default function SignUpPage() {
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="mt-6 flex flex-col gap-5"
+          className="mt-4 flex flex-col gap-3.5"
         >
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="name"
               className="text-[13px] font-semibold text-neutral-700"
@@ -175,12 +174,12 @@ export default function SignUpPage() {
               autoComplete="name"
               aria-invalid={!!errors.name}
               aria-describedby={errors.name ? 'name-error' : undefined}
-              className="h-11 px-3.5"
+              className="h-10 px-3"
             />
             <FieldError id="name-error" message={errors.name} />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="email"
               className="text-[13px] font-semibold text-neutral-700"
@@ -201,12 +200,12 @@ export default function SignUpPage() {
               autoComplete="email"
               aria-invalid={!!errors.email}
               aria-describedby={errors.email ? 'email-error' : undefined}
-              className="h-11 px-3.5"
+              className="h-10 px-3"
             />
             <FieldError id="email-error" message={errors.email} />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="password"
               className="text-[13px] font-semibold text-neutral-700"
@@ -227,12 +226,12 @@ export default function SignUpPage() {
               autoComplete="new-password"
               aria-invalid={!!errors.password}
               aria-describedby={errors.password ? 'password-error' : undefined}
-              className="h-11 px-3.5"
+              className="h-10 px-3"
             />
             <FieldError id="password-error" message={errors.password} />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="confirmPassword"
               className="text-[13px] font-semibold text-neutral-700"
@@ -254,7 +253,7 @@ export default function SignUpPage() {
               aria-describedby={
                 errors.confirmPassword ? 'confirm-password-error' : undefined
               }
-              className="h-11 px-3.5"
+              className="h-10 px-3"
             />
             <FieldError
               id="confirm-password-error"
@@ -271,7 +270,12 @@ export default function SignUpPage() {
             </div>
           )}
 
-          <Button type="submit" disabled={loading} size="xl" className="w-full">
+          <Button
+            type="submit"
+            disabled={loading}
+            size="xl"
+            className="w-full bg-brand text-neutral-50 hover:bg-brand-deep"
+          >
             {loading ? 'Creating account…' : 'Create account'}
           </Button>
         </form>

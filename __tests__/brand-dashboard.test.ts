@@ -33,6 +33,7 @@ function makeDeps(
     counts?: Array<{ status: CampaignStatus; count: number }>;
     money?: { held: number; paidOut: number; commission: number };
     awaitingReview?: BrandDashboard['awaitingReview'];
+    spendEvents?: Array<{ createdAt: Date; amount: number }>;
   } = {}
 ): { deps: BrandDashboardDeps; calls: string[] } {
   const calls: string[] = [];
@@ -55,6 +56,10 @@ function makeDeps(
       selectAwaitingReview: async () => {
         calls.push('selectAwaitingReview');
         return overrides.awaitingReview ?? [];
+      },
+      selectSpendEvents: async () => {
+        calls.push('selectSpendEvents');
+        return overrides.spendEvents ?? [];
       },
     },
   };
@@ -190,6 +195,7 @@ describe('parallel reads', () => {
       'selectCampaignCounts',
       'selectMoney',
       'selectAwaitingReview',
+      'selectSpendEvents',
     ]);
   });
 });

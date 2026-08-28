@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { ContinueWithTiktok } from '@/components/auth/continue-with-tiktok';
+import { SectionLabel } from '@/components/layout/section-label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -60,10 +61,8 @@ export function SignInForm() {
   }
 
   return (
-    <div className="w-full max-w-md rounded-[24px] border border-neutral-200 bg-neutral-50 p-7 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-10">
-      <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
-        Welcome back
-      </p>
+    <div className="surface-card auth-card w-full max-w-md rounded-[28px] border border-neutral-200 p-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-8">
+      <SectionLabel as="p">Welcome back</SectionLabel>
       <h1 className="mt-3 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
         Sign in.
       </h1>
@@ -71,9 +70,9 @@ export function SignInForm() {
         Your deals, escrow, and messages are here when you need them.
       </p>
 
-      <div className="mt-6 border-b border-neutral-200" aria-hidden="true" />
+      <div className="mt-5 border-b border-neutral-200" aria-hidden="true" />
 
-      <div className="mt-6 flex flex-col gap-4">
+      <div className="mt-5 flex flex-col gap-4">
         {/* Not wired for sign-in during sandbox testing: the button stays
             visible, disabled, so a returning creator knows the path exists. */}
         <ContinueWithTiktok disabledNote="On testing phase, use email and password." />
@@ -89,9 +88,9 @@ export function SignInForm() {
       <form
         onSubmit={handleSubmit}
         noValidate
-        className="mt-5 flex flex-col gap-5"
+        className="mt-4 flex flex-col gap-4"
       >
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
           <label
             htmlFor="email"
             className="text-[13px] font-semibold text-neutral-700"
@@ -111,12 +110,12 @@ export function SignInForm() {
             autoComplete="email"
             aria-invalid={!!errors.email}
             aria-describedby={errors.email ? 'email-error' : undefined}
-            className="h-11 px-3.5"
+            className="h-10 px-3"
           />
           <FieldError id="email-error" message={errors.email} />
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
           <label
             htmlFor="password"
             className="text-[13px] font-semibold text-neutral-700"
@@ -136,7 +135,7 @@ export function SignInForm() {
             autoComplete="current-password"
             aria-invalid={!!errors.password}
             aria-describedby={errors.password ? 'password-error' : undefined}
-            className="h-11 px-3.5"
+            className="h-10 px-3"
           />
           <FieldError id="password-error" message={errors.password} />
         </div>
@@ -150,12 +149,17 @@ export function SignInForm() {
           </div>
         )}
 
-        <Button type="submit" disabled={loading} size="xl" className="w-full">
+        <Button
+          type="submit"
+          disabled={loading}
+          size="xl"
+          className="w-full bg-brand text-neutral-50 hover:bg-brand-deep"
+        >
           {loading ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
 
-      <p className="mt-7 text-center text-[13px] text-neutral-500">
+      <p className="mt-5 text-center text-[13px] text-neutral-500">
         New to Creator Marketplace?{' '}
         <Link
           href="/sign-up"

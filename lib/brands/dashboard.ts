@@ -3,6 +3,10 @@ import { db } from '@/db';
 import { campaign, creatorProfile, deal, ledgerEntry } from '@/db/schema';
 import type { CampaignStatus, DealStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
+import {
+  buildCumulativeWeeklyPayouts,
+  type PayoutPoint,
+} from '@/lib/creators/payout-series';
 
 /**
  * The brand dashboard (§13).
@@ -43,6 +47,8 @@ export interface BrandDashboard {
     videoCount: number;
     totalPrice: number;
   }>;
+  /** Cumulative weekly spend (holds out), ledger-sourced. */
+  spent: PayoutPoint[];
 }
 
 const EMPTY_BY_STATUS: Record<CampaignStatus, number> = {
@@ -66,6 +72,9 @@ export interface BrandDashboardDeps {
   selectAwaitingReview: (
     brandProfileId: string
   ) => Promise<BrandDashboard['awaitingReview']>;
+  selectSpendEvents: (
+    brandProfileId: string
+  ) => Promise<Array<{ createdAt: Date; amount: number }>>;
 }
 
 const defaultDeps: BrandDashboardDeps = {
@@ -119,6 +128,25 @@ const defaultDeps: BrandDashboardDeps = {
       .orderBy(sql`${deal.createdAt} desc`);
     return rows;
   },
+  selectSpendEvents: async (brandProfileId) => {
+    // Money out of the brand's escrow: a hold is `+total_price` when a deal is
+    // funded and `release_payout` is negative. The chart reads gross spend, so
+    // the series is the holds only — never a recomputation (AC-4's rule).
+    const rows = await db
+      .select({
+        createdAt: ledgerEntry.createdAt,
+        amount: ledgerEntry.amount,
+      })
+      .from(ledgerEntry)
+      .innerJoin(campaign, eq(ledgerEntry.campaignId, campaign.id))
+      .where(
+        and(
+          eq(campaign.brandId, brandProfileId),
+          eq(ledgerEntry.entryType, 'hold')
+        )
+      );
+    return rows;
+  },
 };
 
 /**
@@ -134,13 +162,15 @@ export async function readBrandDashboard(
       campaigns: { total: 0, byStatus: { ...EMPTY_BY_STATUS } },
       money: { held: 0, paidOut: 0, commission: 0 },
       awaitingReview: [],
+      spent: buildCumulativeWeeklyPayouts([], new Date()),
     };
   }
 
-  const [counts, money, awaitingReview] = await Promise.all([
+  const [counts, money, awaitingReview, spendEvents] = await Promise.all([
     deps.selectCampaignCounts(brandProfileId),
     deps.selectMoney(brandProfileId),
     deps.selectAwaitingReview(brandProfileId),
+    deps.selectSpendEvents(brandProfileId),
   ]);
 
   const byStatus: Record<CampaignStatus, number> = { ...EMPTY_BY_STATUS };
@@ -154,5 +184,12 @@ export async function readBrandDashboard(
     campaigns: { total, byStatus },
     money,
     awaitingReview,
+    spent: buildCumulativeWeeklyPayouts(
+      spendEvents.map((event) => ({
+        createdAt: event.createdAt,
+        paidOut: event.amount,
+      })),
+      new Date()
+    ),
   };
 }
