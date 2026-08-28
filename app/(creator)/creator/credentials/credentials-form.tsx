@@ -66,11 +66,23 @@ export function CreatorCredentialsForm({
 
     if (!response.ok) {
       const details = body?.error?.details as Record<string, string[]> | null;
-      if (details?.email?.[0]) setErrors({ email: details.email[0] });
-      else
+      const fieldErrors: FieldErrors = {};
+      if (details?.email?.[0]) fieldErrors.email = details.email[0];
+      if (details?.password?.[0]) fieldErrors.password = details.password[0];
+      if (Object.keys(fieldErrors).length > 0) {
+        setErrors(fieldErrors);
+      } else {
+        // No renderable field to pin it on — say what the server said, or the
+        // first detail it sent, before falling back to the generic sentence.
+        const firstDetail = details
+          ? Object.values(details).flat()[0]
+          : undefined;
         toast.error(
-          body?.error?.message ?? 'Could not save. Please try again.'
+          body?.error?.message ??
+            firstDetail ??
+            'Could not save. Please try again.'
         );
+      }
       setLoading(false);
       return;
     }
