@@ -55,8 +55,8 @@ function Row({
   emphasis?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-2">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
+    <div className="flex items-baseline justify-between gap-4 py-1.5">
+      <dt className="text-sm font-medium text-neutral-500">{label}</dt>
       <dd className="flex items-baseline gap-2 text-right">
         <span
           className={

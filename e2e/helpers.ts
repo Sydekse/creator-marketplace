@@ -46,6 +46,91 @@ export async function openCreatorDeal(page: Page, campaignName: string) {
     .click();
 }
 
+/**
+ * Open the shared ConfirmDialog by clicking its trigger button.
+ *
+ * The trigger is a client component: on the slow mobile runners the first
+ * click can land before hydration attaches the onClick, and nothing opens
+ * (flow 5's failure snapshot shows exactly that — the button focused,
+ * no dialog). Clicking a not-yet-hydrated button is unobservable from the
+ * outside, so retry: click, give the dialog a beat, click again if needed.
+ */
+export async function openConfirmDialog(
+  page: Page,
+  buttonName: string
+): Promise<void> {
+  await expect(async () => {
+    if (!(await page.getByRole('dialog').isVisible())) {
+      await page.getByRole('button', { name: buttonName }).first().click();
+    }
+    await expect(page.getByRole('dialog')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+}
+
+/**
+ * Run `act` (a click that fires a client-side mutation) and require the
+ * matching response to arrive ok before the caller moves on.
+ *
+ * Every mutating step in these flows is a client `fetch` — accept, fund,
+ * deliver, approve (POST), metrics (PUT) — followed by `router.refresh()`.
+ * Two traps: closing the page right after the click aborts the in-flight
+ * request, and any "did it work" assertion that can be satisfied by
+ * pre-existing copy (the fund dialog's own prompt contains "escrow") passes
+ * before the money moved. Waiting on the response pins each step to the
+ * thing that actually matters.
+ */
+export async function expectMutationOk(
+  page: Page,
+  pathSuffix: string,
+  act: () => Promise<void>,
+  method: 'POST' | 'PUT' = 'POST'
+): Promise<void> {
+  const responded = page.waitForResponse(
+    (response) =>
+      response.url().includes(pathSuffix) &&
+      response.request().method() === method
+  );
+  await act();
+  expect((await responded).ok(), `${method} ${pathSuffix} must succeed`).toBe(
+    true
+  );
+}
+
+/**
+ * Submit a live TikTok URL on the creator deal page and wait until the
+ * server-rendered progress copy ("N of M videos submitted") reflects it.
+ *
+ * Two races live here, and chromium-mobile in CI lost both (flow 1 on the
+ * main run 33079554962 and again on #121):
+ *
+ * 1. The click returns before the POST commits — the form's handler fetches
+ *    `/deliverable` asynchronously. Asserting straight after the click races
+ *    the request itself, so wait for the response and require it ok.
+ * 2. The copy is server-rendered and only swaps in after the form's
+ *    `router.refresh()`. On the mobile-chromium runner that refresh can
+ *    outlive a fixed expect window even though the POST has long committed.
+ *    A reload re-reads the same server truth without trusting the refresh,
+ *    so poll: check, reload, check again.
+ */
+export async function submitVideo(
+  page: Page,
+  videoUrl: string,
+  progressCopy: string
+): Promise<void> {
+  await page.locator('#tiktokUrl').fill(videoUrl);
+  await expectMutationOk(page, '/deliverable', () =>
+    page.getByRole('button', { name: 'Submit your video' }).click()
+  );
+  await expect(async () => {
+    if (!(await page.getByText(progressCopy).isVisible())) {
+      await page.reload();
+    }
+    await expect(page.getByText(progressCopy)).toBeVisible({
+      timeout: 4_000,
+    });
+  }).toPass({ timeout: 45_000 });
+}
+
 /** Open the brand's campaign page by name. */
 export async function openCampaign(page: Page, campaignName: string) {
   await page.goto('/campaigns');

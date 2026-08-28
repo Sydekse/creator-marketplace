@@ -35,18 +35,21 @@ function Figure({
   compact?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+    <div
+      className={
+        compact
+          ? 'flex flex-col gap-1 rounded-2xl border-2 border-neutral-300 bg-background px-4 py-4'
+          : 'flex flex-col gap-1'
+      }
+    >
+      <dt className="text-xs font-bold tracking-wide text-neutral-500 uppercase">
         {label}
       </dt>
-      {/* Money is the one number a creator scans for, so it gets the serif
-          display treatment the landing page gives its headline figures
-          (design doc §4.3) — the same place a brand's eye goes on the hero. */}
       <dd
         className={
           compact
-            ? 'mt-1 font-sans text-2xl font-semibold tracking-[-0.04em] text-brand-ink tabular-nums'
-            : 'mt-1 font-sans text-3xl font-semibold tracking-[-0.04em] text-brand-ink tabular-nums'
+            ? 'mt-1 font-sans text-3xl font-bold tracking-[-0.04em] text-brand-ink tabular-nums'
+            : 'mt-1 font-sans text-3xl font-bold tracking-[-0.04em] text-brand-ink tabular-nums'
         }
       >
         {value}
@@ -69,21 +72,35 @@ export function EarningsSummary({
 
       {/* Stacked on a phone, two up from `sm:` — no fixed widths, nothing that
           scrolls sideways (NFR-007). */}
-      <dl className="grid gap-5 sm:grid-cols-2 sm:divide-x sm:divide-neutral-200">
+      <dl
+        className={
+          headed
+            ? 'grid gap-5 sm:grid-cols-2 sm:divide-x sm:divide-neutral-200'
+            : 'grid gap-3 sm:grid-cols-2'
+        }
+      >
         <Figure
           compact={!headed}
           label={EARNINGS_PAID_OUT_LABEL}
           value={formatEtb(earnings.paidOut)}
           note="Released to you on approved deliverables."
         />
-        <div className="sm:pl-6">
+        {headed ? (
+          <div className="sm:pl-6">
+            <Figure
+              label={EARNINGS_IN_ESCROW_LABEL}
+              value={formatEtb(earnings.inEscrow)}
+              note="Committed by brands, released when work is approved."
+            />
+          </div>
+        ) : (
           <Figure
-            compact={!headed}
+            compact
             label={EARNINGS_IN_ESCROW_LABEL}
             value={formatEtb(earnings.inEscrow)}
             note="Committed by brands, released when work is approved."
           />
-        </div>
+        )}
       </dl>
 
       <p className="text-xs text-muted-foreground">{EARNINGS_NET_NOTE}</p>

@@ -79,18 +79,21 @@ export function PayoutChart({
   const focus = hover ?? coords[coords.length - 1];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex min-h-0 flex-1 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionLabel>{label}</SectionLabel>
-        <p className="font-mono text-xs tracking-wide text-muted-foreground uppercase">
+        <p className="inline-flex w-fit rounded-full bg-neutral-50 px-3 py-1 font-mono text-[11px] font-medium tracking-wide text-neutral-700 uppercase shadow-[0_0_0_2px_rgba(23,23,23,0.1)]">
           {note}
         </p>
       </div>
 
-      <div className="relative" onMouseLeave={() => setActive(null)}>
+      <div
+        className="relative min-h-52 flex-1 sm:min-h-64"
+        onMouseLeave={() => setActive(null)}
+      >
         <svg
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-          className="h-52 w-full sm:h-64"
+          className="absolute inset-0 h-full w-full"
           role="img"
           aria-label="Cumulative payouts over the last twelve weeks"
         >
@@ -125,7 +128,7 @@ export function PayoutChart({
               d={line}
               fill="none"
               className="payout-stroke stroke-brand"
-              strokeWidth="2.75"
+              strokeWidth="3.25"
               strokeLinejoin="round"
               strokeLinecap="round"
             />
@@ -146,7 +149,7 @@ export function PayoutChart({
                 cy={focus.y}
                 r="5"
                 className="fill-neutral-50 stroke-brand"
-                strokeWidth="2"
+                strokeWidth="2.5"
               />
             </g>
           ) : null}
@@ -179,7 +182,7 @@ export function PayoutChart({
         </svg>
       </div>
 
-      <p className="font-mono text-sm font-medium text-brand-ink tabular-nums">
+      <p className="font-mono text-sm font-semibold text-brand-ink tabular-nums">
         {focus
           ? `${focus.point.label} · ${formatEtb(focus.point.paidOut)}`
           : 'No payouts yet'}

@@ -564,11 +564,10 @@ describe('the dashboard is laid out as one', () => {
   const source = src(PAGE);
 
   it('opens the way every other page opens', () => {
-    // `PageHeader` — teal label, serif h1, hairline (design doc §10.5). It comes
-    // in through `VerificationStatus`, which owns the handle and the status chip
-    // because the two are one statement.
-    expect(src(VERIFICATION)).toContain('PageHeader');
-    expect(src(VERIFICATION)).toContain('label="Your TikTok account"');
+    // `PageHeader` — teal label, serif name, handle as the supporting line.
+    expect(src(VERIFICATION)).toContain('Welcome back');
+    expect(src(VERIFICATION)).toContain('page-title');
+    expect(src(VERIFICATION)).toContain('tiktokHandle');
   });
 
   it('separates sections with card-based containers rather than stacked rules', () => {

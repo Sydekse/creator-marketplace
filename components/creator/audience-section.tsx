@@ -26,18 +26,18 @@ export function AudienceSection({
   const { markets, ageRange } = audience;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       <SectionLabel>{title}</SectionLabel>
-      <dl className="grid gap-6 sm:grid-cols-2">
+      <dl className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-1">
-          <dt className="text-sm text-muted-foreground">Top markets</dt>
-          <dd className="mt-1 text-sm font-medium text-neutral-900">
+          <dt className="text-sm font-medium text-neutral-500">Top markets</dt>
+          <dd className="mt-1 text-sm font-semibold text-neutral-900">
             {markets.length > 0 ? markets.join(', ') : NOT_PROVIDED}
           </dd>
         </div>
         <div className="flex flex-col gap-1">
-          <dt className="text-sm text-muted-foreground">Age range</dt>
-          <dd className="mt-1 text-sm font-medium text-neutral-900">
+          <dt className="text-sm font-medium text-neutral-500">Age range</dt>
+          <dd className="mt-1 text-sm font-semibold text-neutral-900">
             {ageRange ?? NOT_PROVIDED}
           </dd>
         </div>
