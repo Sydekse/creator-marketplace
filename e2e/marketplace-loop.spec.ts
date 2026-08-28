@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   DEMO,
+  expectPostOk,
   openCampaign,
   openCreatorDeal,
   signIn,
@@ -42,7 +43,9 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   // is deliberately unticked (and cannot be pre-ticked), so the e2e ticks it
   // exactly as a creator would before the accept control enables.
   await creator.getByRole('checkbox', { name: /Usage Rights terms/i }).check();
-  await creator.getByRole('button', { name: 'Accept offer' }).click();
+  await expectPostOk(creator, '/accept', () =>
+    creator.getByRole('button', { name: 'Accept offer' }).click()
+  );
   await expect(creator).toHaveURL(/\/creator\/deals\/[0-9a-f-]+/);
   await creator.close();
 
@@ -51,17 +54,18 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Ramadan Beauty Push');
   // Funding moves money, so the shared ConfirmDialog asks first — click Fund,
-  // then the dialog's confirm button.
+  // then the dialog's confirm button. The dialog's own prompt contains the
+  // word "escrow", so no text assertion can prove the hold: only the POST
+  // response can. Closing the page early would abort that in-flight request
+  // and leave the campaign confirmed-but-unfunded (the CI failure where the
+  // creator's deliverable form never rendered).
   await brand.getByRole('button', { name: 'Fund campaign' }).click();
-  await brand
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Fund campaign' })
-    .click();
-  // Funding succeeds: the button's success toast, or the page re-reading a
-  // funded campaign. The robust signal is the escrow row appearing.
-  await expect(
-    brand.getByText(/held in escrow|Funds held|escrow/i).first()
-  ).toBeVisible({ timeout: 15_000 });
+  await expectPostOk(brand, '/fund', () =>
+    brand
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Fund campaign' })
+      .click()
+  );
   await brand.close();
 
   // -- Creator submits the first of two videos ------------------------------
@@ -111,12 +115,14 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   await openCampaign(approver, 'Ramadan Beauty Push');
   await approver.getByRole('link', { name: '@demo_creator' }).click();
   // The approve control asks first through the shared ConfirmDialog — click
-  // Approve, then the dialog's confirm button.
+  // Approve, then the dialog's confirm button, and hold for the payout POST.
   await approver.getByRole('button', { name: 'Approve and pay' }).click();
-  await approver
-    .getByRole('dialog')
-    .getByRole('button', { name: 'Approve and pay' })
-    .click();
+  await expectPostOk(approver, '/approve', () =>
+    approver
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Approve and pay' })
+      .click()
+  );
   await expect(approver).toHaveURL(/\/deals\/[0-9a-f-]+/, { timeout: 15_000 });
   await approver.close();
 
@@ -130,7 +136,11 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   await metrics.locator('#metric-likes').first().fill('840');
   await metrics.locator('#metric-shares').first().fill('90');
   await metrics.locator('#metric-comments').first().fill('37');
-  await metrics.getByRole('button', { name: 'Submit metrics' }).first().click();
+  // Same abort trap as every other mutation: the close below kills any
+  // request still in flight, so hold for the metrics POST first.
+  await expectPostOk(metrics, '/metrics', () =>
+    metrics.getByRole('button', { name: 'Submit metrics' }).first().click()
+  );
   await metrics.close();
 
   const dashboard = await browser.newPage();

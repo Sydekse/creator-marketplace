@@ -47,6 +47,31 @@ export async function openCreatorDeal(page: Page, campaignName: string) {
 }
 
 /**
+ * Run `act` (a click that fires a client-side POST) and require the matching
+ * response to arrive ok before the caller moves on.
+ *
+ * Every mutating step in these flows is a client `fetch` — accept, fund,
+ * deliver, approve, metrics — followed by `router.refresh()`. Two traps:
+ * closing the page right after the click aborts the in-flight POST, and any
+ * "did it work" assertion that can be satisfied by pre-existing copy (the
+ * fund dialog's own prompt contains "escrow") passes before the money moved.
+ * Waiting on the response pins each step to the thing that actually matters.
+ */
+export async function expectPostOk(
+  page: Page,
+  pathSuffix: string,
+  act: () => Promise<void>
+): Promise<void> {
+  const posted = page.waitForResponse(
+    (response) =>
+      response.url().includes(pathSuffix) &&
+      response.request().method() === 'POST'
+  );
+  await act();
+  expect((await posted).ok(), `POST ${pathSuffix} must succeed`).toBe(true);
+}
+
+/**
  * Submit a live TikTok URL on the creator deal page and wait until the
  * server-rendered progress copy ("N of M videos submitted") reflects it.
  *
@@ -68,13 +93,9 @@ export async function submitVideo(
   progressCopy: string
 ): Promise<void> {
   await page.locator('#tiktokUrl').fill(videoUrl);
-  const posted = page.waitForResponse(
-    (response) =>
-      response.url().includes('/deliverable') &&
-      response.request().method() === 'POST'
+  await expectPostOk(page, '/deliverable', () =>
+    page.getByRole('button', { name: 'Submit your video' }).click()
   );
-  await page.getByRole('button', { name: 'Submit your video' }).click();
-  expect((await posted).ok()).toBe(true);
   await expect(async () => {
     if (!(await page.getByText(progressCopy).isVisible())) {
       await page.reload();
