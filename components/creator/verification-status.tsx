@@ -1,8 +1,8 @@
-import { cn } from '@/lib/utils';
 import type { CreatorStatus } from '@/db/schema';
 
 import { Chip, type ChipTone } from '@/components/ui/chip';
-import { PageHeader } from '@/components/layout/page-header';
+import { InitialsAvatar } from '@/components/ui/initials-avatar';
+import { cn } from '@/lib/utils';
 
 /**
  * What a creator sees about their own verification (US-001's "awaiting
@@ -103,6 +103,7 @@ export function VerificationStatus({
   status,
   tiktokHandle,
   hasTier,
+  name,
 }: {
   status: CreatorStatus;
   tiktokHandle: string;
@@ -113,6 +114,8 @@ export function VerificationStatus({
    * between "approved" and "brands can see me".
    */
   hasTier: boolean;
+  /** Sign-up name, shown in the greeting above the handle. */
+  name: string;
 }) {
   const reachedStep = status === 'verified' ? (hasTier ? 3 : 2) : 1;
 
@@ -148,11 +151,24 @@ export function VerificationStatus({
           already renders the same handle as a serif page title, so the two
           screens now agree on what a handle looks like. Nothing on this page
           asks the creator to *type* it. */}
-      <PageHeader
-        label="Your TikTok account"
-        title={<span className="break-all">{tiktokHandle}</span>}
-        action={<StatusChip status={status} />}
-      />
+      <div className="flex flex-col gap-3 border-b border-neutral-200 pb-3 sm:gap-4 sm:pb-4">
+        <p className="text-[11px] font-bold tracking-[0.12em] text-brand uppercase sm:text-[13px] sm:tracking-[0.14em]">
+          Welcome back
+        </p>
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-0.5 sm:gap-x-4 sm:gap-y-1">
+          <div className="avatar-stack-circle row-span-2">
+            <InitialsAvatar
+              name={name}
+              className="!size-full rounded-full border-neutral-900 bg-neutral-900 text-neutral-50 shadow-none"
+            />
+          </div>
+          <h1 className="page-title opener-title min-w-0">{name}</h1>
+          <StatusChip status={status} />
+          <p className="col-span-2 col-start-2 font-mono text-xs text-neutral-600 sm:text-sm">
+            {tiktokHandle}
+          </p>
+        </div>
+      </div>
 
       {status === 'rejected' ? (
         <div className="flex flex-col gap-2">

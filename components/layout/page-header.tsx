@@ -33,8 +33,8 @@ export function PageHeader({
           label
         )
       ) : null}
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
-        <h1 className="page-title">{title}</h1>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-x-6 sm:gap-y-3">
+        <h1 className="page-title min-w-0">{title}</h1>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>
       {description ? (

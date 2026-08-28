@@ -1,7 +1,11 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { ArrowSquareOut, TiktokLogo } from '@phosphor-icons/react/dist/ssr';
+import {
+  ArrowSquareOut,
+  CaretRight,
+  TiktokLogo,
+} from '@phosphor-icons/react/dist/ssr';
 import { AudienceSection } from '@/components/creator/audience-section';
-import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { EarningsSummary } from '@/components/creator/earnings-summary';
 import { PayoutChart } from '@/components/creator/payout-chart';
 import { TierPricing } from '@/components/creator/tier-pricing';
@@ -9,7 +13,10 @@ import { VerificationStatus } from '@/components/creator/verification-status';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { SectionLabel } from '@/components/layout/section-label';
 import { buttonVariants } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { cn } from '@/lib/utils';
+import { formatEtb } from '@/lib/money';
+import { labelForStatus } from '@/lib/deals/groups';
 import { requireRole } from '@/lib/auth';
 import {
   ENGAGEMENT_RATE_HINT,
@@ -91,6 +98,15 @@ export default async function CreatorDashboardPage() {
 
   const bookable = isBookable({ ...profile, tierActive: tier?.active ?? null });
   const profileUrl = tiktokProfileUrl(profile.tiktokHandle);
+  const openDeals = dashboard.groups
+    .filter(
+      (group) =>
+        group.group === 'pending' ||
+        group.group === 'in_progress' ||
+        group.group === 'awaiting_approval'
+    )
+    .flatMap((group) => group.deals)
+    .slice(0, 5);
 
   return (
     <div className="flex flex-col gap-8 py-4">
@@ -98,105 +114,70 @@ export default async function CreatorDashboardPage() {
         status={profile.status}
         tiktokHandle={profile.tiktokHandle}
         hasTier={profile.tierId !== null}
+        name={user.name ?? user.email}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:items-start lg:gap-8">
-        {/* Left: what moves. */}
-        <div className="flex flex-col gap-5">
-          {/* AC-3 and AC-2. The line is the thesis; paid/held sit under it.
-              Both figures are ledger sums (AC-4) — nothing on this page
-              computes a payout. */}
-          <section className="surface-card surface-pop rounded-[28px] border border-neutral-200 p-5 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-6">
-            <PayoutChart points={dashboard.payouts} />
-            <div className="mt-8">
-              <EarningsSummary earnings={dashboard.earnings} headed={false} />
-            </div>
-            {dashboard.isEmpty ? (
-              <div className="mt-4">
-                <EmptyState
-                  align="start"
-                  title={bookable ? NO_DEALS_TITLE : NOT_BOOKABLE_TITLE}
-                  description={
-                    bookable ? NO_DEALS_DESCRIPTION : NOT_BOOKABLE_DESCRIPTION
-                  }
-                />
-              </div>
-            ) : null}
-          </section>
-        </div>
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:items-stretch">
+        {/* AC-3. Thesis sits beside the profile, not above it. */}
+        <section className="surface-card surface-pop flex h-full min-h-0 flex-col rounded-[28px] border-2 border-brand/40 p-5 sm:p-6">
+          <PayoutChart points={dashboard.payouts} />
+          <div className="mt-8 shrink-0">
+            <EarningsSummary earnings={dashboard.earnings} headed={false} />
+          </div>
+        </section>
 
-        {/* Right: what the creator told us, and what it priced them at. */}
-        <aside className="flex flex-col gap-5 lg:sticky lg:top-28">
-          {/* Above the audience and the price on purpose: the tier is derived
-              from these two numbers, so a creator reading down sees the inputs
-              before the rate — and in the untiered case, the blank field the
-              pricing block is about is directly above the sentence naming it. */}
-          <section className="surface-card surface-pop rounded-[24px] border border-neutral-200 p-5">
+        {/* Right: profile then rate, stacked against the chart. */}
+        <aside className="flex h-full flex-col justify-between gap-4">
+          <section className="flex flex-col gap-4 rounded-[24px] border-2 border-neutral-300 bg-background p-4">
             <SectionLabel>Your profile</SectionLabel>
-            <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-6">
+            <dl className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1">
-                <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+                <dt className="text-[11px] font-semibold tracking-[0.12em] text-neutral-500 uppercase">
                   Niche
                 </dt>
-                <dd className="text-sm">
+                <dd className="text-sm font-semibold text-neutral-900">
                   {NICHE_LABELS[profile.niche as Niche] ?? profile.niche}
                 </dd>
               </div>
               <div className="flex flex-col gap-1">
-                <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+                <dt className="text-[11px] font-semibold tracking-[0.12em] text-neutral-500 uppercase">
                   Followers
                 </dt>
-                {/* AC-027's rule generalises: an absent number is not zero. A
-                    creator who skipped this optional field has not claimed no
-                    followers. The rule lives in `profile-facts.ts` because the
-                    brand-facing card renders the same two fields and must answer
-                    null the same way. */}
-                <dd className="font-mono text-sm">
+                <dd className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
                   {formatFollowerCount(profile.followerCount)}
                 </dd>
               </div>
               <div className="col-span-2 flex flex-col gap-1">
-                <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+                <dt className="text-[11px] font-semibold tracking-[0.12em] text-neutral-500 uppercase">
                   Engagement rate
                 </dt>
-                <dd className="font-mono text-sm">
+                <dd className="font-mono text-sm font-semibold text-neutral-900 tabular-nums">
                   {formatEngagementRate(profile.engagementRate)}
                 </dd>
-                {/* The same sentence a brand filtering on this figure reads
-                    (KAN-200). The creator is the one who reported it, so they are
-                    the one who most needs to know what we asked for. */}
-                <p className="text-xs leading-normal text-muted-foreground text-balance">
+                <p className="text-xs leading-snug text-muted-foreground">
                   {ENGAGEMENT_RATE_HINT}
                 </p>
               </div>
             </dl>
-            {/* The account under all of this, as a brand sees it. Same link, same
-                label and same `rel` as the discovery card (KAN-200). */}
-            {profileUrl && (
+            <AudienceSection audience={readAudience(profile.audience)} />
+            {profileUrl ? (
               <a
                 href={profileUrl}
                 target="_blank"
                 rel="noopener noreferrer nofollow"
                 className={cn(
                   buttonVariants({ variant: 'outline', size: 'sm' }),
-                  'mt-5 gap-1.5'
+                  'dash-action w-full gap-1.5'
                 )}
               >
                 <TiktokLogo size={16} weight="regular" aria-hidden />
                 {VIEW_ON_TIKTOK_LABEL}
                 <ArrowSquareOut size={14} weight="regular" aria-hidden />
               </a>
-            )}
+            ) : null}
           </section>
 
-          {/* §11: The audience the creator submitted at onboarding — the same
-              data brands see on the discovery detail page. Part of "who you
-              are", not "what you earn", which is why it is on this side. */}
-          <section className="surface-card surface-pop rounded-[24px] border border-neutral-200 p-5">
-            <AudienceSection audience={readAudience(profile.audience)} />
-          </section>
-
-          <section className="surface-card surface-pop rounded-[24px] border border-neutral-200 p-5">
+          <section className="rounded-[24px] border-2 border-brand/20 bg-[color-mix(in_oklch,var(--brand-tint)_42%,white)] p-4">
             <TierPricing
               tier={tier}
               profile={profile}
@@ -207,12 +188,88 @@ export default async function CreatorDashboardPage() {
         </aside>
       </div>
 
-      <div className="flex items-center gap-3 border-t border-neutral-200 pt-8">
-        <InitialsAvatar name={user.name ?? user.email} />
-        <p className="text-sm text-muted-foreground">
-          Signed in as {user.name ?? user.email}.
-        </p>
-      </div>
+      {/* AC-2. Work list under the chart+profile pair. */}
+      <section className="flex flex-col gap-3">
+        <SectionLabel>Needs you</SectionLabel>
+        {dashboard.isEmpty ? (
+          <div className="flex min-h-20 flex-col justify-center rounded-2xl border-2 border-dashed border-neutral-400 bg-background px-4 py-4">
+            <EmptyState
+              align="start"
+              title={bookable ? NO_DEALS_TITLE : NOT_BOOKABLE_TITLE}
+              description={
+                bookable ? NO_DEALS_DESCRIPTION : NOT_BOOKABLE_DESCRIPTION
+              }
+            />
+          </div>
+        ) : openDeals.length === 0 ? (
+          <div className="flex min-h-20 flex-col justify-center rounded-2xl border-2 border-dashed border-neutral-400 bg-background px-4 py-4">
+            <p className="text-sm font-semibold text-neutral-900">
+              Nothing waiting on you
+            </p>
+            <p className="mt-1 text-sm text-neutral-600">
+              Open deals stay on Your deals until a brand needs a reply.
+            </p>
+          </div>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {openDeals.map((deal) => (
+              <li key={deal.id}>
+                <Link
+                  href={`/creator/deals/${deal.id}`}
+                  className="group flex min-h-20 cursor-pointer flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border-2 border-neutral-300 bg-background px-4 py-3 transition-[transform,border-color] duration-200 ease-[var(--ease-smooth)] hover:-translate-y-0.5 hover:border-brand/50 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+                >
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <p className="truncate text-sm font-semibold text-neutral-900">
+                      {deal.campaignName}
+                    </p>
+                    <Chip
+                      tone={
+                        deal.status === 'pending' ||
+                        deal.status === 'revision_requested' ||
+                        deal.status === 'delivered'
+                          ? 'amber'
+                          : deal.status === 'funded' ||
+                              deal.status === 'accepted'
+                            ? 'teal'
+                            : 'gray'
+                      }
+                      size="sm"
+                    >
+                      {labelForStatus(deal.status)}
+                    </Chip>
+                  </div>
+                  <div className="flex flex-col items-end gap-0.5">
+                    <span className="font-mono text-sm font-medium text-neutral-900 tabular-nums">
+                      {formatEtb(deal.totalPrice)}
+                    </span>
+                    <span
+                      className={cn(
+                        buttonVariants({ variant: 'outline', size: 'xs' }),
+                        'pointer-events-none border-2 transition-colors group-hover:bg-neutral-900 group-hover:text-neutral-50'
+                      )}
+                    >
+                      Open
+                      <CaretRight size={12} weight="bold" aria-hidden />
+                    </span>
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+        {!dashboard.isEmpty ? (
+          <Link
+            href="/creator/deals"
+            className={cn(
+              buttonVariants({ variant: 'outline', size: 'sm' }),
+              'dash-action mt-1 w-fit gap-1.5'
+            )}
+          >
+            View deals
+            <CaretRight size={12} weight="bold" aria-hidden />
+          </Link>
+        ) : null}
+      </section>
     </div>
   );
 }
