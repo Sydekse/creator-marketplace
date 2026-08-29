@@ -79,9 +79,14 @@ export const auth = betterAuth({
             clientId: process.env.TIKTOK_CLIENT_KEY,
             clientKey: process.env.TIKTOK_CLIENT_KEY,
             clientSecret: process.env.TIKTOK_CLIENT_SECRET,
+            // Appended to the provider's default `user.info.profile`. Stats
+            // and video.list power onboarding prefill and auto-tiering
+            // (phase 2); basic is the portal's baseline grant.
+            scope: ['user.info.basic', 'user.info.stats', 'video.list'],
           } as {
             clientKey: string;
             clientSecret: string;
+            scope: string[];
           },
         },
       }
@@ -132,6 +137,20 @@ export const auth = betterAuth({
               user.email && !user.email.includes('@')
                 ? normalizeTiktokHandle(user.email)
                 : undefined;
+            // Creator sign-up is TikTok-only (KAN-39 phase 2). An email
+            // sign-up (real '@' address) asking for the creator role is only
+            // allowed when the demo flag is on — set in Preview, never in
+            // Production. Enforced here, not just hidden in the UI.
+            if (
+              role === 'creator' &&
+              !tiktokHandle &&
+              process.env.CREATOR_DEMO_SIGNUP !== 'true'
+            ) {
+              throw new APIError('FORBIDDEN', {
+                code: 'FORBIDDEN',
+                message: 'Creators sign up with TikTok.',
+              });
+            }
             return {
               data: {
                 ...user,

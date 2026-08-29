@@ -131,8 +131,10 @@ const DEMO_USERS: readonly DemoUser[] = [
       ageRange: '18-34',
       followerCount: 8_000,
       engagementRate: '2.10',
-      // AC5 of KAN-19 wants one of each, so the admin verification queue
-      // (KAN-22) has something to show.
+      // AC5 of KAN-19 wants one of each status. `pending_verification` is
+      // vestigial since KAN-39 phase 2 (new profiles land verified), but the
+      // row keeps the discovery filter honest: this creator must never appear
+      // in brand search.
       status: 'pending_verification',
     },
   },

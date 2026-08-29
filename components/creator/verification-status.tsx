@@ -2,16 +2,20 @@ import type { CreatorStatus } from '@/db/schema';
 
 import { Chip, type ChipTone } from '@/components/ui/chip';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
-import { cn } from '@/lib/utils';
 
 /**
- * What a creator sees about their own verification (US-001's "awaiting
- * verification" state, and the two states KAN-22 can move them to).
+ * What a creator sees about their own profile state.
  *
- * Verification is genuinely manual for the MVP — an admin looks at the handle
- * and decides. The copy says so rather than implying a system is processing
- * something, because a creator who thinks it is automatic will refresh for an
- * hour and then email support.
+ * Verification is automatic since phase 2 (KAN-39): completing onboarding
+ * lands the profile `verified`, and tier assignment runs in the same
+ * transaction. There is no human review step, so there is no stepper and no
+ * "awaiting verification" journey — the only unsettled state left is
+ * "verified but no tier matched", which is about the creator's numbers, not
+ * about a process they are waiting on.
+ *
+ * `pending_verification` and `rejected` remain valid column values (rows from
+ * before the migration, and the enum itself) so the chip still renders them
+ * honestly rather than crashing on history.
  */
 
 const STATUS_TONE: Record<CreatorStatus, ChipTone> = {
@@ -22,7 +26,7 @@ const STATUS_TONE: Record<CreatorStatus, ChipTone> = {
 
 const STATUS_LABEL: Record<CreatorStatus, string> = {
   pending_verification: 'Awaiting verification',
-  verified: 'Verified',
+  verified: 'Live',
   rejected: 'Not approved',
 };
 
@@ -40,65 +44,6 @@ export function StatusChip({
   );
 }
 
-/**
- * The three steps a creator moves through.
- *
- * Numbered because this genuinely is a sequence with a fixed order — tier and
- * price cannot be assigned before a person has confirmed the handle is real.
- * `current` shades the steps that have not happened yet, so the list doubles as
- * a position indicator without a progress bar pretending to measure time.
- */
-const STEPS = [
-  {
-    title: 'Profile submitted',
-    detail: 'Your handle and audience details are in.',
-  },
-  {
-    title: 'A person checks your handle',
-    detail: 'We confirm the TikTok account is yours and active.',
-  },
-  {
-    title: 'Tier and price assigned',
-    detail: 'Once assigned, brands can find you and send offers.',
-  },
-] as const;
-
-function StepList({ reachedStep }: { reachedStep: number }) {
-  return (
-    <ol className="flex flex-col gap-4">
-      {STEPS.map((step, index) => {
-        const done = index < reachedStep;
-        return (
-          <li key={step.title} className="flex gap-3">
-            <span
-              aria-hidden
-              className={cn(
-                'mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full font-mono text-xs',
-                done
-                  ? 'bg-foreground text-background'
-                  : 'border border-border text-muted-foreground'
-              )}
-            >
-              {index + 1}
-            </span>
-            <div className="flex flex-col gap-0.5">
-              <p
-                className={cn(
-                  'text-sm font-medium',
-                  !done && 'text-muted-foreground'
-                )}
-              >
-                {step.title}
-              </p>
-              <p className="text-sm text-muted-foreground">{step.detail}</p>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
 export function VerificationStatus({
   status,
   tiktokHandle,
@@ -108,31 +53,19 @@ export function VerificationStatus({
   status: CreatorStatus;
   tiktokHandle: string;
   /**
-   * Verified is not the last step — a creator is only bookable once they also
-   * have a tier (AC-006), and tier assignment is a separate admin action
-   * (KAN-23). Passing it in keeps this component honest about the difference
-   * between "approved" and "brands can see me".
+   * Live is not the last step — a creator is only bookable once they also
+   * have a tier (AC-006). Passing it in keeps this component honest about the
+   * difference between "profile exists" and "brands can see me".
    */
   hasTier: boolean;
   /** Sign-up name, shown in the greeting above the handle. */
   name: string;
 }) {
-  const reachedStep = status === 'verified' ? (hasTier ? 3 : 2) : 1;
-
   /**
-   * Verified *and* tiered — nothing about verification is outstanding (KAN-200).
-   *
-   * The stepper is an onboarding artefact. Three ticked steps at the top of a
-   * dashboard a creator opens every day is the single biggest reason the page
-   * read as a form rather than a place of work: the first screenful was entirely
-   * about a process that finished. The handle and the chip stay, because "am I
-   * still verified" is a real question; "what happens next" is not, once the
-   * answer is nothing.
-   *
-   * Deliberately the same predicate as `isBookable` (AC-006), not just
-   * `status === 'verified'` — a verified creator with no tier still has a step
-   * ahead of them, and it is the one they cannot do anything about, so it is the
-   * one most worth showing.
+   * Verified *and* tiered — nothing is outstanding (KAN-200). Deliberately the
+   * same predicate as `isBookable` (AC-006), not just `status === 'verified'`:
+   * a live creator with no tier still has something ahead of them, and it is
+   * the thing most worth explaining.
    */
   const settled = status === 'verified' && hasTier;
 
@@ -182,14 +115,15 @@ export function VerificationStatus({
         </div>
       ) : (
         !settled && (
-          <div className="flex flex-col gap-6">
-            <StepList reachedStep={reachedStep} />
-            {status === 'verified' && !hasTier && (
-              <p className="text-sm text-muted-foreground">
-                You are verified. Brands can send you offers as soon as your
-                tier is assigned.
-              </p>
-            )}
+          <div className="flex flex-col gap-2">
+            <p className="text-sm font-medium">
+              Your profile is live, but not bookable yet.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              Your follower count and engagement rate did not match a pricing
+              tier, so brands cannot find you in search yet. Once your numbers
+              grow — or an admin assigns a tier — offers can start arriving.
+            </p>
           </div>
         )
       )}

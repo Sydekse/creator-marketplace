@@ -29,7 +29,7 @@ append-only ledger inside the same database transaction as the deal state change
 **Creator supply**
 
 - Creator onboarding with TikTok handle, audience size, engagement rate, and content categories
-- Admin verification queue; a creator becomes bookable only once verified **and** assigned a tier
+- Sign up with TikTok: OAuth via Login Kit, stats auto-filled from the TikTok API, instant verification and tier assignment — a creator becomes bookable once a pricing tier matches their numbers
 - Three pricing tiers seeded from config, priced per video
 
 **Campaigns**

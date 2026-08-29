@@ -633,10 +633,11 @@ describe('verification collapses once there is nothing outstanding', () => {
   });
 
   it('still explains the gap to a verified creator with no tier', () => {
-    // The one state where the steps stay and the last one is not reachable by
-    // anything the creator does.
-    expect(source).toContain("status === 'verified' && !hasTier");
-    expect(source).toContain('as soon as your');
+    // The one unsettled state left since verification became automatic: live,
+    // but no tier matched — and it is not reachable by anything the creator
+    // does on this page.
+    expect(source).toContain('not bookable yet');
+    expect(source).toContain('did not match a pricing');
   });
 
   it('still carries the rejection notice, which TierPricing relies on', () => {

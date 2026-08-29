@@ -41,8 +41,8 @@ import { formatEtb } from '@/lib/money';
  * therefore needs the leaf `lib/deals/copy.ts` to avoid dragging `pg` toward the
  * browser.
  *
- * **Cards with an inner grid, not a table.** The two tables in this repo
- * (`components/admin/verification-queue.tsx`, `awaiting-tier-list.tsx`) both wrap
+ * **Cards with an inner grid, not a table.** The admin table in this repo
+ * (`components/admin/awaiting-tier-list.tsx`) wraps
  * in `overflow-x-auto`, which scrolls sideways on a phone. That is fine for an
  * admin queue and wrong here (NFR-007) — `earnings-summary.tsx` says the same
  * thing about its own figures. So each deal is a card whose four counts stack on

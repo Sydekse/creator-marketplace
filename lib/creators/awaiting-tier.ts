@@ -8,10 +8,10 @@ import { clampLimit, clampOffset } from '@/lib/paging';
  * Admin-only read of verified-but-untiered creators (KAN-23, AC-5).
  *
  * The acceptance criterion is that a creator who matched no tier is "surfaced to
- * the admin rather than failing silently". The verify response says so once, at
- * the moment of approval — but the admin who needs to act on it may not be the
- * admin who saw that toast, and there is no other screen on which such a creator
- * appears at all: they are past the verification queue and excluded from
+ * the admin rather than failing silently". Onboarding reports the outcome once,
+ * to the creator — but the admin who needs to act on it never saw that response,
+ * and there is no other screen on which such a creator
+ * appears at all: they are verified yet excluded from
  * discovery. Without this list they are invisible.
  *
  * `verified AND tier_id IS NULL` is the exact complement of `BOOKABLE_CREATOR`
@@ -19,7 +19,7 @@ import { clampLimit, clampOffset } from '@/lib/paging';
  * verified creator is on one list or the other.
  *
  * Gate lives inside the query for the same reason it does in
- * `lib/creators/verification-queue.ts` — a read path protected only by its
+ * `lib/audit/queries.ts` — a read path protected only by its
  * callers is protected as well as the least careful one.
  */
 
@@ -73,8 +73,7 @@ async function selectCreators(
       .from(creatorProfile)
       .where(AWAITING_TIER)
       // Oldest verification first: a creator who has been stuck longest is the
-      // one most likely to have been forgotten. `id` is the stable tiebreak, as
-      // in the verification queue.
+      // one most likely to have been forgotten. `id` is the stable tiebreak.
       .orderBy(creatorProfile.verifiedAt, creatorProfile.id)
       .limit(limit)
       .offset(offset)

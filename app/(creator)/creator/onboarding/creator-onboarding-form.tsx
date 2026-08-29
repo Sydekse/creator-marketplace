@@ -32,6 +32,7 @@ import {
 } from '@/lib/config/creator-profile';
 import type { AgeRange, Niche } from '@/lib/config/creator-profile';
 import { normalizeTiktokHandle } from '@/lib/creators/handle';
+import type { TiktokStats } from '@/lib/tiktok/stats';
 import {
   createCreatorSchema,
   fieldErrorsAt,
@@ -54,6 +55,7 @@ import type { FieldErrorMap } from '@/lib/validation';
 
 export function CreatorOnboardingForm({
   lockedHandle = null,
+  lockedStats = null,
 }: {
   /**
    * The handle Login Kit captured at sign-up, or null for email sign-ups.
@@ -63,8 +65,19 @@ export function CreatorOnboardingForm({
    * ignored.
    */
   lockedHandle?: string | null;
+  /**
+   * Live numbers from the TikTok API (phase 2), or null when unavailable.
+   * Same contract as the handle: the server re-fetches and overrides the body,
+   * so any field with an API value renders read-only. Each field falls back to
+   * editable independently — stats without videos still locks the follower
+   * count while leaving engagement typed.
+   */
+  lockedStats?: TiktokStats | null;
 } = {}) {
   const router = useRouter();
+
+  const lockedFollowers = lockedStats?.followerCount ?? null;
+  const lockedEngagement = lockedStats?.engagementRate ?? null;
 
   const [handleInput, setHandleInput] = useState(() =>
     lockedHandle ? lockedHandle.replace(/^@+/, '') : ''
@@ -72,8 +85,12 @@ export function CreatorOnboardingForm({
   const [niche, setNiche] = useState<Niche | null>(null);
   const [markets, setMarkets] = useState<string[]>([]);
   const [ageRange, setAgeRange] = useState<AgeRange | null>(null);
-  const [followerCount, setFollowerCount] = useState('');
-  const [engagementRate, setEngagementRate] = useState('');
+  const [followerCount, setFollowerCount] = useState(() =>
+    lockedFollowers !== null ? String(lockedFollowers) : ''
+  );
+  const [engagementRate, setEngagementRate] = useState(
+    () => lockedEngagement ?? ''
+  );
   const [errors, setErrors] = useState<FieldErrorMap>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -342,15 +359,18 @@ export function CreatorOnboardingForm({
         </section>
 
         {/* Optional, and labelled as such: a creator who cannot find these
-            numbers must still be able to finish onboarding. */}
+            numbers must still be able to finish onboarding. API-sourced values
+            render read-only — the server re-fetches and overrides the body, so
+            an editable field would be a lie. */}
         <section className="py-9">
           <div className="mb-6">
             <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
               Performance
             </p>
             <p className="mt-2 text-sm leading-relaxed text-neutral-600">
-              Optional. Add these if you know them; you can still submit without
-              them.
+              {lockedFollowers !== null || lockedEngagement !== null
+                ? 'Pulled from your TikTok account. These set your tier and rate.'
+                : 'Optional. Add these if you know them; you can still submit without them.'}
             </p>
           </div>
           <div className="grid gap-7 sm:grid-cols-2">
@@ -361,7 +381,7 @@ export function CreatorOnboardingForm({
               >
                 Followers{' '}
                 <span className="font-normal text-muted-foreground">
-                  (optional)
+                  {lockedFollowers !== null ? '(from TikTok)' : '(optional)'}
                 </span>
               </FieldLabel>
               <Input
@@ -373,7 +393,10 @@ export function CreatorOnboardingForm({
                 step={1}
                 value={followerCount}
                 onChange={(event) => setFollowerCount(event.target.value)}
-                className="h-12 bg-neutral-50 px-3.5 font-mono focus-visible:bg-white"
+                readOnly={lockedFollowers !== null}
+                className={`h-12 bg-neutral-50 px-3.5 font-mono focus-visible:bg-white ${
+                  lockedFollowers !== null ? 'text-neutral-500' : ''
+                }`}
                 placeholder="12000"
                 aria-invalid={hasError('followerCount') || undefined}
               />
@@ -387,7 +410,7 @@ export function CreatorOnboardingForm({
               >
                 Engagement rate{' '}
                 <span className="font-normal text-muted-foreground">
-                  (optional)
+                  {lockedEngagement !== null ? '(from TikTok)' : '(optional)'}
                 </span>
               </FieldLabel>
               <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
@@ -401,15 +424,20 @@ export function CreatorOnboardingForm({
                   step={0.01}
                   value={engagementRate}
                   onChange={(event) => setEngagementRate(event.target.value)}
+                  readOnly={lockedEngagement !== null}
                   data-slot="input-group-control"
-                  className="border-0 font-mono shadow-none focus-visible:ring-0"
+                  className={`border-0 font-mono shadow-none focus-visible:ring-0 ${
+                    lockedEngagement !== null ? 'text-neutral-500' : ''
+                  }`}
                   placeholder="4.20"
                   aria-invalid={hasError('engagementRate') || undefined}
                 />
                 <InputGroupAddon align="inline-end">%</InputGroupAddon>
               </InputGroup>
               <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
-                {ENGAGEMENT_RATE_HINT}
+                {lockedEngagement !== null
+                  ? 'Computed from your recent videos: likes, comments and shares per view.'
+                  : ENGAGEMENT_RATE_HINT}
               </FieldDescription>
               <FieldError errors={fieldError('engagementRate')} />
             </Field>
@@ -428,11 +456,11 @@ export function CreatorOnboardingForm({
             className="w-full sm:w-auto sm:self-start"
           >
             {submitting && <Spinner />}
-            {submitting ? 'Submitting…' : 'Submit for verification'}
+            {submitting ? 'Submitting…' : 'Create profile'}
           </Button>
           <p className="text-[13px] leading-relaxed text-neutral-500">
-            We review your TikTok handle first. Your profile appears in brand
-            search after verification and tier assignment.
+            Your profile goes live as soon as it is created. Brands can find
+            you in search once your numbers place you on a pricing tier.
           </p>
         </div>
       </FieldGroup>

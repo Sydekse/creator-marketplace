@@ -12,12 +12,12 @@ export const runtime = 'nodejs';
  * Awaiting tier (KAN-23, AC-5).
  *
  * Verified creators who hold no tier, and therefore are not bookable. They
- * appear on no other screen: past the verification queue, excluded from
- * discovery. This page is what "surfaced to the admin rather than failing
+ * appear on no other screen: excluded from discovery, invisible elsewhere.
+ * This page is what "surfaced to the admin rather than failing
  * silently" means in practice.
  *
- * Paging lives in the URL for the same reason it does on the verification
- * queue — this is a Server Component, so `?page=` is what re-runs the query, and
+ * Paging lives in the URL for the same reason it does on discovery
+ * — this is a Server Component, so `?page=` is what re-runs the query, and
  * it survives the `router.refresh()` that follows every retry.
  */
 export default async function AwaitingTierPage({

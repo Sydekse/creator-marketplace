@@ -316,7 +316,7 @@ async function resolveRevision(
         },
         // The transaction seam: `withNotifications` owns the real
         // transaction, and `withAdminAudit` must run inside it rather than
-        // opening a second one — the same hinge `decide-verification.ts`
+        // opening a second one — the same hinge `create-profile.ts`
         // uses.
         { ...deps?.adminAuditDeps, transaction: (fn) => fn(tx) }
       );
