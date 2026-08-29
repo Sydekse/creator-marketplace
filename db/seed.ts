@@ -36,6 +36,12 @@ import type { DealStatus } from './schema';
 // imports are hoisted above this call, hence the dynamic imports inside `main()`.
 loadEnvConfig(process.cwd());
 
+// Seeded demo creators sign up with email + password, which production forbids
+// (creators are TikTok-only). The seed is a dev/CI tool, so it grants itself
+// the demo-signup flag; the auth hook reads it at call time, after the dynamic
+// `lib/auth` import inside `main()`.
+process.env.CREATOR_DEMO_SIGNUP = 'true';
+
 /**
  * Demo account password. Overridable so a shared preview environment does not
  * have to use the value published in this file.
