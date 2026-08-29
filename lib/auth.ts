@@ -79,20 +79,9 @@ export const auth = betterAuth({
             clientId: process.env.TIKTOK_CLIENT_KEY,
             clientKey: process.env.TIKTOK_CLIENT_KEY,
             clientSecret: process.env.TIKTOK_CLIENT_SECRET,
-            // TikTok never sends an email; Better Auth stores the Login Kit
-            // `username` in the email column instead. The handle the creator
-            // signs up with is the one their profile is built on, so it is
-            // captured onto the user here and locked on onboarding.
-            mapProfileToUser: (profile) => ({
-              tiktokHandle: normalizeTiktokHandle(
-                (profile as { data?: { user?: { username?: string } } }).data
-                  ?.user?.username ?? ''
-              ),
-            }),
           } as {
             clientKey: string;
             clientSecret: string;
-            mapProfileToUser: (profile: unknown) => Record<string, unknown>;
           },
         },
       }
@@ -131,7 +120,25 @@ export const auth = betterAuth({
           // string outside the union — is refused (NFR-005).
           try {
             const role = resolveSignupRole((user as { role?: unknown }).role);
-            return { data: { ...user, role } };
+            // TikTok Login Kit never returns an email, so Better Auth stores
+            // the TikTok `username` in the email column (no '@'). That is the
+            // only path that produces a non-address email — email/password
+            // sign-up validates a real address — so it doubles as the signal
+            // to capture the handle. `mapProfileToUser` is NOT supported on
+            // built-in social providers (generic-oauth plugin only), and
+            // provider-profile extras are dropped for `input: false` fields,
+            // so this hook is the supported place to set tiktokHandle.
+            const tiktokHandle =
+              user.email && !user.email.includes('@')
+                ? normalizeTiktokHandle(user.email)
+                : undefined;
+            return {
+              data: {
+                ...user,
+                role,
+                ...(tiktokHandle ? { tiktokHandle } : {}),
+              },
+            };
           } catch (error) {
             if (!(error instanceof RoleNotSelfAssignableError)) throw error;
             // Better Auth turns an APIError into the documented status; a bare
