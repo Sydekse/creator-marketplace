@@ -15,8 +15,13 @@ import {
   USER_CONSTRAINT,
   createCreatorProfile,
 } from '../lib/creators/create-profile';
-import type { CreateProfileDeps } from '../lib/creators/create-profile';
+import type {
+  CreateProfileDeps,
+  ProfileInsertValues,
+} from '../lib/creators/create-profile';
 import { ForbiddenError } from '../lib/authz';
+import type { Tx } from '../lib/authz';
+import type { NotifyDeps } from '../lib/notifications/notify';
 import {
   ErrorCode,
   ErrorMessage,
@@ -430,97 +435,252 @@ describe('createCreatorSchema', () => {
   });
 });
 
-// -- The insert: the constraint is the arbiter (AC-003) ---------------------
+// -- The insert: verified, tiered and notified in one transaction ------------
+
+/**
+ * Fake transactional deps, the same shape the tier/notification suites use.
+ *
+ * `withNotifications` opens `notifyDeps.db.transaction` and hands the profile
+ * insert whatever tx that produced; the notification row arrives through
+ * `mockTx.insert` and is recorded. `committed` only flips when the callback
+ * returns, mirroring real Postgres.
+ */
+const TIERS = [
+  {
+    id: 'tier-micro',
+    name: 'Micro',
+    pricePerVideo: 150_000,
+    minFollowers: 10_000,
+    minEngagement: '2.00',
+    active: true,
+  },
+];
+
+function txDeps() {
+  const recorded: { rows: unknown[]; committed: boolean } = {
+    rows: [],
+    committed: false,
+  };
+
+  const mockTx = {
+    insert: vi.fn(() => ({
+      values: vi.fn((row: unknown) => {
+        recorded.rows.push(row);
+        // `insertRow` chains `.returning()` off `values` to read the
+        // generated id, so the fake must return the next link in the chain.
+        return { returning: async () => [{ id: 'n-1' }] };
+      }),
+    })),
+    // `assignTier` writes the matched tier back through the same tx.
+    update: vi.fn(() => ({
+      set: vi.fn(() => ({ where: vi.fn(async () => {}) })),
+    })),
+  } as unknown as Tx;
+
+  const notifyDeps = {
+    db: {
+      transaction: async <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => {
+        const result = await fn(mockTx);
+        recorded.committed = true;
+        return result;
+      },
+    },
+    provider: null,
+    render: async () => ({ subject: '', text: '', html: '' }),
+    log: { info: vi.fn(), error: vi.fn() },
+    sleep: async () => {},
+  } as unknown as NotifyDeps;
+
+  return { notifyDeps, recorded };
+}
+
+/**
+ * Full deps for `createCreatorProfile`, everything faked. `sessionHandle` and
+ * `sessionStats` are explicit `null`s — an email sign-up with no TikTok link —
+ * so no test here touches the `user` table or the TikTok API.
+ */
+function profileDeps(
+  insert: CreateProfileDeps['insert'],
+  overrides: Partial<CreateProfileDeps> = {}
+) {
+  const { notifyDeps, recorded } = txDeps();
+  const deps: Partial<CreateProfileDeps> = {
+    insert,
+    sessionHandle: async () => null,
+    sessionStats: async () => null,
+    notifyDeps,
+    assignTierDeps: { loadTiers: async () => TIERS },
+    ...overrides,
+  };
+  return { deps, recorded };
+}
+
+/** An insert fake that echoes what the pipeline wrote. */
+function okInsertFn() {
+  return vi.fn(async (_tx: Tx, values: ProfileInsertValues) => ({
+    id: 'profile-1',
+    status: 'verified',
+    tiktokHandle: values.tiktokHandle,
+  }));
+}
 
 describe('createCreatorProfile', () => {
   const input = createCreatorSchema.parse(validPayload()) as CreateCreatorInput;
 
-  function deps(insert: CreateProfileDeps['insert']): CreateProfileDeps {
-    return { insert };
-  }
+  it('inserts and returns the created row with the tier outcome', async () => {
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert);
 
-  it('inserts and returns the created row', async () => {
-    const insert = vi.fn().mockResolvedValue({
-      id: 'profile-1',
-      status: 'pending_verification',
-      tiktokHandle: '@beautybyhana',
-    });
-
-    const result = await createCreatorProfile(CREATOR_ID, input, deps(insert));
+    const result = await createCreatorProfile(CREATOR_ID, input, deps);
 
     expect(result).toEqual({
       ok: true,
       profile: {
         id: 'profile-1',
-        status: 'pending_verification',
+        status: 'verified',
         tiktokHandle: '@beautybyhana',
       },
+      // No numbers typed and no TikTok stats — live, but unmatchable.
+      tier: { assigned: false, reason: 'missing_data' },
     });
   });
 
-  it('never sets status, so the pending default cannot be overridden', async () => {
-    // Promotion to 'verified' is KAN-22's admin action. If this module ever
-    // started passing a status, a caller could self-verify.
-    const insert = vi.fn().mockResolvedValue({
-      id: 'profile-1',
-      status: 'pending_verification',
-      tiktokHandle: '@beautybyhana',
-    });
+  it('inserts already verified with a verification timestamp (phase 2)', async () => {
+    // There is no admin queue any more: the insert itself is the promotion.
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert);
 
-    await createCreatorProfile(CREATOR_ID, input, deps(insert));
+    await createCreatorProfile(CREATOR_ID, input, deps);
 
-    expect(insert.mock.calls[0][0]).not.toHaveProperty('status');
-    expect(insert.mock.calls[0][0]).not.toHaveProperty('tierId');
-    expect(insert.mock.calls[0][0]).not.toHaveProperty('verifiedAt');
+    const values = insert.mock.calls[0][1];
+    expect(values.status).toBe('verified');
+    expect(values.verifiedAt).toBeInstanceOf(Date);
+    // Tier is assigned by `assignTier` *after* the insert — never written here,
+    // so the rule in tier-assignment.ts stays the only thing that tiers.
+    expect(values).not.toHaveProperty('tierId');
   });
 
-  it('takes the owner from its argument, never from the payload', async () => {
-    const insert = vi.fn().mockResolvedValue({
-      id: 'profile-1',
-      status: 'pending_verification',
-      tiktokHandle: '@beautybyhana',
+  it('assigns a tier in the same transaction when the numbers clear a floor', async () => {
+    const insert = okInsertFn();
+    const { deps, recorded } = profileDeps(insert);
+
+    const result = await createCreatorProfile(
+      CREATOR_ID,
+      createCreatorSchema.parse(
+        validPayload({ followerCount: 12_000, engagementRate: 4.2 })
+      ),
+      deps
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.tier).toEqual({
+      assigned: true,
+      tierId: 'tier-micro',
+      tierName: 'Micro',
+      pricePerVideo: 150_000,
     });
-
-    await createCreatorProfile(CREATOR_ID, input, deps(insert));
-
-    expect(insert.mock.calls[0][0].userId).toBe(CREATOR_ID);
+    expect(recorded.committed).toBe(true);
   });
 
-  it('sends engagement rate as a fixed-scale string for numeric(5,2)', async () => {
-    const insert = vi.fn().mockResolvedValue({
-      id: 'profile-1',
-      status: 'pending_verification',
-      tiktokHandle: '@beautybyhana',
+  it('emits the profile-live notification inside the transaction', async () => {
+    const insert = okInsertFn();
+    const { deps, recorded } = profileDeps(insert);
+
+    await createCreatorProfile(CREATOR_ID, input, deps);
+
+    expect(recorded.rows).toEqual([
+      {
+        userId: CREATOR_ID,
+        type: 'verification_result',
+        payload: { creatorProfileId: 'profile-1', outcome: 'approved' },
+      },
+    ]);
+    expect(recorded.committed).toBe(true);
+  });
+
+  it('prefers session stats over typed numbers', async () => {
+    // A number TikTok reported is not one the creator gets to improve in
+    // DevTools — the body's values only fill gaps the API left.
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert, {
+      sessionStats: async () => ({
+        followerCount: 54_321,
+        engagementRate: '7.89',
+      }),
     });
 
     await createCreatorProfile(
       CREATOR_ID,
-      createCreatorSchema.parse(validPayload({ engagementRate: 4.2 })),
-      deps(insert)
+      createCreatorSchema.parse(
+        validPayload({ followerCount: 999_999, engagementRate: 99 })
+      ),
+      deps
     );
 
-    expect(insert.mock.calls[0][0].engagementRate).toBe('4.20');
+    const values = insert.mock.calls[0][1];
+    expect(values.followerCount).toBe(54_321);
+    expect(values.engagementRate).toBe('7.89');
+  });
+
+  it('falls back to typed numbers when the stats service returns null', async () => {
+    // The email sign-up path, and every API failure: missing scope, expired
+    // token, zero-view account. Degrade, never block.
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert);
+
+    await createCreatorProfile(
+      CREATOR_ID,
+      createCreatorSchema.parse(
+        validPayload({ followerCount: 12_000, engagementRate: 4.2 })
+      ),
+      deps
+    );
+
+    const values = insert.mock.calls[0][1];
+    expect(values.followerCount).toBe(12_000);
+    expect(values.engagementRate).toBe('4.20');
+  });
+
+  it('takes the owner from its argument, never from the payload', async () => {
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert);
+
+    await createCreatorProfile(CREATOR_ID, input, deps);
+
+    expect(insert.mock.calls[0][1].userId).toBe(CREATOR_ID);
+  });
+
+  it('sends engagement rate as a fixed-scale string for numeric(5,2)', async () => {
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert);
+
+    await createCreatorProfile(
+      CREATOR_ID,
+      createCreatorSchema.parse(validPayload({ engagementRate: 4.2 })),
+      deps
+    );
+
+    expect(insert.mock.calls[0][1].engagementRate).toBe('4.20');
   });
 
   it('sends absent optional numbers as null, not zero', async () => {
-    const insert = vi.fn().mockResolvedValue({
-      id: 'profile-1',
-      status: 'pending_verification',
-      tiktokHandle: '@beautybyhana',
-    });
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert);
 
-    await createCreatorProfile(CREATOR_ID, input, deps(insert));
+    await createCreatorProfile(CREATOR_ID, input, deps);
 
-    expect(insert.mock.calls[0][0].followerCount).toBeNull();
-    expect(insert.mock.calls[0][0].engagementRate).toBeNull();
+    expect(insert.mock.calls[0][1].followerCount).toBeNull();
+    expect(insert.mock.calls[0][1].engagementRate).toBeNull();
   });
 
   it('maps the handle constraint to a handle conflict', async () => {
     const insert = vi
       .fn()
       .mockRejectedValue(uniqueViolation(HANDLE_CONSTRAINT));
+    const { deps } = profileDeps(insert);
     await expect(
-      createCreatorProfile(CREATOR_ID, input, deps(insert))
+      createCreatorProfile(CREATOR_ID, input, deps)
     ).resolves.toEqual({ ok: false, conflict: 'handle' });
   });
 
@@ -528,9 +688,21 @@ describe('createCreatorProfile', () => {
     // Telling a creator their own handle belongs to a stranger sends them to
     // support instead of to their dashboard.
     const insert = vi.fn().mockRejectedValue(uniqueViolation(USER_CONSTRAINT));
+    const { deps } = profileDeps(insert);
     await expect(
-      createCreatorProfile(CREATOR_ID, input, deps(insert))
+      createCreatorProfile(CREATOR_ID, input, deps)
     ).resolves.toEqual({ ok: false, conflict: 'profile' });
+  });
+
+  it('a conflict rolls back the whole transaction — no notification survives', async () => {
+    const insert = vi
+      .fn()
+      .mockRejectedValue(uniqueViolation(HANDLE_CONSTRAINT));
+    const { deps, recorded } = profileDeps(insert);
+
+    await createCreatorProfile(CREATOR_ID, input, deps);
+
+    expect(recorded.committed).toBe(false);
   });
 
   it('re-throws a non-unique database error rather than reporting a conflict', async () => {
@@ -539,9 +711,10 @@ describe('createCreatorProfile', () => {
     const insert = vi
       .fn()
       .mockRejectedValue(Object.assign(new Error('boom'), { code: '08006' }));
-    await expect(
-      createCreatorProfile(CREATOR_ID, input, deps(insert))
-    ).rejects.toThrow('boom');
+    const { deps } = profileDeps(insert);
+    await expect(createCreatorProfile(CREATOR_ID, input, deps)).rejects.toThrow(
+      'boom'
+    );
   });
 
   it('re-throws a unique violation on an unrecognised constraint', async () => {
@@ -550,31 +723,29 @@ describe('createCreatorProfile', () => {
       .mockRejectedValue(
         uniqueViolation('creator_profile_something_new_unique')
       );
+    const { deps } = profileDeps(insert);
     await expect(
-      createCreatorProfile(CREATOR_ID, input, deps(insert))
+      createCreatorProfile(CREATOR_ID, input, deps)
     ).rejects.toMatchObject({ code: '23505' });
   });
 
   it('re-throws a thrown non-object', async () => {
     const insert = vi.fn().mockRejectedValue('a string');
-    await expect(
-      createCreatorProfile(CREATOR_ID, input, deps(insert))
-    ).rejects.toBe('a string');
+    const { deps } = profileDeps(insert);
+    await expect(createCreatorProfile(CREATOR_ID, input, deps)).rejects.toBe(
+      'a string'
+    );
   });
 
   it('stores the Login Kit handle over whatever the body sent', async () => {
-    const insert = vi.fn().mockResolvedValue({
-      id: 'profile-1',
-      status: 'pending_verification',
-      tiktokHandle: '@fromtiktok',
-    });
-
-    await createCreatorProfile(CREATOR_ID, input, {
-      insert,
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert, {
       sessionHandle: async () => '@fromtiktok',
     });
 
-    expect(insert.mock.calls[0][0].tiktokHandle).toBe('@fromtiktok');
+    await createCreatorProfile(CREATOR_ID, input, deps);
+
+    expect(insert.mock.calls[0][1].tiktokHandle).toBe('@fromtiktok');
   });
 });
 
@@ -600,18 +771,20 @@ describe('uniqueness is enforced by the constraint, not a pre-check', () => {
       calls.push('insert');
       return {
         id: 'profile-1',
-        status: 'pending_verification',
+        status: 'verified',
         tiktokHandle: '@beautybyhana',
       };
     });
+    const { deps } = profileDeps(insert);
 
     await createCreatorProfile(
       CREATOR_ID,
       createCreatorSchema.parse(validPayload()),
-      { insert }
+      deps
     );
 
-    // One database interaction, and it is the write.
+    // The profile seam is touched once, and it is the write. (The notification
+    // row and the tier read ride the same transaction *after* it.)
     expect(calls).toEqual(['insert']);
   });
 
@@ -664,49 +837,72 @@ describe('uniqueness is enforced by the constraint, not a pre-check', () => {
 // -- The endpoint -----------------------------------------------------------
 
 describe('POST /api/creators', () => {
-  const okInsert: CreateProfileDeps = {
-    insert: async (values) => ({
+  /**
+   * Full fake deps for the route. No Login Kit handle and no TikTok stats in
+   * these fixtures — an email sign-up. Explicit `null`s, not absent ones, keep
+   * the route off the `user` table and the TikTok API.
+   */
+  function routeDeps(
+    insert: CreateProfileDeps['insert'] = async (_tx, values) => ({
       id: 'profile-1',
-      status: 'pending_verification',
+      status: 'verified',
       tiktokHandle: values.tiktokHandle,
-    }),
-    // No Login Kit handle in these fixtures — an email sign-up. A `null`
-    // session handle, not an absent one, keeps the route off the `user` table.
-    sessionHandle: async () => null,
-  };
+    })
+  ): Partial<CreateProfileDeps> {
+    return profileDeps(insert).deps;
+  }
 
   it('returns 201 with a snake_case body on success (AC-001)', async () => {
     const response = await handleCreateCreator(
       postRequest(validPayload({ tiktokHandle: '@BeautyByHana' })),
-      okInsert
+      routeDeps()
     );
 
     expect(response.status).toBe(201);
     await expect(response.json()).resolves.toEqual({
       id: 'profile-1',
-      status: 'pending_verification',
+      status: 'verified',
       // Normalised on the way in, and echoed as stored — so the client shows
       // the creator the value the database actually holds.
       tiktok_handle: '@beautybyhana',
+      // The tier decision made in the same transaction, so the confirmation
+      // can say whether the profile is already bookable (phase 2).
+      tier: { assigned: false, reason: 'missing_data' },
     });
   });
 
-  it('lands the creator in pending_verification, not verified', async () => {
+  it('lands the creator live immediately — verified, no review queue', async () => {
     const response = await handleCreateCreator(
       postRequest(validPayload()),
-      okInsert
+      routeDeps()
     );
     const body = await response.json();
-    expect(body.status).toBe('pending_verification');
+    expect(body.status).toBe('verified');
+  });
+
+  it('reports the assigned tier when the typed numbers clear a floor', async () => {
+    const response = await handleCreateCreator(
+      postRequest(validPayload({ followerCount: 12_000, engagementRate: 4.2 })),
+      routeDeps()
+    );
+
+    expect(response.status).toBe(201);
+    const body = await response.json();
+    expect(body.tier).toEqual({
+      assigned: true,
+      id: 'tier-micro',
+      name: 'Micro',
+      price_per_video: 150_000,
+    });
   });
 
   it("returns 409 with AC-003's exact string on a duplicate handle", async () => {
-    const response = await handleCreateCreator(postRequest(validPayload()), {
-      insert: async () => {
+    const response = await handleCreateCreator(
+      postRequest(validPayload()),
+      routeDeps(async () => {
         throw uniqueViolation(HANDLE_CONSTRAINT);
-      },
-      sessionHandle: async () => null,
-    });
+      })
+    );
 
     expect(response.status).toBe(409);
     const body = await response.json();
@@ -727,19 +923,16 @@ describe('POST /api/creators', () => {
     const stored = new Set(['@demo_creator']);
     const response = await handleCreateCreator(
       postRequest(validPayload({ tiktokHandle: '@Demo_Creator' })),
-      {
-        insert: async (values) => {
-          if (stored.has(values.tiktokHandle)) {
-            throw uniqueViolation(HANDLE_CONSTRAINT);
-          }
-          return {
-            id: 'profile-1',
-            status: 'pending_verification',
-            tiktokHandle: values.tiktokHandle,
-          };
-        },
-        sessionHandle: async () => null,
-      }
+      routeDeps(async (_tx, values) => {
+        if (stored.has(values.tiktokHandle)) {
+          throw uniqueViolation(HANDLE_CONSTRAINT);
+        }
+        return {
+          id: 'profile-1',
+          status: 'verified',
+          tiktokHandle: values.tiktokHandle,
+        };
+      })
     );
 
     expect(response.status).toBe(409);
@@ -748,12 +941,12 @@ describe('POST /api/creators', () => {
   });
 
   it('returns 409 PROFILE_EXISTS when the creator already has a profile', async () => {
-    const response = await handleCreateCreator(postRequest(validPayload()), {
-      insert: async () => {
+    const response = await handleCreateCreator(
+      postRequest(validPayload()),
+      routeDeps(async () => {
         throw uniqueViolation(USER_CONSTRAINT);
-      },
-      sessionHandle: async () => null,
-    });
+      })
+    );
 
     expect(response.status).toBe(409);
     const body = await response.json();
@@ -766,7 +959,7 @@ describe('POST /api/creators', () => {
   it('returns 422 VALIDATION_ERROR with field details on an invalid payload', async () => {
     const response = await handleCreateCreator(
       postRequest(validPayload({ tiktokHandle: '@a' })),
-      okInsert
+      routeDeps()
     );
 
     expect(response.status).toBe(422);
@@ -778,7 +971,7 @@ describe('POST /api/creators', () => {
   it('returns 422 on a malformed JSON body', async () => {
     const response = await handleCreateCreator(
       postRequest(null, '{not json'),
-      okInsert
+      routeDeps()
     );
 
     expect(response.status).toBe(422);
@@ -790,10 +983,10 @@ describe('POST /api/creators', () => {
     guardMock.mockRejectedValue(new ForbiddenError('role brand not permitted'));
     const insert = vi.fn();
 
-    const response = await handleCreateCreator(postRequest(validPayload()), {
-      insert,
-      sessionHandle: async () => null,
-    });
+    const response = await handleCreateCreator(
+      postRequest(validPayload()),
+      routeDeps(insert)
+    );
 
     expect(response.status).toBe(403);
     const body = await response.json();
@@ -808,38 +1001,38 @@ describe('POST /api/creators', () => {
 
     const response = await handleCreateCreator(
       postRequest({ garbage: true }),
-      okInsert
+      routeDeps()
     );
 
     expect(response.status).toBe(403);
   });
 
   it('gates on the creator role only', async () => {
-    await handleCreateCreator(postRequest(validPayload()), okInsert);
+    await handleCreateCreator(postRequest(validPayload()), routeDeps());
     expect(guardMock).toHaveBeenCalledWith({ roles: ['creator'] });
   });
 
   it('ignores a userId supplied in the body', async () => {
     // Account takeover if honoured. The schema does not declare the field, so
     // it is stripped, and the owner comes from the session.
-    const insert = vi.fn().mockResolvedValue({
+    const insert = vi.fn(async (_tx: Tx, values: ProfileInsertValues) => ({
       id: 'profile-1',
-      status: 'pending_verification',
-      tiktokHandle: '@beautybyhana',
-    });
+      status: 'verified',
+      tiktokHandle: values.tiktokHandle,
+    }));
 
     await handleCreateCreator(
       postRequest(validPayload({ userId: 'someone-else' })),
-      { insert, sessionHandle: async () => null }
+      routeDeps(insert)
     );
 
-    expect(insert.mock.calls[0][0].userId).toBe(CREATOR_ID);
+    expect(insert.mock.calls[0][1].userId).toBe(CREATOR_ID);
   });
 
   it('re-throws a non-Forbidden error instead of flattening it to 403', async () => {
     guardMock.mockRejectedValue(new Error('database down'));
     await expect(
-      handleCreateCreator(postRequest(validPayload()), okInsert)
+      handleCreateCreator(postRequest(validPayload()), routeDeps())
     ).rejects.toThrow('database down');
   });
 });

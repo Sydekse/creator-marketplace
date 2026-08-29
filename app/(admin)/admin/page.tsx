@@ -1,11 +1,5 @@
 import Link from 'next/link';
-import {
-  Megaphone,
-  Scales,
-  Scroll,
-  Tag,
-  UserCheck,
-} from '@phosphor-icons/react/dist/ssr';
+import { Megaphone, Scales, Scroll, Tag } from '@phosphor-icons/react/dist/ssr';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
@@ -61,22 +55,8 @@ export default async function AdminConsolePage() {
         </div>
         <div className="grid border-y border-neutral-200 lg:grid-cols-[1.15fr_0.85fr]">
           <Link
-            href="/admin/verification"
-            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:border-r"
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
-              <UserCheck className="h-4 w-4" weight="regular" aria-hidden />
-            </span>
-            <h2 className="font-semibold text-neutral-900">
-              Verification queue
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Review pending creator profiles
-            </p>
-          </Link>
-          <Link
             href="/admin/campaigns"
-            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
+            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:border-r"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
               <Megaphone className="h-4 w-4" weight="regular" aria-hidden />
@@ -93,7 +73,7 @@ export default async function AdminConsolePage() {
           </Link>
           <Link
             href="/admin/worklist"
-            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:border-r"
+            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
               <Scales className="h-4 w-4" weight="regular" aria-hidden />
@@ -114,7 +94,7 @@ export default async function AdminConsolePage() {
           </Link>
           <Link
             href="/admin/tiers"
-            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
+            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:border-r"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
               <Tag className="h-4 w-4" weight="regular" aria-hidden />
@@ -135,7 +115,7 @@ export default async function AdminConsolePage() {
           </Link>
           <Link
             href="/admin/audit-log"
-            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:col-span-2"
+            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
           >
             <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
               <Scroll className="h-4 w-4" weight="regular" aria-hidden />

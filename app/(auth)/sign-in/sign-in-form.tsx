@@ -73,13 +73,9 @@ export function SignInForm() {
       <div className="mt-5 border-b border-neutral-200" aria-hidden="true" />
 
       <div className="mt-5 flex flex-col gap-4">
-        {/* Live Login Kit OAuth. If TikTok is ever unwired for a testing
-            phase, flip TIKTOK_OAUTH_ENABLED in continue-with-tiktok.tsx and
-            this button disables itself with the provided note. */}
-        <ContinueWithTiktok
-          disabledNote="On testing phase, use email and password."
-          note={null}
-        />
+        {/* Live Login Kit OAuth. No note: a returning user does not need
+            data-policy copy under a login button. */}
+        <ContinueWithTiktok note={null} />
         <div className="flex items-center gap-3" aria-hidden>
           <span className="h-px flex-1 bg-neutral-200" />
           <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-600">

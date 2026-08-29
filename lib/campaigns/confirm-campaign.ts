@@ -39,7 +39,7 @@ import { getCurrentRightsTerms } from '@/lib/rights-terms/current';
  * flushes email strictly after commit, so a rolled-back confirmation leaves
  * neither a half-sent batch of offers nor an email about offers that do not
  * exist. Opening a `db.transaction` here as well would nest two transactions on
- * two pool connections — see `decide-verification.ts` for the same composition.
+ * two pool connections — see `create-profile.ts` for the same composition.
  */
 
 export interface ConfirmCampaignContext {

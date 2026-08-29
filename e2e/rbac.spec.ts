@@ -22,7 +22,7 @@ test('flow 7: a creator cannot reach brand or admin surfaces', async ({
 
   // API-level: admin endpoints refuse the creator's session with 403.
   // `/api/admin/campaigns` exists as a real admin list (there is no
-  // `/api/admin/creators` list route — only the per-creator verify and
+  // `/api/admin/creators` list route — only the per-creator numbers-edit and
   // assign-tier mutations).
   const adminList = await creator.request.get('/api/admin/campaigns');
   expect(adminList.status()).toBe(403);

@@ -36,6 +36,12 @@ import type { DealStatus } from './schema';
 // imports are hoisted above this call, hence the dynamic imports inside `main()`.
 loadEnvConfig(process.cwd());
 
+// Seeded demo creators sign up with email + password, which production forbids
+// (creators are TikTok-only). The seed is a dev/CI tool, so it grants itself
+// the demo-signup flag; the auth hook reads it at call time, after the dynamic
+// `lib/auth` import inside `main()`.
+process.env.CREATOR_DEMO_SIGNUP = 'true';
+
 /**
  * Demo account password. Overridable so a shared preview environment does not
  * have to use the value published in this file.
@@ -131,8 +137,10 @@ const DEMO_USERS: readonly DemoUser[] = [
       ageRange: '18-34',
       followerCount: 8_000,
       engagementRate: '2.10',
-      // AC5 of KAN-19 wants one of each, so the admin verification queue
-      // (KAN-22) has something to show.
+      // AC5 of KAN-19 wants one of each status. `pending_verification` is
+      // vestigial since KAN-39 phase 2 (new profiles land verified), but the
+      // row keeps the discovery filter honest: this creator must never appear
+      // in brand search.
       status: 'pending_verification',
     },
   },
