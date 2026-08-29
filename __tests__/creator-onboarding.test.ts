@@ -479,7 +479,7 @@ function txDeps() {
 
   const notifyDeps = {
     db: {
-      transaction: async <T,>(fn: (tx: Tx) => Promise<T>): Promise<T> => {
+      transaction: async <T>(fn: (tx: Tx) => Promise<T>): Promise<T> => {
         const result = await fn(mockTx);
         recorded.committed = true;
         return result;
@@ -712,9 +712,9 @@ describe('createCreatorProfile', () => {
       .fn()
       .mockRejectedValue(Object.assign(new Error('boom'), { code: '08006' }));
     const { deps } = profileDeps(insert);
-    await expect(
-      createCreatorProfile(CREATOR_ID, input, deps)
-    ).rejects.toThrow('boom');
+    await expect(createCreatorProfile(CREATOR_ID, input, deps)).rejects.toThrow(
+      'boom'
+    );
   });
 
   it('re-throws a unique violation on an unrecognised constraint', async () => {
@@ -732,9 +732,9 @@ describe('createCreatorProfile', () => {
   it('re-throws a thrown non-object', async () => {
     const insert = vi.fn().mockRejectedValue('a string');
     const { deps } = profileDeps(insert);
-    await expect(
-      createCreatorProfile(CREATOR_ID, input, deps)
-    ).rejects.toBe('a string');
+    await expect(createCreatorProfile(CREATOR_ID, input, deps)).rejects.toBe(
+      'a string'
+    );
   });
 
   it('stores the Login Kit handle over whatever the body sent', async () => {

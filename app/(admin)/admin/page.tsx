@@ -1,10 +1,5 @@
 import Link from 'next/link';
-import {
-  Megaphone,
-  Scales,
-  Scroll,
-  Tag,
-} from '@phosphor-icons/react/dist/ssr';
+import { Megaphone, Scales, Scroll, Tag } from '@phosphor-icons/react/dist/ssr';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';

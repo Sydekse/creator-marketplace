@@ -459,8 +459,8 @@ export function CreatorOnboardingForm({
             {submitting ? 'Submitting…' : 'Create profile'}
           </Button>
           <p className="text-[13px] leading-relaxed text-neutral-600">
-            Your profile goes live as soon as it is created. Brands can find
-            you in search once your numbers place you on a pricing tier.
+            Your profile goes live as soon as it is created. Brands can find you
+            in search once your numbers place you on a pricing tier.
           </p>
         </div>
       </FieldGroup>

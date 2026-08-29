@@ -50,9 +50,7 @@ describe('isNavLinkActive', () => {
     expect(isNavLinkActive(overview, '/admin/tiers', undefined, links)).toBe(
       false
     );
-    expect(isNavLinkActive(tiers, '/admin/tiers', undefined, links)).toBe(
-      true
-    );
+    expect(isNavLinkActive(tiers, '/admin/tiers', undefined, links)).toBe(true);
   });
 });
 

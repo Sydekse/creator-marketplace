@@ -54,10 +54,7 @@ export default async function CreatorOnboardingPage() {
         </div>
       </div>
 
-      <CreatorOnboardingForm
-        lockedHandle={lockedHandle}
-        lockedStats={stats}
-      />
+      <CreatorOnboardingForm lockedHandle={lockedHandle} lockedStats={stats} />
     </div>
   );
 }
