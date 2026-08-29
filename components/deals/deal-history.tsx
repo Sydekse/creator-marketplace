@@ -20,7 +20,6 @@ import {
   DEAL_PROGRESS_SHORT_LABEL,
   DEAL_PROGRESS_STEPS,
   dealProgress,
-  isBlockedDealStatus,
   type DealProgressState,
 } from '@/lib/deals/progress';
 import type { DealHistoryEvent } from '@/lib/deals/queries';
@@ -44,12 +43,12 @@ const STEP_ICON = {
 
 function Event({ event }: { event: DealHistoryEvent }) {
   return (
-    <li className="surface-card surface-pop flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 px-3 py-3">
+    <li className="surface-card surface-pop flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 px-4 py-3">
       <div className="flex min-w-0 items-center gap-2">
         {event.actor ? (
           <InitialsAvatar name={event.actor.name} size="sm" />
         ) : null}
-        <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex min-w-0 flex-col gap-1">
           <span className="text-sm font-medium text-neutral-900">
             {labelForStatus(event.toStatus)}
           </span>
@@ -70,33 +69,92 @@ function Event({ event }: { event: DealHistoryEvent }) {
   );
 }
 
-function nodeClass(state: DealProgressState): string {
-  switch (state) {
-    case 'done':
-      return 'border-brand bg-brand text-neutral-50';
-    case 'current':
-      return 'border-brand bg-brand-tint text-brand-ink shadow-[0_0_0_4px_color-mix(in_oklch,var(--brand)_18%,transparent)]';
-    case 'blocked':
-      return 'border-destructive bg-destructive/10 text-destructive';
-    default:
-      return 'border-neutral-200 bg-neutral-50 text-neutral-400';
-  }
+/**
+ * Every state transition this deal has been through (KAN-39, AC-5, NFR-012).
+ *
+ * The rail is the scan path: five icons for the usual walk, filled up to
+ * where the deal stands. The list under it is still the audit trail — same
+ * events, same labels, nothing re-sorted.
+ *
+ * The nodes borrow the deal-inbox's group colours: pending is amber, in-flight
+ * is teal, delivered/awaiting is amber again, completed is green. Same words,
+ * same colours — a deal reads the same on the inbox row and on its own page.
+ */
+
+/** Per-step accent, matching the inbox's GROUP_PILL tones. */
+const STEP_TONE: Record<
+  (typeof DEAL_PROGRESS_STEPS)[number],
+  { bg: string; border: string; text: string }
+> = {
+  pending: {
+    bg: 'bg-status-pending',
+    border: 'border-status-pending-foreground/40',
+    text: 'text-status-pending-foreground',
+  },
+  accepted: {
+    bg: 'bg-brand-tint',
+    border: 'border-brand/40',
+    text: 'text-brand-ink',
+  },
+  funded: {
+    bg: 'bg-brand-tint',
+    border: 'border-brand/40',
+    text: 'text-brand-ink',
+  },
+  delivered: {
+    bg: 'bg-status-pending',
+    border: 'border-status-pending-foreground/40',
+    text: 'text-status-pending-foreground',
+  },
+  completed: {
+    bg: 'bg-status-verified',
+    border: 'border-status-verified-foreground/40',
+    text: 'text-status-verified-foreground',
+  },
+};
+
+function nodeClass(
+  state: DealProgressState,
+  step: (typeof DEAL_PROGRESS_STEPS)[number]
+): string {
+  if (state === 'done')
+    return cn(STEP_TONE[step].bg, STEP_TONE[step].border, STEP_TONE[step].text);
+  if (state === 'current')
+    return cn(
+      STEP_TONE[step].bg,
+      STEP_TONE[step].border,
+      STEP_TONE[step].text,
+      'shadow-[0_0_0_4px_color-mix(in_oklch,var(--brand)_18%,transparent)]'
+    );
+  if (state === 'blocked')
+    return 'border-destructive bg-destructive/10 text-destructive';
+  return 'border-neutral-200 bg-neutral-50 text-neutral-500';
 }
 
-function ProgressRail({
-  current,
+/**
+ * The progress rail, rendered for the deal's *current* status even before any
+ * events exist (a pending deal has no history rows yet — the rail is how the
+ * page shows step 1 lit rather than an empty aside).
+ *
+ * The track behind the nodes is the editorial part: a 2px hairline that fills
+ * to the current step in that step's colour, so the rail reads as a bar, not
+ * a row of circles.
+ */
+export function DealProgressRail({
+  status,
   events,
 }: {
-  current: string;
+  status: string;
   events: DealHistoryEvent[];
 }) {
-  const nodes = dealProgress(current, events);
+  const nodes = dealProgress(status, events);
 
   return (
     <ol className="flex items-start gap-0">
       {nodes.map((node, index) => {
         const Icon = STEP_ICON[node.step];
         const blockedHere = node.state === 'blocked';
+        const reached = node.state === 'done' || node.state === 'current';
         return (
           <li
             key={node.step}
@@ -106,48 +164,54 @@ function ProgressRail({
               <span
                 aria-hidden
                 className={cn(
-                  'h-px flex-1',
+                  'h-0.5 flex-1 rounded-full transition-colors duration-300 sm:h-1.5',
                   index === 0
                     ? 'bg-transparent'
-                    : node.state === 'upcoming'
-                      ? 'bg-neutral-200'
-                      : 'bg-brand'
+                    : reached
+                      ? STEP_TONE[node.step].border
+                          .replace('border-', 'bg-')
+                          .replace('/40', '')
+                      : 'bg-neutral-200'
                 )}
               />
               <span
                 className={cn(
-                  'grid size-9 shrink-0 place-items-center rounded-full border',
-                  nodeClass(node.state)
+                  'grid size-9 shrink-0 place-items-center rounded-full border transition-colors duration-300 sm:size-14',
+                  nodeClass(node.state, node.step)
                 )}
               >
                 {blockedHere ? (
-                  <X size={16} weight="bold" />
+                  <X size={16} weight="bold" className="sm:size-6" />
                 ) : node.state === 'done' ? (
-                  <Check size={16} weight="bold" />
+                  <Check size={16} weight="bold" className="sm:size-6" />
                 ) : (
-                  <Icon size={16} weight="bold" />
+                  <Icon size={16} weight="regular" className="sm:size-6" />
                 )}
               </span>
               <span
                 aria-hidden
                 className={cn(
-                  'h-px flex-1',
+                  'h-0.5 flex-1 rounded-full transition-colors duration-300 sm:h-1.5',
                   index === DEAL_PROGRESS_STEPS.length - 1
                     ? 'bg-transparent'
                     : node.state === 'done'
-                      ? 'bg-brand'
+                      ? STEP_TONE[node.step].border
+                          .replace('border-', 'bg-')
+                          .replace('/40', '')
                       : 'bg-neutral-200'
                 )}
               />
             </div>
             <span
               className={cn(
-                'max-w-full px-0.5 text-center text-[10px] leading-tight font-medium whitespace-nowrap sm:text-[11px]',
+                'max-w-full px-0.5 text-center text-[10px] leading-tight font-medium whitespace-nowrap sm:text-xs',
                 node.state === 'upcoming'
-                  ? 'text-neutral-400'
+                  ? 'text-neutral-500'
                   : node.state === 'blocked'
                     ? 'text-destructive'
-                    : 'text-neutral-800'
+                    : node.state === 'current'
+                      ? cn('font-semibold', STEP_TONE[node.step].text)
+                      : 'text-neutral-800'
               )}
             >
               {blockedHere ? 'Stopped' : DEAL_PROGRESS_SHORT_LABEL[node.step]}
@@ -160,35 +224,16 @@ function ProgressRail({
 }
 
 export function DealHistory({ events }: { events: DealHistoryEvent[] }) {
-  const current = events.at(-1)?.toStatus ?? '';
-
   return (
     <section className="flex flex-col gap-5">
       <SectionLabel>{DEAL_HISTORY_TITLE}</SectionLabel>
 
       {events.length > 0 ? (
-        <>
-          <div className="surface-pop rounded-[24px] border border-neutral-200 px-2 py-5 sm:px-4">
-            <ProgressRail current={current} events={events} />
-            <p className="mt-4 text-center text-sm font-medium text-neutral-800">
-              {labelForStatus(current)}
-            </p>
-            {isBlockedDealStatus(current) ? (
-              <p className="mt-1 text-center text-sm text-muted-foreground">
-                This deal stopped at {labelForStatus(current)}.
-              </p>
-            ) : current === 'revision_requested' ? (
-              <p className="mt-1 text-center text-sm text-muted-foreground">
-                Changes requested — replace the video to move on.
-              </p>
-            ) : null}
-          </div>
-          <ol className="flex flex-col gap-2">
-            {events.map((event) => (
-              <Event key={event.id} event={event} />
-            ))}
-          </ol>
-        </>
+        <ol className="flex flex-col gap-2">
+          {events.map((event) => (
+            <Event key={event.id} event={event} />
+          ))}
+        </ol>
       ) : (
         <p className="text-sm text-muted-foreground">{DEAL_HISTORY_EMPTY}</p>
       )}

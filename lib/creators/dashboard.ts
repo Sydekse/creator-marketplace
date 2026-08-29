@@ -1,6 +1,12 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { campaign, deal, ledgerEntry } from '@/db/schema';
+import {
+  campaign,
+  deal,
+  deliverable,
+  ledgerEntry,
+  videoMetric,
+} from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
 import { groupDeals } from '@/lib/deals/groups';
@@ -69,6 +75,27 @@ export interface CreatorDashboard {
   isEmpty: boolean;
   /** Cumulative weekly payouts for the dashboard chart, ledger-sourced. */
   payouts: PayoutPoint[];
+  /** Deal ids with completed videos still awaiting metrics (KAN-48, KAN-57). */
+  unmeasuredDealIds: string[];
+  /** Pending offers expiring within 48 hours of the read (nearest first). */
+  expiringOffers: Array<{
+    id: string;
+    campaignName: string;
+    offerExpiresAt: Date;
+  }>;
+  /**
+   * The creator's recorded engagement across every measured video — the same
+   * honesty rules as the brand's campaign dashboard (null ≠ 0), rolled up to
+   * the creator. All null when nothing has been recorded yet.
+   */
+  metrics: {
+    views: number | null;
+    likes: number | null;
+    shares: number | null;
+    comments: number | null;
+    measuredVideos: number;
+    totalVideos: number;
+  };
 }
 
 /**
@@ -159,6 +186,60 @@ export function dealsQuery(creatorProfileId: string) {
 }
 
 /**
+ * Completed videos with no metrics recorded, joined to the deal so the
+ * dashboard card can deep-link. Shares the `pending-metrics.ts` definition of
+ * unmeasured (no row, or four nulls) so the card and the reminder sweep can
+ * never disagree about who owes numbers.
+ */
+export function unmeasuredDealsQuery(creatorProfileId: string) {
+  return db
+    .select({ dealId: deal.id })
+    .from(deliverable)
+    .innerJoin(deal, eq(deliverable.dealId, deal.id))
+    .leftJoin(videoMetric, eq(videoMetric.deliverableId, deliverable.id))
+    .where(
+      and(
+        eq(deal.creatorId, creatorProfileId),
+        eq(deal.status, 'completed'),
+        or(
+          isNull(videoMetric.id),
+          and(
+            isNull(videoMetric.views),
+            isNull(videoMetric.likes),
+            isNull(videoMetric.shares),
+            isNull(videoMetric.comments)
+          )
+        )
+      )
+    );
+}
+
+/**
+ * The creator's engagement rollup (US-009, creator side of AC-026).
+ *
+ * Sums only recorded counts — a null field contributes nothing and drags no
+ * average down, the same rule `toCampaignTotals` holds the brand's dashboard
+ * to. `measuredVideos` counts rows with at least one count written, so the
+ * card can say "across N videos" truthfully; `totalVideos` counts every
+ * submitted deliverable, measured or not, which is the coverage denominator.
+ */
+export function creatorMetricsQuery(creatorProfileId: string) {
+  return db
+    .select({
+      views: sql<number | null>`SUM(${videoMetric.views})::int`,
+      likes: sql<number | null>`SUM(${videoMetric.likes})::int`,
+      shares: sql<number | null>`SUM(${videoMetric.shares})::int`,
+      comments: sql<number | null>`SUM(${videoMetric.comments})::int`,
+      measuredVideos: sql<number>`COUNT(*) FILTER (WHERE ${videoMetric.id} IS NOT NULL AND COALESCE(${videoMetric.views}, ${videoMetric.likes}, ${videoMetric.shares}, ${videoMetric.comments}) IS NOT NULL)::int`,
+      totalVideos: sql<number>`COUNT(*)::int`,
+    })
+    .from(deliverable)
+    .innerJoin(deal, eq(deliverable.dealId, deal.id))
+    .leftJoin(videoMetric, eq(videoMetric.deliverableId, deliverable.id))
+    .where(eq(deal.creatorId, creatorProfileId));
+}
+
+/**
  * Partitions rows into all five groups, in `DEAL_GROUPS` order.
  *
  * Re-exported rather than defined here since KAN-39: the deal inbox partitions
@@ -177,6 +258,12 @@ export interface CreatorDashboardDeps {
   selectPayoutEvents: (
     creatorProfileId: string
   ) => Promise<Array<{ createdAt: Date; amount: number }>>;
+  selectUnmeasuredDeals: (
+    creatorProfileId: string
+  ) => Promise<Array<{ dealId: string }>>;
+  selectMetrics: (
+    creatorProfileId: string
+  ) => Promise<CreatorDashboard['metrics']>;
 }
 
 async function selectEarnings(
@@ -204,11 +291,33 @@ async function selectPayoutEvents(
   return payoutEventsQuery(creatorProfileId);
 }
 
+async function selectUnmeasuredDeals(
+  creatorProfileId: string
+): Promise<Array<{ dealId: string }>> {
+  return unmeasuredDealsQuery(creatorProfileId);
+}
+
+async function selectMetrics(
+  creatorProfileId: string
+): Promise<CreatorDashboard['metrics']> {
+  const [row] = await creatorMetricsQuery(creatorProfileId);
+  return {
+    views: row?.views ?? null,
+    likes: row?.likes ?? null,
+    shares: row?.shares ?? null,
+    comments: row?.comments ?? null,
+    measuredVideos: Number(row?.measuredVideos ?? 0),
+    totalVideos: Number(row?.totalVideos ?? 0),
+  };
+}
+
 const defaultDeps: CreatorDashboardDeps = {
   requireCreator: () => guard({ roles: ['creator'] }),
   selectEarnings,
   selectDeals,
   selectPayoutEvents,
+  selectUnmeasuredDeals,
+  selectMetrics,
 };
 
 /**
@@ -230,11 +339,35 @@ export async function readCreatorDashboard(
   const { creatorProfileId } = await deps.requireCreator();
   if (!creatorProfileId) return null;
 
-  const [earnings, rows, payoutEvents] = await Promise.all([
-    deps.selectEarnings(creatorProfileId),
-    deps.selectDeals(creatorProfileId),
-    deps.selectPayoutEvents(creatorProfileId),
-  ]);
+  const [earnings, rows, payoutEvents, unmeasured, metrics] = await Promise.all(
+    [
+      deps.selectEarnings(creatorProfileId),
+      deps.selectDeals(creatorProfileId),
+      deps.selectPayoutEvents(creatorProfileId),
+      deps.selectUnmeasuredDeals(creatorProfileId),
+      deps.selectMetrics(creatorProfileId),
+    ]
+  );
+
+  const unmeasuredDealIds = [...new Set(unmeasured.map((r) => r.dealId))];
+  const cutoff = Date.now() + 48 * 60 * 60 * 1000;
+  const expiringOffers = rows
+    .filter(
+      (r) =>
+        r.status === 'pending' &&
+        r.offerExpiresAt !== null &&
+        r.offerExpiresAt.getTime() < cutoff
+    )
+    .sort(
+      (a, b) =>
+        (a.offerExpiresAt as Date).getTime() -
+        (b.offerExpiresAt as Date).getTime()
+    )
+    .map((r) => ({
+      id: r.id,
+      campaignName: r.campaignName,
+      offerExpiresAt: r.offerExpiresAt as Date,
+    }));
 
   return {
     earnings,
@@ -247,6 +380,9 @@ export async function readCreatorDashboard(
       })),
       new Date()
     ),
+    unmeasuredDealIds,
+    expiringOffers,
+    metrics,
   };
 }
 

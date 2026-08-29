@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
-import { DealHistory } from '@/components/deals/deal-history';
+import { ArrowLeft, Play } from '@phosphor-icons/react/dist/ssr';
+import { DealHistory, DealProgressRail } from '@/components/deals/deal-history';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { MetricsForm } from '@/components/deals/metrics-form';
 import { DeliverableForm } from '@/components/deals/deliverable-form';
@@ -17,8 +17,6 @@ import {
 } from '@/lib/deals';
 import { Chip } from '@/components/ui/chip';
 import { SectionLabel } from '@/components/layout/section-label';
-import { buttonVariants } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
 import { dealStatusTone } from '@/lib/deals/status-tone';
 import {
   COMMISSION_LABEL,
@@ -80,14 +78,14 @@ function Fact({
 }) {
   return (
     <div className="flex flex-col gap-1">
-      <dt className="text-xs tracking-wide text-muted-foreground uppercase">
+      <dt className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
         className={
           accent
-            ? 'font-mono text-sm font-semibold text-brand-ink'
-            : 'font-mono text-sm text-neutral-900'
+            ? 'font-sans text-base font-bold tracking-[-0.02em] text-brand-ink tabular-nums'
+            : 'font-mono text-sm font-medium text-neutral-900 tabular-nums'
         }
       >
         {value}
@@ -157,43 +155,75 @@ export default async function CreatorDealDetailPage({
   );
 
   return (
-    <div className="flex flex-col gap-10 py-4">
+    <div className="flex flex-col gap-8 py-4">
       <Link
         href="/creator/deals"
-        className={cn(
-          buttonVariants({ variant: 'outline', size: 'sm' }),
-          'w-fit gap-1.5'
-        )}
+        className="group inline-flex w-fit items-center gap-1.5 text-sm font-medium text-neutral-600 transition-colors duration-200 ease-out hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
       >
-        <ArrowLeft size={14} weight="regular" aria-hidden />
+        <ArrowLeft
+          size={14}
+          weight="regular"
+          aria-hidden
+          className="transition-transform duration-200 ease-out group-hover:-translate-x-0.5"
+        />
         Back to your deals
       </Link>
 
-      <header className="flex flex-col gap-4">
-        <SectionLabel as="p">Deal</SectionLabel>
-        <h1 className="page-title">{deal.campaignName}</h1>
-        {/* AC-2's brand name: the trading name the brand publishes, never a
-            contact (NFR-010). */}
-        <div className="flex flex-wrap items-center gap-2">
-          <InitialsAvatar name={deal.companyName} size="sm" />
-          <span className="text-sm text-neutral-800">{deal.companyName}</span>
-          <Chip
-            tone={dealStatusTone[deal.status]}
-            size="md"
-            className="font-semibold tracking-[0.06em]"
-          >
-            {labelForStatus(deal.status)}
-          </Chip>
+      {/* Header: name + state, then the rail that shows where it stands. */}
+      <header className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <InitialsAvatar name={deal.companyName} size="sm" />
+            <span className="text-sm font-medium text-neutral-800">
+              {deal.companyName}
+            </span>
+            <Chip
+              tone={dealStatusTone[deal.status]}
+              size="md"
+              className="px-3.5 py-1.5 text-[13px] font-semibold tracking-[0.06em]"
+            >
+              {labelForStatus(deal.status)}
+            </Chip>
+          </div>
+          <h1 className="page-title tracking-tight">{deal.campaignName}</h1>
         </div>
+
+        {/* The rail is the deal's state made visible — always rendered, even
+            with no events, so a pending deal shows step 1 highlighted instead
+            of a blank aside. */}
+        <div className="animate-rise-in rounded-[24px] border border-neutral-200 bg-background px-4 py-5 sm:px-6">
+          <DealProgressRail status={deal.status} events={history} />
+        </div>
+
         <div className="border-b border-neutral-200" aria-hidden="true" />
       </header>
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.75fr)] lg:items-start lg:gap-8">
-        <div className="flex flex-col gap-8">
-          <section className="surface-card surface-pop rounded-[24px] border border-neutral-200 p-5 sm:p-6">
-            <SectionLabel>{DEAL_TERMS_TITLE}</SectionLabel>
-            {/* Two columns on a phone, three from `sm:` up (NFR-007). */}
-            <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-6 border-y border-neutral-200 py-6 sm:grid-cols-3">
+        <div className="flex flex-col gap-6">
+          {/* The money — the page's reason to exist, wearing the dashboard's
+              payout-card surface: full teal wash, brand border, and the
+              expected payout in a white inset panel inside it. */}
+          <section className="surface-pop animate-rise-in-1 rounded-[24px] border border-brand/40 p-5 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-6">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+              <SectionLabel>{DEAL_TERMS_TITLE}</SectionLabel>
+              <p className="font-mono text-xs text-muted-foreground">
+                {OFFER_EXPIRY_LABEL}: {deadline}
+              </p>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-1 rounded-2xl border border-neutral-200 bg-background px-4 py-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                {EXPECTED_PAYOUT_LABEL}
+              </p>
+              <p className="font-sans text-3xl font-bold tracking-[-0.04em] text-brand-ink tabular-nums">
+                {formatEtb(deal.expectedPayout)}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {PAYOUT_ESTIMATE_NOTE}
+              </p>
+            </div>
+
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-5 pt-5 sm:grid-cols-4">
               <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
               <Fact
                 label={UNIT_PRICE_LABEL}
@@ -207,56 +237,28 @@ export default async function CreatorDealDetailPage({
                 label={COMMISSION_LABEL}
                 value={formatEtb(deal.commission)}
               />
-              <Fact
-                accent
-                label={EXPECTED_PAYOUT_LABEL}
-                value={formatEtb(deal.expectedPayout)}
-              />
-              <Fact label={OFFER_EXPIRY_LABEL} value={deadline} />
             </dl>
-            {/* Labelled as an estimate, not decoration: a pending deal has no ledger
-            rows, so this figure describes money that has not moved. KAN-25's
-            AC-4 is why the dashboard's numbers are ledger sums instead. */}
-            <p className="mt-4 text-sm text-muted-foreground">
-              {PAYOUT_ESTIMATE_NOTE}
-            </p>
           </section>
 
-          {/* AC-2's "full usage-rights terms", inline rather than behind a link.
-          Rendered by the page, not by `OfferActions`, so this static body stays
-          server-rendered instead of riding into the client bundle with the one
-          control that needs an event handler.
+          {/* The decision — labeled and spaced so it reads as the page's
+              action, not a pair of buttons floating between cards. */}
+          {isPending ? (
+            <section className="animate-rise-in-2 flex flex-col gap-4 rounded-[24px] border border-neutral-200 bg-background p-5 shadow-[0_16px_40px_-24px_rgba(23,23,23,0.2)] sm:p-6">
+              <SectionLabel>Your decision</SectionLabel>
+              <OfferActions dealId={deal.id} terms={deal.rightsTerms} />
+            </section>
+          ) : null}
 
-          While the offer is open this is the version *currently* in effect, not
-          the one stamped at offer time — `readCreatorDeal` swaps it, because
-          acceptance must match the current version and agreeing to superseded
-          text would be refused with a 409 no reload could clear.
-
-          Collapsed once the offer is answered (KAN-200), off the same predicate
-          that gates the accept controls: while a creator is being asked to agree
-          the text is the decision and AC-2 says they see it, and afterwards it is
-          reference material that was pushing the deliverable form and the review
-          status below the fold on every later visit. Still on the page either way
-          — a `<details>` the creator opens, not a link they leave for. */}
+          {/* The terms, under the decision they govern. */}
           {isPending ? rights : null}
 
           {/* KAN-43, AC-019 item 6 — the creator's half of "both parties can see
-          that money is held".
-
-          Gated on `isMoneyHeld`, which is `REFUNDABLE_FROM`: the ledger's own
-          answer to "is there a live hold for this deal", derived from the list it
-          refuses refunds against rather than a second list of statuses that could
-          disagree with it. So this line appears exactly when a `hold` entry
-          exists and has not been released, with no edit here if that set ever
-          changes.
-
-          Above the deliver button on purpose: the money being held is why the
-          creator is willing to start work, so it comes before the control that
-          starts it. */}
+          that money is held". Above the deliver button on purpose: the money
+          being held is why the creator is willing to start work. */}
           {isMoneyHeld(deal.status) ? (
-            <section className="surface-card surface-pop rounded-[24px] border border-neutral-200 p-5 sm:p-6">
+            <section className="surface-pop rounded-[24px] border border-brand/40 p-5 sm:p-6">
               <SectionLabel>{FUNDS_HELD_LABEL}</SectionLabel>
-              <p className="mt-4 font-mono text-3xl font-semibold tracking-tight text-brand-ink">
+              <p className="mt-4 font-display text-4xl font-medium tracking-tight text-neutral-900 sm:text-5xl">
                 {formatEtb(deal.totalPrice)}
               </p>
               <p className="mt-2 max-w-xl text-sm text-muted-foreground">
@@ -265,28 +267,10 @@ export default async function CreatorDealDetailPage({
             </section>
           ) : null}
 
-          {/* AC-3. `canAct` reads `LEGAL_TRANSITIONS`, so these controls cannot
-          outlive the rule that permits them — a status the machine stops
-          accepting from stops rendering them here with no edit to this file. */}
-          {isPending ? (
-            <OfferActions dealId={deal.id} terms={deal.rightsTerms} />
-          ) : null}
-
-          {/* What the creator submitted, once there is something to show — one
-          section per video (F38), oldest first, numbered the same way the brand's
-          review screen numbers them so a rejection note about "Video 2" finds the
-          same video here.
-
-          **Above the submission form**, which is where the comment here always
-          said it was and where it now actually is (KAN-200). On a
-          `revision_requested` deal the thing being replaced has to be readable
-          before the field that replaces it — a creator cannot act on a note they
-          have to scroll past the form to find.
-
-          The URL is shown as text, not a link: nothing on this page navigates or
-          fetches (AC-8), and the brand's screen is where the live post is opened. */}
+          {/* What the creator submitted — one card per video, with the
+              thumbnail frame the landing mockup established. */}
           {deal.deliverables.length > 0 ? (
-            <section className="flex flex-col gap-5">
+            <section className="flex flex-col gap-4">
               <div className="flex flex-col gap-2">
                 <SectionLabel>{DELIVERABLES_TITLE}</SectionLabel>
                 <p className="text-sm text-muted-foreground">
@@ -297,85 +281,62 @@ export default async function CreatorDealDetailPage({
               {deal.deliverables.map((video, index) => (
                 <div
                   key={video.id}
-                  className="surface-card surface-pop flex flex-col gap-2 rounded-[20px] border border-neutral-200 p-5"
+                  className="flex gap-5 rounded-[20px] border border-neutral-200 bg-background p-5"
                 >
-                  <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
-                  {/* Text, never a link or an embed (AC-8) — nothing on the creator
-                  side navigates to the post. The card carries no hover state
-                  either: it is not clickable, and a hover border would claim
-                  otherwise. */}
-                  <p className="font-mono text-sm break-all">
-                    {video.tiktokUrl}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {SUBMITTED_AT_LABEL}: {formatDeadlineUtc(video.submittedAt)}
-                  </p>
-
-                  {/* Where the review stands, per video (KAN-200). Mapped through
-                  `labelForReviewStatus`, never the raw column: `pending` is a
-                  database word, and the creator's question is who holds it next.
-                  The instant is shown once there is one — a review that happened
-                  has a date, and "when did they look at it" is the next thing a
-                  creator asks after "did they". */}
-                  <p className="text-sm text-muted-foreground">
-                    {REVIEW_STATUS_LABEL}:{' '}
-                    {labelForReviewStatus(video.reviewStatus)}
-                    {video.reviewedAt
-                      ? ` (${formatDeadlineUtc(video.reviewedAt)})`
-                      : ''}
-                  </p>
-
-                  {/* The brand's own words, on the video they are about (KAN-200).
-                  Present only while a rejection stands: `recordSubmission` clears
-                  the note when the replacement lands, so a stale instruction never
-                  follows a new video around. */}
-                  {video.rejectionReason ? (
-                    <div className="flex flex-col gap-1 pt-2">
-                      <h4 className="text-sm font-medium">
-                        {REJECTION_REASON_LABEL}
-                      </h4>
-                      <p className="text-sm text-muted-foreground">
-                        {video.rejectionReason}
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {/* The KAN-57 review's F2 fix — the reminder's promise, made real.
-                  One form per video (F38), because the metrics API keys its
-                  upsert by deliverable: a deal covering three videos owes three
-                  sets of counts, and AC-026 renders them as three rows. Gated on
-                  `canReportMetrics` — exactly the `{completed}` set the reminder
-                  sweep selects from. */}
-                  {canReportMetrics(deal.status) ? (
-                    <div className="pt-3">
-                      <MetricsForm deliverableId={video.id} />
-                    </div>
-                  ) : null}
+                  {/* The 9:16 frame the landing page's deliverable mockup
+                      established — same shape, real data. */}
+                  <div className="grid aspect-[9/16] w-24 shrink-0 place-items-center rounded-xl border border-neutral-200 bg-neutral-100">
+                    <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-deep">
+                      <Play
+                        size={12}
+                        weight="fill"
+                        className="text-neutral-50"
+                        aria-hidden
+                      />
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 flex-col gap-2">
+                    <h3 className="text-sm font-medium">
+                      {videoHeading(index)}
+                    </h3>
+                    <p className="font-mono text-xs break-all text-muted-foreground">
+                      {video.tiktokUrl}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {SUBMITTED_AT_LABEL}:{' '}
+                      {formatDeadlineUtc(video.submittedAt)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {REVIEW_STATUS_LABEL}:{' '}
+                      {labelForReviewStatus(video.reviewStatus)}
+                      {video.reviewedAt
+                        ? ` (${formatDeadlineUtc(video.reviewedAt)})`
+                        : ''}
+                    </p>
+                    {video.rejectionReason ? (
+                      <div className="flex flex-col gap-1 border-t border-neutral-200 pt-2">
+                        <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-destructive">
+                          {REJECTION_REASON_LABEL}
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          {video.rejectionReason}
+                        </p>
+                      </div>
+                    ) : null}
+                    {canReportMetrics(deal.status) ? (
+                      <div className="pt-2">
+                        <MetricsForm deliverableId={video.id} />
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </section>
           ) : null}
 
-          {/* KAN-46, AC-022 — the deliverable submission path. `canDeliver` is
-          `{funded, revision_requested}`, read off the same transition table as
-          the accept controls: a funded deal is what the creator may deliver
-          against, and a rejected one is what they may re-deliver against. The
-          form is client-side — it holds the URL field and posts to
-          `/api/deals/{id}/deliverable`.
-
-          It stays on screen for every video the deal covers (F38), so a creator
-          three videos into a three-video deal submits through the same control
-          they used for the first.
-
-          Two different sentences, because the form is asking for two different
-          things (KAN-200). A replacement for a refused video names it, since on a
-          multi-video deal that is the only question worth answering. The next
-          video in an unfinished delivery says why nothing has reached the brand
-          yet — a submission that changed no visible status would otherwise read as
-          a failure. Neither appears on the first video of a deal, where the form
-          speaks for itself. */}
+          {/* The submission form, when the deal is in a state that takes one. */}
           {canDeliver(deal.status) ? (
-            <div className="surface-card surface-pop rounded-[24px] border border-neutral-200 p-5 sm:p-6">
+            <div className="rounded-[24px] border border-neutral-200 bg-background p-5 sm:p-6">
               <div className="flex flex-col gap-3">
                 {rejectedIndex >= 0 ? (
                   <p className="text-sm text-muted-foreground">
@@ -392,8 +353,9 @@ export default async function CreatorDealDetailPage({
           ) : null}
         </div>
 
-        <aside className="flex flex-col gap-8 lg:sticky lg:top-28">
-          {/* AC-5. Reference column: progress and the audit trail. */}
+        {/* Reference column: the audit trail, and the terms once they're
+            settled reference rather than the decision. */}
+        <aside className="flex flex-col gap-6 lg:sticky lg:top-28">
           <DealHistory events={history} />
           {isPending ? null : rights}
         </aside>

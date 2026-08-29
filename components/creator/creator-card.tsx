@@ -52,7 +52,7 @@ function Fact({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-1 px-2 first:pl-0 last:pr-0">
-      <dt className="text-[10px] font-semibold tracking-[0.12em] text-neutral-500 uppercase">
+      <dt className="text-[10px] font-semibold tracking-[0.12em] text-neutral-600 uppercase">
         {label}
       </dt>
       <dd className="text-[13px] font-semibold tabular-nums text-neutral-900">
@@ -60,7 +60,7 @@ function Fact({
         {note ? (
           <TruncatedText
             text={note}
-            className="mt-0.5 text-[11px] font-normal text-neutral-500"
+            className="mt-0.5 text-[11px] font-normal text-neutral-600"
           />
         ) : null}
       </dd>
@@ -118,7 +118,7 @@ export function CreatorCard({
           </div>
           {/* The tier name is context for the price beside it, not a fact a
               brand filters on, so it reads as a label rather than a figure. */}
-          <span className="shrink-0 pt-1 text-[11px] font-semibold tracking-[0.12em] text-brand uppercase">
+          <span className="shrink-0 pt-1 text-[11px] font-semibold tracking-[0.12em] text-brand-ink uppercase">
             {creator.tierName}
           </span>
         </CardTitle>
@@ -157,7 +157,7 @@ export function CreatorCard({
             target="_blank"
             rel="noopener noreferrer nofollow"
             className={cn(
-              'relative z-10 inline-flex items-center gap-1.5 self-start border-t border-neutral-200 pt-3 text-xs font-medium text-brand-ink',
+              'relative z-10 inline-flex items-center gap-2 self-start border-t border-neutral-200 pt-3 text-xs font-medium text-brand-ink',
               textLinkFeedback
             )}
           >

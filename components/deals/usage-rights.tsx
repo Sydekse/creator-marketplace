@@ -59,14 +59,14 @@ export function UsageRightsCard({
   // strip JSX `{/* … */}` with a non-greedy match, and a `/* … */` opening right
   // after a `{` lets that match run on to the next `*/}` and swallow real code.
   const body = (
-    <div className="max-h-64 overflow-y-auto rounded-xl border border-neutral-200 bg-neutral-50/80 p-4 text-sm text-neutral-700">
+    <div className="max-h-64 overflow-y-auto rounded-xl border border-neutral-200 bg-neutral-50/80 p-5 text-sm leading-relaxed text-neutral-700">
       <p className="whitespace-pre-wrap">{terms.body}</p>
     </div>
   );
 
   if (collapsed) {
     return (
-      <section className="surface-card rounded-[24px] border border-neutral-200 p-5 sm:p-6">
+      <section className="rounded-[24px] border border-neutral-200 bg-background p-5 sm:p-6">
         {/* `<details>` and `<summary>`, not a button and a `useState`: the
             browser owns the open state, so this stays a server component and
             keyboard and screen-reader behaviour come for free. The marker is
@@ -93,7 +93,7 @@ export function UsageRightsCard({
   }
 
   return (
-    <section className="surface-card rounded-[24px] border border-neutral-200 p-5 sm:p-6">
+    <section className="rounded-[24px] border border-neutral-200 bg-background p-5 sm:p-6">
       <SectionLabel>{USAGE_RIGHTS_TITLE}</SectionLabel>
       {/* Shown, not merely recorded: a creator agreeing to terms is entitled
           to see which terms, and this is the version `deal.rights_terms_id`

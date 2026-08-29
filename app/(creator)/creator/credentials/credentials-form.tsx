@@ -121,7 +121,7 @@ export function CreatorCredentialsForm({
             aria-describedby={
               errors.email ? 'credentials-email-error' : undefined
             }
-            className="h-11 px-3.5"
+            className="h-11 px-4"
           />
           <FieldError id="credentials-email-error" message={errors.email} />
         </div>
@@ -152,7 +152,7 @@ export function CreatorCredentialsForm({
               aria-describedby={
                 errors.password ? 'credentials-password-error' : undefined
               }
-              className="h-11 px-3.5"
+              className="h-11 px-4"
             />
             <FieldError
               id="credentials-password-error"
@@ -181,7 +181,7 @@ export function CreatorCredentialsForm({
               aria-describedby={
                 errors.confirmPassword ? 'credentials-confirm-error' : undefined
               }
-              className="h-11 px-3.5"
+              className="h-11 px-4"
             />
             <FieldError
               id="credentials-confirm-error"

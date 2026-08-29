@@ -30,7 +30,7 @@ export default async function CreatorOnboardingPage() {
           description="Tell brands what you create and who watches it. Your profile becomes searchable after verification and tier assignment."
           className="max-w-xl"
         />
-        <div className="mt-10 hidden border-l-2 border-brand/60 pl-5 lg:block">
+        <div className="mt-10 hidden border-l border-brand/40 pl-5 lg:block">
           <p className="text-sm font-semibold text-neutral-900">
             What brands will see
           </p>

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Mark } from '@/components/brand/mark';
 import { InEffectMark } from '@/components/legal/in-effect-mark';
 import { LegalSections } from '@/components/legal/legal-sections';
+import { LegalToc, LegalTocMobile } from '@/components/legal/legal-toc';
 import { MagneticLink } from '@/components/legal/magnetic-link';
 import { Reveal } from '@/components/marketing/reveal';
 import { cn } from '@/lib/utils';
@@ -39,6 +40,10 @@ export function LegalPage({
   toc: readonly LegalTocItem[];
   children: ReactNode;
 }) {
+  // The legal footer links to both documents; the one that is not the
+  // sibling is the page we are on, so it gets aria-current instead of a
+  // self-link that reads like navigation.
+  const currentLegal = sibling.href === '/terms' ? '/privacy' : '/terms';
   return (
     <div className="relative min-h-[100dvh] bg-neutral-50 text-neutral-900 antialiased">
       {/* Grain stays on a fixed, non-scrolling layer (skill §5). */}
@@ -84,7 +89,7 @@ export function LegalPage({
           <Reveal>
             <div className="grid items-end gap-10 border-b border-neutral-200 pb-14 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,0.7fr)] lg:gap-24">
               <div>
-                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+                <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
                   {label}
                 </p>
                 <h1 className="mt-5 font-display text-4xl font-medium leading-none tracking-tighter text-neutral-900 md:text-6xl">
@@ -93,7 +98,7 @@ export function LegalPage({
               </div>
               <div className="flex flex-col gap-4 lg:items-end lg:pb-1 lg:text-right">
                 <InEffectMark />
-                <p className="text-sm text-neutral-500">
+                <p className="text-sm text-neutral-600">
                   Last updated {updated}
                 </p>
                 <Link
@@ -107,39 +112,21 @@ export function LegalPage({
           </Reveal>
 
           <div className="mt-16 grid items-start gap-16 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.4fr)] lg:gap-24">
-            <aside className="hidden lg:block">
-              <nav
-                aria-label="On this page"
-                className="sticky top-24 flex flex-col gap-1"
-              >
-                {toc.map((item, index) => (
-                  <Reveal key={item.id} delay={index * 60}>
-                    <a
-                      href={`#${item.id}`}
-                      className="group grid grid-cols-[2.5rem_minmax(0,1fr)] items-baseline gap-3 rounded-[4px] py-2 text-sm text-neutral-500 transition-colors duration-300 ease-out hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand active:scale-[0.99]"
-                    >
-                      <span className="font-mono text-[11px] tabular-nums text-neutral-400 group-hover:text-brand">
-                        {item.n}
-                      </span>
-                      <span>{item.title}</span>
-                    </a>
-                  </Reveal>
-                ))}
-              </nav>
-            </aside>
+            <LegalToc toc={toc} />
 
             <article
               className={cn(
                 'max-w-[65ch]',
                 '[&_section]:scroll-mt-28 [&_section]:border-t [&_section]:border-neutral-200 [&_section]:pt-10 [&_section]:pb-2',
                 '[&_section:first-child]:border-t-0 [&_section:first-child]:pt-0',
-                '[&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:uppercase [&_h2]:tracking-[0.14em] [&_h2]:text-brand',
+                '[&_h2]:text-[13px] [&_h2]:font-semibold [&_h2]:uppercase [&_h2]:tracking-[0.14em] [&_h2]:text-brand-ink',
                 '[&_p]:mt-4 [&_p]:text-base [&_p]:leading-relaxed [&_p]:text-neutral-600',
                 '[&_ul]:mt-4 [&_ul]:flex [&_ul]:flex-col [&_ul]:gap-3',
                 '[&_li]:relative [&_li]:pl-5 [&_li]:text-base [&_li]:leading-relaxed [&_li]:text-neutral-600',
                 '[&_li]:before:absolute [&_li]:before:top-[0.7em] [&_li]:before:left-0 [&_li]:before:h-1 [&_li]:before:w-1 [&_li]:before:rounded-full [&_li]:before:bg-neutral-400'
               )}
             >
+              <LegalTocMobile toc={toc} />
               <LegalSections>{children}</LegalSections>
             </article>
           </div>
@@ -158,10 +145,18 @@ export function LegalPage({
             </span>
           </Link>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-[13px] text-neutral-600">
-            <Link href="/terms" className={LEGAL_LINK}>
+            <Link
+              href="/terms"
+              aria-current={currentLegal === '/terms' ? 'page' : undefined}
+              className={LEGAL_LINK}
+            >
               Terms of Service
             </Link>
-            <Link href="/privacy" className={LEGAL_LINK}>
+            <Link
+              href="/privacy"
+              aria-current={currentLegal === '/privacy' ? 'page' : undefined}
+              className={LEGAL_LINK}
+            >
               Privacy Policy
             </Link>
             <Link href="/" className={LEGAL_LINK}>

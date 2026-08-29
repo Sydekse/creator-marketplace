@@ -34,7 +34,7 @@ function DealRow({ deal }: { deal: BrandInboxDeal }) {
       >
         <div className="flex min-w-0 items-center gap-2">
           <InitialsAvatar name={deal.creatorHandle} size="sm" />
-          <div className="flex min-w-0 flex-col gap-0.5">
+          <div className="flex min-w-0 flex-col gap-1">
             <TruncatedText
               text={displayTiktokHandle(deal.creatorHandle)}
               className="text-sm font-medium"
@@ -49,11 +49,11 @@ function DealRow({ deal }: { deal: BrandInboxDeal }) {
             </div>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-0.5">
+        <div className="flex flex-col items-end gap-1">
           <span className="font-mono text-sm tabular-nums">
             {formatEtb(deal.totalPrice)}
           </span>
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-neutral-500 transition-colors group-hover:text-neutral-900">
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-neutral-600 transition-colors group-hover:text-neutral-900">
             Open deal
             <CaretRight size={12} weight="bold" aria-hidden />
           </span>

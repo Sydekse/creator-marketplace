@@ -81,7 +81,7 @@ function StepList({ reachedStep }: { reachedStep: number }) {
             >
               {index + 1}
             </span>
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col gap-1">
               <p
                 className={cn(
                   'text-sm font-medium',
@@ -152,10 +152,10 @@ export function VerificationStatus({
           screens now agree on what a handle looks like. Nothing on this page
           asks the creator to *type* it. */}
       <div className="flex flex-col gap-3 border-b border-neutral-200 pb-3 sm:gap-4 sm:pb-4">
-        <p className="text-[11px] font-bold tracking-[0.12em] text-brand uppercase sm:text-[13px] sm:tracking-[0.14em]">
+        <p className="text-[11px] font-semibold tracking-[0.12em] text-brand-ink uppercase sm:text-[13px] sm:tracking-[0.14em]">
           Welcome back
         </p>
-        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-0.5 sm:gap-x-4 sm:gap-y-1">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 sm:gap-x-4 sm:gap-y-1">
           <div className="avatar-stack-circle row-span-2">
             <InitialsAvatar
               name={name}

@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { ContinueWithTiktok } from '@/components/auth/continue-with-tiktok';
-import { SectionLabel } from '@/components/layout/section-label';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -62,23 +61,28 @@ export function SignInForm() {
 
   return (
     <div className="surface-card auth-card w-full max-w-md rounded-[28px] border border-neutral-200 p-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-8">
-      <SectionLabel as="p">Welcome back</SectionLabel>
+      <p className="text-[13px] font-bold uppercase tracking-[0.14em] text-brand-ink">
+        Welcome back
+      </p>
       <h1 className="mt-3 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
         Sign in.
       </h1>
-      <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
+      <p className="mt-3 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
         Your deals, escrow, and messages are here when you need them.
       </p>
-
       <div className="mt-5 border-b border-neutral-200" aria-hidden="true" />
 
       <div className="mt-5 flex flex-col gap-4">
-        {/* Not wired for sign-in during sandbox testing: the button stays
-            visible, disabled, so a returning creator knows the path exists. */}
-        <ContinueWithTiktok disabledNote="On testing phase, use email and password." />
+        {/* Live Login Kit OAuth. If TikTok is ever unwired for a testing
+            phase, flip TIKTOK_OAUTH_ENABLED in continue-with-tiktok.tsx and
+            this button disables itself with the provided note. */}
+        <ContinueWithTiktok
+          disabledNote="On testing phase, use email and password."
+          note={null}
+        />
         <div className="flex items-center gap-3" aria-hidden>
           <span className="h-px flex-1 bg-neutral-200" />
-          <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-500">
+          <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-600">
             or email
           </span>
           <span className="h-px flex-1 bg-neutral-200" />
@@ -90,7 +94,7 @@ export function SignInForm() {
         noValidate
         className="mt-4 flex flex-col gap-4"
       >
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <label
             htmlFor="email"
             className="text-[13px] font-semibold text-neutral-700"
@@ -115,7 +119,7 @@ export function SignInForm() {
           <FieldError id="email-error" message={errors.email} />
         </div>
 
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col gap-2">
           <label
             htmlFor="password"
             className="text-[13px] font-semibold text-neutral-700"
@@ -143,7 +147,7 @@ export function SignInForm() {
         {formError && (
           <div
             role="alert"
-            className="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-[13px] leading-snug text-destructive"
+            className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-[13px] leading-snug text-destructive"
           >
             {formError}
           </div>
@@ -153,18 +157,18 @@ export function SignInForm() {
           type="submit"
           disabled={loading}
           size="xl"
-          className="w-full bg-brand text-neutral-50 hover:bg-brand-deep"
+          className="w-full bg-brand-deep text-neutral-50 hover:bg-brand-strong"
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </Button>
       </form>
 
-      <p className="mt-5 text-center text-[13px] text-neutral-500">
+      <p className="mt-5 text-center text-[13px] text-neutral-600">
         New to Creator Marketplace?{' '}
         <Link
           href="/sign-up"
           className={cn(
-            'font-medium text-brand hover:text-brand-deep',
+            'font-medium text-brand-ink hover:text-brand-strong',
             textLinkFeedback
           )}
         >

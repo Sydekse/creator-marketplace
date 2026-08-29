@@ -166,7 +166,7 @@ export function CreatorOnboardingForm({
       <FieldGroup className="gap-0">
         <section className="border-b border-neutral-200 pb-9">
           <div className="mb-6">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Creator profile
             </p>
             <p className="mt-2 text-sm leading-relaxed text-neutral-600">
@@ -207,7 +207,7 @@ export function CreatorOnboardingForm({
               </InputGroup>
               <FieldDescription
                 id="tiktokHandle-preview"
-                className="text-[13px] leading-relaxed text-neutral-500"
+                className="text-[13px] leading-relaxed text-neutral-600"
               >
                 {lockedHandle !== null ? (
                   'Linked from your TikTok login. This is the account brands will review.'
@@ -259,7 +259,7 @@ export function CreatorOnboardingForm({
                   ))}
                 </SelectContent>
               </Select>
-              <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
+              <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
                 Choose the category that best describes most of your posts.
               </FieldDescription>
               <FieldError errors={fieldError('niche')} />
@@ -269,7 +269,7 @@ export function CreatorOnboardingForm({
 
         <section className="border-b border-neutral-200 py-9">
           <div className="mb-6">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Audience
             </p>
             <p className="mt-2 text-sm leading-relaxed text-neutral-600">
@@ -304,7 +304,7 @@ export function CreatorOnboardingForm({
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
+              <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
                 Choose every market that applies.
               </FieldDescription>
               <FieldError errors={fieldError('audience.topCountries')} />
@@ -345,7 +345,7 @@ export function CreatorOnboardingForm({
             numbers must still be able to finish onboarding. */}
         <section className="py-9">
           <div className="mb-6">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Performance
             </p>
             <p className="mt-2 text-sm leading-relaxed text-neutral-600">
@@ -373,7 +373,7 @@ export function CreatorOnboardingForm({
                 step={1}
                 value={followerCount}
                 onChange={(event) => setFollowerCount(event.target.value)}
-                className="h-12 bg-neutral-50 px-3.5 font-mono focus-visible:bg-white"
+                className="h-12 bg-neutral-50 px-4 font-mono focus-visible:bg-white"
                 placeholder="12000"
                 aria-invalid={hasError('followerCount') || undefined}
               />
@@ -408,7 +408,7 @@ export function CreatorOnboardingForm({
                 />
                 <InputGroupAddon align="inline-end">%</InputGroupAddon>
               </InputGroup>
-              <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
+              <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
                 {ENGAGEMENT_RATE_HINT}
               </FieldDescription>
               <FieldError errors={fieldError('engagementRate')} />
@@ -430,7 +430,7 @@ export function CreatorOnboardingForm({
             {submitting && <Spinner />}
             {submitting ? 'Submitting…' : 'Submit for verification'}
           </Button>
-          <p className="text-[13px] leading-relaxed text-neutral-500">
+          <p className="text-[13px] leading-relaxed text-neutral-600">
             We review your TikTok handle first. Your profile appears in brand
             search after verification and tier assignment.
           </p>

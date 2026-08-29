@@ -26,7 +26,7 @@ export function PageHeader({
     <header className={cn('flex flex-col gap-3', className)}>
       {label ? (
         typeof label === 'string' || typeof label === 'number' ? (
-          <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
+          <p className="text-[13px] font-semibold tracking-[0.14em] text-brand-ink uppercase">
             {label}
           </p>
         ) : (
