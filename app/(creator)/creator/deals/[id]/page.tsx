@@ -240,14 +240,21 @@ export default async function CreatorDealDetailPage({
             </dl>
           </section>
 
-          {/* The decision — labeled and spaced so it reads as the page's
-              action, not a pair of buttons floating between cards. */}
-          {isPending ? (
-            <section className="animate-rise-in-2 flex flex-col gap-4 rounded-[24px] border border-neutral-200 bg-background p-5 shadow-[0_16px_40px_-24px_rgba(23,23,23,0.2)] sm:p-6">
-              <SectionLabel>Your decision</SectionLabel>
+          {/* The decision — always on the page. Pending deals get the
+              accept/decline controls; answered deals keep the same white
+              card so the hierarchy does not collapse after accept. */}
+          <section className="animate-rise-in-2 flex flex-col gap-4 rounded-[24px] border border-neutral-200 bg-background p-5 shadow-[0_16px_40px_-24px_rgba(23,23,23,0.2)] sm:p-6">
+            <SectionLabel>Your decision</SectionLabel>
+            {isPending ? (
               <OfferActions dealId={deal.id} terms={deal.rightsTerms} />
-            </section>
-          ) : null}
+            ) : (
+              <p className="text-sm leading-relaxed text-neutral-700">
+                {deal.status === 'declined' || deal.status === 'expired'
+                  ? labelForStatus(deal.status)
+                  : 'You accepted this offer and agreed to the usage-rights terms.'}
+              </p>
+            )}
+          </section>
 
           {/* The terms, under the decision they govern. */}
           {isPending ? rights : null}

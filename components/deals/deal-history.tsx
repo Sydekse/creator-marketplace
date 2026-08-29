@@ -43,7 +43,7 @@ const STEP_ICON = {
 
 function Event({ event }: { event: DealHistoryEvent }) {
   return (
-    <li className="surface-card surface-pop flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 px-4 py-3">
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 bg-background px-4 py-3">
       <div className="flex min-w-0 items-center gap-2">
         {event.actor ? (
           <InitialsAvatar name={event.actor.name} size="sm" />
@@ -148,35 +148,36 @@ export function DealProgressRail({
   events: DealHistoryEvent[];
 }) {
   const nodes = dealProgress(status, events);
+  const fillTo = nodes.reduce((last, node, index) => {
+    if (node.state === 'done' || node.state === 'current') return index;
+    return last;
+  }, 0);
+  const span = Math.max(nodes.length - 1, 1);
+  const fillWidth = `${(fillTo / span) * 100}%`;
 
   return (
-    <ol className="flex items-start gap-0">
-      {nodes.map((node, index) => {
-        const Icon = STEP_ICON[node.step];
-        const blockedHere = node.state === 'blocked';
-        const reached = node.state === 'done' || node.state === 'current';
-        return (
-          <li
-            key={node.step}
-            className="flex min-w-0 flex-1 flex-col items-center gap-2"
-          >
-            <div className="flex w-full items-center">
-              <span
-                aria-hidden
-                className={cn(
-                  'h-0.5 flex-1 rounded-full transition-colors duration-300 sm:h-1.5',
-                  index === 0
-                    ? 'bg-transparent'
-                    : reached
-                      ? STEP_TONE[node.step].border
-                          .replace('border-', 'bg-')
-                          .replace('/40', '')
-                      : 'bg-neutral-200'
-                )}
-              />
+    <div className="deal-progress">
+      <div aria-hidden className="deal-progress-line">
+        <div className="deal-progress-line-track">
+          <div
+            className="deal-progress-line-fill"
+            style={{ width: fillWidth }}
+          />
+        </div>
+      </div>
+
+      <ol className="relative z-10 flex items-start">
+        {nodes.map((node) => {
+          const Icon = STEP_ICON[node.step];
+          const blockedHere = node.state === 'blocked';
+          return (
+            <li
+              key={node.step}
+              className="flex min-w-0 flex-1 flex-col items-center gap-2"
+            >
               <span
                 className={cn(
-                  'grid size-9 shrink-0 place-items-center rounded-full border transition-colors duration-300 sm:size-14',
+                  'deal-progress-node transition-colors duration-300',
                   nodeClass(node.state, node.step)
                 )}
               >
@@ -189,37 +190,24 @@ export function DealProgressRail({
                 )}
               </span>
               <span
-                aria-hidden
                 className={cn(
-                  'h-0.5 flex-1 rounded-full transition-colors duration-300 sm:h-1.5',
-                  index === DEAL_PROGRESS_STEPS.length - 1
-                    ? 'bg-transparent'
-                    : node.state === 'done'
-                      ? STEP_TONE[node.step].border
-                          .replace('border-', 'bg-')
-                          .replace('/40', '')
-                      : 'bg-neutral-200'
+                  'max-w-full px-0.5 text-center text-[10px] leading-tight font-medium whitespace-nowrap sm:text-xs',
+                  node.state === 'upcoming'
+                    ? 'text-neutral-500'
+                    : node.state === 'blocked'
+                      ? 'text-destructive'
+                      : node.state === 'current'
+                        ? cn('font-semibold', STEP_TONE[node.step].text)
+                        : 'text-neutral-800'
                 )}
-              />
-            </div>
-            <span
-              className={cn(
-                'max-w-full px-0.5 text-center text-[10px] leading-tight font-medium whitespace-nowrap sm:text-xs',
-                node.state === 'upcoming'
-                  ? 'text-neutral-500'
-                  : node.state === 'blocked'
-                    ? 'text-destructive'
-                    : node.state === 'current'
-                      ? cn('font-semibold', STEP_TONE[node.step].text)
-                      : 'text-neutral-800'
-              )}
-            >
-              {blockedHere ? 'Stopped' : DEAL_PROGRESS_SHORT_LABEL[node.step]}
-            </span>
-          </li>
-        );
-      })}
-    </ol>
+              >
+                {blockedHere ? 'Stopped' : DEAL_PROGRESS_SHORT_LABEL[node.step]}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </div>
   );
 }
 

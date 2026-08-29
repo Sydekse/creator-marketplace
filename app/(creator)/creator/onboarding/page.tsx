@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
 import { needsCredentials, requireRole } from '@/lib/auth';
+import { sessionTiktokHandle } from '@/lib/creators/credentials';
 import { getCreatorProfileByUserId } from '@/lib/creators/queries';
 import { CreatorOnboardingForm } from './creator-onboarding-form';
 
@@ -42,7 +43,11 @@ export default async function CreatorOnboardingPage() {
         </div>
       </div>
 
-      <CreatorOnboardingForm lockedHandle={user.tiktokHandle ?? null} />
+      <CreatorOnboardingForm
+        lockedHandle={
+          (await sessionTiktokHandle(user.id)) ?? user.tiktokHandle ?? null
+        }
+      />
     </div>
   );
 }
