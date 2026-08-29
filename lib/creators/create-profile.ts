@@ -106,7 +106,8 @@ export async function createCreatorProfile(
       // Already canonicalised by `createCreatorSchema`'s transform — the type
       // says `string`, but the only way to obtain a `CreateCreatorInput` is to
       // parse, and parsing normalises. `sessionTiktokHandle` returns the same
-      // canonical form (`mapProfileToUser` runs it through `normalizeTiktokHandle`).
+      // canonical form (the `user.create.before` hook in `lib/auth.ts` runs it
+      // through `normalizeTiktokHandle`).
       tiktokHandle: sessionHandle ?? input.tiktokHandle,
       niche: input.niche,
       audience: input.audience,
