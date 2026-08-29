@@ -1,16 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { TiktokLogo } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { TikTokIcon } from '@/components/brand/tiktok-icon';
 import { authClient } from '@/lib/auth-client';
 
 /**
  * One line to flip for the demo. `true` is real Login Kit OAuth; `false`
  * keeps the button clickable, shows it loading, then the creator sign-up
- * swaps to email/password. Missing TikTok keys force `false` at runtime.
- * Remove this constant once the demo is done.
+ * swaps to email/password. Remove this constant once the demo is done.
  */
 const TIKTOK_OAUTH_ENABLED = true;
 
@@ -22,6 +21,7 @@ export function tiktokOAuthAvailable() {
 export function ContinueWithTiktok({
   onDemoFallback,
   disabledNote,
+  note = 'Used to verify your account automatically.',
 }: {
   /**
    * Called after the click when OAuth is off (the demo path). On the sign-up
@@ -31,6 +31,12 @@ export function ContinueWithTiktok({
   onDemoFallback?: () => void;
   /** The note under a disabled button (the sign-in page's testing copy). */
   disabledNote?: string;
+  /**
+   * The reassurance line under the button. Pass `null` to render nothing —
+   * sign-in omits it: a returning user does not need data-policy copy under
+   * a login button.
+   */
+  note?: string | null;
 }) {
   const [loading, setLoading] = useState(false);
   const available = tiktokOAuthAvailable();
@@ -60,6 +66,11 @@ export function ContinueWithTiktok({
     }
   }
 
+  const noteText =
+    !available && !demoable
+      ? (disabledNote ?? 'TikTok sign-in is not available yet.')
+      : note;
+
   return (
     <div className="flex flex-col gap-2">
       <Button
@@ -68,20 +79,20 @@ export function ContinueWithTiktok({
         className="w-full"
         disabled={(!available && !demoable) || loading}
         aria-disabled={(!available && !demoable) || loading}
-        aria-describedby="tiktok-signin-pending"
+        aria-describedby={noteText ? 'tiktok-signin-pending' : undefined}
         onClick={handleClick}
       >
-        <TiktokLogo size={16} weight="regular" aria-hidden />
+        <TikTokIcon className="h-4 w-4" />
         {loading ? 'Continuing…' : 'Continue with TikTok'}
       </Button>
-      <p
-        id="tiktok-signin-pending"
-        className="text-[13px] leading-snug text-neutral-500"
-      >
-        {!available && !demoable
-          ? (disabledNote ?? 'TikTok sign-in is not available yet.')
-          : 'TikTok does not share an email. We will ask for one later if we need to reach you.'}
-      </p>
+      {noteText && (
+        <p
+          id="tiktok-signin-pending"
+          className="text-center text-[13px] leading-snug text-neutral-600"
+        >
+          {noteText}
+        </p>
+      )}
     </div>
   );
 }

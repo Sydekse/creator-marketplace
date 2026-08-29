@@ -96,12 +96,12 @@ html {
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  --destructive: oklch(0.45 0.17 27);
   /* Rejected reuses --destructive; only the two states it lacks are defined. */
   --status-pending: oklch(0.968 0.062 87);
-  --status-pending-foreground: oklch(0.47 0.11 72);
+  --status-pending-foreground: oklch(0.42 0.1 72);
   --status-verified: oklch(0.955 0.045 158);
-  --status-verified-foreground: oklch(0.44 0.1 158);
+  --status-verified-foreground: oklch(0.4 0.09 158);
   /* The brand accent ramp (light mode only — dark mode is dropped). */
   --brand: oklch(0.44 0.11 185);
   --brand-deep: oklch(0.35 0.08 185);
@@ -299,34 +299,10 @@ html {
     transform: scaleX(1);
   }
 
-  /* Slow teal sweep around the hero platform notice — a quiet shimmer that
-     catches the eye without the pill shouting. */
-  .shimmer-border {
-    animation: shimmer 4.5s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+  /* FAQ answers rise in when the <details> opens (matches rise-in). */
+  .faq-item[open] .faq-answer {
+    animation: rise-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
-
-  @keyframes shimmer {
-    from {
-      background-position: 100% 50%;
-    }
-    to {
-      background-position: -100% 50%;
-    }
-  }
-}
-
-/* Static shimmering border (the sweep above is motion-gated). */
-.shimmer-border {
-  border-radius: 9999px;
-  background: linear-gradient(
-    100deg,
-    oklch(0.8 0.08 185),
-    oklch(0.92 0.07 185) 25%,
-    oklch(0.55 0.12 185) 50%,
-    oklch(0.92 0.07 185) 75%,
-    oklch(0.8 0.08 185)
-  );
-  background-size: 200% 100%;
 }
 
 /* Quiet brand wash on paper cards — enough tint to lift them off the
@@ -446,3 +422,4 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   background: oklch(0.65 0 0);
 }
+

@@ -13,6 +13,7 @@ import {
   Users,
 } from 'lucide-react';
 import { Mark } from '@/components/brand/mark';
+import { TikTokIcon } from '@/components/brand/tiktok-icon';
 import { Reveal } from '@/components/marketing/reveal';
 import { Chip } from '@/components/ui/chip';
 import { cn } from '@/lib/utils';
@@ -211,22 +212,9 @@ const CREATOR_DEALS = [
 /*  Presentational helpers                                                    */
 /* -------------------------------------------------------------------------- */
 
-function TikTokIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      className={className}
-      aria-hidden
-    >
-      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.15 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z" />
-    </svg>
-  );
-}
-
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="inline-flex w-fit rounded-full bg-neutral-50 px-3 py-1 text-[13px] font-semibold tracking-[0.14em] text-brand uppercase shadow-[0_0_0_1px_rgba(23,23,23,0.06)]">
+    <p className="inline-flex w-fit rounded-full bg-neutral-50 px-3 py-1 text-[13px] font-semibold tracking-[0.14em] text-brand-ink uppercase shadow-[0_0_0_1px_rgba(23,23,23,0.06)]">
       {children}
     </p>
   );
@@ -310,19 +298,20 @@ function AppFrame({
 }) {
   return (
     <div
+      aria-hidden
       className={cn(
         'overflow-hidden rounded-[24px] border border-neutral-200 bg-white font-sans shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)]',
         className
       )}
     >
-      <div className="relative flex items-center border-b border-neutral-200 bg-neutral-50 px-4 py-2.5">
-        <span className="flex gap-1.5" aria-hidden>
+      <div className="relative flex items-center border-b border-neutral-200 bg-neutral-50 px-4 py-3">
+        <span className="flex gap-2" aria-hidden>
           <span className="h-2 w-2 rounded-full bg-[oklch(0.78_0.08_25)] ring-1 ring-black/5" />
           <span className="h-2 w-2 rounded-full bg-[oklch(0.82_0.09_85)] ring-1 ring-black/5" />
           <span className="h-2 w-2 rounded-full bg-[oklch(0.8_0.09_160)] ring-1 ring-black/5" />
         </span>
-        <span className="absolute left-1/2 top-1/2 hidden max-w-[70%] -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-neutral-200 bg-white px-3 py-1 text-[10px] font-medium text-neutral-500 sm:flex">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-soft" />
+        <span className="absolute left-1/2 top-1/2 hidden max-w-[70%] -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-neutral-200 bg-white px-3 py-1 text-[10px] font-medium text-neutral-600 sm:flex">
+          <span className="h-2 w-2 shrink-0 rounded-full bg-brand-soft" />
           <span className="truncate">creator-marketplace.et</span>
         </span>
         <span className="ml-auto w-14" aria-hidden />
@@ -420,7 +409,7 @@ export default function HomePage() {
                 Set the brief, choose verified creators, and pay only for work
                 you approve. The money and the deal stay together.
               </p>
-              {/* Platform notice — shimmering pill, just above the CTAs      */}
+              {/* Platform notice removed; CTAs follow the subhead directly */}
               <div className="animate-rise-in-3 mt-6 flex flex-col items-stretch gap-3 sm:mt-9 sm:flex-row sm:items-center">
                 <Link
                   href="/sign-up"
@@ -452,7 +441,7 @@ export default function HomePage() {
                     <dt className="font-mono text-base font-medium tabular-nums text-neutral-900 sm:text-lg">
                       {value}
                     </dt>
-                    <dd className="mt-1 text-[10px] leading-tight tracking-[0.08em] text-neutral-500 uppercase sm:text-[11px]">
+                    <dd className="mt-1 text-[10px] leading-tight tracking-[0.08em] text-neutral-600 uppercase sm:text-[11px]">
                       {label}
                     </dd>
                   </div>
@@ -466,7 +455,7 @@ export default function HomePage() {
               <AppFrame>
                 <div className="flex">
                   {/* Sidebar */}
-                  <aside className="hidden w-36 shrink-0 flex-col gap-0.5 border-r border-neutral-200 bg-neutral-50 p-3 sm:flex">
+                  <aside className="hidden w-36 shrink-0 flex-col gap-1 border-r border-neutral-200 bg-neutral-50 p-3 sm:flex">
                     <div className="mb-3 flex items-center gap-2 px-2 pt-1">
                       <Mark tone="dark" className="h-5 w-5 rounded-md" />
                       <span className="text-[9px] font-semibold leading-tight text-neutral-900">
@@ -516,12 +505,12 @@ export default function HomePage() {
                         <p className="text-[13px] font-semibold tracking-tight text-neutral-900">
                           Campaigns
                         </p>
-                        <p className="text-[11px] text-neutral-500">
+                        <p className="text-[11px] text-neutral-600">
                           6 active &middot; 2 pending
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="hidden items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-[11px] text-neutral-500 md:flex">
+                        <span className="hidden items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-[11px] text-neutral-600 md:flex">
                           <Search
                             className="h-3 w-3"
                             strokeWidth={1.5}
@@ -543,26 +532,26 @@ export default function HomePage() {
                       ].map(([label, value, sub]) => (
                         <div
                           key={label}
-                          className="rounded-lg border border-neutral-200 bg-white p-2.5"
+                          className="rounded-md border border-neutral-200 bg-white p-3"
                         >
-                          <p className="text-[8px] font-semibold uppercase tracking-[0.08em] text-neutral-500 sm:text-[9px]">
+                          <p className="text-[8px] font-semibold uppercase tracking-[0.08em] text-neutral-600 sm:text-[9px]">
                             {label}
                           </p>
-                          <p className="mt-1.5 font-sans text-[12px] font-medium leading-none tabular-nums text-neutral-900 sm:text-[13px]">
+                          <p className="mt-2 font-sans text-[12px] font-medium leading-none tabular-nums text-neutral-900 sm:text-[13px]">
                             {value}
                           </p>
-                          <p className="mt-1 text-[9px] leading-tight text-neutral-500">
+                          <p className="mt-1 text-[9px] leading-tight text-neutral-600">
                             {sub}
                           </p>
                         </div>
                       ))}
                     </div>
 
-                    <div className="hidden overflow-hidden rounded-lg border border-neutral-200 bg-white sm:block">
+                    <div className="hidden overflow-hidden rounded-md border border-neutral-200 bg-white sm:block">
                       {CAMPAIGNS.map((c) => (
                         <div
                           key={c.name}
-                          className="flex items-center gap-2.5 border-b border-neutral-200 px-3 py-2.5 last:border-b-0"
+                          className="flex items-center gap-3 border-b border-neutral-200 px-3 py-3 last:border-b-0"
                         >
                           <Avatar
                             initials={c.brand
@@ -575,7 +564,7 @@ export default function HomePage() {
                             <p className="truncate text-[10px] font-semibold tracking-tight text-neutral-900 sm:text-[11px]">
                               {c.name}
                             </p>
-                            <p className="truncate text-[9px] text-neutral-500 sm:text-[10px]">
+                            <p className="truncate text-[9px] text-neutral-600 sm:text-[10px]">
                               {c.brand} &middot; {c.videos}
                             </p>
                           </div>
@@ -643,7 +632,7 @@ export default function HomePage() {
                     key={s.title}
                     className="grid gap-3 py-8 sm:grid-cols-[88px_1fr] sm:gap-6"
                   >
-                    <span className="font-display text-4xl font-medium leading-none text-neutral-300">
+                    <span aria-hidden className="font-display text-4xl font-medium leading-none text-neutral-300">
                       {String(i + 1).padStart(2, '0')}
                     </span>
                     <div>
@@ -709,11 +698,12 @@ export default function HomePage() {
                   {WORKSPACE_FEATURES.map((f) => (
                     <li
                       key={f.title}
+                      tabIndex={0}
                       className={cn(
-                        'group border-l pl-6 transition-colors duration-300 ease-out',
+                        'group rounded-r-sm border-l pl-6 transition-colors duration-300 ease-out focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-neutral-900',
                         f.active
                           ? 'border-brand'
-                          : 'border-neutral-200 hover:border-brand/40'
+                          : 'border-neutral-200 hover:border-brand/40 focus-visible:border-brand/40'
                       )}
                     >
                       <h3
@@ -721,7 +711,7 @@ export default function HomePage() {
                           'font-display text-lg font-medium leading-snug transition-colors duration-300 ease-out sm:text-xl',
                           f.active
                             ? 'text-brand'
-                            : 'text-neutral-900 lg:text-neutral-500 lg:group-hover:text-neutral-900'
+                            : 'text-neutral-900 lg:text-neutral-500 lg:group-hover:text-neutral-900 lg:group-focus-visible:text-neutral-900'
                         )}
                       >
                         {f.title}
@@ -731,7 +721,7 @@ export default function HomePage() {
                           'mt-2 max-w-[44ch] text-sm leading-relaxed transition-all duration-300 ease-out',
                           f.active
                             ? 'text-neutral-600 opacity-100'
-                            : 'text-neutral-600 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100'
+                            : 'text-neutral-600 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-visible:opacity-100'
                         )}
                       >
                         {f.desc}
@@ -761,7 +751,7 @@ export default function HomePage() {
                             key={row.label}
                             className="flex items-center justify-between py-2"
                           >
-                            <span className="text-[11px] text-neutral-500">
+                            <span className="text-[11px] text-neutral-600">
                               {row.label}
                             </span>
                             <span
@@ -778,7 +768,7 @@ export default function HomePage() {
                         ))}
                       </div>
                       <div>
-                        <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-500">
+                        <p className="text-[10px] font-medium uppercase tracking-wide text-neutral-600">
                           Timeline
                         </p>
                         <ul className="mt-3 space-y-3">
@@ -789,7 +779,7 @@ export default function HomePage() {
                             >
                               <span
                                 className={cn(
-                                  'h-1.5 w-1.5 rounded-full',
+                                  'h-2 w-2 rounded-full',
                                   t.done ? 'bg-brand-soft' : 'bg-neutral-300'
                                 )}
                               />
@@ -798,12 +788,12 @@ export default function HomePage() {
                                   'text-[11px]',
                                   t.done
                                     ? 'text-neutral-700'
-                                    : 'text-neutral-500'
+                                    : 'text-neutral-600'
                                 )}
                               >
                                 {t.label}
                               </span>
-                              <span className="ml-auto text-[10px] text-neutral-500">
+                              <span className="ml-auto text-[10px] text-neutral-600">
                                 {t.meta}
                               </span>
                             </li>
@@ -813,10 +803,10 @@ export default function HomePage() {
                       {/* Pinned footer — desktop-only; the equal-height     */}
                       {/* floor is absorbed by justify-between above it.     */}
                       <div className="hidden items-center justify-between border-t border-neutral-200 pt-3 lg:flex">
-                        <span className="text-[11px] text-neutral-500">
+                        <span className="text-[11px] text-neutral-600">
                           Escrow-held &middot; auditable
                         </span>
-                        <span className="text-[11px] font-medium text-brand">
+                        <span className="text-[11px] font-medium text-brand-ink">
                           View audit trail &rarr;
                         </span>
                       </div>
@@ -833,7 +823,7 @@ export default function HomePage() {
                         </p>
                         <Chip tone="gray">1 of 1 video</Chip>
                       </div>
-                      <div className="mx-auto grid aspect-[9/16] w-full max-w-[160px] place-items-center rounded-lg border border-neutral-200 bg-neutral-100">
+                      <div className="mx-auto grid aspect-[9/16] w-full max-w-[160px] place-items-center rounded-md border border-neutral-200 bg-neutral-100">
                         <span className="grid h-10 w-10 place-items-center rounded-full bg-brand-deep">
                           <Play
                             className="ml-0.5 h-3 w-3 fill-neutral-50 text-neutral-50"
@@ -841,7 +831,7 @@ export default function HomePage() {
                           />
                         </span>
                       </div>
-                      <p className="truncate text-center text-[10px] text-neutral-500">
+                      <p className="truncate text-center text-[10px] text-neutral-600">
                         tiktok.com/@laylah/posts/84
                       </p>
                       <div className="flex gap-2">
@@ -852,7 +842,7 @@ export default function HomePage() {
                           Flag for review
                         </span>
                       </div>
-                      <p className="text-center text-[10px] text-neutral-500">
+                      <p className="text-center text-[10px] text-neutral-600">
                         12,750 ETB releases to the creator on approval.
                       </p>
                     </div>
@@ -909,7 +899,7 @@ export default function HomePage() {
                 <div className="space-y-4 bg-neutral-50 p-4 sm:p-6">
                   <div className="flex flex-wrap items-end justify-between gap-3">
                     <div>
-                      <p className="text-[11px] text-neutral-500">
+                      <p className="text-[11px] text-neutral-600">
                         Payouts · last 12 weeks
                       </p>
                       <p className="mt-1 font-display text-2xl font-medium text-neutral-900">
@@ -935,7 +925,7 @@ export default function HomePage() {
                           <p className="truncate text-[11px] font-medium text-neutral-900">
                             {d.brand}
                           </p>
-                          <p className="text-[10px] text-neutral-500">
+                          <p className="text-[10px] text-neutral-600">
                             {d.creator}
                           </p>
                         </div>
@@ -1024,10 +1014,10 @@ export default function HomePage() {
                       ))}
                     </ul>
                     <div className="mt-6 border-t border-neutral-200 pt-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-brand">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-brand-ink">
                         {card.cta}
                       </p>
-                      <p className="mt-1 text-xs text-neutral-500">
+                      <p className="mt-1 text-xs text-neutral-600">
                         Free to join. Choose this account type when you sign up.
                       </p>
                     </div>
@@ -1036,7 +1026,7 @@ export default function HomePage() {
               ))}
             </div>
             <Reveal>
-              <p className="mt-8 text-center text-xs text-neutral-500">
+              <p className="mt-8 text-center text-xs text-neutral-600">
                 15% platform commission on completed deals. No hidden fees, no
                 monthly plans.
               </p>
@@ -1061,15 +1051,15 @@ export default function HomePage() {
             <div>
               {FAQ_ITEMS.map((item, i) => (
                 <Reveal key={item.q} delay={i * 40}>
-                  <details className="group border-b border-neutral-200 py-6 last:border-b-0">
+                  <details className="faq-item group border-b border-neutral-200 py-6 last:border-b-0">
                     <summary className="flex list-none cursor-pointer items-center justify-between gap-4 text-[15px] font-medium text-neutral-900 transition-colors duration-300 ease-out hover:text-neutral-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 [&::-webkit-details-marker]:hidden">
                       {item.q}
                       <ChevronDown
-                        className="h-4 w-4 shrink-0 text-neutral-500 transition-transform duration-300 ease-out group-open:rotate-180"
+                        className="h-4 w-4 shrink-0 text-neutral-600 transition-transform duration-300 ease-out group-open:rotate-180"
                         aria-hidden
                       />
                     </summary>
-                    <p className="mt-3 max-w-[60ch] text-sm leading-relaxed text-neutral-600">
+                    <p className="faq-answer mt-3 max-w-[60ch] text-sm leading-relaxed text-neutral-600">
                       {item.a}
                     </p>
                   </details>
@@ -1224,7 +1214,7 @@ export default function HomePage() {
           </div>
         </div>
         <div className="border-t border-neutral-200">
-          <p className="mx-auto max-w-6xl px-6 py-5 text-center text-xs text-neutral-500">
+          <p className="mx-auto max-w-6xl px-6 py-5 text-center text-xs text-neutral-600">
             &copy; {new Date().getFullYear()} Creator Marketplace. All rights
             reserved.
           </p>

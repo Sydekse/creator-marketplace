@@ -14,7 +14,7 @@ export function SectionLabel({
   return (
     <Tag
       className={cn(
-        'inline-flex w-fit rounded-full bg-neutral-50 px-3 py-1 text-[13px] font-bold tracking-[0.14em] text-brand uppercase shadow-[0_0_0_2px_color-mix(in_oklch,var(--brand)_28%,transparent)]',
+        'inline-flex w-fit rounded-full bg-neutral-50 px-3 py-1 text-[13px] font-bold tracking-[0.14em] text-brand-ink uppercase shadow-[0_0_0_2px_color-mix(in_oklch,var(--brand)_28%,transparent)]',
         className
       )}
     >
