@@ -42,7 +42,7 @@ export default async function CreatorOnboardingPage() {
         </div>
       </div>
 
-      <CreatorOnboardingForm />
+      <CreatorOnboardingForm lockedHandle={user.tiktokHandle ?? null} />
     </div>
   );
 }

@@ -52,10 +52,23 @@ import type { FieldErrorMap } from '@/lib/validation';
  * the right input.
  */
 
-export function CreatorOnboardingForm() {
+export function CreatorOnboardingForm({
+  lockedHandle = null,
+}: {
+  /**
+   * The handle Login Kit captured at sign-up, or null for email sign-ups.
+   * When present the field is prefilled and read-only: the server writes this
+   * value regardless of the request body (see POST /api/creators), so an
+   * editable field would let the creator type a handle that is silently
+   * ignored.
+   */
+  lockedHandle?: string | null;
+} = {}) {
   const router = useRouter();
 
-  const [handleInput, setHandleInput] = useState('');
+  const [handleInput, setHandleInput] = useState(() =>
+    lockedHandle ? lockedHandle.replace(/^@+/, '') : ''
+  );
   const [niche, setNiche] = useState<Niche | null>(null);
   const [markets, setMarkets] = useState<string[]>([]);
   const [ageRange, setAgeRange] = useState<AgeRange | null>(null);
@@ -179,8 +192,11 @@ export function CreatorOnboardingForm() {
                   name="tiktokHandle"
                   value={handleInput}
                   onChange={(event) => setHandleInput(event.target.value)}
+                  readOnly={lockedHandle !== null}
                   data-slot="input-group-control"
-                  className="border-0 font-mono text-base shadow-none focus-visible:ring-0"
+                  className={`border-0 font-mono text-base shadow-none focus-visible:ring-0 ${
+                    lockedHandle !== null ? 'text-neutral-500' : ''
+                  }`}
                   placeholder="yourhandle"
                   autoComplete="off"
                   autoCapitalize="none"
@@ -193,7 +209,9 @@ export function CreatorOnboardingForm() {
                 id="tiktokHandle-preview"
                 className="text-[13px] leading-relaxed text-neutral-500"
               >
-                {normalized === '' ? (
+                {lockedHandle !== null ? (
+                  'Linked from your TikTok login. This is the account brands will review.'
+                ) : normalized === '' ? (
                   'Use the account brands should review. 2–24 letters, numbers, underscores or periods.'
                 ) : (
                   <>
