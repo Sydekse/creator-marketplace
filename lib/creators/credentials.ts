@@ -4,6 +4,7 @@ import { db } from '@/db';
 import { account, user as userTable } from '@/db/auth-schema';
 import { auth, needsCredentials } from '@/lib/auth';
 import type { CurrentUser } from '@/lib/auth';
+import { normalizeTiktokHandle } from '@/lib/creators/handle';
 
 /**
  * Hash a new credential account onto an already-signed-in user.
@@ -79,9 +80,22 @@ export async function setCreatorCredentials(
     if (!needsCredentials(user)) {
       throw new CredentialsAlreadySetError('email');
     }
+    // Login Kit parked the username in `user.email`. Overwriting that column
+    // without copying it first is how a TikTok sign-up loses its handle before
+    // onboarding can prefill.
+    const fromPlaceholder = user.email.includes('@')
+      ? ''
+      : normalizeTiktokHandle(user.email);
     await db
       .update(userTable)
-      .set({ email, emailVerified: false, updatedAt: new Date() })
+      .set({
+        email,
+        emailVerified: false,
+        updatedAt: new Date(),
+        ...(user.tiktokHandle || fromPlaceholder === ''
+          ? {}
+          : { tiktokHandle: fromPlaceholder }),
+      })
       .where(eq(userTable.id, user.id));
   }
   if (password !== undefined) {

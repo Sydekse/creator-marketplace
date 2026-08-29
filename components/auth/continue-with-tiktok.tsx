@@ -1,12 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { TiktokLogo } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { TikTokIcon } from '@/components/brand/tiktok-icon';
 import { authClient } from '@/lib/auth-client';
 
-export function ContinueWithTiktok() {
+export function ContinueWithTiktok({
+  note = 'Used to verify your account automatically.',
+}: {
+  /**
+   * The reassurance line under the button. Pass `null` to render nothing —
+   * sign-in omits it: a returning user does not need data-policy copy under
+   * a login button.
+   */
+  note?: string | null;
+} = {}) {
   const [loading, setLoading] = useState(false);
 
   async function handleClick() {
@@ -31,19 +40,20 @@ export function ContinueWithTiktok() {
         className="w-full"
         disabled={loading}
         aria-disabled={loading}
-        aria-describedby="tiktok-signin-note"
+        aria-describedby={note ? 'tiktok-signin-note' : undefined}
         onClick={handleClick}
       >
-        <TiktokLogo size={16} weight="regular" aria-hidden />
+        <TikTokIcon className="h-4 w-4" />
         {loading ? 'Continuing…' : 'Continue with TikTok'}
       </Button>
-      <p
-        id="tiktok-signin-note"
-        className="text-[13px] leading-snug text-neutral-500"
-      >
-        TikTok does not share an email. We will ask for one later if we need to
-        reach you.
-      </p>
+      {note && (
+        <p
+          id="tiktok-signin-note"
+          className="text-center text-[13px] leading-snug text-neutral-600"
+        >
+          {note}
+        </p>
+      )}
     </div>
   );
 }

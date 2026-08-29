@@ -736,6 +736,21 @@ describe('createCreatorProfile', () => {
       createCreatorProfile(CREATOR_ID, input, deps)
     ).rejects.toBe('a string');
   });
+
+  it('stores the Login Kit handle over whatever the body sent', async () => {
+    const insert = vi.fn().mockResolvedValue({
+      id: 'profile-1',
+      status: 'pending_verification',
+      tiktokHandle: '@fromtiktok',
+    });
+
+    await createCreatorProfile(CREATOR_ID, input, {
+      insert,
+      sessionHandle: async () => '@fromtiktok',
+    });
+
+    expect(insert.mock.calls[0][0].tiktokHandle).toBe('@fromtiktok');
+  });
 });
 
 /**
@@ -1097,5 +1112,27 @@ describe('isBookable', () => {
     expect(rows.filter(isBookable)).toEqual([
       { status: 'verified', tierId: 'tier-1', tierActive: true },
     ]);
+  });
+});
+
+describe('Login Kit handle is what onboarding shows and stores', () => {
+  it('reads the stored handle on the onboarding page, not only the session extra', () => {
+    const page = readFileSync(
+      fileURLToPath(
+        new URL('../app/(creator)/creator/onboarding/page.tsx', import.meta.url)
+      ),
+      'utf8'
+    );
+    expect(page).toContain('sessionTiktokHandle');
+    expect(page).toContain('lockedHandle=');
+  });
+
+  it('POST /api/creators always wires sessionTiktokHandle when the caller omits it', () => {
+    const route = readFileSync(
+      fileURLToPath(new URL('../app/api/creators/route.ts', import.meta.url)),
+      'utf8'
+    );
+    expect(route).toMatch(/sessionHandle:\s*[\s\S]*sessionTiktokHandle/);
+    expect(route).not.toMatch(/: undefined\s*\);/);
   });
 });

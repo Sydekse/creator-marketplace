@@ -218,7 +218,11 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (!session) return null;
 
   const role = (session.user as { role?: unknown }).role;
-  const handle = (session.user as { tiktokHandle?: unknown }).tiktokHandle;
+  const extra = session.user as {
+    tiktokHandle?: unknown;
+    tiktok_handle?: unknown;
+  };
+  const handle = extra.tiktokHandle ?? extra.tiktok_handle;
   return {
     id: session.user.id,
     email: session.user.email,

@@ -43,7 +43,7 @@ export default function AuthLayout({
         {children}
       </main>
 
-      <footer className="relative pb-8 text-center text-xs text-neutral-500">
+      <footer className="relative pb-8 text-center text-xs text-neutral-600">
         Free to join for brands and creators
       </footer>
 

@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { ContinueWithTiktok } from '@/components/auth/continue-with-tiktok';
 import { RoleNotch } from '@/components/auth/role-notch';
-import { SectionLabel } from '@/components/layout/section-label';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -140,11 +140,13 @@ export function SignUpCard({
         }}
       />
 
-      <SectionLabel as="p">Create account</SectionLabel>
+      <p className="text-[13px] font-bold uppercase tracking-[0.14em] text-brand-ink">
+        Create account
+      </p>
       <h1 className="mt-3 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
         Join the marketplace.
       </h1>
-      <p className="mt-2.5 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
+      <p className="mt-3 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
         {role === 'creator'
           ? 'Creators continue with TikTok. We only ask for a public profile.'
           : 'Brands create a free profile with email and password.'}
@@ -161,9 +163,9 @@ export function SignUpCard({
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="mt-4 flex flex-col gap-3.5"
+          className="mt-4 flex flex-col gap-4"
         >
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <label
               htmlFor="name"
               className="text-[13px] font-semibold text-neutral-700"
@@ -188,7 +190,7 @@ export function SignUpCard({
             <FieldError id="name-error" message={errors.name} />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <label
               htmlFor="email"
               className="text-[13px] font-semibold text-neutral-700"
@@ -214,7 +216,7 @@ export function SignUpCard({
             <FieldError id="email-error" message={errors.email} />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <label
               htmlFor="password"
               className="text-[13px] font-semibold text-neutral-700"
@@ -240,7 +242,7 @@ export function SignUpCard({
             <FieldError id="password-error" message={errors.password} />
           </div>
 
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <label
               htmlFor="confirmPassword"
               className="text-[13px] font-semibold text-neutral-700"
@@ -273,7 +275,7 @@ export function SignUpCard({
           {formError && (
             <div
               role="alert"
-              className="rounded-lg border border-destructive/30 bg-destructive/5 px-3.5 py-2.5 text-[13px] leading-snug text-destructive"
+              className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-[13px] leading-snug text-destructive"
             >
               {formError}
             </div>
@@ -283,7 +285,7 @@ export function SignUpCard({
             type="submit"
             disabled={loading}
             size="xl"
-            className="w-full bg-brand text-neutral-50 hover:bg-brand-deep"
+            className="w-full bg-brand-deep text-neutral-50 hover:bg-brand-strong"
           >
             {loading ? 'Creating account…' : 'Create account'}
           </Button>
@@ -308,12 +310,14 @@ export function SignUpCard({
         </div>
       </AccordionPanel>
 
-      <p className="mt-7 text-center text-[13px] text-neutral-500">
+      <div className="mt-7 border-t border-neutral-200" aria-hidden="true" />
+
+      <p className="mt-5 text-center text-[13px] text-neutral-600">
         Already have an account?{' '}
         <Link
           href="/sign-in"
           className={cn(
-            'font-medium text-brand hover:text-brand-deep',
+            'font-medium text-brand-ink hover:text-brand-strong',
             textLinkFeedback
           )}
         >

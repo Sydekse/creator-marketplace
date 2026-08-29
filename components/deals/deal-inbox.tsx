@@ -40,23 +40,31 @@ const GROUP_MARK = {
 
 const GROUP_MARK_CLASS: Record<DealGroup, string> = {
   pending: 'text-status-pending-foreground',
-  in_progress: 'text-brand',
+  in_progress: 'text-brand-ink',
   awaiting_approval: 'text-status-pending-foreground',
   completed: 'text-status-verified-foreground',
-  closed: 'text-neutral-500',
+  closed: 'text-neutral-600',
 };
 
+/**
+ * Row chrome per group — paper fill (the dashboard's recipe), status colour
+ * carried by the avatar ring rather than a painted card or a floating spine.
+ * Status is said once, by the chip above the group; the ring only hints it.
+ */
 const GROUP_ROW: Record<DealGroup, string> = {
   pending:
-    'border-[color-mix(in_oklch,var(--status-pending-foreground)_30%,var(--border))] bg-[color-mix(in_oklch,var(--status-pending)_78%,white)]',
-  in_progress: 'surface-pop',
+    'border-neutral-200 bg-background border-l-[3px] border-l-[color-mix(in_oklch,var(--status-pending-foreground)_85%,var(--border))] hover:border-[color-mix(in_oklch,var(--status-pending-foreground)_50%,var(--border))] hover:border-l-[color-mix(in_oklch,var(--status-pending-foreground)_85%,var(--border))]',
+  in_progress:
+    'border-neutral-200 bg-background border-l-[3px] border-l-brand/85 hover:border-brand/50 hover:border-l-brand/85',
   awaiting_approval:
-    'border-[color-mix(in_oklch,var(--status-pending-foreground)_30%,var(--border))] bg-[color-mix(in_oklch,var(--status-pending)_70%,white)]',
+    'border-neutral-200 bg-background border-l-[3px] border-l-[color-mix(in_oklch,var(--status-pending-foreground)_85%,var(--border))] hover:border-[color-mix(in_oklch,var(--status-pending-foreground)_50%,var(--border))] hover:border-l-[color-mix(in_oklch,var(--status-pending-foreground)_85%,var(--border))]',
   completed:
-    'border-[color-mix(in_oklch,var(--status-verified-foreground)_28%,var(--border))] bg-[color-mix(in_oklch,var(--status-verified)_78%,white)]',
-  closed: 'border-neutral-200 bg-neutral-100',
+    'border-neutral-200 bg-background border-l-[3px] border-l-[color-mix(in_oklch,var(--status-verified-foreground)_80%,var(--border))] hover:border-[color-mix(in_oklch,var(--status-verified-foreground)_50%,var(--border))] hover:border-l-[color-mix(in_oklch,var(--status-verified-foreground)_80%,var(--border))]',
+  closed:
+    'border-neutral-200 bg-background border-l-[3px] border-l-neutral-300 hover:border-neutral-300 hover:border-l-neutral-300',
 };
 
+/** A 2px status ring on the row's avatar — the group's colour, on the row. */
 const GROUP_GHOST: Record<DealGroup, string> = {
   pending:
     'border-[color-mix(in_oklch,var(--status-pending-foreground)_22%,var(--border))] bg-[color-mix(in_oklch,var(--status-pending)_42%,white)]',
@@ -116,6 +124,12 @@ function ExpiryLine({
  * window has already been answered, so repeating it there would read as a
  * second deadline the creator has to meet.
  */
+/**
+ * One deal row. The card is *not* a link — it lifts on hover as an affordance,
+ * but the only target is the "View deal" button (per the interaction review:
+ * a clickable card with a button on it makes two controls claim one action,
+ * and the row's text is not selectable when the whole thing navigates).
+ */
 function DealRow({
   deal,
   now,
@@ -126,45 +140,50 @@ function DealRow({
   wash: string;
 }) {
   return (
-    <li>
-      <Link
-        href={`/creator/deals/${deal.id}`}
-        className={cn(
-          'group flex min-h-20 cursor-pointer flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border px-4 py-3 transition-[transform,box-shadow,border-color] duration-200 ease-[var(--ease-smooth)] hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-20px_rgba(23,23,23,0.4)] active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900',
-          wash
-        )}
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          <InitialsAvatar name={deal.companyName} />
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <TruncatedText
-              text={deal.campaignName}
-              className="text-sm font-semibold text-neutral-900"
-            />
-            <span className="text-xs text-muted-foreground">
-              {deal.companyName} · {deal.videoCount}{' '}
-              {deal.videoCount === 1 ? 'video' : 'videos'}
-            </span>
-            {deal.status === 'pending' ? (
-              <ExpiryLine offerExpiresAt={deal.offerExpiresAt} now={now} />
-            ) : null}
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-0.5">
-          <span className="font-mono text-sm font-medium text-neutral-900 tabular-nums">
-            {formatEtb(deal.totalPrice)}
+    <li
+      className={cn(
+        'group relative flex min-h-20 flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border px-4 py-3 transition-[transform,box-shadow,border-color] duration-200 ease-[var(--ease-smooth)] hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-20px_rgba(23,23,23,0.4)]',
+        // The accent is the row's own left border: a 3px status strip that
+        // runs the full height and follows the corner radius. No pseudo-element.
+        wash
+      )}
+    >
+      <div className="flex min-w-0 items-center gap-3">
+        {/* Larger than the default avatar (38px) now that it is the row's
+            only identity mark — the status ring moved to the row border. */}
+        <InitialsAvatar
+          name={deal.companyName}
+          className="size-[38px] text-sm"
+        />
+        <div className="flex min-w-0 flex-col gap-1">
+          <TruncatedText
+            text={deal.campaignName}
+            className="text-sm font-semibold text-neutral-900"
+          />
+          <span className="text-xs text-muted-foreground">
+            {deal.companyName} · {deal.videoCount}{' '}
+            {deal.videoCount === 1 ? 'video' : 'videos'}
           </span>
-          <span
-            className={cn(
-              buttonVariants({ size: 'xs' }),
-              'pointer-events-none bg-brand text-neutral-50 hover:bg-brand-deep'
-            )}
-          >
-            {VIEW_DEAL_LABEL}
-            <CaretRight size={12} weight="bold" aria-hidden />
-          </span>
+          {deal.status === 'pending' ? (
+            <ExpiryLine offerExpiresAt={deal.offerExpiresAt} now={now} />
+          ) : null}
         </div>
-      </Link>
+      </div>
+      <div className="flex flex-col items-end gap-1">
+        <span className="font-mono text-sm font-medium text-neutral-900 tabular-nums">
+          {formatEtb(deal.totalPrice)}
+        </span>
+        <Link
+          href={`/creator/deals/${deal.id}`}
+          className={cn(
+            buttonVariants({ size: 'sm' }),
+            'bg-brand-deep text-neutral-50 group-hover:bg-brand-strong'
+          )}
+        >
+          {VIEW_DEAL_LABEL}
+          <CaretRight size={12} weight="bold" aria-hidden />
+        </Link>
+      </div>
     </li>
   );
 }

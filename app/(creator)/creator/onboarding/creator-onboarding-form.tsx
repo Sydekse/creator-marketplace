@@ -183,7 +183,7 @@ export function CreatorOnboardingForm({
       <FieldGroup className="gap-0">
         <section className="border-b border-neutral-200 pb-9">
           <div className="mb-6">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Creator profile
             </p>
             <p className="mt-2 text-sm leading-relaxed text-neutral-600">
@@ -224,7 +224,7 @@ export function CreatorOnboardingForm({
               </InputGroup>
               <FieldDescription
                 id="tiktokHandle-preview"
-                className="text-[13px] leading-relaxed text-neutral-500"
+                className="text-[13px] leading-relaxed text-neutral-600"
               >
                 {lockedHandle !== null ? (
                   'Linked from your TikTok login. This is the account brands will review.'
@@ -276,7 +276,7 @@ export function CreatorOnboardingForm({
                   ))}
                 </SelectContent>
               </Select>
-              <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
+              <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
                 Choose the category that best describes most of your posts.
               </FieldDescription>
               <FieldError errors={fieldError('niche')} />
@@ -286,7 +286,7 @@ export function CreatorOnboardingForm({
 
         <section className="border-b border-neutral-200 py-9">
           <div className="mb-6">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Audience
             </p>
             <p className="mt-2 text-sm leading-relaxed text-neutral-600">
@@ -321,7 +321,7 @@ export function CreatorOnboardingForm({
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
-              <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
+              <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
                 Choose every market that applies.
               </FieldDescription>
               <FieldError errors={fieldError('audience.topCountries')} />
@@ -364,7 +364,7 @@ export function CreatorOnboardingForm({
             an editable field would be a lie. */}
         <section className="py-9">
           <div className="mb-6">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Performance
             </p>
             <p className="mt-2 text-sm leading-relaxed text-neutral-600">
@@ -394,7 +394,7 @@ export function CreatorOnboardingForm({
                 value={followerCount}
                 onChange={(event) => setFollowerCount(event.target.value)}
                 readOnly={lockedFollowers !== null}
-                className={`h-12 bg-neutral-50 px-3.5 font-mono focus-visible:bg-white ${
+                className={`h-12 bg-neutral-50 px-4 font-mono focus-visible:bg-white ${
                   lockedFollowers !== null ? 'text-neutral-500' : ''
                 }`}
                 placeholder="12000"
@@ -434,7 +434,7 @@ export function CreatorOnboardingForm({
                 />
                 <InputGroupAddon align="inline-end">%</InputGroupAddon>
               </InputGroup>
-              <FieldDescription className="text-[13px] leading-relaxed text-neutral-500">
+              <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
                 {lockedEngagement !== null
                   ? 'Computed from your recent videos: likes, comments and shares per view.'
                   : ENGAGEMENT_RATE_HINT}
@@ -458,7 +458,7 @@ export function CreatorOnboardingForm({
             {submitting && <Spinner />}
             {submitting ? 'Submitting…' : 'Create profile'}
           </Button>
-          <p className="text-[13px] leading-relaxed text-neutral-500">
+          <p className="text-[13px] leading-relaxed text-neutral-600">
             Your profile goes live as soon as it is created. Brands can find
             you in search once your numbers place you on a pricing tier.
           </p>

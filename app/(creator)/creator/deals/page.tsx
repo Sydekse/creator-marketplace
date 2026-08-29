@@ -1,13 +1,9 @@
 import { redirect } from 'next/navigation';
 import { DealInbox } from '@/components/deals/deal-inbox';
-import { EmptyState } from '@/components/feedback/empty-state';
 import { PageHeader } from '@/components/layout/page-header';
-import { SectionLabel } from '@/components/layout/section-label';
 import {
   INBOX_DESCRIPTION,
   INBOX_TITLE,
-  NO_DEALS_DESCRIPTION,
-  NO_DEALS_TITLE,
   readDealInbox,
 } from '@/lib/deals/inbox';
 
@@ -41,23 +37,18 @@ export default async function CreatorDealsPage() {
 
   const now = new Date();
 
+  // A creator with no deals still gets the five groups — the ghost rows are
+  // the empty state (KAN-200 review): the page's structure teaches the deal
+  // lifecycle, which a single "No offers yet" block cannot.
   return (
     <div className="flex flex-col gap-10 py-4">
       <PageHeader
-        label={<SectionLabel as="p">Creator workspace</SectionLabel>}
+        label="Creator workspace"
         title={INBOX_TITLE}
         description={INBOX_DESCRIPTION}
       />
 
-      {inbox.isEmpty ? (
-        <EmptyState
-          align="start"
-          title={NO_DEALS_TITLE}
-          description={NO_DEALS_DESCRIPTION}
-        />
-      ) : (
-        <DealInbox groups={inbox.groups} now={now} />
-      )}
+      <DealInbox groups={inbox.groups} now={now} />
     </div>
   );
 }

@@ -80,6 +80,15 @@ const okDeps = (
   selectEarnings: async () => earnings,
   selectDeals: async () => rows,
   selectPayoutEvents: async () => [],
+  selectUnmeasuredDeals: async () => [],
+  selectMetrics: async () => ({
+    views: null,
+    likes: null,
+    shares: null,
+    comments: null,
+    measuredVideos: 0,
+    totalVideos: 0,
+  }),
 });
 
 const src = (file: string) =>
@@ -419,6 +428,15 @@ describe('readCreatorDashboard', () => {
       selectEarnings,
       selectDeals,
       selectPayoutEvents,
+      selectUnmeasuredDeals: vi.fn(async () => []),
+      selectMetrics: vi.fn(async () => ({
+        views: null,
+        likes: null,
+        shares: null,
+        comments: null,
+        measuredVideos: 0,
+        totalVideos: 0,
+      })),
     });
 
     expect(selectEarnings).toHaveBeenCalledWith(CREATOR_PROFILE_ID);
@@ -444,6 +462,8 @@ describe('readCreatorDashboard', () => {
           selectEarnings,
           selectDeals,
           selectPayoutEvents,
+          selectUnmeasuredDeals: vi.fn(),
+          selectMetrics: vi.fn(),
         })
       ).rejects.toBeInstanceOf(ForbiddenError);
 
@@ -466,6 +486,8 @@ describe('readCreatorDashboard', () => {
         selectEarnings,
         selectDeals,
         selectPayoutEvents,
+        selectUnmeasuredDeals: vi.fn(),
+        selectMetrics: vi.fn(),
       })
     ).resolves.toBeNull();
 
