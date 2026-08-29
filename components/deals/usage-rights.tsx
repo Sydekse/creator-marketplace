@@ -67,13 +67,14 @@ export function UsageRightsCard({
   if (collapsed) {
     return (
       <section className="rounded-[24px] border border-neutral-200 bg-background p-5 sm:p-6">
+        <SectionLabel>{USAGE_RIGHTS_TITLE}</SectionLabel>
         {/* `<details>` and `<summary>`, not a button and a `useState`: the
             browser owns the open state, so this stays a server component and
             keyboard and screen-reader behaviour come for free. The marker is
             CSS on `group-open`, because `list-style` on a summary is what the
             default triangle rides on and removing it takes the affordance with
             it. */}
-        <details className="group">
+        <details className="group mt-4">
           <summary className="flex cursor-pointer items-center gap-2 rounded-lg text-sm font-medium text-neutral-800 transition-colors duration-300 ease-out hover:text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 active:text-neutral-900 marker:content-none">
             <span
               aria-hidden="true"

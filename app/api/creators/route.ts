@@ -1,4 +1,7 @@
-import { createCreatorProfile } from '@/lib/creators/create-profile';
+import {
+  createCreatorProfile,
+  defaultCreateProfileDeps,
+} from '@/lib/creators/create-profile';
 import type { CreateProfileDeps } from '@/lib/creators/create-profile';
 import { sessionTiktokHandle } from '@/lib/creators/credentials';
 import {
@@ -87,17 +90,13 @@ export async function handleCreateCreator(
   // request (phase 1); email sign-ups still type theirs. The seam lives on
   // `CreateProfileDeps` so a test can stand in for the session read — and an
   // explicit `null` there means "no Login Kit handle", not "read the database".
-  const result = await createCreatorProfile(
-    userId,
-    parsed.data,
-    deps
-      ? {
-          insert: deps.insert,
-          sessionHandle:
-            'sessionHandle' in deps ? deps.sessionHandle : sessionTiktokHandle,
-        }
-      : undefined
-  );
+  const result = await createCreatorProfile(userId, parsed.data, {
+    insert: deps?.insert ?? defaultCreateProfileDeps.insert,
+    sessionHandle:
+      deps && 'sessionHandle' in deps
+        ? deps.sessionHandle
+        : sessionTiktokHandle,
+  });
 
   if (!result.ok) {
     // AC-003's exact user-facing string comes from `ErrorMessage`, so it cannot

@@ -48,7 +48,7 @@ export interface CreateProfileDeps {
   sessionHandle?: (userId: string) => Promise<string | null>;
 }
 
-const defaultDeps: CreateProfileDeps = {
+export const defaultCreateProfileDeps: CreateProfileDeps = {
   insert: async (values) => {
     const [row] = await db.insert(creatorProfile).values(values).returning({
       id: creatorProfile.id,
@@ -58,6 +58,8 @@ const defaultDeps: CreateProfileDeps = {
     return row;
   },
 };
+
+const defaultDeps = defaultCreateProfileDeps;
 
 /**
  * Narrows an unknown thrown value to a Postgres unique violation.
