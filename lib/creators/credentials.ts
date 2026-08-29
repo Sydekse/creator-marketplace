@@ -123,9 +123,10 @@ export function mapCredentialsError(error: unknown): 'EMAIL_TAKEN' | 'RETRY' {
 /**
  * The handle Login Kit wrote at sign-up, for this session's user.
  *
- * Read at insert time, never from the request body: `mapProfileToUser` is the
- * only writer, so onboarding cannot be pointed at a different TikTok account
- * than the one the OAuth consent screen named.
+ * Read at insert time, never from the request body: the `user.create.before`
+ * database hook in `lib/auth.ts` is the only writer, so onboarding cannot be
+ * pointed at a different TikTok account than the one the OAuth consent screen
+ * named.
  */
 export async function sessionTiktokHandle(
   userId: string
