@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { CaretDown } from '@phosphor-icons/react';
 import { Reveal } from '@/components/marketing/reveal';
 import { cn } from '@/lib/utils';
 import type { LegalTocItem } from './legal-page';
@@ -42,13 +42,7 @@ function useScrollSpy(toc: readonly LegalTocItem[]) {
   return active;
 }
 
-function TocLink({
-  item,
-  active,
-}: {
-  item: LegalTocItem;
-  active: boolean;
-}) {
+function TocLink({ item, active }: { item: LegalTocItem; active: boolean }) {
   return (
     <a
       href={`#${item.id}`}
@@ -95,7 +89,7 @@ export function LegalTocMobile({ toc }: { toc: readonly LegalTocItem[] }) {
     <details className="faq-item group mb-10 rounded-xl border border-neutral-200 px-4 py-3 lg:hidden">
       <summary className="flex list-none cursor-pointer items-center justify-between gap-4 text-[13px] font-semibold uppercase tracking-[0.14em] text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand [&::-webkit-details-marker]:hidden">
         On this page
-        <ChevronDown
+        <CaretDown
           className="h-4 w-4 shrink-0 text-neutral-600 transition-transform duration-300 ease-out group-open:rotate-180"
           aria-hidden
         />

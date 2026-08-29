@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeSlash } from '@phosphor-icons/react';
 
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
@@ -35,7 +35,7 @@ function PasswordInput({
         className="absolute inset-y-0 right-0 grid w-9 place-items-center rounded-r-lg text-neutral-600 transition-colors duration-300 ease-out hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-brand"
       >
         {visible ? (
-          <EyeOff className="h-4 w-4" aria-hidden />
+          <EyeSlash className="h-4 w-4" aria-hidden />
         ) : (
           <Eye className="h-4 w-4" aria-hidden />
         )}

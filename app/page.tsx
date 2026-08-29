@@ -1,20 +1,21 @@
 import Link from 'next/link';
 import {
   ArrowRight,
+  CaretDown,
   Check,
-  ChevronDown,
+  Gear,
   Handshake,
-  LayoutDashboard,
+  MagnifyingGlass,
   Megaphone,
   Play,
-  Scale,
-  Search,
-  Settings,
+  Scales,
+  SquaresFour,
   Users,
-} from 'lucide-react';
+} from '@phosphor-icons/react/dist/ssr';
 import { Mark } from '@/components/brand/mark';
 import { TikTokIcon } from '@/components/brand/tiktok-icon';
 import { Reveal } from '@/components/marketing/reveal';
+import { SectionLabel } from '@/components/layout/section-label';
 import { Chip } from '@/components/ui/chip';
 import { cn } from '@/lib/utils';
 
@@ -164,11 +165,11 @@ const CAMPAIGNS = [
 ];
 
 const SIDEBAR = [
-  { icon: LayoutDashboard, label: 'Dashboard', active: true },
+  { icon: SquaresFour, label: 'Dashboard', active: true },
   { icon: Megaphone, label: 'Campaigns', active: false },
   { icon: Users, label: 'Creators', active: false },
   { icon: Handshake, label: 'Deals', active: false },
-  { icon: Scale, label: 'Disputes', active: false },
+  { icon: Scales, label: 'Disputes', active: false },
 ];
 
 const DEAL_ROWS = [
@@ -212,14 +213,6 @@ const CREATOR_DEALS = [
 /*  Presentational helpers                                                    */
 /* -------------------------------------------------------------------------- */
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="inline-flex w-fit rounded-full bg-neutral-50 px-3 py-1 text-[13px] font-semibold tracking-[0.14em] text-brand-ink uppercase shadow-[0_0_0_1px_rgba(23,23,23,0.06)]">
-      {children}
-    </p>
-  );
-}
-
 function SectionIntro({
   label,
   title,
@@ -232,7 +225,7 @@ function SectionIntro({
   return (
     <div className="flex flex-col gap-5">
       <Reveal>
-        <Eyebrow>{label}</Eyebrow>
+        <SectionLabel as="p">{label}</SectionLabel>
       </Reveal>
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)] lg:gap-x-16">
         <Reveal>
@@ -398,7 +391,7 @@ export default function HomePage() {
             <div className="relative z-[1] max-w-xl lg:ml-[4%] lg:max-w-2xl">
               <div className="animate-rise-in flex items-center gap-3">
                 <TikTokIcon className="h-4 w-4 text-neutral-900" />
-                <Eyebrow>Built for TikTok campaigns</Eyebrow>
+                <SectionLabel as="p">Built for TikTok campaigns</SectionLabel>
               </div>
               <h1 className="animate-rise-in-1 mt-6 font-display text-[44px] font-medium leading-[1.04] tracking-tight text-neutral-900 sm:mt-8 sm:text-6xl lg:text-[68px] xl:text-[72px]">
                 Brands fund.
@@ -474,7 +467,7 @@ export default function HomePage() {
                       >
                         <item.icon
                           className="h-3.5 w-3.5"
-                          strokeWidth={1.5}
+                          weight="light"
                           aria-hidden
                         />
                         {item.label}
@@ -482,9 +475,9 @@ export default function HomePage() {
                     ))}
                     <div className="mt-auto space-y-1 border-t border-neutral-200 pt-3">
                       <div className="flex items-center gap-2 rounded-md px-2 py-2 text-[11px] text-neutral-600">
-                        <Settings
+                        <Gear
                           className="h-3.5 w-3.5"
-                          strokeWidth={1.5}
+                          weight="light"
                           aria-hidden
                         />
                         Settings
@@ -511,9 +504,9 @@ export default function HomePage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="hidden items-center gap-2 rounded-full border border-neutral-200 bg-white px-3 py-2 text-[11px] text-neutral-600 md:flex">
-                          <Search
+                          <MagnifyingGlass
                             className="h-3 w-3"
-                            strokeWidth={1.5}
+                            weight="light"
                             aria-hidden
                           />
                           Search
@@ -599,7 +592,7 @@ export default function HomePage() {
                   index === BAND.length - 1 && 'lg:pr-0'
                 )}
               >
-                <Eyebrow>{item.title}</Eyebrow>
+                <SectionLabel as="p">{item.title}</SectionLabel>
                 <p className="mt-4 text-[13px] leading-relaxed text-neutral-600">
                   {item.desc}
                 </p>
@@ -632,7 +625,10 @@ export default function HomePage() {
                     key={s.title}
                     className="grid gap-3 py-8 sm:grid-cols-[88px_1fr] sm:gap-6"
                   >
-                    <span aria-hidden className="font-display text-4xl font-medium leading-none text-neutral-300">
+                    <span
+                      aria-hidden
+                      className="font-display text-4xl font-medium leading-none text-neutral-300"
+                    >
                       {String(i + 1).padStart(2, '0')}
                     </span>
                     <div>
@@ -826,7 +822,8 @@ export default function HomePage() {
                       <div className="mx-auto grid aspect-[9/16] w-full max-w-[160px] place-items-center rounded-md border border-neutral-200 bg-neutral-100">
                         <span className="grid h-10 w-10 place-items-center rounded-full bg-brand-deep">
                           <Play
-                            className="ml-0.5 h-3 w-3 fill-neutral-50 text-neutral-50"
+                            className="ml-0.5 h-3 w-3 text-neutral-50"
+                            weight="fill"
                             aria-hidden
                           />
                         </span>
@@ -1005,7 +1002,7 @@ export default function HomePage() {
                           <span className="grid h-4 w-4 shrink-0 place-items-center rounded-[4px] border border-neutral-500">
                             <Check
                               className="h-3 w-3"
-                              strokeWidth={1.5}
+                              weight="light"
                               aria-hidden
                             />
                           </span>
@@ -1043,7 +1040,7 @@ export default function HomePage() {
         >
           <div className="mx-auto max-w-3xl px-6">
             <Reveal className="mb-14">
-              <Eyebrow>FAQ</Eyebrow>
+              <SectionLabel as="p">FAQ</SectionLabel>
               <h2 className="mt-5 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
                 Common questions
               </h2>
@@ -1054,7 +1051,7 @@ export default function HomePage() {
                   <details className="faq-item group border-b border-neutral-200 py-6 last:border-b-0">
                     <summary className="flex list-none cursor-pointer items-center justify-between gap-4 text-[15px] font-medium text-neutral-900 transition-colors duration-300 ease-out hover:text-neutral-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 [&::-webkit-details-marker]:hidden">
                       {item.q}
-                      <ChevronDown
+                      <CaretDown
                         className="h-4 w-4 shrink-0 text-neutral-600 transition-transform duration-300 ease-out group-open:rotate-180"
                         aria-hidden
                       />

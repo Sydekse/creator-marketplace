@@ -55,14 +55,14 @@ function Row({
   emphasis?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5">
-      <dt className="text-sm font-medium text-neutral-500">{label}</dt>
+    <div className="flex items-baseline justify-between gap-4 py-3">
+      <dt className="text-sm font-medium text-neutral-600">{label}</dt>
       <dd className="flex items-baseline gap-2 text-right">
         <span
           className={
             emphasis
-              ? 'font-mono text-base font-semibold text-neutral-900'
-              : 'font-mono text-sm text-neutral-800'
+              ? 'font-display text-xl font-medium tracking-tight text-neutral-900'
+              : 'font-mono text-sm font-medium text-neutral-900'
           }
         >
           {value}
@@ -242,11 +242,13 @@ export function TierPricing({
   const heading = <SectionLabel>Your rate</SectionLabel>;
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex h-full flex-col gap-4">
       {heading}
       {view.kind === 'priced' ? (
         <>
-          <PricingTable pricing={priceForTier(view.tier)} />
+          <div className="flex-1 content-center">
+            <PricingTable pricing={priceForTier(view.tier)} />
+          </div>
           {/* Load-bearing, not a disclaimer out of habit: invariant 8 snapshots
               `deal.commission_rate` onto each deal at offer time, so the split
               above is the current rate rather than a promise about a future one. */}

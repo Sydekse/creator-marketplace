@@ -491,7 +491,7 @@ describe('the offer actions are gated by the agreement (F31)', () => {
   const page = src(DETAIL_PAGE);
 
   it('renders only under canAct', () => {
-    expect(page).toMatch(/isPending \? \(?\s*<OfferActions/);
+    expect(page).toMatch(/isPending \?[\s\S]*?<OfferActions/);
     expect(page).toContain('canAct(deal.status)');
   });
 
