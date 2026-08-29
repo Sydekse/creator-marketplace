@@ -738,18 +738,14 @@ describe('createCreatorProfile', () => {
   });
 
   it('stores the Login Kit handle over whatever the body sent', async () => {
-    const insert = vi.fn().mockResolvedValue({
-      id: 'profile-1',
-      status: 'pending_verification',
-      tiktokHandle: '@fromtiktok',
-    });
-
-    await createCreatorProfile(CREATOR_ID, input, {
-      insert,
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert, {
       sessionHandle: async () => '@fromtiktok',
     });
 
-    expect(insert.mock.calls[0][0].tiktokHandle).toBe('@fromtiktok');
+    await createCreatorProfile(CREATOR_ID, input, deps);
+
+    expect(insert.mock.calls[0][1].tiktokHandle).toBe('@fromtiktok');
   });
 });
 
