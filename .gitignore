@@ -60,3 +60,6 @@ graphify-out/
 # graphify's PreToolUse hooks embed a machine-specific absolute path to the
 # graphify binary, so this is local config (same rule as CLAUDE.md above).
 .claude/
+
+/scratch
+/scripts

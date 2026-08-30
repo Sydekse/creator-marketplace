@@ -2,6 +2,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { signUpSchema, signInSchema } from '../lib/validation/schemas';
+import {
+  TIKTOK_OAUTH_ERROR_MESSAGE,
+  tiktokOAuthErrorMessage,
+} from '../lib/tiktok-oauth-error';
 
 const ROOT = join(__dirname, '..');
 
@@ -93,6 +97,57 @@ describe('TikTok Login Kit wiring', () => {
     expect(source).toContain('clientKey: process.env.TIKTOK_CLIENT_KEY');
     expect(source).toContain('TIKTOK_CLIENT_SECRET');
     expect(source).toContain('socialProviders');
+  });
+
+  it('maps every OAuth error code to one sentence and ignores blanks', () => {
+    expect(tiktokOAuthErrorMessage('access_denied')).toBe(
+      TIKTOK_OAUTH_ERROR_MESSAGE
+    );
+    expect(tiktokOAuthErrorMessage('invalid_code')).toBe(
+      TIKTOK_OAUTH_ERROR_MESSAGE
+    );
+    expect(tiktokOAuthErrorMessage(null)).toBeNull();
+    expect(tiktokOAuthErrorMessage('')).toBeNull();
+    expect(tiktokOAuthErrorMessage('  ')).toBeNull();
+  });
+
+  it('sends error and first-time callback URLs on Continue with TikTok', () => {
+    const cta = readFileSync(
+      join(ROOT, 'components/auth/continue-with-tiktok.tsx'),
+      'utf8'
+    );
+    expect(cta).toContain('errorCallbackURL');
+    expect(cta).toContain("callbackURL: '/dashboard'");
+    expect(cta).toContain("newUserCallbackURL: '/creator/credentials'");
+    expect(cta).not.toContain('toast.error');
+
+    const signUp = readFileSync(
+      join(ROOT, 'app/(auth)/sign-up/sign-up-card.tsx'),
+      'utf8'
+    );
+    const signIn = readFileSync(
+      join(ROOT, 'app/(auth)/sign-in/sign-in-form.tsx'),
+      'utf8'
+    );
+    expect(signUp).toContain('errorCallbackURL="/sign-up"');
+    expect(signUp).toContain("oauthError ? 'creator'");
+    expect(signIn).toContain('errorCallbackURL="/sign-in"');
+  });
+
+  it('shows the TikTok handle on the credentials email step only', () => {
+    const form = readFileSync(
+      join(ROOT, 'app/(creator)/creator/credentials/credentials-form.tsx'),
+      'utf8'
+    );
+    const page = readFileSync(
+      join(ROOT, 'app/(creator)/creator/credentials/page.tsx'),
+      'utf8'
+    );
+    expect(page).toContain('sessionTiktokHandle');
+    expect(form).toContain("view === 'email' && tiktokHandle");
+    expect(form).toContain('TikTokIcon');
+    expect(form).toContain('displayTiktokHandle');
+    expect(form).toContain('font-semibold');
   });
 
   it('offers Continue with TikTok on sign-up and sign-in', () => {

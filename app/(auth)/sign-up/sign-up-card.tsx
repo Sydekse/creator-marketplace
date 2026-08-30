@@ -56,6 +56,7 @@ type FieldErrors = {
 
 export function SignUpCard({
   creatorDemoSignup,
+  oauthError = null,
 }: {
   /**
    * Whether the email/password creator path (demo accounts) is offered.
@@ -63,13 +64,20 @@ export function SignUpCard({
    * the same flag in the sign-up hook, so this only controls visibility.
    */
   creatorDemoSignup: boolean;
+  /**
+   * TikTok OAuth came back failed. Open on creator so the button (and the
+   * alert) are not hidden behind the brand default.
+   */
+  oauthError?: string | null;
 }) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState<RoleOption>('brand');
+  const [role, setRole] = useState<RoleOption>(
+    oauthError ? 'creator' : 'brand'
+  );
   const [creatorDemo, setCreatorDemo] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
@@ -294,7 +302,10 @@ export function SignUpCard({
 
       <AccordionPanel open={role === 'creator' && !creatorDemo}>
         <div className="mt-6 flex flex-col gap-4">
-          <ContinueWithTiktok />
+          <ContinueWithTiktok
+            errorCallbackURL="/sign-up"
+            oauthError={oauthError}
+          />
           {creatorDemoSignup && (
             <button
               type="button"

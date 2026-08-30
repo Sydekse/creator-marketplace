@@ -12,6 +12,7 @@ import { FieldError } from '@/components/ui/field-error';
 import { signInSchema } from '@/lib/validation/schemas';
 import { safeRedirectPath } from '@/lib/navigation';
 import { cn, textLinkFeedback } from '@/lib/utils';
+import { tiktokOAuthErrorMessage } from '@/lib/tiktok-oauth-error';
 
 type FieldErrors = { email?: string; password?: string };
 
@@ -75,7 +76,11 @@ export function SignInForm() {
       <div className="mt-5 flex flex-col gap-4">
         {/* Live Login Kit OAuth. No note: a returning user does not need
             data-policy copy under a login button. */}
-        <ContinueWithTiktok note={null} />
+        <ContinueWithTiktok
+          note={null}
+          errorCallbackURL="/sign-in"
+          oauthError={tiktokOAuthErrorMessage(searchParams.get('error'))}
+        />
         <div className="flex items-center gap-3" aria-hidden>
           <span className="h-px flex-1 bg-neutral-200" />
           <span className="text-[11px] font-medium uppercase tracking-[0.14em] text-neutral-600">
