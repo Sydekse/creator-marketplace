@@ -22,9 +22,7 @@ import {
 } from '@/lib/deals/resolve-dispute';
 import { getPaymentProvider } from '@/lib/payment';
 import { EscrowLedgerService } from '@/lib/payment/ledger';
-import { providerFromEnv, renderNotification } from '@/lib/notifications';
-import type { NotifyDeps } from '@/lib/notifications/notify';
-import type { VerifyCreatorDeps } from '@/app/api/admin/creators/[id]/verify/route';
+import type { AssignTierRouteDeps } from '@/app/api/admin/creators/[id]/assign-tier/route';
 
 /**
  * KAN-59 helpers — real sessions and real rows, never fakes.
@@ -114,21 +112,15 @@ export async function userIdForEmail(email: string): Promise<string> {
 }
 
 /**
- * The real deps for the verify handler: real guard + real notification
- * service (console provider, so nothing mails) + real admin audit, all keyed
- * off one live session. The unit suite fakes these; here the whole flow runs
- * for real.
+ * The real deps for the assign-tier handler: real guard + real admin audit,
+ * keyed off one live session. The unit suite fakes these; here the whole flow
+ * runs for real. (This replaced the verify handler's deps when KAN-39 phase 2
+ * removed admin verification — assign-tier is the admin-only creator route
+ * that remains.)
  */
-export function realVerifyDeps(cookie: string): VerifyCreatorDeps {
+export function realAssignTierDeps(cookie: string): AssignTierRouteDeps {
   return {
     guard: guardForCookie(cookie),
-    notifyDeps: {
-      db,
-      provider: providerFromEnv({}),
-      render: renderNotification,
-      log: console,
-      sleep: async () => {},
-    } as NotifyDeps,
     adminAuditDeps: {
       getCurrentUser: async () => userFromCookie(cookie),
       loadProfileIds,

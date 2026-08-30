@@ -115,7 +115,7 @@ describe('roleHomePath', () => {
 });
 
 describe('safeRedirectPath', () => {
-  it.each(['/brand', '/admin/verification', '/deals?status=pending'])(
+  it.each(['/brand', '/admin/tiers', '/deals?status=pending'])(
     'allows the same-origin path %s',
     (value) => {
       expect(safeRedirectPath(value)).toBe(value);

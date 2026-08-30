@@ -13,7 +13,7 @@ export interface RouteDeps {
 
 /**
  * `GET /api/admin/worklist` — deals whose money is held and unresolved
- * (KAN-53 AC-4), shown alongside the verification queue in the admin console.
+ * (KAN-53 AC-4), shown on the admin console.
  *
  * The set is `REFUNDABLE_FROM` — every deal the resolve endpoint can act on —
  * so the worklist and the mutation agree by construction (module header). The

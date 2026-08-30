@@ -9,7 +9,6 @@ export interface NavLink {
     | 'campaigns'
     | 'deals'
     | 'cart'
-    | 'verification'
     | 'tiers'
     | 'worklist'
     | 'audit';
@@ -36,11 +35,6 @@ const NAV_LINKS: Record<UserRole, NavLink[]> = {
   ],
   admin: [
     { label: 'Overview', href: '/admin', icon: 'dashboard' },
-    {
-      label: 'Verification',
-      href: '/admin/verification',
-      icon: 'verification',
-    },
     { label: 'Tiers', href: '/admin/tiers', icon: 'tiers' },
     { label: 'Campaigns', href: '/admin/campaigns', icon: 'campaigns' },
     { label: 'Disputes', href: '/admin/worklist', icon: 'worklist' },

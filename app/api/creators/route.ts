@@ -1,9 +1,7 @@
-import {
-  createCreatorProfile,
-  defaultCreateProfileDeps,
-} from '@/lib/creators/create-profile';
+import { createCreatorProfile } from '@/lib/creators/create-profile';
 import type { CreateProfileDeps } from '@/lib/creators/create-profile';
 import { sessionTiktokHandle } from '@/lib/creators/credentials';
+import { tierOutcomeToResponse } from '@/lib/creators/tier-assignment';
 import {
   DISCOVERY_PARAM_ALIASES,
   readDiscovery,
@@ -11,6 +9,7 @@ import {
 import type { DiscoveryDeps, DiscoveryPage } from '@/lib/creators/discovery';
 import { guard, toErrorResponse } from '@/lib/authz';
 import { needsCredentials } from '@/lib/auth';
+import { fetchTiktokStats } from '@/lib/tiktok/stats';
 import { conflictDetails, readParams } from '@/lib/query-params';
 import {
   ErrorCode,
@@ -43,7 +42,7 @@ export const runtime = 'nodejs';
  */
 export async function handleCreateCreator(
   request: Request,
-  deps?: CreateProfileDeps
+  deps?: Partial<CreateProfileDeps>
 ): Promise<Response> {
   let userId: string;
   try {
@@ -85,20 +84,33 @@ export async function handleCreateCreator(
     });
   }
 
-  // The handle the account was created with wins over the body. A Login Kit
-  // user cannot rename themselves into somebody else's TikTok by editing the
-  // request (phase 1); email sign-ups still type theirs. The seam lives on
-  // `CreateProfileDeps` so a test can stand in for the session read — and an
-  // explicit `null` there means "no Login Kit handle", not "read the database".
+  // Session-sourced values win over the body (phase 1 handle, phase 2 stats).
+  // A Login Kit user cannot rename themselves into somebody else's TikTok by
+  // editing the request, and cannot pad the numbers TikTok reported; email
+  // sign-ups still type both. The seams live on `CreateProfileDeps` so a test
+  // can stand in for the session read and the API call — an explicit `null`
+  // there means "nothing session-sourced", not "read the real thing".
   const result = await createCreatorProfile(userId, parsed.data, {
-    insert: deps?.insert ?? defaultCreateProfileDeps.insert,
+    ...deps,
     sessionHandle:
       deps && 'sessionHandle' in deps
         ? deps.sessionHandle
         : sessionTiktokHandle,
+    sessionStats:
+      deps && 'sessionStats' in deps ? deps.sessionStats : fetchTiktokStats,
   });
 
   if (!result.ok) {
+    // Neither the session nor the body carried a handle — an email sign-up
+    // that skipped the field. Same envelope the schema's required error used
+    // to produce, keyed to the input so the form shows it inline.
+    if ('missingHandle' in result) {
+      return Response.json(
+        validationError({ tiktokHandle: ['TikTok handle is required.'] }),
+        { status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR] }
+      );
+    }
+
     // AC-003's exact user-facing string comes from `ErrorMessage`, so it cannot
     // drift from the acceptance criterion by being retyped here.
     const code =
@@ -121,12 +133,14 @@ export async function handleCreateCreator(
 
   // snake_case body, matching the tech spec §4.2 example response. The status
   // is echoed rather than hardcoded so the client shows what the database
-  // actually stored.
+  // actually stored. Tier included so the confirmation can say whether the
+  // profile is already bookable (phase 2).
   return Response.json(
     {
       id: result.profile.id,
       status: result.profile.status,
       tiktok_handle: result.profile.tiktokHandle,
+      tier: tierOutcomeToResponse(result.tier),
     },
     { status: 201 }
   );

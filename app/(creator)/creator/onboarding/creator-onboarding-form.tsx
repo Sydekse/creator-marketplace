@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { ArrowLeft, ArrowRight } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import {
   Field,
@@ -32,6 +33,7 @@ import {
 } from '@/lib/config/creator-profile';
 import type { AgeRange, Niche } from '@/lib/config/creator-profile';
 import { normalizeTiktokHandle } from '@/lib/creators/handle';
+import type { TiktokStats } from '@/lib/tiktok/stats';
 import {
   createCreatorSchema,
   fieldErrorsAt,
@@ -54,6 +56,7 @@ import type { FieldErrorMap } from '@/lib/validation';
 
 export function CreatorOnboardingForm({
   lockedHandle = null,
+  lockedStats = null,
 }: {
   /**
    * The handle Login Kit captured at sign-up, or null for email sign-ups.
@@ -63,8 +66,34 @@ export function CreatorOnboardingForm({
    * ignored.
    */
   lockedHandle?: string | null;
+  /**
+   * Live numbers from the TikTok API (phase 2), or null when unavailable.
+   * Same contract as the handle: the server re-fetches and overrides the body,
+   * so any field with an API value renders read-only. Each field falls back to
+   * editable independently — stats without videos still locks the follower
+   * count while leaving engagement typed.
+   */
+  lockedStats?: TiktokStats | null;
 } = {}) {
   const router = useRouter();
+
+  // The two modes of this form (phase 3). A TikTok sign-up has a linked
+  // account: the server writes the session handle and its own fetched stats
+  // no matter what the body says, so this form only asks for what cannot be
+  // fetched — niche and audience — and *shows* the rest. Email (demo)
+  // sign-ups keep the full manual form.
+  const tiktokMode = lockedHandle !== null;
+
+  // TikTok mode only asks for niche and audience, so it reads as two short
+  // flash cards ("Your profile" → "Audience") instead of one long form. The
+  // step gates *rendering only* — every value lives in this component, the
+  // payload is unchanged, and submit still happens once at the end. Email
+  // mode keeps the full single-page form (it has a third, manual section).
+  const [step, setStep] = useState(0);
+  const TIKTOK_STEPS = 2;
+
+  const lockedFollowers = lockedStats?.followerCount ?? null;
+  const lockedEngagement = lockedStats?.engagementRate ?? null;
 
   const [handleInput, setHandleInput] = useState(() =>
     lockedHandle ? lockedHandle.replace(/^@+/, '') : ''
@@ -72,8 +101,12 @@ export function CreatorOnboardingForm({
   const [niche, setNiche] = useState<Niche | null>(null);
   const [markets, setMarkets] = useState<string[]>([]);
   const [ageRange, setAgeRange] = useState<AgeRange | null>(null);
-  const [followerCount, setFollowerCount] = useState('');
-  const [engagementRate, setEngagementRate] = useState('');
+  const [followerCount, setFollowerCount] = useState(() =>
+    lockedFollowers !== null ? String(lockedFollowers) : ''
+  );
+  const [engagementRate, setEngagementRate] = useState(
+    () => lockedEngagement ?? ''
+  );
   const [errors, setErrors] = useState<FieldErrorMap>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -99,16 +132,21 @@ export function CreatorOnboardingForm({
 
     // Empty optional numbers are absent, not zero — a creator who leaves
     // follower count blank has not told us they have no followers.
+    // TikTok mode sends neither handle nor numbers: the server sources both
+    // from the session and the API, and a body value would be ignored anyway.
     const payload = {
-      tiktokHandle: handleInput,
+      tiktokHandle: tiktokMode ? undefined : handleInput,
       niche,
       audience: {
         topCountries: markets,
         ageRange,
       },
-      followerCount: followerCount === '' ? undefined : Number(followerCount),
+      followerCount:
+        tiktokMode || followerCount === '' ? undefined : Number(followerCount),
       engagementRate:
-        engagementRate === '' ? undefined : Number(engagementRate),
+        tiktokMode || engagementRate === ''
+          ? undefined
+          : Number(engagementRate),
     };
 
     const parsed = createCreatorSchema.safeParse(payload);
@@ -164,7 +202,15 @@ export function CreatorOnboardingForm({
       className="rounded-[24px] border border-neutral-200 bg-neutral-50 p-6 shadow-[0_24px_60px_-32px_rgba(23,23,23,0.25)] sm:p-9"
     >
       <FieldGroup className="gap-0">
-        <section className="border-b border-neutral-200 pb-9">
+        <section
+          className={
+            tiktokMode
+              ? step === 0
+                ? 'pb-4'
+                : 'hidden'
+              : 'border-b border-neutral-200 pb-9'
+          }
+        >
           <div className="mb-6">
             <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Creator profile
@@ -174,57 +220,97 @@ export function CreatorOnboardingForm({
             </p>
           </div>
           <div className="grid gap-7 sm:grid-cols-2">
-            <Field data-invalid={hasError('tiktokHandle') || undefined}>
-              <FieldLabel
-                htmlFor="tiktokHandle"
-                className="text-[13px] font-semibold text-neutral-700"
-              >
-                TikTok handle
-              </FieldLabel>
-              <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
-                {/* The @ is furniture, not input — typing one is handled by the
+            {tiktokMode ? (
+              /* Nothing here is input: the handle comes from the session and
+                 the numbers from the API, both server-sourced on submit. */
+              <div className="flex flex-col gap-3 rounded-2xl border border-brand/30 bg-brand-tint/40 p-5">
+                <p className="text-[13px] font-semibold text-neutral-700">
+                  Linked TikTok account
+                </p>
+                <p className="font-mono text-lg text-neutral-900">
+                  @{lockedHandle!.replace(/^@+/, '')}
+                </p>
+                <dl className="grid grid-cols-2 gap-3 border-t border-brand/20 pt-3">
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Followers
+                    </dt>
+                    <dd className="mt-1 font-mono text-sm tabular-nums text-neutral-900">
+                      {lockedFollowers !== null
+                        ? lockedFollowers.toLocaleString('en-US')
+                        : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Engagement
+                    </dt>
+                    <dd className="mt-1 font-mono text-sm tabular-nums text-neutral-900">
+                      {lockedEngagement !== null ? `${lockedEngagement}%` : '—'}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="text-[13px] leading-relaxed text-neutral-600">
+                  {lockedFollowers === null && lockedEngagement === null
+                    ? 'We could not pull your stats yet. You can refresh them from your dashboard after onboarding.'
+                    : lockedEngagement === null
+                      ? 'No engagement data yet — it appears once your account has public videos. Refresh from your dashboard later.'
+                      : 'Pulled from your TikTok account. These set your tier and rate, and refresh automatically.'}
+                </p>
+              </div>
+            ) : (
+              <Field data-invalid={hasError('tiktokHandle') || undefined}>
+                <FieldLabel
+                  htmlFor="tiktokHandle"
+                  className="text-[13px] font-semibold text-neutral-700"
+                >
+                  TikTok handle
+                </FieldLabel>
+                <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
+                  {/* The @ is furniture, not input — typing one is handled by the
                 normaliser, so both habits produce the same stored value. */}
-                <InputGroupAddon className="font-mono text-base">
-                  @
-                </InputGroupAddon>
-                <Input
-                  id="tiktokHandle"
-                  name="tiktokHandle"
-                  value={handleInput}
-                  onChange={(event) => setHandleInput(event.target.value)}
-                  readOnly={lockedHandle !== null}
-                  data-slot="input-group-control"
-                  className={`border-0 font-mono text-base shadow-none focus-visible:ring-0 ${
-                    lockedHandle !== null ? 'text-neutral-500' : ''
-                  }`}
-                  placeholder="yourhandle"
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  aria-invalid={hasError('tiktokHandle') || undefined}
-                  aria-describedby="tiktokHandle-preview"
-                />
-              </InputGroup>
-              <FieldDescription
-                id="tiktokHandle-preview"
-                className="text-[13px] leading-relaxed text-neutral-600"
-              >
-                {lockedHandle !== null ? (
-                  'Linked from your TikTok login. This is the account brands will review.'
-                ) : normalized === '' ? (
-                  'Use the account brands should review. 2–24 letters, numbers, underscores or periods.'
-                ) : (
-                  <>
-                    Saved as{' '}
-                    <span className="font-mono text-foreground">
-                      {normalized}
-                    </span>
-                    {handleChanged && '. Handles are stored in lower case.'}
-                  </>
-                )}
-              </FieldDescription>
-              <FieldError errors={fieldError('tiktokHandle')} />
-            </Field>
+                  <InputGroupAddon className="font-mono text-base">
+                    @
+                  </InputGroupAddon>
+                  <Input
+                    id="tiktokHandle"
+                    name="tiktokHandle"
+                    value={handleInput}
+                    onChange={(event) => setHandleInput(event.target.value)}
+                    readOnly={lockedHandle !== null}
+                    data-slot="input-group-control"
+                    className={`border-0 font-mono text-base shadow-none focus-visible:ring-0 ${
+                      lockedHandle !== null ? 'text-neutral-500' : ''
+                    }`}
+                    placeholder="yourhandle"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    aria-invalid={hasError('tiktokHandle') || undefined}
+                    aria-describedby="tiktokHandle-preview"
+                  />
+                </InputGroup>
+                <FieldDescription
+                  id="tiktokHandle-preview"
+                  className="text-[13px] leading-relaxed text-neutral-600"
+                >
+                  {lockedHandle !== null ? (
+                    'Linked from your TikTok login. This is the account brands will review.'
+                  ) : normalized === '' ? (
+                    'Use the account brands should review. 2–24 letters, numbers, underscores or periods.'
+                  ) : (
+                    <>
+                      Saved as{' '}
+                      <span className="font-mono text-foreground">
+                        {normalized}
+                      </span>
+                      {handleChanged && '. Handles are stored in lower case.'}
+                    </>
+                  )}
+                </FieldDescription>
+                <FieldError errors={fieldError('tiktokHandle')} />
+              </Field>
+            )}
 
             <Field data-invalid={hasError('niche') || undefined}>
               <FieldLabel
@@ -267,7 +353,15 @@ export function CreatorOnboardingForm({
           </div>
         </section>
 
-        <section className="border-b border-neutral-200 py-9">
+        <section
+          className={
+            tiktokMode
+              ? step === 1
+                ? 'pb-4'
+                : 'hidden'
+              : 'border-b border-neutral-200 py-9'
+          }
+        >
           <div className="mb-6">
             <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Audience
@@ -342,99 +436,170 @@ export function CreatorOnboardingForm({
         </section>
 
         {/* Optional, and labelled as such: a creator who cannot find these
-            numbers must still be able to finish onboarding. */}
-        <section className="py-9">
-          <div className="mb-6">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
-              Performance
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-neutral-600">
-              Optional. Add these if you know them; you can still submit without
-              them.
-            </p>
-          </div>
-          <div className="grid gap-7 sm:grid-cols-2">
-            <Field data-invalid={hasError('followerCount') || undefined}>
-              <FieldLabel
-                htmlFor="followerCount"
-                className="text-[13px] font-semibold text-neutral-700"
-              >
-                Followers{' '}
-                <span className="font-normal text-muted-foreground">
-                  (optional)
-                </span>
-              </FieldLabel>
-              <Input
-                id="followerCount"
-                name="followerCount"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={1}
-                value={followerCount}
-                onChange={(event) => setFollowerCount(event.target.value)}
-                className="h-12 bg-neutral-50 px-4 font-mono focus-visible:bg-white"
-                placeholder="12000"
-                aria-invalid={hasError('followerCount') || undefined}
-              />
-              <FieldError errors={fieldError('followerCount')} />
-            </Field>
-
-            <Field data-invalid={hasError('engagementRate') || undefined}>
-              <FieldLabel
-                htmlFor="engagementRate"
-                className="text-[13px] font-semibold text-neutral-700"
-              >
-                Engagement rate{' '}
-                <span className="font-normal text-muted-foreground">
-                  (optional)
-                </span>
-              </FieldLabel>
-              <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
+            numbers must still be able to finish onboarding. Email mode only —
+            a linked account's numbers are fetched, shown above, and never
+            typed (phase 3): the server ignores body stats for TikTok
+            sign-ups, so inputs here would be a lie. */}
+        {!tiktokMode && (
+          <section className="py-9">
+            <div className="mb-6">
+              <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
+                Performance
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+                {lockedFollowers !== null || lockedEngagement !== null
+                  ? 'Pulled from your TikTok account. These set your tier and rate.'
+                  : 'Optional. Add these if you know them; you can still submit without them.'}
+              </p>
+            </div>
+            <div className="grid gap-7 sm:grid-cols-2">
+              <Field data-invalid={hasError('followerCount') || undefined}>
+                <FieldLabel
+                  htmlFor="followerCount"
+                  className="text-[13px] font-semibold text-neutral-700"
+                >
+                  Followers{' '}
+                  <span className="font-normal text-muted-foreground">
+                    {lockedFollowers !== null ? '(from TikTok)' : '(optional)'}
+                  </span>
+                </FieldLabel>
                 <Input
-                  id="engagementRate"
-                  name="engagementRate"
+                  id="followerCount"
+                  name="followerCount"
                   type="number"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   min={0}
-                  max={100}
-                  step={0.01}
-                  value={engagementRate}
-                  onChange={(event) => setEngagementRate(event.target.value)}
-                  data-slot="input-group-control"
-                  className="border-0 font-mono shadow-none focus-visible:ring-0"
-                  placeholder="4.20"
-                  aria-invalid={hasError('engagementRate') || undefined}
+                  step={1}
+                  value={followerCount}
+                  onChange={(event) => setFollowerCount(event.target.value)}
+                  readOnly={lockedFollowers !== null}
+                  className={`h-12 bg-neutral-50 px-4 font-mono focus-visible:bg-white ${
+                    lockedFollowers !== null ? 'text-neutral-500' : ''
+                  }`}
+                  placeholder="12000"
+                  aria-invalid={hasError('followerCount') || undefined}
                 />
-                <InputGroupAddon align="inline-end">%</InputGroupAddon>
-              </InputGroup>
-              <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
-                {ENGAGEMENT_RATE_HINT}
-              </FieldDescription>
-              <FieldError errors={fieldError('engagementRate')} />
-            </Field>
-          </div>
-        </section>
+                <FieldError errors={fieldError('followerCount')} />
+              </Field>
+
+              <Field data-invalid={hasError('engagementRate') || undefined}>
+                <FieldLabel
+                  htmlFor="engagementRate"
+                  className="text-[13px] font-semibold text-neutral-700"
+                >
+                  Engagement rate{' '}
+                  <span className="font-normal text-muted-foreground">
+                    {lockedEngagement !== null ? '(from TikTok)' : '(optional)'}
+                  </span>
+                </FieldLabel>
+                <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
+                  <Input
+                    id="engagementRate"
+                    name="engagementRate"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    value={engagementRate}
+                    onChange={(event) => setEngagementRate(event.target.value)}
+                    readOnly={lockedEngagement !== null}
+                    data-slot="input-group-control"
+                    className={`border-0 font-mono shadow-none focus-visible:ring-0 ${
+                      lockedEngagement !== null ? 'text-neutral-500' : ''
+                    }`}
+                    placeholder="4.20"
+                    aria-invalid={hasError('engagementRate') || undefined}
+                  />
+                  <InputGroupAddon align="inline-end">%</InputGroupAddon>
+                </InputGroup>
+                <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
+                  {lockedEngagement !== null
+                    ? 'Computed from your recent videos: likes, comments and shares per view.'
+                    : ENGAGEMENT_RATE_HINT}
+                </FieldDescription>
+                <FieldError errors={fieldError('engagementRate')} />
+              </Field>
+            </div>
+          </section>
+        )}
 
         {hasError('_root') && (
           <FieldError errors={fieldError('_root')} className="text-sm" />
         )}
 
-        <div className="flex flex-col gap-4 border-t border-neutral-200 pt-8 sm:flex-row sm:items-end sm:justify-between">
-          <Button
-            type="submit"
-            disabled={submitting}
-            size="lg"
-            className="w-full sm:w-auto sm:self-start"
-          >
-            {submitting && <Spinner />}
-            {submitting ? 'Submitting…' : 'Submit for verification'}
-          </Button>
-          <p className="text-[13px] leading-relaxed text-neutral-600">
-            We review your TikTok handle first. Your profile appears in brand
-            search after verification and tier assignment.
-          </p>
-        </div>
+        {tiktokMode ? (
+          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-6">
+            {step === 1 ? (
+              <p className="text-[13px] leading-relaxed text-neutral-600">
+                Your profile goes live as soon as it is created. Your tier and
+                rate come from your TikTok numbers and refresh automatically.
+              </p>
+            ) : null}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex gap-1.5" aria-hidden>
+                  {Array.from({ length: TIKTOK_STEPS }, (_, i) => (
+                    <span
+                      key={i}
+                      className={`h-1.5 w-8 rounded-full transition-colors ${
+                        i <= step ? 'bg-brand' : 'bg-neutral-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                  {step + 1} / {TIKTOK_STEPS}
+                </span>
+              </div>
+              {step === 0 ? (
+                <Button
+                  type="button"
+                  size="lg"
+                  className="gap-2"
+                  onClick={() => setStep(1)}
+                  disabled={niche === null}
+                >
+                  Next
+                  <ArrowRight size={16} weight="regular" aria-hidden />
+                </Button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    className="gap-2"
+                    onClick={() => setStep(0)}
+                  >
+                    <ArrowLeft size={16} weight="regular" aria-hidden />
+                    Back
+                  </Button>
+                  <Button type="submit" disabled={submitting} size="lg">
+                    {submitting && <Spinner />}
+                    {submitting ? 'Submitting…' : 'Create profile'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-8 sm:flex-row sm:items-end sm:justify-between">
+            <Button
+              type="submit"
+              disabled={submitting}
+              size="lg"
+              className="w-full sm:w-auto sm:self-start"
+            >
+              {submitting && <Spinner />}
+              {submitting ? 'Submitting…' : 'Create profile'}
+            </Button>
+            <p className="text-[13px] leading-relaxed text-neutral-600">
+              Your profile goes live as soon as it is created. Brands can find
+              you in search once your numbers place you on a pricing tier.
+            </p>
+          </div>
+        )}
       </FieldGroup>
     </form>
   );

@@ -90,7 +90,10 @@ export async function setCreatorCredentials(
       .update(userTable)
       .set({
         email,
-        emailVerified: false,
+        // True, not false: the route only reaches this write after
+        // `verifyEmailOtp` accepted a code mailed to this exact address
+        // (phase 3, PR 2) — the proof of ownership just happened.
+        emailVerified: true,
         updatedAt: new Date(),
         ...(user.tiktokHandle || fromPlaceholder === ''
           ? {}

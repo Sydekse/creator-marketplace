@@ -18,7 +18,7 @@ import { clampLimit, clampOffset } from '@/lib/paging';
  * it. The `/discover` page and `GET /api/creators` are two callers today and
  * more later, and a read path whose protection lives in its callers is protected
  * exactly as well as the least careful one — the same argument
- * `lib/audit/queries.ts` and `lib/creators/verification-queue.ts` make.
+ * `lib/audit/queries.ts` and `lib/creators/awaiting-tier.ts` make.
  */
 
 export interface DiscoveryFilters {

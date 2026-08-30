@@ -45,7 +45,7 @@ export const SAMPLE_NOTIFICATIONS: {
   },
   verification_result: {
     type: 'verification_result',
-    payload: { creatorProfileId: 'c1', outcome: 'approved' },
+    payload: { creatorProfileId: 'c1', outcome: 'approved', tiered: true },
   },
   campaign_funded: {
     type: 'campaign_funded',
@@ -126,6 +126,22 @@ export const SAMPLE_NOTIFICATIONS: {
     payload: {
       dealId: 'd1',
       campaignTitle: 'Spring Coffee Push',
+    },
+  },
+  tier_upgraded: {
+    type: 'tier_upgraded',
+    payload: {
+      creatorProfileId: 'c1',
+      tierName: 'Mid',
+      pricePerVideo: 400_000,
+    },
+  },
+  tier_assigned: {
+    type: 'tier_assigned',
+    payload: {
+      creatorProfileId: 'c1',
+      tierName: 'Mid',
+      pricePerVideo: 400_000,
     },
   },
 };

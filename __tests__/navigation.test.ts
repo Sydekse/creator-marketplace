@@ -46,13 +46,11 @@ describe('isNavLinkActive', () => {
   it('lights only the nested admin item, not Overview', () => {
     const links = getNavLinks('admin');
     const overview = links.find((l) => l.icon === 'dashboard')!;
-    const verification = links.find((l) => l.icon === 'verification')!;
-    expect(
-      isNavLinkActive(overview, '/admin/verification', undefined, links)
-    ).toBe(false);
-    expect(
-      isNavLinkActive(verification, '/admin/verification', undefined, links)
-    ).toBe(true);
+    const tiers = links.find((l) => l.icon === 'tiers')!;
+    expect(isNavLinkActive(overview, '/admin/tiers', undefined, links)).toBe(
+      false
+    );
+    expect(isNavLinkActive(tiers, '/admin/tiers', undefined, links)).toBe(true);
   });
 });
 
@@ -79,7 +77,6 @@ describe('getNavLinks', () => {
     const links = getNavLinks('admin');
     expect(links.map((l) => l.label)).toEqual([
       'Overview',
-      'Verification',
       'Tiers',
       'Campaigns',
       'Disputes',

@@ -181,6 +181,10 @@ function DealRow({
           )}
         >
           {VIEW_DEAL_LABEL}
+          {/* Distinguishes the row's link for a screen reader (and for tests
+              addressing it by name) — a list of identical "View deal" links
+              announces nothing about where each one goes. */}
+          <span className="sr-only"> — {deal.campaignName}</span>
           <CaretRight size={12} weight="bold" aria-hidden />
         </Link>
       </div>

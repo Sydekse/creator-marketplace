@@ -8,6 +8,7 @@ import {
 import { AudienceSection } from '@/components/creator/audience-section';
 import { EarningsSummary } from '@/components/creator/earnings-summary';
 import { PayoutChart } from '@/components/creator/payout-chart';
+import { RefreshStatsButton } from '@/components/creator/refresh-stats-button';
 import { TierPricing } from '@/components/creator/tier-pricing';
 import { VerificationStatus } from '@/components/creator/verification-status';
 import { EmptyState } from '@/components/feedback/empty-state';
@@ -16,7 +17,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { cn } from '@/lib/utils';
 import { formatEtb } from '@/lib/money';
-import { expiryLabel } from '@/lib/dates';
+import { ageLabel, expiryLabel } from '@/lib/dates';
 import { labelForStatus } from '@/lib/deals/groups';
 import { needsCredentials, requireRole } from '@/lib/auth';
 import {
@@ -26,6 +27,7 @@ import {
 import type { Niche } from '@/lib/config/creator-profile';
 import {
   NOT_BOOKABLE_DESCRIPTION,
+  NOT_BOOKABLE_TIKTOK_DESCRIPTION,
   NOT_BOOKABLE_TITLE,
   NO_DEALS_DESCRIPTION,
   NO_DEALS_TITLE,
@@ -37,6 +39,7 @@ import {
   formatFollowerCount,
 } from '@/lib/creators/profile-facts';
 import { readAudience } from '@/lib/creators/detail';
+import { sessionTiktokHandle } from '@/lib/creators/credentials';
 import { tiktokProfileUrl } from '@/lib/creators/handle';
 import { getCreatorProfileWithTier, isBookable } from '@/lib/creators/queries';
 import { listTierCandidates, selectTier } from '@/lib/creators/tier-assignment';
@@ -100,6 +103,10 @@ export default async function CreatorDashboardPage() {
 
   const bookable = isBookable({ ...profile, tierActive: tier?.active ?? null });
   const profileUrl = tiktokProfileUrl(profile.tiktokHandle);
+  // TikTok-linked accounts get the self-serve refresh (phase 3); email
+  // sign-ups have nothing to pull from — their numbers are the admin's to
+  // correct, so the button never renders for them.
+  const tiktokLinked = (await sessionTiktokHandle(user.id)) !== null;
   const openDeals = dashboard.groups
     .filter(
       (group) =>
@@ -137,7 +144,18 @@ export default async function CreatorDashboardPage() {
           </section>
 
           <section className="flex h-full flex-col justify-between gap-4 rounded-[24px] border border-neutral-200 bg-background p-4 sm:p-5">
-            <SectionLabel>Your profile</SectionLabel>
+            <div className="flex items-center justify-between gap-3">
+              <SectionLabel>Your profile</SectionLabel>
+              {tiktokLinked ? (
+                <RefreshStatsButton
+                  lastRefreshedLabel={
+                    profile.statsRefreshedAt
+                      ? ageLabel(profile.statsRefreshedAt)
+                      : null
+                  }
+                />
+              ) : null}
+            </div>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
               <div className="flex flex-col gap-1">
                 <dt className="text-[11px] font-semibold tracking-[0.12em] text-neutral-600 uppercase">
@@ -314,7 +332,11 @@ export default async function CreatorDashboardPage() {
               align="start"
               title={bookable ? NO_DEALS_TITLE : NOT_BOOKABLE_TITLE}
               description={
-                bookable ? NO_DEALS_DESCRIPTION : NOT_BOOKABLE_DESCRIPTION
+                bookable
+                  ? NO_DEALS_DESCRIPTION
+                  : tiktokLinked
+                    ? NOT_BOOKABLE_TIKTOK_DESCRIPTION
+                    : NOT_BOOKABLE_DESCRIPTION
               }
             />
           </div>

@@ -369,6 +369,8 @@ const subjects: {
     `Fund ${p.campaignTitle} — ${p.creatorHandle} accepted`,
   offer_declined: (p) => `${p.creatorHandle} declined your offer`,
   metric_reminder: (p) => `Metrics still pending for ${p.campaignTitle}`,
+  tier_upgraded: (p) => `You moved up to the ${p.tierName} tier`,
+  tier_assigned: (p) => `Your tier was set to ${p.tierName}`,
 };
 
 function Content({ type, payload }: NotificationInput): React.ReactElement {
@@ -413,15 +415,32 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
 
     case 'verification_result':
       return payload.outcome === 'approved' ? (
-        <Layout
-          preview="Brands can now find you"
-          heading="Your profile is verified"
-        >
-          <Text style={styles.text}>
-            You are now visible to brands and can start receiving offers.
-          </Text>
-          <Cta href={appUrl('/creator')} label="View your profile →" />
-        </Layout>
+        // Discovery lists only tiered creators, so "visible to brands" is only
+        // true when onboarding also priced them. `tiered` is absent on rows
+        // from before the field existed — all of which were sent with the
+        // visible-to-brands copy — so absent reads as `true`.
+        payload.tiered === false ? (
+          <Layout
+            preview="Verified — pricing review in progress"
+            heading="Your profile is verified"
+          >
+            <Text style={styles.text}>
+              We are finishing your pricing review. You will appear to brands as
+              soon as a tier is set — nothing is needed from you.
+            </Text>
+            <Cta href={appUrl('/creator')} label="View your profile →" />
+          </Layout>
+        ) : (
+          <Layout
+            preview="Brands can now find you"
+            heading="Your profile is verified"
+          >
+            <Text style={styles.text}>
+              You are now visible to brands and can start receiving offers.
+            </Text>
+            <Cta href={appUrl('/creator')} label="View your profile →" />
+          </Layout>
+        )
       ) : (
         <Layout
           preview="Your profile was not approved"
@@ -667,6 +686,45 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             href={appUrl(`/creator/deals/${payload.dealId}`)}
             label="Submit your metrics →"
           />
+        </Layout>
+      );
+
+    case 'tier_upgraded':
+      // Phase 3: a stats refresh (manual or the weekly cron) qualified the
+      // creator for a higher band. Only upgrades mail — a downgrade waits for
+      // an admin decision and says nothing until one is made.
+      return (
+        <Layout
+          preview={`Your refreshed stats earned the ${payload.tierName} tier`}
+          heading={`You're now on the ${payload.tierName} tier`}
+        >
+          <Text style={styles.text}>
+            Your refreshed TikTok stats qualify you for{' '}
+            <strong>{payload.tierName}</strong>. Your price per video is now{' '}
+            <strong>{formatEtb(payload.pricePerVideo)}</strong>.
+          </Text>
+          <Cta href={appUrl('/creator')} label="View your profile →" />
+        </Layout>
+      );
+
+    case 'tier_assigned':
+      // Phase 3 cleanup: an admin run of tier assignment changed the band.
+      // Direction-neutral — the admin paths apply upgrades, downgrades and
+      // first-time pricing alike, so the body states the new fact without
+      // celebrating or apologising. "Visible to brands" is safe here: a tier
+      // plus verified status is exactly discovery's listing condition.
+      return (
+        <Layout
+          preview={`Your price per video is now ${formatEtb(payload.pricePerVideo)}`}
+          heading={`Your tier was set to ${payload.tierName}`}
+        >
+          <Text style={styles.text}>
+            An admin reviewed your profile and set your tier to{' '}
+            <strong>{payload.tierName}</strong>. Your price per video is now{' '}
+            <strong>{formatEtb(payload.pricePerVideo)}</strong>, and you are
+            visible to brands at that price.
+          </Text>
+          <Cta href={appUrl('/creator')} label="View your profile →" />
         </Layout>
       );
   }
