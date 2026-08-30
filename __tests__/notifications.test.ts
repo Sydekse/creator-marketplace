@@ -179,6 +179,10 @@ describe('notification types', () => {
       'offer_declined',
       'metric_reminder',
       'tier_upgraded',
+      // Phase 3 cleanup: an admin run of tier assignment changed the band —
+      // the moment a creator actually becomes bookable when onboarding could
+      // not price them. Direction-neutral by design; see the type's comment.
+      'tier_assigned',
     ]);
   });
 
@@ -227,6 +231,39 @@ describe('renderNotification', () => {
 
     expect(message.subject).toBe('Your creator profile needs another look');
     expect(message.text).toContain('The handle did not match the account.');
+  });
+
+  it('renders the verified-but-untiered branch — no false visibility claim', async () => {
+    // Discovery lists only tiered creators, so an approval that assigned no
+    // tier must not say "visible to brands" (phase 3 cleanup).
+    const message = await renderNotification({
+      type: 'verification_result',
+      payload: { creatorProfileId: 'c1', outcome: 'approved', tiered: false },
+    });
+
+    expect(message.subject).toBe('Your creator profile is verified');
+    expect(message.text).toContain('pricing review');
+    expect(message.text).not.toContain('visible to brands');
+  });
+
+  it('treats a pre-phase-3 approval row without `tiered` as tiered', async () => {
+    // Rows written before the field existed were all sent with the
+    // visible-to-brands copy; re-rendering them must not rewrite history.
+    const message = await renderNotification({
+      type: 'verification_result',
+      payload: { creatorProfileId: 'c1', outcome: 'approved' },
+    });
+
+    expect(message.text).toContain('visible to brands');
+  });
+
+  it('tier_assigned names the tier, the price, and the visibility it grants', async () => {
+    const message = await renderNotification(SAMPLES.tier_assigned);
+
+    expect(message.subject).toBe('Your tier was set to Mid');
+    expect(message.text).toContain('Mid');
+    expect(message.text).toContain('4,000.00 ETB');
+    expect(message.text).toContain('visible to brands');
   });
 
   it('names the brand on an offer, which is KAN-27 AC-3', async () => {

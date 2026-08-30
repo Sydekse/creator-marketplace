@@ -27,6 +27,7 @@ import {
 import type { Niche } from '@/lib/config/creator-profile';
 import {
   NOT_BOOKABLE_DESCRIPTION,
+  NOT_BOOKABLE_TIKTOK_DESCRIPTION,
   NOT_BOOKABLE_TITLE,
   NO_DEALS_DESCRIPTION,
   NO_DEALS_TITLE,
@@ -329,7 +330,11 @@ export default async function CreatorDashboardPage() {
               align="start"
               title={bookable ? NO_DEALS_TITLE : NOT_BOOKABLE_TITLE}
               description={
-                bookable ? NO_DEALS_DESCRIPTION : NOT_BOOKABLE_DESCRIPTION
+                bookable
+                  ? NO_DEALS_DESCRIPTION
+                  : tiktokLinked
+                    ? NOT_BOOKABLE_TIKTOK_DESCRIPTION
+                    : NOT_BOOKABLE_DESCRIPTION
               }
             />
           </div>

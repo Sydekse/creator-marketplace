@@ -408,3 +408,10 @@ export const NO_DEALS_DESCRIPTION =
 export const NOT_BOOKABLE_TITLE = 'No deals yet.';
 export const NOT_BOOKABLE_DESCRIPTION =
   'Brands can send you offers once your profile is verified and priced. Nothing is needed from you in the meantime.';
+/**
+ * The TikTok-linked variant of the sentence above. "Nothing is needed from
+ * you" is wrong for a creator whose stats came up short at onboarding — they
+ * *can* post, then use the refresh button on this same page (phase 3 cleanup).
+ */
+export const NOT_BOOKABLE_TIKTOK_DESCRIPTION =
+  'Brands can send you offers once your profile is verified and priced. Posting on TikTok and refreshing your stats above can qualify you for a tier.';

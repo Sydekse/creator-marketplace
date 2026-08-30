@@ -11,6 +11,8 @@ import type {
   AssignTierDeps,
   TierOutcome,
 } from '@/lib/creators/tier-assignment';
+import { notify as defaultNotify } from '@/lib/notifications/notify';
+import type { Notify } from '@/lib/notifications/notify';
 import {
   ErrorCode,
   ErrorHttpStatus,
@@ -42,10 +44,12 @@ export interface AssignTierRouteDeps {
   guard: (options: GuardOptions) => Promise<unknown>;
   adminAuditDeps?: Partial<AdminAuditDeps>;
   assignTierDeps?: AssignTierDeps;
+  notify?: Notify;
 }
 
 interface AssignResult {
   id: string;
+  userId: string;
   tier: TierOutcome;
   before: { tierId: string | null };
 }
@@ -112,6 +116,7 @@ export async function handleAssignTier(
         const [creator] = await tx
           .select({
             id: creatorProfile.id,
+            userId: creatorProfile.userId,
             status: creatorProfile.status,
             tierId: creatorProfile.tierId,
             followerCount: creatorProfile.followerCount,
@@ -149,10 +154,36 @@ export async function handleAssignTier(
           .set({ tierReviewAt: null })
           .where(eq(creatorProfile.id, creator.id));
 
-        return { id: creator.id, tier, before: { tierId: creator.tierId } };
+        return {
+          id: creator.id,
+          userId: creator.userId,
+          tier,
+          before: { tierId: creator.tierId },
+        };
       },
       deps?.adminAuditDeps ?? {}
     );
+
+    // Tell the creator only when the run actually changed their band —
+    // pressing Retry on unchanged numbers is an admin no-op, not news. After
+    // the audit transaction on purpose: an email failure must never roll back
+    // an admin decision, and the standalone `notify` writes its own in-app
+    // row (AC-1). Failures are logged by the dispatcher and swallowed here.
+    if (result.tier.assigned && result.tier.tierId !== result.before.tierId) {
+      try {
+        await (deps?.notify ?? defaultNotify)(result.userId, 'tier_assigned', {
+          creatorProfileId: result.id,
+          tierName: result.tier.tierName,
+          pricePerVideo: result.tier.pricePerVideo,
+        });
+      } catch (error) {
+        console.error(
+          `[assign-tier] tier_assigned notification failed: ${
+            error instanceof Error ? error.message : 'unknown'
+          }`
+        );
+      }
+    }
 
     // `before` is the tier the creator held when the transaction opened, already
     // computed for the audit detail. Surfacing it is what makes a no-match
