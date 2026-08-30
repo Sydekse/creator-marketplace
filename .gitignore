@@ -52,3 +52,11 @@ project_context/
 # Playwright (KAN-60)
 /playwright-report
 /test-results
+
+# graphify knowledge graph — generated artifacts (graph.json, graph.html,
+# GRAPH_REPORT.md, obsidian vault, extraction cache). Rebuild with /graphify.
+graphify-out/
+
+# graphify's PreToolUse hooks embed a machine-specific absolute path to the
+# graphify binary, so this is local config (same rule as CLAUDE.md above).
+.claude/
