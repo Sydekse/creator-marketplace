@@ -87,13 +87,17 @@ const engagementRate = z
  * — see `lib/creators/handle.ts` for why that matters.
  */
 export const createCreatorSchema = z.object({
+  // Optional because TikTok-linked sign-ups don't send one — the session
+  // already carries the OAuth-proven handle, and `createCreatorProfile`
+  // rejects the request if neither the session nor the body supplies one.
   tiktokHandle: z
     .string({ message: 'TikTok handle is required.' })
     .transform(normalizeTiktokHandle)
     .refine(isValidTiktokHandle, {
       message:
         'Enter a valid TikTok handle — 2–24 letters, numbers, underscores or periods.',
-    }),
+    })
+    .optional(),
   niche: z.enum(NICHES, { message: 'Choose a niche.' }),
   audience: z.object({
     topCountries: z

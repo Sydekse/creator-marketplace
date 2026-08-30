@@ -126,6 +126,12 @@ export const creatorProfile = pgTable(
       .notNull()
       .default('pending_verification'),
     verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    // Last time follower/engagement numbers were pulled from the TikTok API.
+    // Null for email (demo) sign-ups and for TikTok creators whose fetch failed.
+    statsRefreshedAt: timestamp('stats_refreshed_at', { withTimezone: true }),
+    // Set when refreshed stats suggest a *lower* tier (or no tier) than the
+    // current one — tiers never auto-drop; an admin reviews and decides.
+    tierReviewAt: timestamp('tier_review_at', { withTimezone: true }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

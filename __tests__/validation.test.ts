@@ -241,9 +241,20 @@ describe('createCreatorSchema', () => {
     expect(result.niche).toBe('beauty');
   });
 
-  it('rejects missing tiktokHandle', () => {
+  it('accepts a missing tiktokHandle (TikTok-linked users get it from the session)', () => {
+    // Optional at the schema layer only — `createCreatorProfile` still rejects
+    // when neither the session nor the body supplies a handle.
+    const result = createCreatorSchema.parse({
+      niche: 'beauty',
+      audience: { topCountries: ['ET'], ageRange: '18-24' },
+    });
+    expect(result.tiktokHandle).toBeUndefined();
+  });
+
+  it('still rejects an invalid tiktokHandle when one is sent', () => {
     expect(() =>
       createCreatorSchema.parse({
+        tiktokHandle: '@!',
         niche: 'beauty',
         audience: { topCountries: ['ET'], ageRange: '18-24' },
       })
