@@ -1178,7 +1178,9 @@ describe('Login Kit handle is what onboarding shows and stores', () => {
     // The payload must not carry a typed handle or typed stats for a linked
     // account; the strict server ignores them, and a form that sends them
     // anyway invites the two to drift apart.
-    expect(form).toContain("tiktokHandle: tiktokMode ? undefined : handleInput");
+    expect(form).toContain(
+      'tiktokHandle: tiktokMode ? undefined : handleInput'
+    );
     expect(form).toMatch(/followerCount:\s*\n?\s*tiktokMode \|\|/);
     expect(form).toMatch(/engagementRate:\s*\n?\s*tiktokMode \|\|/);
   });

@@ -22,9 +22,8 @@ vi.mock('../lib/authz', async (importOriginal) => {
   return { ...actual, guard: guardMock };
 });
 
-const { handleRefreshStats } = await import(
-  '../app/api/creators/stats/refresh/route'
-);
+const { handleRefreshStats } =
+  await import('../app/api/creators/stats/refresh/route');
 
 const TIERS: TierCandidate[] = [
   {

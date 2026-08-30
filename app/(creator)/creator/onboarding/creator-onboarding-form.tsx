@@ -243,55 +243,55 @@ export function CreatorOnboardingForm({
               </div>
             ) : (
               <Field data-invalid={hasError('tiktokHandle') || undefined}>
-              <FieldLabel
-                htmlFor="tiktokHandle"
-                className="text-[13px] font-semibold text-neutral-700"
-              >
-                TikTok handle
-              </FieldLabel>
-              <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
-                {/* The @ is furniture, not input — typing one is handled by the
+                <FieldLabel
+                  htmlFor="tiktokHandle"
+                  className="text-[13px] font-semibold text-neutral-700"
+                >
+                  TikTok handle
+                </FieldLabel>
+                <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
+                  {/* The @ is furniture, not input — typing one is handled by the
                 normaliser, so both habits produce the same stored value. */}
-                <InputGroupAddon className="font-mono text-base">
-                  @
-                </InputGroupAddon>
-                <Input
-                  id="tiktokHandle"
-                  name="tiktokHandle"
-                  value={handleInput}
-                  onChange={(event) => setHandleInput(event.target.value)}
-                  readOnly={lockedHandle !== null}
-                  data-slot="input-group-control"
-                  className={`border-0 font-mono text-base shadow-none focus-visible:ring-0 ${
-                    lockedHandle !== null ? 'text-neutral-500' : ''
-                  }`}
-                  placeholder="yourhandle"
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  aria-invalid={hasError('tiktokHandle') || undefined}
-                  aria-describedby="tiktokHandle-preview"
-                />
-              </InputGroup>
-              <FieldDescription
-                id="tiktokHandle-preview"
-                className="text-[13px] leading-relaxed text-neutral-600"
-              >
-                {lockedHandle !== null ? (
-                  'Linked from your TikTok login. This is the account brands will review.'
-                ) : normalized === '' ? (
-                  'Use the account brands should review. 2–24 letters, numbers, underscores or periods.'
-                ) : (
-                  <>
-                    Saved as{' '}
-                    <span className="font-mono text-foreground">
-                      {normalized}
-                    </span>
-                    {handleChanged && '. Handles are stored in lower case.'}
-                  </>
-                )}
-              </FieldDescription>
-              <FieldError errors={fieldError('tiktokHandle')} />
+                  <InputGroupAddon className="font-mono text-base">
+                    @
+                  </InputGroupAddon>
+                  <Input
+                    id="tiktokHandle"
+                    name="tiktokHandle"
+                    value={handleInput}
+                    onChange={(event) => setHandleInput(event.target.value)}
+                    readOnly={lockedHandle !== null}
+                    data-slot="input-group-control"
+                    className={`border-0 font-mono text-base shadow-none focus-visible:ring-0 ${
+                      lockedHandle !== null ? 'text-neutral-500' : ''
+                    }`}
+                    placeholder="yourhandle"
+                    autoComplete="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    aria-invalid={hasError('tiktokHandle') || undefined}
+                    aria-describedby="tiktokHandle-preview"
+                  />
+                </InputGroup>
+                <FieldDescription
+                  id="tiktokHandle-preview"
+                  className="text-[13px] leading-relaxed text-neutral-600"
+                >
+                  {lockedHandle !== null ? (
+                    'Linked from your TikTok login. This is the account brands will review.'
+                  ) : normalized === '' ? (
+                    'Use the account brands should review. 2–24 letters, numbers, underscores or periods.'
+                  ) : (
+                    <>
+                      Saved as{' '}
+                      <span className="font-mono text-foreground">
+                        {normalized}
+                      </span>
+                      {handleChanged && '. Handles are stored in lower case.'}
+                    </>
+                  )}
+                </FieldDescription>
+                <FieldError errors={fieldError('tiktokHandle')} />
               </Field>
             )}
 
@@ -337,9 +337,7 @@ export function CreatorOnboardingForm({
         </section>
 
         <section
-          className={
-            tiktokMode ? 'py-9' : 'border-b border-neutral-200 py-9'
-          }
+          className={tiktokMode ? 'py-9' : 'border-b border-neutral-200 py-9'}
         >
           <div className="mb-6">
             <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
@@ -421,85 +419,85 @@ export function CreatorOnboardingForm({
             sign-ups, so inputs here would be a lie. */}
         {!tiktokMode && (
           <section className="py-9">
-          <div className="mb-6">
-            <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
-              Performance
-            </p>
-            <p className="mt-2 text-sm leading-relaxed text-neutral-600">
-              {lockedFollowers !== null || lockedEngagement !== null
-                ? 'Pulled from your TikTok account. These set your tier and rate.'
-                : 'Optional. Add these if you know them; you can still submit without them.'}
-            </p>
-          </div>
-          <div className="grid gap-7 sm:grid-cols-2">
-            <Field data-invalid={hasError('followerCount') || undefined}>
-              <FieldLabel
-                htmlFor="followerCount"
-                className="text-[13px] font-semibold text-neutral-700"
-              >
-                Followers{' '}
-                <span className="font-normal text-muted-foreground">
-                  {lockedFollowers !== null ? '(from TikTok)' : '(optional)'}
-                </span>
-              </FieldLabel>
-              <Input
-                id="followerCount"
-                name="followerCount"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                step={1}
-                value={followerCount}
-                onChange={(event) => setFollowerCount(event.target.value)}
-                readOnly={lockedFollowers !== null}
-                className={`h-12 bg-neutral-50 px-4 font-mono focus-visible:bg-white ${
-                  lockedFollowers !== null ? 'text-neutral-500' : ''
-                }`}
-                placeholder="12000"
-                aria-invalid={hasError('followerCount') || undefined}
-              />
-              <FieldError errors={fieldError('followerCount')} />
-            </Field>
-
-            <Field data-invalid={hasError('engagementRate') || undefined}>
-              <FieldLabel
-                htmlFor="engagementRate"
-                className="text-[13px] font-semibold text-neutral-700"
-              >
-                Engagement rate{' '}
-                <span className="font-normal text-muted-foreground">
-                  {lockedEngagement !== null ? '(from TikTok)' : '(optional)'}
-                </span>
-              </FieldLabel>
-              <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
+            <div className="mb-6">
+              <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
+                Performance
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-neutral-600">
+                {lockedFollowers !== null || lockedEngagement !== null
+                  ? 'Pulled from your TikTok account. These set your tier and rate.'
+                  : 'Optional. Add these if you know them; you can still submit without them.'}
+              </p>
+            </div>
+            <div className="grid gap-7 sm:grid-cols-2">
+              <Field data-invalid={hasError('followerCount') || undefined}>
+                <FieldLabel
+                  htmlFor="followerCount"
+                  className="text-[13px] font-semibold text-neutral-700"
+                >
+                  Followers{' '}
+                  <span className="font-normal text-muted-foreground">
+                    {lockedFollowers !== null ? '(from TikTok)' : '(optional)'}
+                  </span>
+                </FieldLabel>
                 <Input
-                  id="engagementRate"
-                  name="engagementRate"
+                  id="followerCount"
+                  name="followerCount"
                   type="number"
-                  inputMode="decimal"
+                  inputMode="numeric"
                   min={0}
-                  max={100}
-                  step={0.01}
-                  value={engagementRate}
-                  onChange={(event) => setEngagementRate(event.target.value)}
-                  readOnly={lockedEngagement !== null}
-                  data-slot="input-group-control"
-                  className={`border-0 font-mono shadow-none focus-visible:ring-0 ${
-                    lockedEngagement !== null ? 'text-neutral-500' : ''
+                  step={1}
+                  value={followerCount}
+                  onChange={(event) => setFollowerCount(event.target.value)}
+                  readOnly={lockedFollowers !== null}
+                  className={`h-12 bg-neutral-50 px-4 font-mono focus-visible:bg-white ${
+                    lockedFollowers !== null ? 'text-neutral-500' : ''
                   }`}
-                  placeholder="4.20"
-                  aria-invalid={hasError('engagementRate') || undefined}
+                  placeholder="12000"
+                  aria-invalid={hasError('followerCount') || undefined}
                 />
-                <InputGroupAddon align="inline-end">%</InputGroupAddon>
-              </InputGroup>
-              <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
-                {lockedEngagement !== null
-                  ? 'Computed from your recent videos: likes, comments and shares per view.'
-                  : ENGAGEMENT_RATE_HINT}
-              </FieldDescription>
-              <FieldError errors={fieldError('engagementRate')} />
-            </Field>
-          </div>
+                <FieldError errors={fieldError('followerCount')} />
+              </Field>
+
+              <Field data-invalid={hasError('engagementRate') || undefined}>
+                <FieldLabel
+                  htmlFor="engagementRate"
+                  className="text-[13px] font-semibold text-neutral-700"
+                >
+                  Engagement rate{' '}
+                  <span className="font-normal text-muted-foreground">
+                    {lockedEngagement !== null ? '(from TikTok)' : '(optional)'}
+                  </span>
+                </FieldLabel>
+                <InputGroup className="h-12 bg-neutral-50 focus-within:bg-white">
+                  <Input
+                    id="engagementRate"
+                    name="engagementRate"
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    max={100}
+                    step={0.01}
+                    value={engagementRate}
+                    onChange={(event) => setEngagementRate(event.target.value)}
+                    readOnly={lockedEngagement !== null}
+                    data-slot="input-group-control"
+                    className={`border-0 font-mono shadow-none focus-visible:ring-0 ${
+                      lockedEngagement !== null ? 'text-neutral-500' : ''
+                    }`}
+                    placeholder="4.20"
+                    aria-invalid={hasError('engagementRate') || undefined}
+                  />
+                  <InputGroupAddon align="inline-end">%</InputGroupAddon>
+                </InputGroup>
+                <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
+                  {lockedEngagement !== null
+                    ? 'Computed from your recent videos: likes, comments and shares per view.'
+                    : ENGAGEMENT_RATE_HINT}
+                </FieldDescription>
+                <FieldError errors={fieldError('engagementRate')} />
+              </Field>
+            </div>
           </section>
         )}
 

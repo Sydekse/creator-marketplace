@@ -123,11 +123,7 @@ function RowActions({ row }: { row: FlaggedReviewRow }) {
           assign route never clears one), so the button only appears when there
           is a band to move to — otherwise Dismiss is the whole decision. */}
       {row.suggested.assigned && (
-        <Button
-          size="sm"
-          onClick={handleApply}
-          disabled={submitting !== null}
-        >
+        <Button size="sm" onClick={handleApply} disabled={submitting !== null}>
           {submitting === 'apply' ? (
             <Spinner className="size-3" />
           ) : (

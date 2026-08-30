@@ -171,9 +171,7 @@ export async function refreshCreatorStats(
     // Tiers loaded once and shared with `assignTier` via a caching loader, so
     // the up/down judgement and the assignment read the same ladder snapshot.
     const loadTiers = deps?.assignTierDeps?.loadTiers;
-    const tiers = loadTiers
-      ? await loadTiers(tx)
-      : await defaultTierLoad(tx);
+    const tiers = loadTiers ? await loadTiers(tx) : await defaultTierLoad(tx);
     const cachedDeps: AssignTierDeps = { loadTiers: async () => tiers };
 
     const newNumbers = {

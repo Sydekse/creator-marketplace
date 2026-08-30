@@ -108,7 +108,10 @@ export async function handleDismissReview(
           .set({ tierReviewAt: null })
           .where(eq(creatorProfile.id, creator.id));
 
-        return { id: creator.id, dismissed: { tierReviewAt: creator.tierReviewAt } };
+        return {
+          id: creator.id,
+          dismissed: { tierReviewAt: creator.tierReviewAt },
+        };
       },
       deps?.adminAuditDeps ?? {}
     );

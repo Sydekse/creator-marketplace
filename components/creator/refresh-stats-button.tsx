@@ -66,7 +66,8 @@ export function RefreshStatsButton({
       setNotice({
         tone: 'success',
         text:
-          body.tier_change.kind === 'upgraded' && 'tier_name' in body.tier_change
+          body.tier_change.kind === 'upgraded' &&
+          'tier_name' in body.tier_change
             ? `Stats updated — you moved up to the ${body.tier_change.tier_name} tier!`
             : 'Stats updated from TikTok.',
       });
