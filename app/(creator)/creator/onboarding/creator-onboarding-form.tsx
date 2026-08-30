@@ -76,6 +76,13 @@ export function CreatorOnboardingForm({
 } = {}) {
   const router = useRouter();
 
+  // The two modes of this form (phase 3). A TikTok sign-up has a linked
+  // account: the server writes the session handle and its own fetched stats
+  // no matter what the body says, so this form only asks for what cannot be
+  // fetched — niche and audience — and *shows* the rest. Email (demo)
+  // sign-ups keep the full manual form.
+  const tiktokMode = lockedHandle !== null;
+
   const lockedFollowers = lockedStats?.followerCount ?? null;
   const lockedEngagement = lockedStats?.engagementRate ?? null;
 
@@ -116,16 +123,21 @@ export function CreatorOnboardingForm({
 
     // Empty optional numbers are absent, not zero — a creator who leaves
     // follower count blank has not told us they have no followers.
+    // TikTok mode sends neither handle nor numbers: the server sources both
+    // from the session and the API, and a body value would be ignored anyway.
     const payload = {
-      tiktokHandle: handleInput,
+      tiktokHandle: tiktokMode ? undefined : handleInput,
       niche,
       audience: {
         topCountries: markets,
         ageRange,
       },
-      followerCount: followerCount === '' ? undefined : Number(followerCount),
+      followerCount:
+        tiktokMode || followerCount === '' ? undefined : Number(followerCount),
       engagementRate:
-        engagementRate === '' ? undefined : Number(engagementRate),
+        tiktokMode || engagementRate === ''
+          ? undefined
+          : Number(engagementRate),
     };
 
     const parsed = createCreatorSchema.safeParse(payload);
@@ -191,7 +203,46 @@ export function CreatorOnboardingForm({
             </p>
           </div>
           <div className="grid gap-7 sm:grid-cols-2">
-            <Field data-invalid={hasError('tiktokHandle') || undefined}>
+            {tiktokMode ? (
+              /* Nothing here is input: the handle comes from the session and
+                 the numbers from the API, both server-sourced on submit. */
+              <div className="flex flex-col gap-3 rounded-2xl border border-brand/30 bg-brand-tint/40 p-5">
+                <p className="text-[13px] font-semibold text-neutral-700">
+                  Linked TikTok account
+                </p>
+                <p className="font-mono text-lg text-neutral-900">
+                  @{lockedHandle!.replace(/^@+/, '')}
+                </p>
+                <dl className="grid grid-cols-2 gap-3 border-t border-brand/20 pt-3">
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Followers
+                    </dt>
+                    <dd className="mt-1 font-mono text-sm tabular-nums text-neutral-900">
+                      {lockedFollowers !== null
+                        ? lockedFollowers.toLocaleString('en-US')
+                        : '—'}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                      Engagement
+                    </dt>
+                    <dd className="mt-1 font-mono text-sm tabular-nums text-neutral-900">
+                      {lockedEngagement !== null ? `${lockedEngagement}%` : '—'}
+                    </dd>
+                  </div>
+                </dl>
+                <p className="text-[13px] leading-relaxed text-neutral-600">
+                  {lockedFollowers === null && lockedEngagement === null
+                    ? 'We could not pull your stats yet. You can refresh them from your dashboard after onboarding.'
+                    : lockedEngagement === null
+                      ? 'No engagement data yet — it appears once your account has public videos. Refresh from your dashboard later.'
+                      : 'Pulled from your TikTok account. These set your tier and rate, and refresh automatically.'}
+                </p>
+              </div>
+            ) : (
+              <Field data-invalid={hasError('tiktokHandle') || undefined}>
               <FieldLabel
                 htmlFor="tiktokHandle"
                 className="text-[13px] font-semibold text-neutral-700"
@@ -241,7 +292,8 @@ export function CreatorOnboardingForm({
                 )}
               </FieldDescription>
               <FieldError errors={fieldError('tiktokHandle')} />
-            </Field>
+              </Field>
+            )}
 
             <Field data-invalid={hasError('niche') || undefined}>
               <FieldLabel
@@ -284,7 +336,11 @@ export function CreatorOnboardingForm({
           </div>
         </section>
 
-        <section className="border-b border-neutral-200 py-9">
+        <section
+          className={
+            tiktokMode ? 'py-9' : 'border-b border-neutral-200 py-9'
+          }
+        >
           <div className="mb-6">
             <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Audience
@@ -359,10 +415,12 @@ export function CreatorOnboardingForm({
         </section>
 
         {/* Optional, and labelled as such: a creator who cannot find these
-            numbers must still be able to finish onboarding. API-sourced values
-            render read-only — the server re-fetches and overrides the body, so
-            an editable field would be a lie. */}
-        <section className="py-9">
+            numbers must still be able to finish onboarding. Email mode only —
+            a linked account's numbers are fetched, shown above, and never
+            typed (phase 3): the server ignores body stats for TikTok
+            sign-ups, so inputs here would be a lie. */}
+        {!tiktokMode && (
+          <section className="py-9">
           <div className="mb-6">
             <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Performance
@@ -442,7 +500,8 @@ export function CreatorOnboardingForm({
               <FieldError errors={fieldError('engagementRate')} />
             </Field>
           </div>
-        </section>
+          </section>
+        )}
 
         {hasError('_root') && (
           <FieldError errors={fieldError('_root')} className="text-sm" />
@@ -459,8 +518,9 @@ export function CreatorOnboardingForm({
             {submitting ? 'Submitting…' : 'Create profile'}
           </Button>
           <p className="text-[13px] leading-relaxed text-neutral-600">
-            Your profile goes live as soon as it is created. Brands can find you
-            in search once your numbers place you on a pricing tier.
+            {tiktokMode
+              ? 'Your profile goes live as soon as it is created. Your tier and rate come from your TikTok numbers and refresh automatically.'
+              : 'Your profile goes live as soon as it is created. Brands can find you in search once your numbers place you on a pricing tier.'}
           </p>
         </div>
       </FieldGroup>
