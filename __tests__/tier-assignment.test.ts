@@ -518,14 +518,23 @@ describe('POST /api/admin/creators/:id/assign-tier', () => {
   function routeDeps(
     creator: {
       id: string;
+      userId: string;
       status: string;
       tierId: string | null;
       followerCount: number | null;
       engagementRate: string | null;
     } | null,
     overrides: Partial<AssignTierRouteDeps> = {}
-  ): { deps: AssignTierRouteDeps; rows: Record<string, unknown>[] } {
+  ): {
+    deps: AssignTierRouteDeps;
+    rows: Record<string, unknown>[];
+    notified: Array<{ userId: string; type: string; payload: unknown }>;
+  } {
     const rows: Record<string, unknown>[] = [];
+    // Captured rather than defaulted: the default `notify` opens a real
+    // database connection, which a unit test must never do.
+    const notified: Array<{ userId: string; type: string; payload: unknown }> =
+      [];
 
     const tx = {
       select: vi.fn(() => ({
@@ -563,14 +572,19 @@ describe('POST /api/admin/creators/:id/assign-tier', () => {
         guard: async () => ADMIN_USER,
         adminAuditDeps,
         assignTierDeps: { loadTiers: async () => LADDER },
+        notify: async (userId, type, payload) => {
+          notified.push({ userId, type, payload });
+        },
         ...overrides,
       },
       rows,
+      notified,
     };
   }
 
   const verified = {
     id: VALID_ID,
+    userId: 'user-assign-1',
     status: 'verified',
     tierId: null,
     followerCount: 120_000,
@@ -781,8 +795,10 @@ describe('POST /api/admin/creators/:id/assign-tier', () => {
 
       await handleAssignTier(VALID_ID, deps);
 
-      // No write at all on a no-match, so there is nothing that could clear it.
-      expect(set).not.toHaveBeenCalled();
+      // The only write on a no-match is the phase-3 review-flag reset —
+      // nothing touches tier_id, so nothing could clear it.
+      expect(set).toHaveBeenCalledTimes(1);
+      expect(set).toHaveBeenCalledWith({ tierReviewAt: null });
     });
 
     it('still upgrades a tiered creator who now matches a higher band', async () => {
@@ -800,6 +816,67 @@ describe('POST /api/admin/creators/:id/assign-tier', () => {
 
       expect(body.tier).toMatchObject({ assigned: true, id: 'tier-macro' });
       expect(body.before).toEqual({ tier_id: 'tier-micro' });
+    });
+
+    it('notifies the creator when the run changed their tier', async () => {
+      const { deps, notified } = routeDeps({
+        ...verified,
+        tierId: 'tier-micro',
+        followerCount: 900_000,
+        engagementRate: '6.00',
+      });
+
+      await handleAssignTier(VALID_ID, deps);
+
+      expect(notified).toEqual([
+        {
+          userId: 'user-assign-1',
+          type: 'tier_assigned',
+          payload: {
+            creatorProfileId: VALID_ID,
+            tierName: 'Macro',
+            pricePerVideo: 900_000,
+          },
+        },
+      ]);
+    });
+
+    it('notifies on a first-time assignment — null to tiered is a change', async () => {
+      const { deps, notified } = routeDeps(verified);
+
+      await handleAssignTier(VALID_ID, deps);
+
+      expect(notified).toEqual([
+        {
+          userId: 'user-assign-1',
+          type: 'tier_assigned',
+          payload: {
+            creatorProfileId: VALID_ID,
+            tierName: 'Mid',
+            pricePerVideo: 400_000,
+          },
+        },
+      ]);
+    });
+
+    it('stays silent when the rerun selects the tier already held', async () => {
+      // Pressing Retry on unchanged numbers is an admin no-op, not news.
+      const { deps, notified } = routeDeps({
+        ...verified,
+        tierId: 'tier-mid',
+      });
+
+      await handleAssignTier(VALID_ID, deps);
+
+      expect(notified).toEqual([]);
+    });
+
+    it('stays silent when no band matches', async () => {
+      const { deps, notified } = routeDeps(tieredNoMatch);
+
+      await handleAssignTier(VALID_ID, deps);
+
+      expect(notified).toEqual([]);
     });
 
     it('records the same before value in the audit row as in the response', async () => {
@@ -834,7 +911,9 @@ describe('PATCH /api/admin/creators/:id', () => {
   function routeDeps(
     creator: {
       id: string;
+      userId: string;
       status: string;
+      tierId: string | null;
       followerCount: number | null;
       engagementRate: string | null;
     } | null,
@@ -843,9 +922,14 @@ describe('PATCH /api/admin/creators/:id', () => {
     deps: UpdateCreatorRouteDeps;
     rows: Record<string, unknown>[];
     sets: Record<string, unknown>[];
+    notified: Array<{ userId: string; type: string; payload: unknown }>;
   } {
     const rows: Record<string, unknown>[] = [];
     const sets: Record<string, unknown>[] = [];
+    // Captured for the same reason as the assign-tier seam: the default
+    // `notify` opens a real database connection.
+    const notified: Array<{ userId: string; type: string; payload: unknown }> =
+      [];
 
     const tx = {
       select: vi.fn(() => ({
@@ -886,17 +970,23 @@ describe('PATCH /api/admin/creators/:id', () => {
         guard: async () => ADMIN_USER,
         adminAuditDeps,
         assignTierDeps: { loadTiers: async () => LADDER },
+        notify: async (userId, type, payload) => {
+          notified.push({ userId, type, payload });
+        },
         ...overrides,
       },
       rows,
       sets,
+      notified,
     };
   }
 
   /** Verified, but onboarded with no numbers — the reason it is stuck. */
   const stuck = {
     id: VALID_ID,
+    userId: 'user-patch-1',
     status: 'verified',
+    tierId: null,
     followerCount: null,
     engagementRate: null,
   };
@@ -930,6 +1020,58 @@ describe('PATCH /api/admin/creators/:id', () => {
       { followerCount: 120_000, engagementRate: '3.00' },
       { tierId: 'tier-mid' },
     ]);
+  });
+
+  it('notifies the creator when the corrected numbers tier them', async () => {
+    const { deps, notified } = routeDeps(stuck);
+
+    await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({ followerCount: 120_000, engagementRate: 3 }),
+      deps
+    );
+
+    expect(notified).toEqual([
+      {
+        userId: 'user-patch-1',
+        type: 'tier_assigned',
+        payload: {
+          creatorProfileId: VALID_ID,
+          tierName: 'Mid',
+          pricePerVideo: 400_000,
+        },
+      },
+    ]);
+  });
+
+  it('stays silent when the edit reselects the tier already held', async () => {
+    const { deps, notified } = routeDeps({
+      ...stuck,
+      tierId: 'tier-mid',
+      followerCount: 110_000,
+      engagementRate: '3.00',
+    });
+
+    await handleUpdateCreatorNumbers(
+      VALID_ID,
+      request({ followerCount: 120_000 }),
+      deps
+    );
+
+    expect(notified).toEqual([]);
+  });
+
+  it('stays silent when the corrected numbers still match no band', async () => {
+    const { deps, notified } = routeDeps(stuck);
+
+    await handleUpdateCreatorNumbers(
+      VALID_ID,
+      // Followers alone cannot tier — the ladder needs both numbers.
+      request({ followerCount: 120_000 }),
+      deps
+    );
+
+    expect(notified).toEqual([]);
   });
 
   it('writes only the field supplied, merging the other from the stored row', async () => {

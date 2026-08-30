@@ -1,11 +1,15 @@
 import { createCreatorProfile } from '@/lib/creators/create-profile';
 import type { CreateProfileDeps } from '@/lib/creators/create-profile';
+import { sessionTiktokHandle } from '@/lib/creators/credentials';
+import { tierOutcomeToResponse } from '@/lib/creators/tier-assignment';
 import {
   DISCOVERY_PARAM_ALIASES,
   readDiscovery,
 } from '@/lib/creators/discovery';
 import type { DiscoveryDeps, DiscoveryPage } from '@/lib/creators/discovery';
 import { guard, toErrorResponse } from '@/lib/authz';
+import { needsCredentials } from '@/lib/auth';
+import { fetchTiktokStats } from '@/lib/tiktok/stats';
 import { conflictDetails, readParams } from '@/lib/query-params';
 import {
   ErrorCode,
@@ -38,7 +42,7 @@ export const runtime = 'nodejs';
  */
 export async function handleCreateCreator(
   request: Request,
-  deps?: CreateProfileDeps
+  deps?: Partial<CreateProfileDeps>
 ): Promise<Response> {
   let userId: string;
   try {
@@ -47,6 +51,17 @@ export async function handleCreateCreator(
     // source of the owner: a `userId` in the body would be an account-takeover
     // vector and is ignored (the schema does not even declare the field).
     const ctx = await guard({ roles: ['creator'] });
+    // A TikTok sign-up has no real email until the credentials step. Creating
+    // a profile before that would park onboarding on an address Resend cannot
+    // reach, so the profile can only exist once the email does (phase 1).
+    if (needsCredentials(ctx.user)) {
+      return Response.json(
+        errorResponse(ErrorCode.VALIDATION_ERROR, {
+          _root: ['Add an email and password first.'],
+        }),
+        { status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR] }
+      );
+    }
     userId = ctx.user.id;
   } catch (error) {
     return toErrorResponse(error);
@@ -69,9 +84,33 @@ export async function handleCreateCreator(
     });
   }
 
-  const result = await createCreatorProfile(userId, parsed.data, deps);
+  // Session-sourced values win over the body (phase 1 handle, phase 2 stats).
+  // A Login Kit user cannot rename themselves into somebody else's TikTok by
+  // editing the request, and cannot pad the numbers TikTok reported; email
+  // sign-ups still type both. The seams live on `CreateProfileDeps` so a test
+  // can stand in for the session read and the API call — an explicit `null`
+  // there means "nothing session-sourced", not "read the real thing".
+  const result = await createCreatorProfile(userId, parsed.data, {
+    ...deps,
+    sessionHandle:
+      deps && 'sessionHandle' in deps
+        ? deps.sessionHandle
+        : sessionTiktokHandle,
+    sessionStats:
+      deps && 'sessionStats' in deps ? deps.sessionStats : fetchTiktokStats,
+  });
 
   if (!result.ok) {
+    // Neither the session nor the body carried a handle — an email sign-up
+    // that skipped the field. Same envelope the schema's required error used
+    // to produce, keyed to the input so the form shows it inline.
+    if ('missingHandle' in result) {
+      return Response.json(
+        validationError({ tiktokHandle: ['TikTok handle is required.'] }),
+        { status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR] }
+      );
+    }
+
     // AC-003's exact user-facing string comes from `ErrorMessage`, so it cannot
     // drift from the acceptance criterion by being retyped here.
     const code =
@@ -94,12 +133,14 @@ export async function handleCreateCreator(
 
   // snake_case body, matching the tech spec §4.2 example response. The status
   // is echoed rather than hardcoded so the client shows what the database
-  // actually stored.
+  // actually stored. Tier included so the confirmation can say whether the
+  // profile is already bookable (phase 2).
   return Response.json(
     {
       id: result.profile.id,
       status: result.profile.status,
       tiktok_handle: result.profile.tiktokHandle,
+      tier: tierOutcomeToResponse(result.tier),
     },
     { status: 201 }
   );

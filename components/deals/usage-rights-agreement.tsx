@@ -2,6 +2,7 @@
 
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/lib/utils';
 import type { RightsTermsRow } from '@/components/deals/usage-rights';
 
 /**
@@ -51,17 +52,24 @@ export function UsageRightsAgreement({
   const id = `rights-agreement-${terms.version}`;
 
   return (
-    <div className="bg-card flex flex-row items-start gap-3 rounded-md border p-4">
+    <div
+      className={cn(
+        'flex flex-row items-start gap-3 rounded-xl border p-4 transition-all duration-200 ease-out',
+        checked
+          ? 'border-brand/50 bg-brand-tint/60 shadow-[0_0_0_3px_color-mix(in_oklch,var(--brand)_15%,transparent)]'
+          : 'border-neutral-300 bg-neutral-50 hover:border-neutral-400 hover:bg-white'
+      )}
+    >
       <Checkbox
         id={id}
         checked={checked}
         onCheckedChange={onCheckedChange}
-        className="mt-0.5"
+        className="mt-0.5 size-5 rounded-md border-2 transition-transform duration-150 ease-out data-checked:scale-105 data-checked:border-brand-deep data-checked:bg-brand-deep"
       />
       <div className="space-y-1 leading-none">
         {/* `htmlFor` is what makes the label a hit target for the checkbox — on
             a phone the box alone is a 16px tap target (NFR-007). */}
-        <Label htmlFor={id} className="font-medium">
+        <Label htmlFor={id} className="text-sm font-semibold text-neutral-900">
           {AGREEMENT_LABEL} (version {terms.version})
         </Label>
         <p className="text-muted-foreground text-sm">{AGREEMENT_HINT}</p>

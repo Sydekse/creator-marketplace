@@ -33,6 +33,8 @@ const NOTIFICATION_LABELS: Record<string, string> = {
   offer_accepted: 'Ready to fund',
   offer_declined: 'Offer declined',
   metric_reminder: 'Metrics reminder',
+  tier_upgraded: 'Tier upgraded',
+  tier_assigned: 'Tier updated',
 };
 
 function formatTimestamp(date: Date): string {

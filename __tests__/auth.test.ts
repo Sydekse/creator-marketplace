@@ -97,7 +97,7 @@ describe('TikTok Login Kit wiring', () => {
 
   it('offers Continue with TikTok on sign-up and sign-in', () => {
     const signUp = readFileSync(
-      join(ROOT, 'app/(auth)/sign-up/page.tsx'),
+      join(ROOT, 'app/(auth)/sign-up/sign-up-card.tsx'),
       'utf8'
     );
     const signIn = readFileSync(
@@ -107,11 +107,30 @@ describe('TikTok Login Kit wiring', () => {
     expect(signUp).toContain('ContinueWithTiktok');
     expect(signUp).toContain("role === 'creator'");
     expect(signIn).toContain('ContinueWithTiktok');
+
     const cta = readFileSync(
       join(ROOT, 'components/auth/continue-with-tiktok.tsx'),
       'utf8'
     );
-    expect(cta).toContain('in testing');
-    expect(cta).not.toContain('signIn.social');
+    expect(cta).toContain('signIn.social');
+  });
+
+  it('requests the stats and video scopes for auto-fill (phase 2)', () => {
+    const source = readFileSync(join(ROOT, 'lib/auth.ts'), 'utf8');
+    expect(source).toContain('user.info.stats');
+    expect(source).toContain('video.list');
+  });
+
+  it('gates the email creator path behind CREATOR_DEMO_SIGNUP, server-side', () => {
+    // The UI only hides the form; the hook is what refuses the account. Both
+    // halves read the same flag so they cannot disagree about what a
+    // deployment allows.
+    const source = readFileSync(join(ROOT, 'lib/auth.ts'), 'utf8');
+    expect(source).toContain("process.env.CREATOR_DEMO_SIGNUP !== 'true'");
+    const page = readFileSync(
+      join(ROOT, 'app/(auth)/sign-up/page.tsx'),
+      'utf8'
+    );
+    expect(page).toContain("process.env.CREATOR_DEMO_SIGNUP === 'true'");
   });
 });

@@ -38,20 +38,14 @@ function Figure({
     <div
       className={
         compact
-          ? 'flex flex-col gap-1 rounded-2xl border-2 border-neutral-300 bg-background px-4 py-4'
+          ? 'flex flex-col gap-1 rounded-2xl border border-neutral-200 bg-background px-4 py-4'
           : 'flex flex-col gap-1'
       }
     >
-      <dt className="text-xs font-bold tracking-wide text-neutral-500 uppercase">
+      <dt className="text-xs font-semibold tracking-wide text-neutral-600 uppercase">
         {label}
       </dt>
-      <dd
-        className={
-          compact
-            ? 'mt-1 font-sans text-3xl font-bold tracking-[-0.04em] text-brand-ink tabular-nums'
-            : 'mt-1 font-sans text-3xl font-bold tracking-[-0.04em] text-brand-ink tabular-nums'
-        }
-      >
+      <dd className="mt-1 font-sans text-3xl font-bold tracking-[-0.04em] text-brand-ink tabular-nums">
         {value}
       </dd>
       <p className="text-xs text-muted-foreground">{note}</p>

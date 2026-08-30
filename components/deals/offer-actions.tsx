@@ -201,7 +201,7 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
           onClick={handleAccept}
           disabled={accepting || declining || !canAccept}
           aria-describedby={terms && !agreed ? 'accept-note' : undefined}
-          className={`${buttonVariants({ size: 'sm' })} bg-brand text-neutral-50 hover:bg-brand-deep`}
+          className={`${buttonVariants({ size: 'lg' })} bg-brand-deep text-neutral-50 hover:bg-brand-strong`}
         >
           {accepting ? ACCEPTING_LABEL : ACCEPT_DEAL_LABEL}
         </button>
@@ -212,7 +212,7 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
           type="button"
           onClick={() => setDeclineOpen(true)}
           disabled={accepting || declining}
-          className={buttonVariants({ variant: 'outline', size: 'sm' })}
+          className={buttonVariants({ variant: 'outline', size: 'lg' })}
         >
           {declining ? DECLINING_LABEL : DECLINE_DEAL_LABEL}
         </button>

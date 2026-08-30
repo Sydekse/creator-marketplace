@@ -39,7 +39,7 @@ export const runtime = 'nodejs';
  * since KAN-18.
  *
  * Filters live in the URL rather than in component state, exactly as `?page=`
- * does on the admin verification queue. That is what re-runs the query on a
+ * does on the admin tiers page. That is what re-runs the query on a
  * Server Component, and it makes a filtered view shareable and bookmarkable —
  * a brand can send a colleague the exact shortlist they are looking at.
  *

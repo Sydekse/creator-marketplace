@@ -1,7 +1,7 @@
 /**
  * Offset paging, shared by every admin list.
  *
- * Extracted from `lib/creators/verification-queue.ts` on KAN-23, when the
+ * Extracted from the (since removed) verification queue on KAN-23, when the
  * awaiting-tier list became the second caller. Nothing here is queue-specific —
  * it is the `?page=` convention plus the clamps that keep a hand-edited URL from
  * asking Postgres for ten thousand rows — and leaving it in a module named for

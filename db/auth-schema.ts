@@ -45,6 +45,9 @@ export const user = pgTable('user', {
   image: text('image'),
   // The column every server-side RBAC gate reads (FR-001, NFR-005).
   role: text('role').$type<UserRole>().default('creator').notNull(),
+  // Login Kit's username, written by `mapProfileToUser` (phase 1). Email
+  // sign-ups never carry one.
+  tiktokHandle: text('tiktok_handle'),
   createdAt: timestamp('created_at', { withTimezone: true })
     .defaultNow()
     .notNull(),

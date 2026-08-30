@@ -80,6 +80,15 @@ const okDeps = (
   selectEarnings: async () => earnings,
   selectDeals: async () => rows,
   selectPayoutEvents: async () => [],
+  selectUnmeasuredDeals: async () => [],
+  selectMetrics: async () => ({
+    views: null,
+    likes: null,
+    shares: null,
+    comments: null,
+    measuredVideos: 0,
+    totalVideos: 0,
+  }),
 });
 
 const src = (file: string) =>
@@ -419,6 +428,15 @@ describe('readCreatorDashboard', () => {
       selectEarnings,
       selectDeals,
       selectPayoutEvents,
+      selectUnmeasuredDeals: vi.fn(async () => []),
+      selectMetrics: vi.fn(async () => ({
+        views: null,
+        likes: null,
+        shares: null,
+        comments: null,
+        measuredVideos: 0,
+        totalVideos: 0,
+      })),
     });
 
     expect(selectEarnings).toHaveBeenCalledWith(CREATOR_PROFILE_ID);
@@ -444,6 +462,8 @@ describe('readCreatorDashboard', () => {
           selectEarnings,
           selectDeals,
           selectPayoutEvents,
+          selectUnmeasuredDeals: vi.fn(),
+          selectMetrics: vi.fn(),
         })
       ).rejects.toBeInstanceOf(ForbiddenError);
 
@@ -466,6 +486,8 @@ describe('readCreatorDashboard', () => {
         selectEarnings,
         selectDeals,
         selectPayoutEvents,
+        selectUnmeasuredDeals: vi.fn(),
+        selectMetrics: vi.fn(),
       })
     ).resolves.toBeNull();
 
@@ -633,10 +655,11 @@ describe('verification collapses once there is nothing outstanding', () => {
   });
 
   it('still explains the gap to a verified creator with no tier', () => {
-    // The one state where the steps stay and the last one is not reachable by
-    // anything the creator does.
-    expect(source).toContain("status === 'verified' && !hasTier");
-    expect(source).toContain('as soon as your');
+    // The one unsettled state left since verification became automatic: live,
+    // but no tier matched — and it is not reachable by anything the creator
+    // does on this page.
+    expect(source).toContain('not bookable yet');
+    expect(source).toContain('did not match a pricing');
   });
 
   it('still carries the rejection notice, which TierPricing relies on', () => {

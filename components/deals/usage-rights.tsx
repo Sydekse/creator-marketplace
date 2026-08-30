@@ -59,21 +59,22 @@ export function UsageRightsCard({
   // strip JSX `{/* … */}` with a non-greedy match, and a `/* … */` opening right
   // after a `{` lets that match run on to the next `*/}` and swallow real code.
   const body = (
-    <div className="max-h-64 overflow-y-auto rounded-xl border border-neutral-200 bg-neutral-50/80 p-4 text-sm text-neutral-700">
+    <div className="max-h-64 overflow-y-auto rounded-xl border border-neutral-200 bg-neutral-50/80 p-5 text-sm leading-relaxed text-neutral-700">
       <p className="whitespace-pre-wrap">{terms.body}</p>
     </div>
   );
 
   if (collapsed) {
     return (
-      <section className="surface-card rounded-[24px] border border-neutral-200 p-5 sm:p-6">
+      <section className="rounded-[24px] border border-neutral-200 bg-background p-5 sm:p-6">
+        <SectionLabel>{USAGE_RIGHTS_TITLE}</SectionLabel>
         {/* `<details>` and `<summary>`, not a button and a `useState`: the
             browser owns the open state, so this stays a server component and
             keyboard and screen-reader behaviour come for free. The marker is
             CSS on `group-open`, because `list-style` on a summary is what the
             default triangle rides on and removing it takes the affordance with
             it. */}
-        <details className="group">
+        <details className="group mt-4">
           <summary className="flex cursor-pointer items-center gap-2 rounded-lg text-sm font-medium text-neutral-800 transition-colors duration-300 ease-out hover:text-neutral-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900 active:text-neutral-900 marker:content-none">
             <span
               aria-hidden="true"
@@ -93,7 +94,7 @@ export function UsageRightsCard({
   }
 
   return (
-    <section className="surface-card rounded-[24px] border border-neutral-200 p-5 sm:p-6">
+    <section className="rounded-[24px] border border-neutral-200 bg-background p-5 sm:p-6">
       <SectionLabel>{USAGE_RIGHTS_TITLE}</SectionLabel>
       {/* Shown, not merely recorded: a creator agreeing to terms is entitled
           to see which terms, and this is the version `deal.rights_terms_id`

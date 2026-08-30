@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { db } from '@/db';
 import { deliverable } from '@/db/schema';
-import { handleVerifyCreator } from '@/app/api/admin/creators/[id]/verify/route';
+import { handleAssignTier } from '@/app/api/admin/creators/[id]/assign-tier/route';
 import { handleRecordMetrics } from '@/app/api/deliverables/[id]/metrics/route';
 import { handleApproveDeliverable } from '@/app/api/deals/[id]/approve/route';
 import {
   createMoneyFixture,
   guardForCookie,
   profileIdForEmail,
-  realVerifyDeps,
+  realAssignTierDeps,
   seededDeal,
   signInCookie,
 } from './helpers';
@@ -42,27 +42,23 @@ describe('RBAC per endpoint (NFR-005)', () => {
   it('admin-only endpoint: a creator session is refused with 403, an admin is admitted', async () => {
     const creatorCookie = await signInCookie('creator@demo.com');
     const adminCookie = await signInCookie('admin@demo.com');
-    const pendingId = await profileIdForEmail('creator.pending@demo.com');
+    // A verified, tiered seed row — re-running assignment is idempotent, so
+    // the admitted case proves the whole real flow without moving any state.
+    const verifiedId = await profileIdForEmail('creator@demo.com');
 
     // The 403 fires in the guard, before any deps are reached — the rest of
     // the real deps are passed anyway so the call is the real shape.
-    const asCreator = await handleVerifyCreator(
-      request(`/api/admin/creators/${pendingId}/verify`, {
-        decision: 'verified',
-      }),
-      pendingId,
-      realVerifyDeps(creatorCookie)
+    const asCreator = await handleAssignTier(
+      verifiedId,
+      realAssignTierDeps(creatorCookie)
     );
     expect(asCreator.status).toBe(403);
 
-    // The allowed case runs the whole real flow: profile update, audit row,
-    // notification row, console email.
-    const asAdmin = await handleVerifyCreator(
-      request(`/api/admin/creators/${pendingId}/verify`, {
-        decision: 'verified',
-      }),
-      pendingId,
-      realVerifyDeps(adminCookie)
+    // The allowed case runs the whole real flow: row lock, tier reassignment,
+    // audit row.
+    const asAdmin = await handleAssignTier(
+      verifiedId,
+      realAssignTierDeps(adminCookie)
     );
     expect(asAdmin.status).toBe(200);
   });

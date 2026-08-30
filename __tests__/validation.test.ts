@@ -67,9 +67,18 @@ describe('ErrorCode enum', () => {
     // rejection with no reason — see the enum member's comment for why it is
     // not a VALIDATION_ERROR.
     //
+    // Plus OTP_RATE_LIMITED (phase 3, PR 2), the 429 for a repeat email-OTP
+    // request inside the resend cooldown.
+    //
+    // Plus the two stats-refresh codes (phase 3): STATS_REFRESH_RATE_LIMITED
+    // and STATS_FETCH_FAILED, for the creator "Refresh my stats" endpoint.
+    //
     // The count is the point of this test: it is what makes adding a code a
     // deliberate act rather than something that slips in.
-    expect(codes).toHaveLength(26);
+    expect(codes).toHaveLength(29);
+    expect(codes).toContain(ErrorCode.OTP_RATE_LIMITED);
+    expect(codes).toContain(ErrorCode.STATS_REFRESH_RATE_LIMITED);
+    expect(codes).toContain(ErrorCode.STATS_FETCH_FAILED);
     expect(codes).toContain(ErrorCode.TIKTOK_HANDLE_TAKEN);
     expect(codes).toContain(ErrorCode.CAMPAIGN_NOT_FUNDABLE);
     expect(codes).toContain(ErrorCode.PROFILE_EXISTS);
@@ -241,9 +250,20 @@ describe('createCreatorSchema', () => {
     expect(result.niche).toBe('beauty');
   });
 
-  it('rejects missing tiktokHandle', () => {
+  it('accepts a missing tiktokHandle (TikTok-linked users get it from the session)', () => {
+    // Optional at the schema layer only — `createCreatorProfile` still rejects
+    // when neither the session nor the body supplies a handle.
+    const result = createCreatorSchema.parse({
+      niche: 'beauty',
+      audience: { topCountries: ['ET'], ageRange: '18-24' },
+    });
+    expect(result.tiktokHandle).toBeUndefined();
+  });
+
+  it('still rejects an invalid tiktokHandle when one is sent', () => {
     expect(() =>
       createCreatorSchema.parse({
+        tiktokHandle: '@!',
         niche: 'beauty',
         audience: { topCountries: ['ET'], ageRange: '18-24' },
       })

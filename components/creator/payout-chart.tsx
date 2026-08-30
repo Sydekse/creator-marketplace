@@ -45,10 +45,16 @@ export function PayoutChart({
   points,
   label = 'Payouts',
   note = 'Last 12 weeks · net',
+  minHeight = '13rem',
 }: {
   points: PayoutPoint[];
   label?: React.ReactNode;
   note?: React.ReactNode;
+  /**
+   * The chart area's floor height — the payout card's size knob. The card
+   * above passes it so the whole money block is tuned from one place.
+   */
+  minHeight?: string;
 }) {
   const gradientId = useId();
   const [active, setActive] = useState<number | null>(null);
@@ -79,7 +85,7 @@ export function PayoutChart({
   const focus = hover ?? coords[coords.length - 1];
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div className="flex min-h-0 flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <SectionLabel>{label}</SectionLabel>
         <p className="inline-flex w-fit rounded-full bg-neutral-50 px-3 py-1 font-mono text-[11px] font-medium tracking-wide text-neutral-700 uppercase shadow-[0_0_0_2px_rgba(23,23,23,0.1)]">
@@ -88,7 +94,8 @@ export function PayoutChart({
       </div>
 
       <div
-        className="relative min-h-52 flex-1 sm:min-h-64"
+        className="relative shrink-0"
+        style={{ height: minHeight }}
         onMouseLeave={() => setActive(null)}
       >
         <svg
@@ -173,7 +180,7 @@ export function PayoutChart({
                 x={coords[index].x}
                 y={HEIGHT - 8}
                 textAnchor={index === 0 ? 'start' : 'end'}
-                className="fill-neutral-400 font-mono text-[10px]"
+                className="fill-neutral-600 font-mono text-[10px]"
               >
                 {point.label}
               </text>
@@ -182,7 +189,7 @@ export function PayoutChart({
         </svg>
       </div>
 
-      <p className="font-mono text-sm font-semibold text-brand-ink tabular-nums">
+      <p className="font-mono text-sm font-medium text-brand-ink tabular-nums">
         {focus
           ? `${focus.point.label} · ${formatEtb(focus.point.paidOut)}`
           : 'No payouts yet'}

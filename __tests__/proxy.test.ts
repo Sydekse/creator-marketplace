@@ -32,9 +32,9 @@ describe('proxy with no session', () => {
   );
 
   it('preserves the requested path so sign-in can return there', () => {
-    const location = locationOf(proxy(request('/admin/verification')));
+    const location = locationOf(proxy(request('/admin/tiers')));
     expect(new URL(location!).searchParams.get('redirect')).toBe(
-      '/admin/verification'
+      '/admin/tiers'
     );
   });
 

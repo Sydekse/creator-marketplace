@@ -49,9 +49,9 @@ function DealRow({ deal }: { deal: CreatorDealRow }) {
           that is a full-width tap target instead of a 40px one (NFR-007). */}
       <Link
         href={`/creator/deals/${deal.id}`}
-        className="surface-card group flex cursor-pointer flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 px-3 py-3 transition-[transform,box-shadow,border-color] duration-200 ease-[var(--ease-smooth)] hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_16px_32px_-20px_rgba(23,23,23,0.4)] active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+        className="surface-card group flex cursor-pointer flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 px-4 py-3 transition-[transform,box-shadow,border-color] duration-200 ease-[var(--ease-smooth)] hover:-translate-y-0.5 hover:border-neutral-300 hover:shadow-[0_16px_32px_-20px_rgba(23,23,23,0.4)] active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
       >
-        <div className="flex min-w-0 flex-col gap-0.5">
+        <div className="flex min-w-0 flex-col gap-1">
           <TruncatedText
             text={deal.campaignName}
             className="text-sm font-semibold text-neutral-900"
@@ -60,7 +60,7 @@ function DealRow({ deal }: { deal: CreatorDealRow }) {
             {deal.videoCount} {deal.videoCount === 1 ? 'video' : 'videos'}
           </span>
         </div>
-        <div className="flex flex-col items-end gap-0.5">
+        <div className="flex flex-col items-end gap-1">
           <span className="font-mono text-sm font-medium tabular-nums">
             {formatEtb(deal.totalPrice)}
           </span>
@@ -107,7 +107,7 @@ function Group({ group }: { group: CreatorDealGroup }) {
           ))}
         </ul>
       ) : (
-        <p className="py-0.5 text-sm text-muted-foreground">{empty}</p>
+        <p className="py-1 text-sm text-muted-foreground">{empty}</p>
       )}
     </section>
   );

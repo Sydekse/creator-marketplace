@@ -11,6 +11,8 @@ import type {
   AssignTierDeps,
   TierOutcome,
 } from '@/lib/creators/tier-assignment';
+import { notify as defaultNotify } from '@/lib/notifications/notify';
+import type { Notify } from '@/lib/notifications/notify';
 import {
   ErrorCode,
   ErrorHttpStatus,
@@ -36,14 +38,20 @@ export interface UpdateCreatorRouteDeps {
   guard: (options: GuardOptions) => Promise<unknown>;
   adminAuditDeps?: Partial<AdminAuditDeps>;
   assignTierDeps?: AssignTierDeps;
+  notify?: Notify;
 }
 
 interface UpdateResult {
   id: string;
+  userId: string;
   followerCount: number | null;
   engagementRate: string | null;
   tier: TierOutcome;
-  before: { followerCount: number | null; engagementRate: string | null };
+  before: {
+    followerCount: number | null;
+    engagementRate: string | null;
+    tierId: string | null;
+  };
 }
 
 /**
@@ -122,7 +130,10 @@ export async function handleUpdateCreatorNumbers(
         // Before *and* after in one row: "who changed this creator's numbers, from
         // what to what, and did it tier them" is answerable from this detail alone.
         detail: (r) => ({
-          before: r.before,
+          before: {
+            followerCount: r.before.followerCount,
+            engagementRate: r.before.engagementRate,
+          },
           after: {
             followerCount: r.followerCount,
             engagementRate: r.engagementRate,
@@ -137,7 +148,9 @@ export async function handleUpdateCreatorNumbers(
         const [creator] = await tx
           .select({
             id: creatorProfile.id,
+            userId: creatorProfile.userId,
             status: creatorProfile.status,
+            tierId: creatorProfile.tierId,
             followerCount: creatorProfile.followerCount,
             engagementRate: creatorProfile.engagementRate,
           })
@@ -196,17 +209,39 @@ export async function handleUpdateCreatorNumbers(
 
         return {
           id: creator.id,
+          userId: creator.userId,
           followerCount: nextFollowerCount,
           engagementRate: nextEngagementRate,
           tier,
           before: {
             followerCount: creator.followerCount,
             engagementRate: creator.engagementRate,
+            tierId: creator.tierId,
           },
         };
       },
       deps?.adminAuditDeps ?? {}
     );
+
+    // Tell the creator only when the corrected numbers actually changed their
+    // band. After the audit transaction, same as the assign-tier route: an
+    // email failure must never roll back an admin decision, and the standalone
+    // `notify` writes its own in-app row (AC-1).
+    if (result.tier.assigned && result.tier.tierId !== result.before.tierId) {
+      try {
+        await (deps?.notify ?? defaultNotify)(result.userId, 'tier_assigned', {
+          creatorProfileId: result.id,
+          tierName: result.tier.tierName,
+          pricePerVideo: result.tier.pricePerVideo,
+        });
+      } catch (error) {
+        console.error(
+          `[admin-creators] tier_assigned notification failed: ${
+            error instanceof Error ? error.message : 'unknown'
+          }`
+        );
+      }
+    }
 
     // snake_case out, echoing the stored numbers so the client shows what the
     // database now holds rather than what was typed, and the tier outcome so the

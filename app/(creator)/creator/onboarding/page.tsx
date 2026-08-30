@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation';
 import { PageHeader } from '@/components/layout/page-header';
-import { requireRole } from '@/lib/auth';
+import { needsCredentials, requireRole } from '@/lib/auth';
+import { sessionTiktokHandle } from '@/lib/creators/credentials';
 import { getCreatorProfileByUserId } from '@/lib/creators/queries';
+import { fetchTiktokStats } from '@/lib/tiktok/stats';
 import { CreatorOnboardingForm } from './creator-onboarding-form';
 
 /**
@@ -14,9 +16,22 @@ import { CreatorOnboardingForm } from './creator-onboarding-form';
  */
 export default async function CreatorOnboardingPage() {
   const user = await requireRole('creator');
+  // Login Kit first, credentials second: a TikTok sign-up has no real email
+  // until that step, so onboarding cannot start on the synthetic one.
+  if (needsCredentials(user)) redirect('/creator/credentials');
 
   const profile = await getCreatorProfileByUserId(user.id);
   if (profile) redirect('/creator');
+
+  // The DB read, not the session cache: the session's `tiktokHandle` can lag
+  // the row the create.before hook wrote (phase 1 fix in #130).
+  const lockedHandle =
+    (await sessionTiktokHandle(user.id)) ?? user.tiktokHandle ?? null;
+
+  // Live numbers from the TikTok API, for display only — the POST re-reads
+  // them server-side, so nothing shown here is trusted on the way back in.
+  // Null (email sign-up, missing scope, API down) leaves the manual fields.
+  const stats = lockedHandle ? await fetchTiktokStats(user.id) : null;
 
   return (
     <div className="mx-auto grid max-w-6xl gap-12 py-8 sm:py-12 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:items-start lg:gap-20 lg:py-16">
@@ -24,22 +39,26 @@ export default async function CreatorOnboardingPage() {
         <PageHeader
           label="Creator application"
           title="Build your creator profile"
-          description="Tell brands what you create and who watches it. Your profile becomes searchable after verification and tier assignment."
+          description="Tell brands what you create and who watches it. Your profile goes live immediately and becomes searchable once a pricing tier matches your numbers."
           className="max-w-xl"
         />
-        <div className="mt-10 hidden border-l-2 border-brand/60 pl-5 lg:block">
+        <div className="mt-10 hidden border-l border-brand/40 pl-5 lg:block">
           <p className="text-sm font-semibold text-neutral-900">
             What brands will see
           </p>
           <ul className="mt-3 space-y-2 text-sm leading-relaxed text-neutral-600">
             <li>TikTok account and niche</li>
             <li>Top audience markets and age</li>
-            <li>Optional performance figures for tier review</li>
+            <li>
+              {lockedHandle
+                ? 'Performance figures pulled from TikTok'
+                : 'Optional performance figures for tier review'}
+            </li>
           </ul>
         </div>
       </div>
 
-      <CreatorOnboardingForm />
+      <CreatorOnboardingForm lockedHandle={lockedHandle} lockedStats={stats} />
     </div>
   );
 }
