@@ -69,8 +69,13 @@ export type TierOutcome =
  * exist so that two bands seeded with the same follower floor resolve the same
  * way on every run — otherwise the "exactly one tier" guarantee would quietly
  * depend on the order Postgres happened to return rows in.
+ *
+ * Exported for the refresh service, which needs to ask "is the tier the new
+ * numbers select *higher* than the one already held" — the up/down judgement
+ * must be the same ordering that picks the winner, or a refresh could call a
+ * sideways move an upgrade.
  */
-function byHighestFirst(a: TierCandidate, b: TierCandidate): number {
+export function byHighestFirst(a: TierCandidate, b: TierCandidate): number {
   if (a.minFollowers !== b.minFollowers) return b.minFollowers - a.minFollowers;
   if (a.pricePerVideo !== b.pricePerVideo) {
     return b.pricePerVideo - a.pricePerVideo;
