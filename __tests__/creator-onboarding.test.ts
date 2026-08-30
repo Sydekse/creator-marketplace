@@ -599,11 +599,12 @@ describe('createCreatorProfile', () => {
     expect(recorded.committed).toBe(true);
   });
 
-  it('prefers session stats over typed numbers', async () => {
+  it('prefers session stats over typed numbers for a TikTok-linked user', async () => {
     // A number TikTok reported is not one the creator gets to improve in
-    // DevTools — the body's values only fill gaps the API left.
+    // DevTools — for a linked user the body's values are ignored outright.
     const insert = okInsertFn();
     const { deps } = profileDeps(insert, {
+      sessionHandle: async () => '@beautybyhana',
       sessionStats: async () => ({
         followerCount: 54_321,
         engagementRate: '7.89',
@@ -621,11 +622,50 @@ describe('createCreatorProfile', () => {
     const values = insert.mock.calls[0][1];
     expect(values.followerCount).toBe(54_321);
     expect(values.engagementRate).toBe('7.89');
+    // The stamp records that these numbers came from the API — the refresh
+    // rate limit and the weekly cron key off it.
+    expect(values.statsRefreshedAt).toBeInstanceOf(Date);
+  });
+
+  it('ignores typed numbers entirely when linked and the stats fetch fails', async () => {
+    // Strict mode (phase 3): a TikTok-linked creator whose fetch failed lands
+    // with null numbers and no tier — never with DevTools-typed values.
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert, {
+      sessionHandle: async () => '@beautybyhana',
+      sessionStats: async () => null,
+    });
+
+    const result = await createCreatorProfile(
+      CREATOR_ID,
+      createCreatorSchema.parse(
+        validPayload({ followerCount: 999_999, engagementRate: 99 })
+      ),
+      deps
+    );
+
+    const values = insert.mock.calls[0][1];
+    expect(values.followerCount).toBeNull();
+    expect(values.engagementRate).toBeNull();
+    expect(values.statsRefreshedAt).toBeNull();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.tier).toEqual({ assigned: false, reason: 'missing_data' });
+  });
+
+  it('rejects when neither the session nor the body carries a handle', async () => {
+    const insert = okInsertFn();
+    const { deps } = profileDeps(insert);
+    const { tiktokHandle: _drop, ...rest } = validPayload();
+
+    await expect(
+      createCreatorProfile(CREATOR_ID, createCreatorSchema.parse(rest), deps)
+    ).resolves.toEqual({ ok: false, missingHandle: true });
+    expect(insert).not.toHaveBeenCalled();
   });
 
   it('falls back to typed numbers when the stats service returns null', async () => {
-    // The email sign-up path, and every API failure: missing scope, expired
-    // token, zero-view account. Degrade, never block.
+    // The email sign-up path: no TikTok link exists, the creator types both.
     const insert = okInsertFn();
     const { deps } = profileDeps(insert);
 
@@ -640,6 +680,8 @@ describe('createCreatorProfile', () => {
     const values = insert.mock.calls[0][1];
     expect(values.followerCount).toBe(12_000);
     expect(values.engagementRate).toBe('4.20');
+    // Typed numbers are not an API read — nothing to stamp.
+    expect(values.statsRefreshedAt).toBeNull();
   });
 
   it('takes the owner from its argument, never from the payload', async () => {
@@ -1121,6 +1163,26 @@ describe('Login Kit handle is what onboarding shows and stores', () => {
     );
     expect(page).toContain('sessionTiktokHandle');
     expect(page).toContain('lockedHandle=');
+  });
+
+  it('TikTok mode sends neither handle nor numbers — the server sources both (phase 3)', () => {
+    const form = readFileSync(
+      fileURLToPath(
+        new URL(
+          '../app/(creator)/creator/onboarding/creator-onboarding-form.tsx',
+          import.meta.url
+        )
+      ),
+      'utf8'
+    );
+    // The payload must not carry a typed handle or typed stats for a linked
+    // account; the strict server ignores them, and a form that sends them
+    // anyway invites the two to drift apart.
+    expect(form).toContain(
+      'tiktokHandle: tiktokMode ? undefined : handleInput'
+    );
+    expect(form).toMatch(/followerCount:\s*\n?\s*tiktokMode \|\|/);
+    expect(form).toMatch(/engagementRate:\s*\n?\s*tiktokMode \|\|/);
   });
 
   it('POST /api/creators always wires sessionTiktokHandle when the caller omits it', () => {

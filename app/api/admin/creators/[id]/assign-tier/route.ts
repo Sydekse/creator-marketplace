@@ -139,6 +139,16 @@ export async function handleAssignTier(
           deps?.assignTierDeps
         );
 
+        // A run of assignment is an admin decision about this creator's
+        // numbers, so any standing stats-refresh flag (phase 3) is resolved by
+        // it — whether the run applied a downgrade, an upgrade, or matched
+        // nothing and kept the tier. Cleared in the same transaction so the
+        // flag and the decision cannot commit apart.
+        await tx
+          .update(creatorProfile)
+          .set({ tierReviewAt: null })
+          .where(eq(creatorProfile.id, creator.id));
+
         return { id: creator.id, tier, before: { tierId: creator.tierId } };
       },
       deps?.adminAuditDeps ?? {}

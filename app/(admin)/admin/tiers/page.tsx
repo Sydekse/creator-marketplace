@@ -2,8 +2,12 @@ import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/page-header';
 import { readAwaitingTier } from '@/lib/creators/awaiting-tier';
+import { readFlaggedForReview } from '@/lib/creators/flagged-review';
+import { listTierCandidates, selectTier } from '@/lib/creators/tier-assignment';
 import { PAGE_SIZE, offsetForPage, pageFromParam } from '@/lib/paging';
 import { AwaitingTierList } from '@/components/admin/awaiting-tier-list';
+import { FlaggedReviewList } from '@/components/admin/flagged-review-list';
+import type { FlaggedReviewRow } from '@/components/admin/flagged-review-list';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -32,6 +36,20 @@ export default async function AwaitingTierPage({
     offset,
   });
 
+  // Flagged downgrades (phase 3). First page only — the flag is meant to be
+  // acted on within a week (the next cron re-flags anyway), so a backlog deep
+  // enough to page is itself the signal worth surfacing.
+  const flagged = await readFlaggedForReview({ limit: PAGE_SIZE });
+  // The suggestion is recomputed pure from the current numbers at render, the
+  // same `selectTier` the assign route will run — so the label on the button
+  // and the band the press produces cannot disagree. Tiers loaded once.
+  const tierCandidates =
+    flagged.creators.length > 0 ? await listTierCandidates() : [];
+  const flaggedRows: FlaggedReviewRow[] = flagged.creators.map((creator) => ({
+    creator,
+    suggested: selectTier(tierCandidates, creator),
+  }));
+
   return (
     <div className="flex flex-col gap-10">
       <PageHeader
@@ -46,6 +64,21 @@ export default async function AwaitingTierPage({
           </>
         }
       />
+
+      {/* Flagged before awaiting: these creators hold a live price that their
+          numbers no longer support, which is the more urgent of the two lists. */}
+      <div className="flex flex-col gap-6">
+        <div className="flex items-center justify-between gap-4 border-y border-neutral-200 bg-neutral-100/45 px-4 py-3">
+          <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">
+            Flagged for review
+          </p>
+          <p className="font-mono text-xs text-muted-foreground">
+            {flaggedRows.length}
+            {flagged.hasMore ? '+' : ''} flagged
+          </p>
+        </div>
+        <FlaggedReviewList rows={flaggedRows} />
+      </div>
 
       <div className="flex items-center justify-between gap-4 border-y border-neutral-200 bg-neutral-100/45 px-4 py-3">
         <p className="text-xs font-semibold tracking-[0.14em] text-brand uppercase">

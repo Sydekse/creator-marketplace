@@ -114,6 +114,19 @@ export enum ErrorCode {
    * tells them nothing they can act on; this sentence does.
    */
   REASON_REQUIRED = 'REASON_REQUIRED',
+  /**
+   * The creator asked for a stats refresh inside the 24-hour window (phase 3).
+   * Its own code rather than VALIDATION_ERROR because the request was
+   * well-formed — the answer is "not yet", and the response carries a
+   * `Retry-After` header the button can count down from.
+   */
+  STATS_REFRESH_RATE_LIMITED = 'STATS_REFRESH_RATE_LIMITED',
+  /**
+   * TikTok's API returned nothing usable for a refresh (phase 3). 502 because
+   * the failure is upstream of us; nothing was written, so trying again later
+   * is the whole remedy.
+   */
+  STATS_FETCH_FAILED = 'STATS_FETCH_FAILED',
   FORBIDDEN = 'FORBIDDEN',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   /**
@@ -183,6 +196,10 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.DEAL_NOT_FUNDED]: 'Deal has not been funded yet.',
   [ErrorCode.DEAL_NOT_DELIVERED]: 'Deal has not been delivered yet.',
   [ErrorCode.REASON_REQUIRED]: 'A rejection reason is required.',
+  [ErrorCode.STATS_REFRESH_RATE_LIMITED]:
+    'Your stats were refreshed recently — try again later.',
+  [ErrorCode.STATS_FETCH_FAILED]:
+    'TikTok did not return your stats. Nothing changed — try again later.',
   [ErrorCode.FORBIDDEN]: 'You do not have permission to perform this action.',
   [ErrorCode.VALIDATION_ERROR]: 'Validation failed.',
   [ErrorCode.NOT_FOUND]: 'The requested resource does not exist.',
@@ -213,6 +230,8 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.DEAL_NOT_FUNDED]: 409,
   [ErrorCode.DEAL_NOT_DELIVERED]: 409,
   [ErrorCode.REASON_REQUIRED]: 422,
+  [ErrorCode.STATS_REFRESH_RATE_LIMITED]: 429,
+  [ErrorCode.STATS_FETCH_FAILED]: 502,
   [ErrorCode.FORBIDDEN]: 403,
   [ErrorCode.VALIDATION_ERROR]: 422,
   [ErrorCode.NOT_FOUND]: 404,

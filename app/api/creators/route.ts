@@ -101,6 +101,16 @@ export async function handleCreateCreator(
   });
 
   if (!result.ok) {
+    // Neither the session nor the body carried a handle — an email sign-up
+    // that skipped the field. Same envelope the schema's required error used
+    // to produce, keyed to the input so the form shows it inline.
+    if ('missingHandle' in result) {
+      return Response.json(
+        validationError({ tiktokHandle: ['TikTok handle is required.'] }),
+        { status: ErrorHttpStatus[ErrorCode.VALIDATION_ERROR] }
+      );
+    }
+
     // AC-003's exact user-facing string comes from `ErrorMessage`, so it cannot
     // drift from the acceptance criterion by being retyped here.
     const code =

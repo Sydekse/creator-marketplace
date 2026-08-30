@@ -51,7 +51,13 @@ export type CreateProfileResult =
        */
       tier: TierOutcome;
     }
-  | { ok: false; conflict: 'handle' | 'profile' };
+  | { ok: false; conflict: 'handle' | 'profile' }
+  /**
+   * Neither the session nor the body supplied a handle. Only reachable for
+   * email sign-ups that omit the (now optional) `tiktokHandle` field — a
+   * validation problem, not a conflict, so the route maps it to a 400.
+   */
+  | { ok: false; missingHandle: true };
 
 /** What the profile insert writes; the seam below receives exactly this. */
 export interface ProfileInsertValues {
@@ -63,6 +69,8 @@ export interface ProfileInsertValues {
   engagementRate: string | null;
   status: 'verified';
   verifiedAt: Date;
+  /** When the numbers above came from the TikTok API; null otherwise. */
+  statsRefreshedAt: Date | null;
 }
 
 /** The seams, so the route's conflict mapping is testable without Postgres. */
@@ -85,9 +93,10 @@ export interface CreateProfileDeps {
   sessionHandle?: (userId: string) => Promise<string | null>;
   /**
    * Live TikTok numbers for the session user (phase 2). Fetched *before* the
-   * transaction opens — an external API call must never ride inside one. Null
-   * means "no usable TikTok link"; the typed values are used instead, which is
-   * also the entire email-sign-up path.
+   * transaction opens — an external API call must never ride inside one. For a
+   * TikTok-linked user this is the *only* source of stats (phase 3): a null
+   * here leaves the numbers null. Typed values are used solely on the email
+   * sign-up path, where no TikTok link exists to trust.
    */
   sessionStats?: (userId: string) => Promise<TiktokStats | null>;
   notifyDeps?: NotifyDeps;
@@ -133,8 +142,10 @@ function uniqueViolationConstraint(error: unknown): string | null {
  * Session-sourced values win over the body, for the same reason in both cases:
  * the handle because a Login Kit user must not rename themselves into someone
  * else's TikTok, and the stats because a number TikTok reported is not one the
- * creator gets to improve in DevTools. Typed values only fill the gaps the
- * API left (email sign-ups, missing scopes, zero-view accounts).
+ * creator gets to improve in DevTools. For a TikTok-linked user (phase 3) the
+ * body stats are ignored *entirely* — a failed fetch leaves the numbers null
+ * (no tier; the refresh path or an admin recovers), never typed. Typed values
+ * exist only on the email sign-up path.
  *
  * Insert + tier + notification share one transaction, the exact composition
  * verification used to have: a rollback takes all three, and there is no
@@ -155,12 +166,26 @@ export async function createCreatorProfile(
     deps?.sessionStats ? deps.sessionStats(userId) : Promise.resolve(null),
   ]);
 
-  const followerCount = stats?.followerCount ?? input.followerCount ?? null;
+  // A non-null session handle is the "TikTok-linked" signal: OAuth proved the
+  // account, so TikTok's numbers are the only ones trusted — body stats are
+  // ignored outright rather than used as a fallback, otherwise DevTools could
+  // supply the "gap-filler". Email sign-ups have no link and type both.
+  const linked = sessionHandle !== null;
+  const tiktokHandle = sessionHandle ?? input.tiktokHandle ?? null;
+  if (tiktokHandle === null) return { ok: false, missingHandle: true };
+
+  const followerCount = linked
+    ? (stats?.followerCount ?? null)
+    : (input.followerCount ?? null);
   // `numeric(5,2)` round-trips as a string in node-postgres; sending a JS
   // number would work by coercion today and silently lose precision the day
   // the column widens. The API path already produces the fixed form.
-  const engagementRate =
-    stats?.engagementRate ?? input.engagementRate?.toFixed(2) ?? null;
+  const engagementRate = linked
+    ? (stats?.engagementRate ?? null)
+    : (input.engagementRate?.toFixed(2) ?? null);
+  // Stamped only when the numbers actually came from the API — the refresh
+  // rate limit and the weekly cron both key off this.
+  const statsRefreshedAt = linked && stats !== null ? new Date() : null;
 
   try {
     return await withNotifications<CreateProfileResult>(async (tx, notify) => {
@@ -172,13 +197,14 @@ export async function createCreatorProfile(
         // `sessionTiktokHandle` returns the same canonical form (the
         // `user.create.before` hook in `lib/auth.ts` runs it through
         // `normalizeTiktokHandle`).
-        tiktokHandle: sessionHandle ?? input.tiktokHandle,
+        tiktokHandle,
         niche: input.niche,
         audience: input.audience,
         followerCount,
         engagementRate,
         status: 'verified',
         verifiedAt: new Date(),
+        statsRefreshedAt,
       });
 
       // No match is not an error — it leaves `tier_id` null and the creator

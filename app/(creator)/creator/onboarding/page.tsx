@@ -49,7 +49,11 @@ export default async function CreatorOnboardingPage() {
           <ul className="mt-3 space-y-2 text-sm leading-relaxed text-neutral-600">
             <li>TikTok account and niche</li>
             <li>Top audience markets and age</li>
-            <li>Optional performance figures for tier review</li>
+            <li>
+              {lockedHandle
+                ? 'Performance figures pulled from TikTok'
+                : 'Optional performance figures for tier review'}
+            </li>
           </ul>
         </div>
       </div>
