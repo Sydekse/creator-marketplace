@@ -166,3 +166,42 @@ describe('verify-before-write wiring (source guards)', () => {
     expect(service).not.toContain('emailVerified: false');
   });
 });
+
+describe('POST /api/creators/credentials/otp/verify', () => {
+  it('peeks the code without consuming it', async () => {
+    const { handlePeekOtp } =
+      await import('../app/api/creators/credentials/otp/verify/route');
+    const peekOtp = vi.fn(async () => ({ ok: true }) as const);
+    const response = await handlePeekOtp(
+      jsonRequest({ email: 'real@example.com', code: '123456' }),
+      {
+        guard: async () => ({ user: PLACEHOLDER_USER }),
+        peekOtp,
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(peekOtp).toHaveBeenCalledWith(
+      'user-1',
+      'real@example.com',
+      '123456'
+    );
+  });
+
+  it('returns the same code errors the write path uses', async () => {
+    const { handlePeekOtp } =
+      await import('../app/api/creators/credentials/otp/verify/route');
+    const response = await handlePeekOtp(
+      jsonRequest({ email: 'real@example.com', code: '000000' }),
+      {
+        guard: async () => ({ user: PLACEHOLDER_USER }),
+        peekOtp: async () => ({ ok: false, error: 'invalid_code' }),
+      }
+    );
+
+    expect(response.status).toBe(422);
+    const body = await response.json();
+    expect(body.error.details.code[0]).toMatch(/not correct/i);
+  });
+});

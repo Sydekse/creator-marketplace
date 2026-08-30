@@ -198,12 +198,35 @@ export type VerifyOtpResult =
  * A changed email since the code was sent counts as `no_code`: the proof on
  * file is for a different address, so the caller must request a new code. It
  * is not an attempt — guessing is per-code, and this is not a guess at it.
+ *
+ * `peekEmailOtp` is the same checks without consuming: the code screen can
+ * reject a bad OTP before the password card. The credentials write still
+ * calls `verifyEmailOtp`.
  */
+export async function peekEmailOtp(
+  userId: string,
+  email: string,
+  code: string,
+  deps: EmailOtpDeps = defaultDeps
+): Promise<VerifyOtpResult> {
+  return matchEmailOtp(userId, email, code, deps, false);
+}
+
 export async function verifyEmailOtp(
   userId: string,
   email: string,
   code: string,
   deps: EmailOtpDeps = defaultDeps
+): Promise<VerifyOtpResult> {
+  return matchEmailOtp(userId, email, code, deps, true);
+}
+
+async function matchEmailOtp(
+  userId: string,
+  email: string,
+  code: string,
+  deps: EmailOtpDeps,
+  consume: boolean
 ): Promise<VerifyOtpResult> {
   const identifier = otpIdentifier(userId);
   const now = deps.now().getTime();
@@ -250,7 +273,7 @@ export async function verifyEmailOtp(
     return { ok: false, error: 'invalid_code' };
   }
 
-  await deps.remove(identifier);
+  if (consume) await deps.remove(identifier);
   return { ok: true };
 }
 
