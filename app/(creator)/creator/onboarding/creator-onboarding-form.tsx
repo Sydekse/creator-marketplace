@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { ArrowLeft, ArrowRight } from '@phosphor-icons/react';
 import { Button } from '@/components/ui/button';
 import {
   Field,
@@ -82,6 +83,14 @@ export function CreatorOnboardingForm({
   // fetched — niche and audience — and *shows* the rest. Email (demo)
   // sign-ups keep the full manual form.
   const tiktokMode = lockedHandle !== null;
+
+  // TikTok mode only asks for niche and audience, so it reads as two short
+  // flash cards ("Your profile" → "Audience") instead of one long form. The
+  // step gates *rendering only* — every value lives in this component, the
+  // payload is unchanged, and submit still happens once at the end. Email
+  // mode keeps the full single-page form (it has a third, manual section).
+  const [step, setStep] = useState(0);
+  const TIKTOK_STEPS = 2;
 
   const lockedFollowers = lockedStats?.followerCount ?? null;
   const lockedEngagement = lockedStats?.engagementRate ?? null;
@@ -193,7 +202,15 @@ export function CreatorOnboardingForm({
       className="rounded-[24px] border border-neutral-200 bg-neutral-50 p-6 shadow-[0_24px_60px_-32px_rgba(23,23,23,0.25)] sm:p-9"
     >
       <FieldGroup className="gap-0">
-        <section className="border-b border-neutral-200 pb-9">
+        <section
+          className={
+            tiktokMode
+              ? step === 0
+                ? 'pb-4'
+                : 'hidden'
+              : 'border-b border-neutral-200 pb-9'
+          }
+        >
           <div className="mb-6">
             <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
               Creator profile
@@ -337,7 +354,13 @@ export function CreatorOnboardingForm({
         </section>
 
         <section
-          className={tiktokMode ? 'py-9' : 'border-b border-neutral-200 py-9'}
+          className={
+            tiktokMode
+              ? step === 1
+                ? 'pb-4'
+                : 'hidden'
+              : 'border-b border-neutral-200 py-9'
+          }
         >
           <div className="mb-6">
             <p className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
@@ -505,22 +528,78 @@ export function CreatorOnboardingForm({
           <FieldError errors={fieldError('_root')} className="text-sm" />
         )}
 
-        <div className="flex flex-col gap-4 border-t border-neutral-200 pt-8 sm:flex-row sm:items-end sm:justify-between">
-          <Button
-            type="submit"
-            disabled={submitting}
-            size="lg"
-            className="w-full sm:w-auto sm:self-start"
-          >
-            {submitting && <Spinner />}
-            {submitting ? 'Submitting…' : 'Create profile'}
-          </Button>
-          <p className="text-[13px] leading-relaxed text-neutral-600">
-            {tiktokMode
-              ? 'Your profile goes live as soon as it is created. Your tier and rate come from your TikTok numbers and refresh automatically.'
-              : 'Your profile goes live as soon as it is created. Brands can find you in search once your numbers place you on a pricing tier.'}
-          </p>
-        </div>
+        {tiktokMode ? (
+          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-6">
+            {step === 1 ? (
+              <p className="text-[13px] leading-relaxed text-neutral-600">
+                Your profile goes live as soon as it is created. Your tier and
+                rate come from your TikTok numbers and refresh automatically.
+              </p>
+            ) : null}
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex gap-1.5" aria-hidden>
+                  {Array.from({ length: TIKTOK_STEPS }, (_, i) => (
+                    <span
+                      key={i}
+                      className={`h-1.5 w-8 rounded-full transition-colors ${
+                        i <= step ? 'bg-brand' : 'bg-neutral-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                  {step + 1} / {TIKTOK_STEPS}
+                </span>
+              </div>
+              {step === 0 ? (
+                <Button
+                  type="button"
+                  size="lg"
+                  className="gap-2"
+                  onClick={() => setStep(1)}
+                  disabled={niche === null}
+                >
+                  Next
+                  <ArrowRight size={16} weight="regular" aria-hidden />
+                </Button>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="lg"
+                    className="gap-2"
+                    onClick={() => setStep(0)}
+                  >
+                    <ArrowLeft size={16} weight="regular" aria-hidden />
+                    Back
+                  </Button>
+                  <Button type="submit" disabled={submitting} size="lg">
+                    {submitting && <Spinner />}
+                    {submitting ? 'Submitting…' : 'Create profile'}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 border-t border-neutral-200 pt-8 sm:flex-row sm:items-end sm:justify-between">
+            <Button
+              type="submit"
+              disabled={submitting}
+              size="lg"
+              className="w-full sm:w-auto sm:self-start"
+            >
+              {submitting && <Spinner />}
+              {submitting ? 'Submitting…' : 'Create profile'}
+            </Button>
+            <p className="text-[13px] leading-relaxed text-neutral-600">
+              Your profile goes live as soon as it is created. Brands can find
+              you in search once your numbers place you on a pricing tier.
+            </p>
+          </div>
+        )}
       </FieldGroup>
     </form>
   );
