@@ -593,7 +593,13 @@ describe('createCreatorProfile', () => {
       {
         userId: CREATOR_ID,
         type: 'verification_result',
-        payload: { creatorProfileId: 'profile-1', outcome: 'approved' },
+        // `tiered: false` — this fixture's creator has no matching band, and
+        // the email's "visible to brands" claim branches on the field.
+        payload: {
+          creatorProfileId: 'profile-1',
+          outcome: 'approved',
+          tiered: false,
+        },
       },
     ]);
     expect(recorded.committed).toBe(true);

@@ -25,6 +25,12 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  * "Send code" mails a 6-digit code to the typed address, and the save only
  * succeeds with that code — the server refuses an email without its proof, so
  * a typo can never become the address every offer notification rides on.
+ *
+ * The form reveals itself stepwise (phase 3 cleanup): email → code → password.
+ * Showing all three at once read as "fill everything, then wait for a code",
+ * which is backwards. The reveal is presentation only — the POST still carries
+ * email, code and password together, and the server still verifies the code
+ * before writing anything, so the atomicity is unchanged.
  */
 export function CreatorCredentialsForm({
   needsEmail,
@@ -44,6 +50,11 @@ export function CreatorCredentialsForm({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<FieldErrors>({});
   const [loading, setLoading] = useState(false);
+
+  // Presentation-only gates for the stepwise reveal. `codeComplete` is a local
+  // shape check, not proof the code is right — the server verifies at submit.
+  const codeComplete = /^\d{6}$/.test(code);
+  const emailStepDone = !needsEmail || (codeSent && codeComplete);
 
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -251,6 +262,11 @@ export function CreatorCredentialsForm({
                 Enter the 6-digit code we sent to your email. It expires in 10
                 minutes.
               </p>
+              {codeComplete ? (
+                <p className="text-[13px] font-medium text-emerald-700">
+                  Code entered — we&apos;ll check it when you continue.
+                </p>
+              ) : null}
               <FieldError id="credentials-code-error" message={errors.code} />
             </div>
           ) : (
@@ -259,7 +275,7 @@ export function CreatorCredentialsForm({
         </>
       ) : null}
 
-      {!hasPassword ? (
+      {!hasPassword && emailStepDone ? (
         <>
           <div className="flex flex-col gap-2">
             <label
@@ -323,9 +339,17 @@ export function CreatorCredentialsForm({
         </>
       ) : null}
 
-      <Button type="submit" disabled={loading} size="xl" className="w-full">
-        {loading ? 'Saving…' : 'Continue'}
-      </Button>
+      {emailStepDone ? (
+        <Button type="submit" disabled={loading} size="xl" className="w-full">
+          {loading ? 'Saving…' : 'Continue'}
+        </Button>
+      ) : (
+        <p className="text-center text-[13px] leading-relaxed text-neutral-500">
+          {codeSent
+            ? 'Enter the code from your email to continue.'
+            : 'Send a code to your email to continue.'}
+        </p>
+      )}
     </form>
   );
 }

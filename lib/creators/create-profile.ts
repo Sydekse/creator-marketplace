@@ -222,6 +222,10 @@ export async function createCreatorProfile(
       await notify(userId, 'verification_result', {
         creatorProfileId: profile.id,
         outcome: 'approved',
+        // Whether the assignment above also priced them — discovery lists
+        // only tiered creators, and the email's "visible to brands" claim
+        // branches on this.
+        tiered: tier.assigned,
       });
 
       return { ok: true, profile, tier };

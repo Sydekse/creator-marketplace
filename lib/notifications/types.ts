@@ -49,6 +49,11 @@ export const NOTIFICATION_TYPES = [
   // band. Only upgrades notify; a downgrade is flagged for admin review and
   // says nothing until a human decides.
   'tier_upgraded',
+  // `tier_assigned` (phase 3 cleanup) — an admin run of tier assignment
+  // changed the creator's band. Direction-neutral on purpose: the admin paths
+  // apply upgrades, downgrades and first-time pricing alike, and the creator
+  // is told the new fact, not sold a story about it.
+  'tier_assigned',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -100,6 +105,14 @@ export interface NotificationPayloadMap {
     outcome: 'approved' | 'rejected';
     /** Admin-supplied and shown to the creator; absent on approval. */
     reason?: string;
+    /**
+     * Whether onboarding also priced the creator (phase 3 cleanup). Discovery
+     * lists only tiered creators, so "you are visible to brands" is false for
+     * a verified-but-untiered profile — the body branches on this. Optional
+     * because rows written before the field existed have no value; those were
+     * all sent with the visible-to-brands copy, so absent renders as `true`.
+     */
+    tiered?: boolean;
   };
   campaign_funded: {
     campaignId: string;
@@ -184,6 +197,12 @@ export interface NotificationPayloadMap {
     campaignTitle: string;
   };
   tier_upgraded: {
+    creatorProfileId: string;
+    tierName: string;
+    /** The creator's new asking price, in santim (invariant 4). */
+    pricePerVideo: number;
+  };
+  tier_assigned: {
     creatorProfileId: string;
     tierName: string;
     /** The creator's new asking price, in santim (invariant 4). */
