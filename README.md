@@ -12,7 +12,8 @@ append-only ledger inside the same database transaction as the deal state change
 
 **Live at [creator-marketplace-mu.vercel.app](https://creator-marketplace-mu.vercel.app)**
 
-> **Scope.** Creator verification and engagement metrics are entered manually, and the payment
+> **Scope.** TikTok sign-ups get server-fetched stats, instant verification, and automatic tier
+> assignment; the manual-entry path remains for demo (email/password) accounts only. The payment
 > processor is a mock implementation behind a `PaymentProvider` interface. Everything else — auth,
 > RBAC, escrow accounting, the deal state machine, email, scheduled jobs — is real.
 
@@ -23,7 +24,7 @@ append-only ledger inside the same database transaction as the deal state change
 **Accounts and access**
 
 - Three roles — brand, creator, admin — gated server-side on every request and every action
-- Email/password auth with HTTP-only session cookies
+- TikTok OAuth (Login Kit) for creators; email/password with OTP-verified email for demo accounts; HTTP-only session cookies
 - Role-scoped route groups, so a brand route can't be reached by a creator
 
 **Creator supply**
@@ -82,8 +83,8 @@ append-only ledger inside the same database transaction as the deal state change
 BRAND                              CREATOR                       ADMIN
   │                                                                │
   ├─ sign up, create profile                                       │
-  │                              sign up, create profile ─────────►│ verify
-  │                                                                │ assign tier
+  │                              sign up w/ TikTok, auto-verify ──►│ assign tier
+  │                              refresh stats (self + weekly cron)│ review downgrade flags
   ├─ write campaign brief                                          │
   ├─ discover creators ◄──────────── (verified + tiered only) ─────┘
   ├─ shortlist within budget
@@ -178,7 +179,7 @@ app/
   (auth)/                  sign-in, sign-up
   (brand)/(onboarded)/     dashboard, campaigns, discovery, deals
   (creator)/creator/       dashboard, onboarding, deals
-  (admin)/admin/           verification, tiers, campaigns, deals, worklist, audit log
+  (admin)/admin/           tiers, campaigns, deals, worklist, audit log
   api/                     31 route handlers
   notifications/           in-app notification feed
 
