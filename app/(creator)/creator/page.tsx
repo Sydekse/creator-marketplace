@@ -144,7 +144,18 @@ export default async function CreatorDashboardPage() {
           </section>
 
           <section className="flex h-full flex-col justify-between gap-4 rounded-[24px] border border-neutral-200 bg-background p-4 sm:p-5">
-            <SectionLabel>Your profile</SectionLabel>
+            <div className="flex items-center justify-between gap-3">
+              <SectionLabel>Your profile</SectionLabel>
+              {tiktokLinked ? (
+                <RefreshStatsButton
+                  lastRefreshedLabel={
+                    profile.statsRefreshedAt
+                      ? ageLabel(profile.statsRefreshedAt)
+                      : null
+                  }
+                />
+              ) : null}
+            </div>
             <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
               <div className="flex flex-col gap-1">
                 <dt className="text-[11px] font-semibold tracking-[0.12em] text-neutral-600 uppercase">
@@ -175,15 +186,6 @@ export default async function CreatorDashboardPage() {
               </div>
             </dl>
             <AudienceSection audience={readAudience(profile.audience)} />
-            {tiktokLinked ? (
-              <RefreshStatsButton
-                lastRefreshedLabel={
-                  profile.statsRefreshedAt
-                    ? ageLabel(profile.statsRefreshedAt)
-                    : null
-                }
-              />
-            ) : null}
             {profileUrl ? (
               <a
                 href={profileUrl}
