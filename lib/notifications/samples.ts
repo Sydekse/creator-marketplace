@@ -128,6 +128,14 @@ export const SAMPLE_NOTIFICATIONS: {
       campaignTitle: 'Spring Coffee Push',
     },
   },
+  tier_upgraded: {
+    type: 'tier_upgraded',
+    payload: {
+      creatorProfileId: 'c1',
+      tierName: 'Mid',
+      pricePerVideo: 400_000,
+    },
+  },
 };
 
 /**

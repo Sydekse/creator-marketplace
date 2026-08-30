@@ -8,6 +8,7 @@ import {
 import { AudienceSection } from '@/components/creator/audience-section';
 import { EarningsSummary } from '@/components/creator/earnings-summary';
 import { PayoutChart } from '@/components/creator/payout-chart';
+import { RefreshStatsButton } from '@/components/creator/refresh-stats-button';
 import { TierPricing } from '@/components/creator/tier-pricing';
 import { VerificationStatus } from '@/components/creator/verification-status';
 import { EmptyState } from '@/components/feedback/empty-state';
@@ -16,7 +17,7 @@ import { buttonVariants } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { cn } from '@/lib/utils';
 import { formatEtb } from '@/lib/money';
-import { expiryLabel } from '@/lib/dates';
+import { ageLabel, expiryLabel } from '@/lib/dates';
 import { labelForStatus } from '@/lib/deals/groups';
 import { needsCredentials, requireRole } from '@/lib/auth';
 import {
@@ -37,6 +38,7 @@ import {
   formatFollowerCount,
 } from '@/lib/creators/profile-facts';
 import { readAudience } from '@/lib/creators/detail';
+import { sessionTiktokHandle } from '@/lib/creators/credentials';
 import { tiktokProfileUrl } from '@/lib/creators/handle';
 import { getCreatorProfileWithTier, isBookable } from '@/lib/creators/queries';
 import { listTierCandidates, selectTier } from '@/lib/creators/tier-assignment';
@@ -100,6 +102,10 @@ export default async function CreatorDashboardPage() {
 
   const bookable = isBookable({ ...profile, tierActive: tier?.active ?? null });
   const profileUrl = tiktokProfileUrl(profile.tiktokHandle);
+  // TikTok-linked accounts get the self-serve refresh (phase 3); email
+  // sign-ups have nothing to pull from — their numbers are the admin's to
+  // correct, so the button never renders for them.
+  const tiktokLinked = (await sessionTiktokHandle(user.id)) !== null;
   const openDeals = dashboard.groups
     .filter(
       (group) =>
@@ -168,6 +174,15 @@ export default async function CreatorDashboardPage() {
               </div>
             </dl>
             <AudienceSection audience={readAudience(profile.audience)} />
+            {tiktokLinked ? (
+              <RefreshStatsButton
+                lastRefreshedLabel={
+                  profile.statsRefreshedAt
+                    ? ageLabel(profile.statsRefreshedAt)
+                    : null
+                }
+              />
+            ) : null}
             {profileUrl ? (
               <a
                 href={profileUrl}

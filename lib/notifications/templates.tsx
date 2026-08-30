@@ -369,6 +369,7 @@ const subjects: {
     `Fund ${p.campaignTitle} — ${p.creatorHandle} accepted`,
   offer_declined: (p) => `${p.creatorHandle} declined your offer`,
   metric_reminder: (p) => `Metrics still pending for ${p.campaignTitle}`,
+  tier_upgraded: (p) => `You moved up to the ${p.tierName} tier`,
 };
 
 function Content({ type, payload }: NotificationInput): React.ReactElement {
@@ -667,6 +668,24 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             href={appUrl(`/creator/deals/${payload.dealId}`)}
             label="Submit your metrics →"
           />
+        </Layout>
+      );
+
+    case 'tier_upgraded':
+      // Phase 3: a stats refresh (manual or the weekly cron) qualified the
+      // creator for a higher band. Only upgrades mail — a downgrade waits for
+      // an admin decision and says nothing until one is made.
+      return (
+        <Layout
+          preview={`Your refreshed stats earned the ${payload.tierName} tier`}
+          heading={`You're now on the ${payload.tierName} tier`}
+        >
+          <Text style={styles.text}>
+            Your refreshed TikTok stats qualify you for{' '}
+            <strong>{payload.tierName}</strong>. Your price per video is now{' '}
+            <strong>{formatEtb(payload.pricePerVideo)}</strong>.
+          </Text>
+          <Cta href={appUrl('/creator')} label="View your profile →" />
         </Layout>
       );
   }

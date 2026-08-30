@@ -178,6 +178,7 @@ describe('notification types', () => {
       'offer_accepted',
       'offer_declined',
       'metric_reminder',
+      'tier_upgraded',
     ]);
   });
 

@@ -9,6 +9,7 @@ import {
 import type { Job, SchedulerRunResult } from '@/lib/scheduler/harness';
 import { expireOffersJob } from '@/lib/deals/expire-offers';
 import { metricRemindersJob } from '@/lib/deals/metric-reminders';
+import { refreshCreatorStatsJob } from '@/lib/creators/refresh-stats-job';
 import { ErrorCode, ErrorHttpStatus, errorResponse } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
@@ -32,9 +33,15 @@ const CRON_TIMEOUT_ABORT_REASON = 'Internal execution timeout';
  * `expire-offers` (KAN-38) is first because it releases brand budget, which is
  * the one thing in this run a person is waiting on. `metric-reminders` (KAN-57)
  * follows: it only sends a notification, so a budget release failing before it
- * does not cost the reminders anything either.
+ * does not cost the reminders anything either. `refresh-creator-stats`
+ * (phase 3) runs last — a bounded batch of TikTok API calls, the slowest and
+ * least urgent of the three.
  */
-const jobsToRun: Job[] = [expireOffersJob, metricRemindersJob];
+const jobsToRun: Job[] = [
+  expireOffersJob,
+  metricRemindersJob,
+  refreshCreatorStatsJob,
+];
 
 /** Injectable for tests — the only seam the route exposes. */
 export interface CronRouteDeps {

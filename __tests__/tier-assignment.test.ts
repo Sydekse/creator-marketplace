@@ -781,8 +781,10 @@ describe('POST /api/admin/creators/:id/assign-tier', () => {
 
       await handleAssignTier(VALID_ID, deps);
 
-      // No write at all on a no-match, so there is nothing that could clear it.
-      expect(set).not.toHaveBeenCalled();
+      // The only write on a no-match is the phase-3 review-flag reset —
+      // nothing touches tier_id, so nothing could clear it.
+      expect(set).toHaveBeenCalledTimes(1);
+      expect(set).toHaveBeenCalledWith({ tierReviewAt: null });
     });
 
     it('still upgrades a tiered creator who now matches a higher band', async () => {

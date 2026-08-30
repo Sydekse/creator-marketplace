@@ -44,6 +44,11 @@ export const NOTIFICATION_TYPES = [
   'offer_accepted',
   'offer_declined',
   'metric_reminder',
+  // Appended after the AC-2 nine for the same reason as the two above:
+  // `tier_upgraded` (phase 3) — a stats refresh moved the creator to a higher
+  // band. Only upgrades notify; a downgrade is flagged for admin review and
+  // says nothing until a human decides.
+  'tier_upgraded',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -177,6 +182,12 @@ export interface NotificationPayloadMap {
   metric_reminder: {
     dealId: string;
     campaignTitle: string;
+  };
+  tier_upgraded: {
+    creatorProfileId: string;
+    tierName: string;
+    /** The creator's new asking price, in santim (invariant 4). */
+    pricePerVideo: number;
   };
 }
 
