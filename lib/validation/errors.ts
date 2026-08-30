@@ -114,6 +114,12 @@ export enum ErrorCode {
    * tells them nothing they can act on; this sentence does.
    */
   REASON_REQUIRED = 'REASON_REQUIRED',
+  /**
+   * A repeat email-OTP request inside the resend cooldown (phase 3, PR 2).
+   * 429 with `Retry-After`, so the credentials form can show a countdown
+   * instead of a dead button.
+   */
+  OTP_RATE_LIMITED = 'OTP_RATE_LIMITED',
   FORBIDDEN = 'FORBIDDEN',
   VALIDATION_ERROR = 'VALIDATION_ERROR',
   /**
@@ -183,6 +189,8 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.DEAL_NOT_FUNDED]: 'Deal has not been funded yet.',
   [ErrorCode.DEAL_NOT_DELIVERED]: 'Deal has not been delivered yet.',
   [ErrorCode.REASON_REQUIRED]: 'A rejection reason is required.',
+  [ErrorCode.OTP_RATE_LIMITED]:
+    'A code was just sent. Wait a moment before requesting another.',
   [ErrorCode.FORBIDDEN]: 'You do not have permission to perform this action.',
   [ErrorCode.VALIDATION_ERROR]: 'Validation failed.',
   [ErrorCode.NOT_FOUND]: 'The requested resource does not exist.',
@@ -213,6 +221,7 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.DEAL_NOT_FUNDED]: 409,
   [ErrorCode.DEAL_NOT_DELIVERED]: 409,
   [ErrorCode.REASON_REQUIRED]: 422,
+  [ErrorCode.OTP_RATE_LIMITED]: 429,
   [ErrorCode.FORBIDDEN]: 403,
   [ErrorCode.VALIDATION_ERROR]: 422,
   [ErrorCode.NOT_FOUND]: 404,
