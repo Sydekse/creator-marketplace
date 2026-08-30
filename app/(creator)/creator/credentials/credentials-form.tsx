@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { TikTokIcon } from '@/components/brand/tiktok-icon';
 import { FieldError } from '@/components/ui/field-error';
 import { Input } from '@/components/ui/input';
 import { PasswordInput } from '@/components/ui/password-input';
+import { displayTiktokHandle } from '@/lib/creators/handle';
 import { cn, textLinkFeedback } from '@/lib/utils';
 
 interface FieldErrors {
@@ -36,9 +38,11 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function CreatorCredentialsForm({
   needsEmail,
   hasPassword,
+  tiktokHandle = null,
 }: {
   needsEmail: boolean;
   hasPassword: boolean;
+  tiktokHandle?: string | null;
 }) {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -349,6 +353,23 @@ export function CreatorCredentialsForm({
             );
           })}
         </ol>
+      ) : null}
+      {view === 'email' && tiktokHandle ? (
+        <p
+          role="status"
+          className={cn(
+            'flex items-center gap-2 rounded-lg border border-brand/30 bg-brand-tint px-4 py-3 text-[13px] leading-snug text-brand-ink',
+            steps.length > 1 ? 'mt-5' : undefined
+          )}
+        >
+          <TikTokIcon className="h-4 w-4 shrink-0" />
+          <span>
+            TikTok connected as{' '}
+            <strong className="font-semibold">
+              {displayTiktokHandle(tiktokHandle)}
+            </strong>
+          </span>
+        </p>
       ) : null}
       <p className="mt-5 text-[13px] font-bold uppercase tracking-[0.14em] text-brand-ink">
         {copy.eyebrow}
