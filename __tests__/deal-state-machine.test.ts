@@ -391,8 +391,13 @@ describe('toHistoryEvent — the actor columns (AC-005, AC-009)', () => {
 
   it('folds a present actor into one object', () => {
     expect(
-      toHistoryEvent({ ...base, actorId: ACTOR_ID, actorName: 'Amina' })
-    ).toEqual({ ...base, actor: { id: ACTOR_ID, name: 'Amina' } });
+      toHistoryEvent({
+        ...base,
+        actorId: ACTOR_ID,
+        actorName: 'Amina',
+        actorImage: null,
+      })
+    ).toEqual({ ...base, actor: { id: ACTOR_ID, name: 'Amina', image: null } });
   });
 
   it('reports the system as no actor rather than a blank name', () => {
@@ -400,7 +405,12 @@ describe('toHistoryEvent — the actor columns (AC-005, AC-009)', () => {
     // the one that uses it. `{ id: null, name: null }` would render as an empty
     // byline; null renders as "the system".
     expect(
-      toHistoryEvent({ ...base, actorId: null, actorName: null })
+      toHistoryEvent({
+        ...base,
+        actorId: null,
+        actorName: null,
+        actorImage: null,
+      })
     ).toMatchObject({ actor: null });
   });
 
@@ -408,7 +418,12 @@ describe('toHistoryEvent — the actor columns (AC-005, AC-009)', () => {
     // `user.name` is not null, so an actorId with no name means the left join
     // found nothing. Attributing the action to a blank is worse than to nobody.
     expect(
-      toHistoryEvent({ ...base, actorId: ACTOR_ID, actorName: null })
+      toHistoryEvent({
+        ...base,
+        actorId: ACTOR_ID,
+        actorName: null,
+        actorImage: null,
+      })
     ).toMatchObject({ actor: null });
   });
 
@@ -417,6 +432,7 @@ describe('toHistoryEvent — the actor columns (AC-005, AC-009)', () => {
       ...base,
       actorId: ACTOR_ID,
       actorName: 'Amina',
+      actorImage: null,
     });
     expect(Object.keys(event).sort()).toEqual([
       'actor',
@@ -438,6 +454,7 @@ describe('selectDealHistory — every row, in the order given (AC-009)', () => {
     createdAt: new Date(0),
     actorId: actorName ? ACTOR_ID : null,
     actorName,
+    actorImage: null,
   });
 
   it('folds all of them, not just the first', async () => {
@@ -695,9 +712,11 @@ describe('getDealHistory — the emitted SQL (AC-009)', () => {
     expect(sql).toMatch(/where[\s\S]*deal_id/i);
   });
 
-  it('selects no column beyond the actor’s name and id', () => {
-    // NFR-010: the actor is shown so a human can be held to the action, and
-    // nothing else about them travels with it.
-    expect(sql).not.toMatch(/email|password|image/i);
+  it('selects no column beyond the actor’s name, image and id', () => {
+    // NFR-010: the actor is shown so a human can be held to the action — the
+    // name and the face beside it — and nothing else about them travels with
+    // it. `image` moved to the allowed side when avatars shipped; the contact
+    // columns are the ones a careless render would leak.
+    expect(sql).not.toMatch(/email|password/i);
   });
 });

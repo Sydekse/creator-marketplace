@@ -105,7 +105,7 @@ export function CreatorCard({
       <CardHeader className="pb-2">
         <CardTitle className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <InitialsAvatar name={creator.tiktokHandle} />
+            <InitialsAvatar name={creator.tiktokHandle} image={creator.image} />
             <div className="relative z-10 min-w-0">
               <TruncatedText
                 text={`@${creator.tiktokHandle.replace(/^@+/, '')}`}

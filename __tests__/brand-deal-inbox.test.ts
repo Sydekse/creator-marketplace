@@ -39,6 +39,7 @@ const makeDeal = (over: Partial<BrandInboxDeal> = {}): BrandInboxDeal => ({
   id: DEAL_ID,
   status: 'pending' as DealStatus,
   creatorHandle: '@selam',
+  creatorImage: null,
   campaignName: 'Summer launch',
   campaignId: CAMPAIGN_ID_1,
   videoCount: 2,

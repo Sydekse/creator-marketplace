@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '@/db';
-import { creatorProfile, pricingTier } from '@/db/schema';
+import { creatorProfile, pricingTier, user } from '@/db/schema';
 import { guard } from '@/lib/authz';
 import { AUDIENCE_MARKET_LABELS } from '@/lib/config/creator-profile';
 import type { AudienceMarketCode } from '@/lib/config/creator-profile';
@@ -102,9 +102,10 @@ export interface CreatorDetailDeps {
 /**
  * The query as a builder rather than a promise, so a test can read the SQL it
  * emits without a database. NFR-010's "no PII beyond what a brand needs" is a
- * claim about this column list and this join, and the emitted statement is where
- * that claim is checkable: no contact column is selected and the only table
- * joined is `pricing_tier`. `pg` opens no socket until a query actually runs.
+ * claim about this column list and these joins, and the emitted statement is
+ * where that claim is checkable: no contact column is selected, and the only
+ * joins are `pricing_tier` and `user` — the latter for the single `image`
+ * column. `pg` opens no socket until a query actually runs.
  */
 export function creatorDetailQuery(where: SQL) {
   return (
@@ -112,6 +113,7 @@ export function creatorDetailQuery(where: SQL) {
       .select({
         id: creatorProfile.id,
         tiktokHandle: creatorProfile.tiktokHandle,
+        image: user.image,
         niche: creatorProfile.niche,
         followerCount: creatorProfile.followerCount,
         engagementRate: creatorProfile.engagementRate,
@@ -126,6 +128,9 @@ export function creatorDetailQuery(where: SQL) {
       // view exists to show. A left join would admit a null price, which is the
       // un-tiered creator AC-006 excludes.
       .innerJoin(pricingTier, eq(creatorProfile.tierId, pricingTier.id))
+      // The picture, as discovery selects it: only `image` travels off `user`;
+      // no contact column is selected (NFR-010's actual concern).
+      .innerJoin(user, eq(creatorProfile.userId, user.id))
       .where(where)
       .limit(1)
   );

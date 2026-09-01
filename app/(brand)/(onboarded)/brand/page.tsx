@@ -137,7 +137,11 @@ export default async function BrandDashboardPage() {
                       className="surface-pop group flex min-h-20 cursor-pointer flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border-2 border-brand/25 px-4 py-3 transition-[transform,border-color] duration-200 ease-[var(--ease-smooth)] hover:-translate-y-0.5 hover:border-brand/50 active:scale-[0.99] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
                     >
                       <div className="flex min-w-0 items-center gap-3">
-                        <InitialsAvatar name={row.creatorHandle} size="sm" />
+                        <InitialsAvatar
+                          name={row.creatorHandle}
+                          image={row.creatorImage}
+                          size="sm"
+                        />
                         <div className="flex min-w-0 flex-col gap-0.5">
                           <TruncatedText
                             text={displayTiktokHandle(row.creatorHandle)}

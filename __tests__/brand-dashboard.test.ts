@@ -158,6 +158,7 @@ describe('awaiting review', () => {
         {
           dealId: DEAL_ID,
           creatorHandle: '@selam',
+          creatorImage: null,
           campaignName: 'Summer launch',
           campaignId: CAMPAIGN_ID,
           videoCount: 2,

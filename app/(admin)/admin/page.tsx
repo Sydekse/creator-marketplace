@@ -37,7 +37,11 @@ export default async function AdminConsolePage() {
         title="Admin console"
         description={
           <div className="flex items-center gap-2">
-            <InitialsAvatar name={user.name ?? user.email} size="sm" />
+            <InitialsAvatar
+              name={user.name ?? user.email}
+              image={user.image}
+              size="sm"
+            />
             <span>Signed in as {user.name ?? user.email}.</span>
           </div>
         }

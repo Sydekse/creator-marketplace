@@ -1,13 +1,21 @@
 import { cn } from '@/lib/utils';
 
 /**
- * A 2-letter initial avatar using the Bungee display font.
+ * A 2-letter initial avatar using the Bungee display font, with an optional
+ * picture on top.
  *
  * Derives initials from the user's name:
  *   - 2+ words → first letter of part[0] + first letter of part[1]  ("Naod Sima" → "NS")
  *   - 1 word   → first two letters                                   ("Naod" → "NA")
  *
  * Always uppercase. No client JS — pure string rendering.
+ *
+ * When `image` is given, it is layered over the initials with a plain `<img>`
+ * (empty `alt`, the name is decoration beside real text everywhere this is
+ * used). A URL that fails to load — e.g. an expired TikTok CDN link that a
+ * stats refresh has not yet repaired — renders as nothing, so the initials
+ * underneath show through: a CSS-only fallback that keeps this a server
+ * component.
  */
 
 function getInitials(name: string): string {
@@ -27,17 +35,20 @@ const SIZE_CLASSES = {
 
 export function InitialsAvatar({
   name,
+  image,
   size = 'default',
   className,
 }: {
   name: string;
+  /** Profile picture URL; null/undefined falls back to initials. */
+  image?: string | null;
   size?: 'sm' | 'default' | 'lg';
   className?: string;
 }) {
   return (
     <div
       className={cn(
-        'flex shrink-0 items-center justify-center rounded-full',
+        'relative flex shrink-0 items-center justify-center overflow-hidden rounded-full',
         'bg-white border border-neutral-200',
         'shadow-[0_4px_12px_rgba(23,23,23,0.02)]',
         'font-[family-name:var(--font-bungee)] font-normal uppercase',
@@ -48,6 +59,17 @@ export function InitialsAvatar({
       aria-hidden="true"
     >
       {getInitials(name)}
+      {image ? (
+        // Remote avatar hosts vary (blob store, TikTok CDN interim);
+        // next/image would need a remotePatterns entry per host and offers
+        // nothing for a 32px circle.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={image}
+          alt=""
+          className="absolute inset-0 size-full object-cover"
+        />
+      ) : null}
     </div>
   );
 }

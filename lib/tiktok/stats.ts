@@ -32,6 +32,12 @@ export interface TiktokStats {
    * Null when video.list is unavailable or every sampled video has 0 views.
    */
   engagementRate: string | null;
+  /**
+   * The creator's current profile picture as a signed TikTok CDN URL —
+   * short-lived (~24–48h), so callers copy it into blob storage rather than
+   * persist it directly. Null when user.info is unavailable.
+   */
+  avatarUrl: string | null;
 }
 
 interface VideoCounts {
@@ -84,26 +90,41 @@ async function tiktokAccessToken(userId: string): Promise<string | null> {
   }
 }
 
-async function fetchFollowerCount(accessToken: string): Promise<number | null> {
+interface UserInfoFields {
+  followerCount: number | null;
+  avatarUrl: string | null;
+}
+
+async function fetchUserInfo(accessToken: string): Promise<UserInfoFields> {
   try {
     const res = await fetch(USER_INFO_URL, {
       headers: { Authorization: `Bearer ${accessToken}` },
       // Fresh numbers each onboarding; this is not a cacheable read.
       cache: 'no-store',
     });
-    if (!res.ok) return null;
+    if (!res.ok) return { followerCount: null, avatarUrl: null };
     const body = (await res.json()) as {
-      data?: { user?: { follower_count?: number } };
+      data?: { user?: { follower_count?: number; avatar_url?: string } };
     };
     const count = body.data?.user?.follower_count;
-    return typeof count === 'number' &&
-      Number.isFinite(count) &&
-      Number.isInteger(count) &&
-      count >= 0
-      ? count
-      : null;
+    const avatar = body.data?.user?.avatar_url;
+    return {
+      followerCount:
+        typeof count === 'number' &&
+        Number.isFinite(count) &&
+        Number.isInteger(count) &&
+        count >= 0
+          ? count
+          : null,
+      // Only https URLs are worth carrying; anything else cannot be an
+      // avatar the UI would load.
+      avatarUrl:
+        typeof avatar === 'string' && avatar.startsWith('https://')
+          ? avatar
+          : null,
+    };
   } catch {
-    return null;
+    return { followerCount: null, avatarUrl: null };
   }
 }
 
@@ -144,10 +165,12 @@ export async function fetchTiktokStats(
   const accessToken = await tiktokAccessToken(userId);
   if (!accessToken) return null;
 
-  const [followerCount, engagementRate] = await Promise.all([
-    fetchFollowerCount(accessToken),
+  const [{ followerCount, avatarUrl }, engagementRate] = await Promise.all([
+    fetchUserInfo(accessToken),
     fetchEngagementRate(accessToken),
   ]);
+  // Avatar alone is not "stats": returning a result here would let a refresh
+  // stamp and overwrite real follower/engagement numbers with nulls.
   if (followerCount === null && engagementRate === null) return null;
-  return { followerCount, engagementRate };
+  return { followerCount, engagementRate, avatarUrl };
 }

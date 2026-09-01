@@ -114,7 +114,11 @@ export default async function BrandDealReviewPage({
       </Link>
 
       <div className="flex items-start gap-5">
-        <InitialsAvatar name={deal.creatorHandle} size="lg" />
+        <InitialsAvatar
+          name={deal.creatorHandle}
+          image={deal.creatorImage}
+          size="lg"
+        />
         <PageHeader
           label="Deal"
           title={deal.creatorHandle}
