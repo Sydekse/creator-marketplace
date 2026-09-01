@@ -131,6 +131,39 @@ export async function submitVideo(
   }).toPass({ timeout: 45_000 });
 }
 
+/**
+ * Fill a set of controlled inputs and require the values to survive
+ * hydration.
+ *
+ * The campaign brief's fields are `useState`-controlled: a fill that lands
+ * before React hydrates is silently wiped when the component mounts and
+ * re-asserts its empty state. Flow 2 lost exactly the first field this way on
+ * webkit-desktop (three runs in a row on #142 — the failure screenshot shows
+ * "Campaign name is required" with every later field intact, i.e. hydration
+ * finished between the first fill and the second). Same family as
+ * `openConfirmDialog`'s not-yet-hydrated click: unobservable from outside,
+ * so fill, give the mount a beat to wipe it, and re-check until it sticks.
+ */
+export async function fillHydrated(
+  page: Page,
+  fields: ReadonlyArray<readonly [selector: string, value: string]>
+): Promise<void> {
+  await expect(async () => {
+    for (const [selector, value] of fields) {
+      const field = page.locator(selector);
+      if ((await field.inputValue()) !== value) {
+        await field.fill(value);
+      }
+    }
+    await page.waitForTimeout(300);
+    for (const [selector, value] of fields) {
+      await expect(page.locator(selector)).toHaveValue(value, {
+        timeout: 1_000,
+      });
+    }
+  }).toPass({ timeout: 30_000 });
+}
+
 /** Open the brand's campaign page by name. */
 export async function openCampaign(page: Page, campaignName: string) {
   await page.goto('/campaigns');
