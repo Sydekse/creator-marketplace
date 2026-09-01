@@ -73,20 +73,29 @@ export interface PaymentGateway {
 }
 
 /**
- * The checkout-page description, within Chapa's own validation: only letters,
- * numbers, hyphens, underscores, spaces, and dots survive (anything else in a
- * campaign name — a colon, an ampersand, an emoji — would fail the whole
- * initialize call), collapsed and capped well under the field limit. ASCII
- * only: Chapa's published rule doesn't say whether "letters" includes an
- * Amharic name, and a stripped description still checks out where a rejected
- * one loses the payment.
+ * Strip a merchant-supplied string down to the character set Chapa's
+ * validators accept — letters, numbers, hyphens, underscores, spaces, and
+ * dots — collapsed and capped. ASCII only: Chapa's published rule doesn't say
+ * whether "letters" includes an Amharic name, and a stripped value still
+ * passes validation where a rejected one loses the whole call.
  */
-export function checkoutDescription(campaignName: string): string {
-  const safeName = campaignName
+export function chapaSafeText(value: string, max: number): string {
+  return value
     .replace(/[^A-Za-z0-9 ._-]+/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim();
-  return `Fund campaign ${safeName}`.trim().slice(0, 100);
+    .trim()
+    .slice(0, max);
+}
+
+/**
+ * The checkout-page description, within Chapa's own validation (anything else
+ * in a campaign name — a colon, an ampersand, an emoji — would fail the whole
+ * initialize call), capped well under the field limit.
+ */
+export function checkoutDescription(campaignName: string): string {
+  return `Fund campaign ${chapaSafeText(campaignName, 100)}`
+    .trim()
+    .slice(0, 100);
 }
 
 export class ChapaGateway implements PaymentGateway {
@@ -102,7 +111,10 @@ export class ChapaGateway implements PaymentGateway {
       txRef: options.txRef,
       amountSantim: options.amountSantim,
       email: options.email,
-      firstName: options.firstName,
+      // Same defensive stance as the customization fields below: a brand
+      // display name is free text ("Big & Bold ✨") and Chapa validates
+      // names at initialize — strip rather than risk the whole checkout.
+      firstName: chapaSafeText(options.firstName, 50) || 'Brand',
       lastName: options.lastName,
       returnUrl: options.returnUrl,
       callbackUrl: options.callbackUrl,
@@ -136,7 +148,12 @@ export class ChapaGateway implements PaymentGateway {
   }
 
   refund(options: Parameters<PaymentGateway['refund']>[0]): Promise<void> {
-    return this.client.refund(options);
+    // The reason is admin free text; Chapa's refund validation is
+    // undocumented, so it gets the same strip-don't-risk treatment.
+    const reason = options.reason
+      ? chapaSafeText(options.reason, 100) || undefined
+      : undefined;
+    return this.client.refund({ ...options, reason });
   }
 }
 
