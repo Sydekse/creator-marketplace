@@ -11,6 +11,7 @@ export interface NavLink {
     | 'cart'
     | 'tiers'
     | 'worklist'
+    | 'payments'
     | 'audit';
 }
 
@@ -38,6 +39,7 @@ const NAV_LINKS: Record<UserRole, NavLink[]> = {
     { label: 'Tiers', href: '/admin/tiers', icon: 'tiers' },
     { label: 'Campaigns', href: '/admin/campaigns', icon: 'campaigns' },
     { label: 'Disputes', href: '/admin/worklist', icon: 'worklist' },
+    { label: 'Payments', href: '/admin/payments', icon: 'payments' },
     { label: 'Audit log', href: '/admin/audit-log', icon: 'audit' },
   ],
 };

@@ -2,6 +2,7 @@ import { parseChapaEvent, verifyChapaSignature } from '@/lib/chapa/webhook';
 import { settleFundingSession } from '@/lib/campaigns/settle-funding';
 import type { SettleFundingResult } from '@/lib/campaigns/settle-funding';
 import { settleWithdrawal } from '@/lib/wallet/settle-withdrawal';
+import { settleRefundEvent } from '@/lib/refunds/external-refund';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -34,6 +35,7 @@ export const dynamic = 'force-dynamic';
 export interface WebhookRouteDeps {
   settle?: typeof settleFundingSession;
   settlePayout?: typeof settleWithdrawal;
+  settleRefund?: typeof settleRefundEvent;
   secret?: () => string | undefined;
   log?: Pick<Console, 'error' | 'info' | 'warn'>;
 }
@@ -44,6 +46,7 @@ export async function handleChapaWebhook(
 ): Promise<Response> {
   const settle = deps.settle ?? settleFundingSession;
   const settlePayout = deps.settlePayout ?? settleWithdrawal;
+  const settleRefund = deps.settleRefund ?? settleRefundEvent;
   const secret = (deps.secret ?? (() => process.env.CHAPA_WEBHOOK_SECRET))();
   const log = deps.log ?? console;
 
@@ -109,8 +112,24 @@ export async function handleChapaWebhook(
     return Response.json({ outcome: result.outcome }, { status: 200 });
   }
 
-  // Refund legs arrive in PR 4. Captured verbatim so their real
-  // test-mode shapes are pinned before any code depends on them.
+  // The refund leg (PR 4). A refund event names the original *funding*
+  // charge, so the discriminator is the event kind plus our `cmfund_`
+  // reference — checked before the funding leg cannot catch it because that
+  // leg requires kind 'transaction'. Always 200: the settlement is a
+  // conditional UPDATE of our own `processing` refund rows, and an event
+  // matching none of them is a no-op worth nothing to redeliver.
+  if (event.kind === 'refund') {
+    const result = await settleRefund({
+      txRef: event.txRef,
+      status: event.status,
+    });
+    log.info(
+      `[chapa webhook] refund event ${event.name ?? '(no name)'} tx_ref=${event.txRef ?? '(none)'} -> ${result.outcome}${'count' in result ? ` (${result.count} rows)` : ''}`
+    );
+    return Response.json({ outcome: result.outcome }, { status: 200 });
+  }
+
+  // Anything else is captured verbatim so real test-mode shapes stay pinned.
   log.info(
     `[chapa webhook] unhandled ${event.kind} event ${event.name ?? '(no name)'}: ${rawBody}`
   );

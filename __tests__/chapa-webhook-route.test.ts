@@ -161,7 +161,6 @@ describe('handleChapaWebhook', () => {
 
   it.each([
     ['a payout event', { type: 'transfer', status: 'success', reference: 'R' }],
-    ['a refund event', { event: 'refund.processed', tx_ref: TX_REF }],
     [
       'a transaction with a foreign tx_ref',
       { event: 'charge.success', tx_ref: 'someone_elses' },
@@ -241,6 +240,47 @@ describe('handleChapaWebhook', () => {
       const response = await handleChapaWebhook(post(body), deps);
       expect(response.status).toBe(401);
       expect(settlePayout).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('refund leg', () => {
+    it('routes a refund event to refund settlement, not funding', async () => {
+      const settle = settleReturning({ outcome: 'not_found' });
+      const settleRefund = vi
+        .fn()
+        .mockResolvedValue({ outcome: 'refunded', count: 1 });
+      const body = JSON.stringify({
+        event: 'refund.processed',
+        status: 'success',
+        tx_ref: TX_REF,
+      });
+      const response = await handleChapaWebhook(
+        post(body, { 'chapa-signature': sign(body) }),
+        { settle, settleRefund, secret: () => SECRET, log: silentLog }
+      );
+      expect(response.status).toBe(200);
+      expect(settleRefund).toHaveBeenCalledWith({
+        txRef: TX_REF,
+        status: 'success',
+      });
+      expect(settle).not.toHaveBeenCalled();
+      expect(await response.json()).toEqual({ outcome: 'refunded' });
+    });
+
+    it('answers 200 even when the event matches no refund rows', async () => {
+      const settleRefund = vi.fn().mockResolvedValue({ outcome: 'ignored' });
+      const body = JSON.stringify({ event: 'refund.failed', status: 'failed' });
+      const response = await handleChapaWebhook(
+        post(body, { 'chapa-signature': sign(body) }),
+        {
+          settle: settleReturning({ outcome: 'not_found' }),
+          settleRefund,
+          secret: () => SECRET,
+          log: silentLog,
+        }
+      );
+      expect(response.status).toBe(200);
+      expect(settleRefund).toHaveBeenCalled();
     });
   });
 });
