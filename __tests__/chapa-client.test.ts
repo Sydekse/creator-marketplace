@@ -106,8 +106,8 @@ describe('initializeTransaction', () => {
       firstName: 'Bete',
       returnUrl: 'https://app.example.com/return',
       callbackUrl: 'https://app.example.com/callback',
-      title: 'Creator Marketplace',
-      description: 'Fund campaign: Summer Launch',
+      title: 'Fund campaign',
+      description: 'Fund campaign Summer Launch',
     });
 
     expect(result.checkoutUrl).toBe('https://checkout.chapa.co/x/123');
@@ -129,8 +129,8 @@ describe('initializeTransaction', () => {
       return_url: 'https://app.example.com/return',
       callback_url: 'https://app.example.com/callback',
       customization: {
-        title: 'Creator Marketplace',
-        description: 'Fund campaign: Summer Launch',
+        title: 'Fund campaign',
+        description: 'Fund campaign Summer Launch',
       },
     });
   });

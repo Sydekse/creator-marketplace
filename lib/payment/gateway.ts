@@ -72,6 +72,23 @@ export interface PaymentGateway {
   }): Promise<void>;
 }
 
+/**
+ * The checkout-page description, within Chapa's own validation: only letters,
+ * numbers, hyphens, underscores, spaces, and dots survive (anything else in a
+ * campaign name — a colon, an ampersand, an emoji — would fail the whole
+ * initialize call), collapsed and capped well under the field limit. ASCII
+ * only: Chapa's published rule doesn't say whether "letters" includes an
+ * Amharic name, and a stripped description still checks out where a rejected
+ * one loses the payment.
+ */
+export function checkoutDescription(campaignName: string): string {
+  const safeName = campaignName
+    .replace(/[^A-Za-z0-9 ._-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return `Fund campaign ${safeName}`.trim().slice(0, 100);
+}
+
 export class ChapaGateway implements PaymentGateway {
   constructor(
     private readonly client: ChapaClient,
@@ -89,10 +106,14 @@ export class ChapaGateway implements PaymentGateway {
       lastName: options.lastName,
       returnUrl: options.returnUrl,
       callbackUrl: options.callbackUrl,
-      title: 'Creator Marketplace',
+      // Chapa validates both customization fields at initialize: the title
+      // must not exceed 16 characters, and the description may only contain
+      // letters, numbers, hyphens, underscores, spaces, and dots — a colon
+      // (or an emoji in a campaign name) fails the whole checkout.
+      title: 'Fund campaign',
       // Chapa shows this on the checkout page — the brand should recognise
       // what they're paying for.
-      description: `Fund campaign: ${options.campaignName}`.slice(0, 100),
+      description: checkoutDescription(options.campaignName),
     });
   }
 
