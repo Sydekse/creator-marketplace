@@ -103,7 +103,10 @@ describe('settleFundingSession', () => {
     expect(deps.notify).not.toHaveBeenCalled();
   });
 
-  it('stays failed once failed', async () => {
+  // Chapa's hosted checkout retries in place — same tx_ref, new charge — so
+  // `failed` is a claim the verify endpoint may overrule (a declined card
+  // followed by a successful telebirr attempt is a legitimate sequence).
+  it('recovers a failed session when verify says success — the in-place retry', async () => {
     const deps = makeDeps({
       getSession: vi.fn().mockResolvedValue({
         id: 's1',
@@ -116,8 +119,30 @@ describe('settleFundingSession', () => {
       }),
     });
     const result = await settleFundingSession(TX_REF, deps);
+    expect(result.outcome).toBe('consumed');
+    expect(deps.claimSession).toHaveBeenCalledWith(TX_REF, 'CHA-1');
+    expect(deps.hold).toHaveBeenCalled();
+    expect(deps.markConsumed).toHaveBeenCalled();
+  });
+
+  it('a failed session that verify still calls failed stays failed', async () => {
+    const deps = makeDeps({
+      getSession: vi.fn().mockResolvedValue({
+        id: 's1',
+        campaignId: CAMPAIGN_ID,
+        amount: 250_000,
+        status: 'failed',
+        campaignName: 'Summer',
+        campaignStatus: 'confirmed',
+        brandUserId: BRAND_USER,
+      }),
+      gateway: () =>
+        fakeGateway(() => Promise.resolve({ ...goodVerify, status: 'failed' })),
+    });
+    const result = await settleFundingSession(TX_REF, deps);
     expect(result.outcome).toBe('failed');
     expect(deps.hold).not.toHaveBeenCalled();
+    expect(deps.claimSession).not.toHaveBeenCalled();
   });
 
   it.each([
