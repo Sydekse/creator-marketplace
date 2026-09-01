@@ -33,35 +33,29 @@ function makeDeps(overrides?: Partial<RouteDeps>): RouteDeps {
   return {
     guard: vi.fn().mockResolvedValue(ctx),
     createDeps: {
-      getCampaign: vi
-        .fn()
-        .mockResolvedValue({
-          id: CAMPAIGN_ID,
-          name: 'Summer',
-          status: 'confirmed',
-        }),
+      getCampaign: vi.fn().mockResolvedValue({
+        id: CAMPAIGN_ID,
+        name: 'Summer',
+        status: 'confirmed',
+      }),
       sumAcceptedDeals: vi.fn().mockResolvedValue({ total: 250_000, count: 2 }),
       getOpenSession: vi.fn().mockResolvedValue(null),
       insertSession: vi.fn().mockResolvedValue('inserted'),
       gateway: () =>
         ({
           mode: 'chapa-test',
-          createFundingCheckout: vi
-            .fn()
-            .mockResolvedValue({
-              checkoutUrl: 'https://checkout.chapa.co/x/1',
-            }),
+          createFundingCheckout: vi.fn().mockResolvedValue({
+            checkoutUrl: 'https://checkout.chapa.co/x/1',
+          }),
         }) as never,
       logFailure: vi.fn(),
     },
     cancelDeps: {
-      getCampaign: vi
-        .fn()
-        .mockResolvedValue({
-          id: CAMPAIGN_ID,
-          name: 'Summer',
-          status: 'confirmed',
-        }),
+      getCampaign: vi.fn().mockResolvedValue({
+        id: CAMPAIGN_ID,
+        name: 'Summer',
+        status: 'confirmed',
+      }),
       expireOpenSession: vi.fn().mockResolvedValue(true),
     },
     ...overrides,

@@ -39,13 +39,11 @@ function fakeGateway(overrides?: Partial<PaymentGateway>): PaymentGateway {
 
 function makeDeps(overrides?: Partial<FundingSessionDeps>): FundingSessionDeps {
   return {
-    getCampaign: vi
-      .fn()
-      .mockResolvedValue({
-        id: CAMPAIGN_ID,
-        name: 'Summer',
-        status: 'confirmed',
-      }),
+    getCampaign: vi.fn().mockResolvedValue({
+      id: CAMPAIGN_ID,
+      name: 'Summer',
+      status: 'confirmed',
+    }),
     sumAcceptedDeals: vi.fn().mockResolvedValue({ total: 250_000, count: 2 }),
     getOpenSession: vi.fn().mockResolvedValue(null),
     insertSession: vi.fn().mockResolvedValue('inserted'),
@@ -234,13 +232,11 @@ describe('cancelFundingSession', () => {
     async (wasOpen) => {
       const expireOpenSession = vi.fn().mockResolvedValue(wasOpen);
       const result = await cancelFundingSession(CAMPAIGN_ID, BRAND_ID, {
-        getCampaign: vi
-          .fn()
-          .mockResolvedValue({
-            id: CAMPAIGN_ID,
-            name: 'S',
-            status: 'confirmed',
-          }),
+        getCampaign: vi.fn().mockResolvedValue({
+          id: CAMPAIGN_ID,
+          name: 'S',
+          status: 'confirmed',
+        }),
         expireOpenSession,
       });
       expect(result).toEqual({ ok: true, cancelled: wasOpen });
