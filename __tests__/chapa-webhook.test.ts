@@ -142,6 +142,45 @@ describe('parseChapaEvent', () => {
     expect(event.providerRef).toBe('CHA-REF-9');
   });
 
+  it('reads our reference from `reference` on a real payout payload', () => {
+    // Captured verbatim from a live test-mode transfer (2026-09-01): payout
+    // webhooks have no `tx_ref` — our reference arrives in `reference` and
+    // Chapa's own in `chapa_reference`. This shape drove the first live
+    // withdrawal to be answered "unhandled" while the row sat `processing`.
+    const event = parseChapaEvent({
+      event: 'payout.success',
+      type: 'Payout',
+      mode: 'test',
+      account_name: 'dafasdfa',
+      account_number: '1343412341234',
+      bank_id: 946,
+      bank_name: 'Commercial Bank of Ethiopia (CBE)',
+      amount: '8500.00',
+      charge: '212.50',
+      currency: 'ETB',
+      status: 'success',
+      reference: 'cmwd_79405c597a324e3cbad11eaaee94ebe',
+      chapa_reference: 'CTTEST7pf252tbdb',
+      bank_reference: 'TESTQuUoQA7Xu5',
+      created_at: '2026-09-01T18:11:31.000000Z',
+      updated_at: '2026-09-01T18:11:31.000000Z',
+    });
+    expect(event.kind).toBe('payout');
+    expect(event.status).toBe('success');
+    expect(event.txRef).toBe('cmwd_79405c597a324e3cbad11eaaee94ebe');
+    expect(event.providerRef).toBe('CTTEST7pf252tbdb');
+  });
+
+  it('never mistakes a Chapa-generated reference for one of ours', () => {
+    const event = parseChapaEvent({
+      event: 'payout.success',
+      status: 'success',
+      reference: 'CTTEST7pf252tbdb',
+    });
+    expect(event.txRef).toBeNull();
+    expect(event.providerRef).toBe('CTTEST7pf252tbdb');
+  });
+
   it.each([null, undefined, 'a string', 42, [], { event: 7 }])(
     'never throws — %s becomes an unknown event',
     (payload) => {

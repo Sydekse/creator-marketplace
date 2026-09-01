@@ -77,6 +77,8 @@ const eventShape = z
     status: z.string().nullish(),
     tx_ref: z.string().nullish(),
     reference: z.string().nullish(),
+    /** Chapa's own reference on payout events (`reference` is ours there). */
+    chapa_reference: z.string().nullish(),
     amount: z.union([z.string(), z.number()]).nullish(),
     currency: z.string().nullish(),
     mode: z.string().nullish(),
@@ -132,12 +134,27 @@ export function parseChapaEvent(payload: unknown): ChapaEvent {
     kind = 'transaction';
   }
 
+  // Which field holds *our* reference varies by event family — pinned from
+  // captured test-mode payloads, not the docs. Charge webhooks carry it in
+  // `tx_ref` with Chapa's ref in `reference`; payout webhooks have no
+  // `tx_ref` at all — ours is in `reference` and Chapa's in
+  // `chapa_reference`. The prefix check keeps a Chapa-generated reference
+  // from ever being mistaken for one of ours.
+  const merchantRef =
+    data.tx_ref ??
+    (data.reference && /^(cmfund_|cmwd_)/.test(data.reference)
+      ? data.reference
+      : null);
+  const providerRef =
+    data.chapa_reference ??
+    (data.reference && data.reference !== merchantRef ? data.reference : null);
+
   return {
     kind,
     name,
     status: data.status?.toLowerCase() ?? null,
-    txRef: data.tx_ref ?? null,
-    providerRef: data.reference ?? null,
+    txRef: merchantRef,
+    providerRef,
     raw: payload,
   };
 }
