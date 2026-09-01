@@ -1,6 +1,6 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { campaignItem, creatorProfile, pricingTier } from '@/db/schema';
+import { campaignItem, creatorProfile, pricingTier, user } from '@/db/schema';
 
 /**
  * Read paths for campaign cart items (campaign_item table).
@@ -63,6 +63,7 @@ export async function listCartItems(
       createdAt: campaignItem.createdAt,
       creator: {
         tiktokHandle: creatorProfile.tiktokHandle,
+        image: user.image,
         niche: creatorProfile.niche,
         status: creatorProfile.status,
       },
@@ -73,6 +74,8 @@ export async function listCartItems(
     })
     .from(campaignItem)
     .innerJoin(creatorProfile, eq(campaignItem.creatorId, creatorProfile.id))
+    // Only `image` travels off `user` — the row's face, nothing contactable.
+    .innerJoin(user, eq(creatorProfile.userId, user.id))
     .leftJoin(pricingTier, eq(creatorProfile.tierId, pricingTier.id))
     .where(eq(campaignItem.campaignId, campaignId))
     .orderBy(desc(campaignItem.createdAt));

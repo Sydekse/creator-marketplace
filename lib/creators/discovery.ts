@@ -1,7 +1,7 @@
 import { and, asc, eq, gte, lte, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '@/db';
-import { creatorProfile, pricingTier } from '@/db/schema';
+import { creatorProfile, pricingTier, user } from '@/db/schema';
 import { guard } from '@/lib/authz';
 import type { AudienceMarketCode, Niche } from '@/lib/config/creator-profile';
 import { BOOKABLE_CREATOR } from '@/lib/creators/queries';
@@ -37,6 +37,8 @@ export interface DiscoveryFilters {
 export interface DiscoveryCreator {
   id: string;
   tiktokHandle: string;
+  /** Profile picture URL (durable blob, or TikTok CDN interim); no other user column travels. */
+  image: string | null;
   niche: string;
   followerCount: number | null;
   engagementRate: string | null;
@@ -166,6 +168,7 @@ async function selectCreators(
       .select({
         id: creatorProfile.id,
         tiktokHandle: creatorProfile.tiktokHandle,
+        image: user.image,
         niche: creatorProfile.niche,
         followerCount: creatorProfile.followerCount,
         engagementRate: creatorProfile.engagementRate,
@@ -180,6 +183,10 @@ async function selectCreators(
       // the price to filter and display on. A left join would admit rows with a
       // null price, which is exactly the un-tiered creator AC-006 excludes.
       .innerJoin(pricingTier, eq(creatorProfile.tierId, pricingTier.id))
+      // The card's picture. Only `image` is selected off `user` — the NFR-010
+      // rule ("nothing about a creator beyond what a brand needs") is about
+      // contact columns, and a profile picture is the face the brand books.
+      .innerJoin(user, eq(creatorProfile.userId, user.id))
       .where(where)
       // Cheapest first: a brand shopping within a budget (AC-014) is the case
       // this list exists to serve. `id` is the stable tiebreak that pagination

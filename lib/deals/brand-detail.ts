@@ -7,6 +7,7 @@ import {
   deal,
   deliverable,
   rightsTerms,
+  user,
 } from '@/db/schema';
 import type { DealStatus, ReviewStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
@@ -81,6 +82,8 @@ export interface BrandDealDetail {
    * direction, where the creator sees a company name rather than a person.
    */
   creatorHandle: string;
+  /** The creator's profile picture; initials fallback when null. */
+  creatorImage: string | null;
   videoCount: number;
   unitPrice: number;
   totalPrice: number;
@@ -133,6 +136,7 @@ export interface BrandDealJoinRow {
   campaignId: string;
   campaignName: string;
   creatorHandle: string;
+  creatorImage: string | null;
   videoCount: number;
   unitPrice: number;
   totalPrice: number;
@@ -155,24 +159,30 @@ export interface BrandDealJoinRow {
  * (`brandDealDeliverablesQuery`), which is also what lets them be ordered.
  */
 export function brandDealQuery(where: SQL) {
-  return db
-    .select({
-      id: deal.id,
-      status: deal.status,
-      campaignId: campaign.id,
-      campaignName: campaign.name,
-      creatorHandle: creatorProfile.tiktokHandle,
-      videoCount: deal.videoCount,
-      unitPrice: deal.unitPrice,
-      totalPrice: deal.totalPrice,
-      rightsTermsVersion: rightsTerms.version,
-    })
-    .from(deal)
-    .innerJoin(campaign, eq(deal.campaignId, campaign.id))
-    .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
-    .leftJoin(rightsTerms, eq(deal.rightsTermsId, rightsTerms.id))
-    .where(where)
-    .limit(1);
+  return (
+    db
+      .select({
+        id: deal.id,
+        status: deal.status,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        creatorHandle: creatorProfile.tiktokHandle,
+        creatorImage: user.image,
+        videoCount: deal.videoCount,
+        unitPrice: deal.unitPrice,
+        totalPrice: deal.totalPrice,
+        rightsTermsVersion: rightsTerms.version,
+      })
+      .from(deal)
+      .innerJoin(campaign, eq(deal.campaignId, campaign.id))
+      .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
+      // Only `image` travels off `user` — the face beside the handle, nothing
+      // contactable (NFR-010's actual concern).
+      .innerJoin(user, eq(creatorProfile.userId, user.id))
+      .leftJoin(rightsTerms, eq(deal.rightsTermsId, rightsTerms.id))
+      .where(where)
+      .limit(1)
+  );
 }
 
 /**

@@ -14,6 +14,7 @@ import type {
 } from '@/lib/creators/tier-assignment';
 import { withNotifications } from '@/lib/notifications/notify';
 import type { NotifyDeps } from '@/lib/notifications/notify';
+import { storeAvatarFromUrl } from '@/lib/avatars/store-avatar';
 import { fetchTiktokStats } from '@/lib/tiktok/stats';
 import type { TiktokStats } from '@/lib/tiktok/stats';
 
@@ -77,6 +78,11 @@ export interface RefreshStatsDeps {
   /** Non-null means TikTok-linked — same signal onboarding trusts. */
   linkedHandle: (userId: string) => Promise<string | null>;
   fetchStats: (userId: string) => Promise<TiktokStats | null>;
+  /**
+   * Copies the (short-lived) TikTok avatar URL into durable blob storage.
+   * Best-effort by contract: never throws, null just means "no new avatar".
+   */
+  storeAvatar: (userId: string, sourceUrl: string) => Promise<string | null>;
   now: () => Date;
   /**
    * Skips the 24h check. The cron sets this: its cadence is its own filter
@@ -138,6 +144,7 @@ export async function refreshCreatorStats(
   const loadProfile = deps?.loadProfile ?? defaultLoadProfile;
   const linkedHandle = deps?.linkedHandle ?? sessionTiktokHandle;
   const fetchStats = deps?.fetchStats ?? fetchTiktokStats;
+  const storeAvatar = deps?.storeAvatar ?? storeAvatarFromUrl;
   const now = deps?.now ?? (() => new Date());
 
   const [profile, handle] = await Promise.all([
@@ -164,6 +171,15 @@ export async function refreshCreatorStats(
   // No stamp on failure: nothing was read, and stamping would turn one bad
   // API day into a 24h lockout on the retry.
   if (stats === null) return { ok: false, error: 'fetch_failed' };
+
+  // The profile picture rides along with every refresh — TikTok's avatar URLs
+  // expire in ~24–48h, so this weekly/manual copy into blob storage is what
+  // keeps `user.image` alive. Outside the transaction below (network I/O must
+  // never hold a lock) and best-effort by contract: a failed copy changes
+  // nothing about the stats result.
+  if (stats.avatarUrl !== null) {
+    await storeAvatar(userId, stats.avatarUrl);
+  }
 
   const refreshedAt = now();
 

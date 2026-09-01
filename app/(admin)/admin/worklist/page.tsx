@@ -69,7 +69,11 @@ export default async function AdminWorklistPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <InitialsAvatar name={row.brandCompanyName} size="sm" />
-                    <InitialsAvatar name={row.creatorHandle} size="sm" />
+                    <InitialsAvatar
+                      name={row.creatorHandle}
+                      image={row.creatorImage}
+                      size="sm"
+                    />
                     <p className="text-sm text-muted-foreground">
                       {row.brandCompanyName} ·{' '}
                       {displayTiktokHandle(row.creatorHandle)} ·{' '}

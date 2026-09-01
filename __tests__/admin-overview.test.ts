@@ -120,6 +120,7 @@ const WORKLIST: AdminWorklistRow[] = [
     campaignName: 'Summer launch',
     brandCompanyName: 'Acme',
     creatorHandle: '@selam',
+    creatorImage: null,
     createdAt: new Date('2026-08-01'),
   },
   {
@@ -134,6 +135,7 @@ const WORKLIST: AdminWorklistRow[] = [
     campaignName: 'Summer launch',
     brandCompanyName: 'Acme',
     creatorHandle: '@selam',
+    creatorImage: null,
     createdAt: new Date('2026-08-02'),
   },
 ];

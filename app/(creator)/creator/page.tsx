@@ -125,6 +125,7 @@ export default async function CreatorDashboardPage() {
         tiktokHandle={profile.tiktokHandle}
         hasTier={profile.tierId !== null}
         name={user.name ?? user.email}
+        image={user.image}
       />
       <div className="flex flex-col gap-6">
         {/* Top pair — payout card and the stacked profile card, equal height. */}

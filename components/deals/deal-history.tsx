@@ -46,7 +46,11 @@ function Event({ event }: { event: DealHistoryEvent }) {
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 bg-background px-4 py-3">
       <div className="flex min-w-0 items-center gap-2">
         {event.actor ? (
-          <InitialsAvatar name={event.actor.name} size="sm" />
+          <InitialsAvatar
+            name={event.actor.name}
+            image={event.actor.image}
+            size="sm"
+          />
         ) : null}
         <div className="flex min-w-0 flex-col gap-1">
           <span className="text-sm font-medium text-neutral-900">

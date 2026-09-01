@@ -33,7 +33,11 @@ function DealRow({ deal }: { deal: BrandInboxDeal }) {
         className="group flex cursor-pointer flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl px-2 py-4 transition-[background-color,box-shadow] duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-50 hover:shadow-[0_16px_32px_-24px_rgba(23,23,23,0.35)] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
       >
         <div className="flex min-w-0 items-center gap-2">
-          <InitialsAvatar name={deal.creatorHandle} size="sm" />
+          <InitialsAvatar
+            name={deal.creatorHandle}
+            image={deal.creatorImage}
+            size="sm"
+          />
           <div className="flex min-w-0 flex-col gap-1">
             <TruncatedText
               text={displayTiktokHandle(deal.creatorHandle)}

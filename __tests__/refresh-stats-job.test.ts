@@ -18,7 +18,7 @@ const NOW = new Date('2026-09-01T00:00:00.000Z');
 function okResult(): RefreshStatsResult {
   return {
     ok: true,
-    stats: { followerCount: 1000, engagementRate: '1.00' },
+    stats: { followerCount: 1000, engagementRate: '1.00', avatarUrl: null },
     refreshedAt: NOW,
     tier: { kind: 'unchanged' },
   };

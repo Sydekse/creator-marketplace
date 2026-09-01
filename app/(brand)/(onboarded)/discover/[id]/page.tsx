@@ -95,6 +95,7 @@ export default async function CreatorDetailPage({
           <header className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
             <InitialsAvatar
               name={creator.tiktokHandle}
+              image={creator.image}
               size="lg"
               className="size-16 border-neutral-200 bg-neutral-50 text-lg sm:size-20"
             />

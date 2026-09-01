@@ -107,6 +107,7 @@ const joinRow = (over: Partial<BrandDealJoinRow> = {}): BrandDealJoinRow => ({
   campaignId: CAMPAIGN_ID,
   campaignName: 'Ramadan Beauty Push',
   creatorHandle: '@selam',
+  creatorImage: null,
   videoCount: 2,
   unitPrice: 150_000,
   totalPrice: 300_000,
@@ -248,10 +249,11 @@ describe('readBrandDeal — ownership is the base of the lookup', () => {
 
     expect(source).toContain('creatorProfile.tiktokHandle');
     expect(source).not.toMatch(/creatorProfile\.(email|phone|contact)/);
-    // The `user` table is where an address would come from; this read must not
-    // reach it at all.
+    // The `user` table is where an address would come from. The avatar feature
+    // joins it, but the only column allowed off it is `image`; anything else
+    // (`user.email`, `user.name`, …) trips this pin.
     expect(source).not.toContain('from(user)');
-    expect(source).not.toContain('innerJoin(user');
+    expect(source).not.toMatch(/user\.(?!id\b|image\b)\w+/);
   });
 
   it('left-joins the rows that may legitimately be missing', () => {

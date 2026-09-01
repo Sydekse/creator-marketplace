@@ -11,6 +11,7 @@ import {
   isUserRole,
 } from '@/lib/auth-policy';
 import { roleHomePath } from '@/lib/navigation';
+import { isBlobUrl, storeAvatarFromUrl } from '@/lib/avatars/store-avatar';
 import { normalizeTiktokHandle } from '@/lib/creators/handle';
 
 /**
@@ -175,6 +176,17 @@ export const auth = betterAuth({
             );
           }
         },
+        after: async (user) => {
+          // TikTok's avatar_url (which Better Auth put in `image`) is a
+          // signed CDN link that dies in ~24–48h. Copy it into blob storage
+          // now, while it is certainly alive. Best-effort: `storeAvatarFromUrl`
+          // never throws and no-ops without a blob token, so a CDN hiccup or
+          // local dev cannot fail the sign-up — the raw URL keeps working
+          // until the first stats refresh repairs it.
+          if (user.image && !isBlobUrl(user.image)) {
+            await storeAvatarFromUrl(user.id, user.image);
+          }
+        },
       },
       update: {
         before: async (user) => {
@@ -206,6 +218,8 @@ export interface CurrentUser {
   email: string;
   name: string | null;
   role: UserRole;
+  /** Profile picture — a durable blob URL, or TikTok's short-lived one. */
+  image?: string | null;
   /** The TikTok username Login Kit wrote at sign-up, when there is one. */
   tiktokHandle?: string | null;
 }
@@ -227,6 +241,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     id: session.user.id,
     email: session.user.email,
     name: session.user.name,
+    image: session.user.image ?? null,
     // A row with an unrecognised role is treated as the least-privileged one
     // rather than being trusted into a gate.
     role: isUserRole(role) ? role : 'creator',

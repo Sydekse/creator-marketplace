@@ -49,6 +49,7 @@ export function VerificationStatus({
   tiktokHandle,
   hasTier,
   name,
+  image,
 }: {
   status: CreatorStatus;
   tiktokHandle: string;
@@ -60,6 +61,8 @@ export function VerificationStatus({
   hasTier: boolean;
   /** Sign-up name, shown in the greeting above the handle. */
   name: string;
+  /** Profile picture; initials fallback when null. */
+  image?: string | null;
 }) {
   /**
    * Verified *and* tiered — nothing is outstanding (KAN-200). Deliberately the
@@ -92,6 +95,7 @@ export function VerificationStatus({
           <div className="avatar-stack-circle row-span-2">
             <InitialsAvatar
               name={name}
+              image={image}
               className="!size-full rounded-full border-neutral-900 bg-neutral-900 text-neutral-50 shadow-none"
             />
           </div>

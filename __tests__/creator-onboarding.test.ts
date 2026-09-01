@@ -614,6 +614,7 @@ describe('createCreatorProfile', () => {
       sessionStats: async () => ({
         followerCount: 54_321,
         engagementRate: '7.89',
+        avatarUrl: null,
       }),
     });
 

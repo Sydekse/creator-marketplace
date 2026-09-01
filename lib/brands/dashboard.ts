@@ -1,6 +1,6 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { campaign, creatorProfile, deal, ledgerEntry } from '@/db/schema';
+import { campaign, creatorProfile, deal, ledgerEntry, user } from '@/db/schema';
 import type { CampaignStatus, DealStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
 import {
@@ -42,6 +42,8 @@ export interface BrandDashboard {
   awaitingReview: Array<{
     dealId: string;
     creatorHandle: string;
+    /** The creator's profile picture; initials fallback when null. */
+    creatorImage: string | null;
     campaignName: string;
     campaignId: string;
     videoCount: number;
@@ -111,6 +113,7 @@ const defaultDeps: BrandDashboardDeps = {
       .select({
         dealId: deal.id,
         creatorHandle: creatorProfile.tiktokHandle,
+        creatorImage: user.image,
         campaignName: campaign.name,
         campaignId: campaign.id,
         videoCount: deal.videoCount,
@@ -119,6 +122,8 @@ const defaultDeps: BrandDashboardDeps = {
       .from(deal)
       .innerJoin(campaign, eq(deal.campaignId, campaign.id))
       .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
+      // Only `image` travels off `user` — the row's face, nothing contactable.
+      .innerJoin(user, eq(creatorProfile.userId, user.id))
       .where(
         and(
           eq(campaign.brandId, brandProfileId),

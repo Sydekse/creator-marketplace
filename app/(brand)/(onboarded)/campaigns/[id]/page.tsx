@@ -263,6 +263,7 @@ export default async function CampaignCartPage({
                           </span>
                           <InitialsAvatar
                             name={item.creator.tiktokHandle}
+                            image={item.creator.image}
                             size="sm"
                           />
                           <div className="min-w-0">
