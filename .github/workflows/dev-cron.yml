@@ -1,0 +1,35 @@
+# Vercel cron jobs only fire on the production deployment, so the dev
+# deployment's /api/cron (offer expiry, funding-session expiry, withdrawal
+# sweep, metric reminders) would never run. This schedule stands in for
+# Vercel cron on dev: hourly rather than production's daily midnight,
+# because dev is where payment flows are live-tested and a stuck
+# `processing` withdrawal should be swept within the hour, not the day.
+#
+# Auth mirrors Vercel's own convention: `Authorization: Bearer $CRON_SECRET`.
+# DEV_CRON_SECRET (repo secret) must match CRON_SECRET in the Vercel
+# preview/dev environment scope.
+name: Dev cron
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Invoke /api/cron on the dev deployment
+        run: |
+          status=$(curl -s -o /tmp/cron-body -w '%{http_code}' \
+            --max-time 300 \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            https://dev-creator-marketplace.vercel.app/api/cron)
+          echo "HTTP $status"
+          cat /tmp/cron-body
+          test "$status" = "200"
+        env:
+          CRON_SECRET: ${{ secrets.DEV_CRON_SECRET }}
