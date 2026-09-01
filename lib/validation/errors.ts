@@ -121,6 +121,13 @@ export enum ErrorCode {
    */
   NO_PAYOUT_METHOD = 'NO_PAYOUT_METHOD',
   /**
+   * An admin retried an external refund that is already `processing` or
+   * `refunded` (KAN-70 PR 4). 409, not 200: answering success would tell the
+   * admin their click did something when the claim refused it — the row's
+   * status on reload is the truth.
+   */
+  REFUND_ALREADY_SETTLED = 'REFUND_ALREADY_SETTLED',
+  /**
    * A rejection of a delivered deliverable carried no reason (KAN-47, AC-024,
    * Tech Spec §4.4 reject).
    *
@@ -223,6 +230,8 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.INSUFFICIENT_BALANCE]:
     'That is more than your available balance. Reload to see the current figure.',
   [ErrorCode.NO_PAYOUT_METHOD]: 'Add a payout method before withdrawing.',
+  [ErrorCode.REFUND_ALREADY_SETTLED]:
+    'This refund is already in flight or settled.',
   [ErrorCode.REASON_REQUIRED]: 'A rejection reason is required.',
   [ErrorCode.OTP_RATE_LIMITED]:
     'A code was just sent. Wait a moment before requesting another.',
@@ -262,6 +271,7 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.WITHDRAWAL_BELOW_MINIMUM]: 422,
   [ErrorCode.INSUFFICIENT_BALANCE]: 409,
   [ErrorCode.NO_PAYOUT_METHOD]: 409,
+  [ErrorCode.REFUND_ALREADY_SETTLED]: 409,
   [ErrorCode.REASON_REQUIRED]: 422,
   [ErrorCode.OTP_RATE_LIMITED]: 429,
   [ErrorCode.STATS_REFRESH_RATE_LIMITED]: 429,

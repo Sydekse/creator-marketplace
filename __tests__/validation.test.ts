@@ -79,9 +79,12 @@ describe('ErrorCode enum', () => {
     // wins the serializable race) and NO_PAYOUT_METHOD (409, withdraw before
     // saving where the money should go).
     //
+    // Plus REFUND_ALREADY_SETTLED (KAN-70 PR 4): 409 for an admin retrying an
+    // external refund whose row is already processing or refunded.
+    //
     // The count is the point of this test: it is what makes adding a code a
     // deliberate act rather than something that slips in.
-    expect(codes).toHaveLength(32);
+    expect(codes).toHaveLength(33);
     expect(codes).toContain(ErrorCode.OTP_RATE_LIMITED);
     expect(codes).toContain(ErrorCode.STATS_REFRESH_RATE_LIMITED);
     expect(codes).toContain(ErrorCode.STATS_FETCH_FAILED);
@@ -101,6 +104,7 @@ describe('ErrorCode enum', () => {
     expect(codes).toContain(ErrorCode.WITHDRAWAL_BELOW_MINIMUM);
     expect(codes).toContain(ErrorCode.INSUFFICIENT_BALANCE);
     expect(codes).toContain(ErrorCode.NO_PAYOUT_METHOD);
+    expect(codes).toContain(ErrorCode.REFUND_ALREADY_SETTLED);
     expect(codes).toContain(ErrorCode.NO_ACCEPTED_DEALS);
     expect(codes).toContain(ErrorCode.INVALID_TIKTOK_URL);
     expect(codes).toContain(ErrorCode.DEAL_NOT_FUNDED);

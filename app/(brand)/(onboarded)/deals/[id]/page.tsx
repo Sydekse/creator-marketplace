@@ -14,10 +14,13 @@ import { canReview, labelForReviewStatus, labelForStatus } from '@/lib/deals';
 import { dealStatusTone } from '@/lib/deals/status-tone';
 import {
   AWAITING_DELIVERABLE_MESSAGE,
+  COMMISSION_LABEL,
   CREATOR_LABEL,
   DELIVERABLES_TITLE,
   deliveryProgress,
+  externalRefundNote,
   NO_RIGHTS_TERMS_MESSAGE,
+  PAYOUT_LABEL,
   REJECTION_REASON_LABEL,
   REVIEW_STATUS_LABEL,
   reviewAbsenceMessage,
@@ -149,7 +152,31 @@ export default async function BrandDealReviewPage({
             label={RIGHTS_TERMS_LABEL}
             value={deal.rightsTermsVersion ?? NO_RIGHTS_TERMS_MESSAGE}
           />
+          {/* The split, once the ledger has computed it (KAN-70 PR 4). Only on
+              a completed deal, and read from the ledger rather than recomputed
+              from the rate — the transaction that released the money is the
+              only source for how it split. */}
+          {deal.settlement ? (
+            <>
+              <Fact
+                label={PAYOUT_LABEL}
+                value={formatEtb(deal.settlement.payout)}
+              />
+              <Fact
+                label={COMMISSION_LABEL}
+                value={formatEtb(deal.settlement.commission)}
+              />
+            </>
+          ) : null}
         </dl>
+        {/* The external leg of a refund, when one exists (KAN-70 PR 4, Chapa
+            mode only) — the escrow refund is already in the deal history below;
+            this line is about the money's trip back to the brand's card. */}
+        {deal.externalRefundStatus ? (
+          <p className="pt-4 text-sm text-neutral-400">
+            {externalRefundNote(deal.externalRefundStatus)}
+          </p>
+        ) : null}
       </section>
 
       {/* The submitted videos, one section each (F38). Shown as text rather than

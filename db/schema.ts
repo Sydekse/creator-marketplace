@@ -88,6 +88,16 @@ export type WithdrawalStatus = 'pending' | 'processing' | 'paid' | 'failed';
 export type PayoutMethodKind = 'bank' | 'telebirr';
 
 /**
+ * The external leg of a dispute refund (KAN-70 PR 4): `pending` (row written,
+ * about to ask Chapa) → `processing` (Chapa accepted the refund request) →
+ * `refunded` (refund webhook confirmed) | `failed` (Chapa said no — retryable
+ * from the admin payments view). The internal escrow refund has already
+ * committed before this row exists; this table tracks only whether the money
+ * made it back onto the brand's card/telebirr.
+ */
+export type RefundStatus = 'pending' | 'processing' | 'refunded' | 'failed';
+
+/**
  * The state of a hold at the payment processor (KAN-200).
  *
  * Structurally identical to `ProviderStatus['state']` in `lib/payment/types.ts`
@@ -656,6 +666,52 @@ export const withdrawal = pgTable(
     index('withdrawal_creator_created_idx').on(t.creatorId, t.createdAt),
     index('withdrawal_status_created_idx').on(t.status, t.createdAt),
     check('withdrawal_amount_positive', sql`${t.amount} > 0`),
+  ]
+);
+
+/**
+ * The external leg of one deal's dispute refund (KAN-70 PR 4).
+ *
+ * The escrow ledger's `refund` entry is the book truth and has already
+ * committed when this row is written — a failure here never un-refunds the
+ * deal internally. What this row tracks is the Chapa partial refund against
+ * the original funding charge (`funding_tx_ref`), so the admin payments view
+ * can see which refunds actually reached the brand's payment method and retry
+ * the ones that did not.
+ *
+ * One row per deal (unique on `deal_id`): a deal refunds at most once
+ * internally (`refunded` is terminal), so retries update this row's status
+ * rather than stacking attempts — the row is the reconciliation line.
+ */
+export const refund = pgTable(
+  'refund',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // One refund row per deal — the internal refund is terminal, so the
+    // uniqueness is what makes a retry an UPDATE rather than a second row.
+    // Declared table-level: the deliverable-table guard test forbids the
+    // inline `deal_id`-unique shape schema-wide.
+    dealId: uuid('deal_id')
+      .notNull()
+      .references(() => deal.id),
+    campaignId: uuid('campaign_id')
+      .notNull()
+      .references(() => campaign.id),
+    /** The consumed funding session's `cmfund_` reference — what Chapa refunds against. */
+    fundingTxRef: text('funding_tx_ref').notNull(),
+    amount: integer('amount').notNull(),
+    status: text('status').$type<RefundStatus>().notNull().default('pending'),
+    failureReason: text('failure_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => [
+    unique('refund_deal_id_unique').on(t.dealId),
+    index('refund_status_created_idx').on(t.status, t.createdAt),
+    index('refund_funding_tx_ref_idx').on(t.fundingTxRef),
+    check('refund_amount_positive', sql`${t.amount} > 0`),
   ]
 );
 

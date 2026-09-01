@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { LEGAL_TRANSITIONS, canReview } from '../lib/deals/state-machine';
@@ -14,6 +14,7 @@ import {
   REJECTION_REASON_LABEL,
   buildBrandDealWhere,
   deliveryProgress,
+  externalRefundNote,
   readBrandDeal,
   reviewAbsenceMessage,
   standingVideoCount,
@@ -156,6 +157,82 @@ function okDeps(
 }
 
 const renderSql = (where: SQL) => new PgDialect().sqlToQuery(where);
+
+// -- The settlement and refund legs (KAN-70 PR 4) ------------------------------
+
+describe('readBrandDeal — settlement and external refund are status-gated', () => {
+  function settlementDeps(row: BrandDealJoinRow) {
+    const { deps } = okDeps(row);
+    const selectSettlement = vi.fn(async () => ({
+      payout: 255_000,
+      commission: 45_000,
+    }));
+    const selectRefundStatus = vi.fn(async () => 'processing' as const);
+    return {
+      deps: { ...deps, selectSettlement, selectRefundStatus },
+      selectSettlement,
+      selectRefundStatus,
+    };
+  }
+
+  it('fetches the ledger split only for a completed deal', async () => {
+    const { deps, selectSettlement, selectRefundStatus } = settlementDeps(
+      joinRow({ status: 'completed' })
+    );
+
+    const detail = await readBrandDeal(DEAL_ID, deps);
+
+    expect(detail?.settlement).toEqual({ payout: 255_000, commission: 45_000 });
+    expect(detail?.externalRefundStatus).toBeNull();
+    expect(selectSettlement).toHaveBeenCalledWith(DEAL_ID);
+    expect(selectRefundStatus).not.toHaveBeenCalled();
+  });
+
+  it('fetches the refund status only for a refunded deal', async () => {
+    const { deps, selectSettlement, selectRefundStatus } = settlementDeps(
+      joinRow({ status: 'refunded' })
+    );
+
+    const detail = await readBrandDeal(DEAL_ID, deps);
+
+    expect(detail?.externalRefundStatus).toBe('processing');
+    expect(detail?.settlement).toBeNull();
+    expect(selectRefundStatus).toHaveBeenCalledWith(DEAL_ID);
+    // Quoting a split before the ledger computed one would be a second
+    // source for it — the same rule the page's own docstring states.
+    expect(selectSettlement).not.toHaveBeenCalled();
+  });
+
+  it('fetches neither for a deal still in flight', async () => {
+    const { deps, selectSettlement, selectRefundStatus } = settlementDeps(
+      joinRow({ status: 'delivered' })
+    );
+
+    const detail = await readBrandDeal(DEAL_ID, deps);
+
+    expect(detail?.settlement).toBeNull();
+    expect(detail?.externalRefundStatus).toBeNull();
+    expect(selectSettlement).not.toHaveBeenCalled();
+    expect(selectRefundStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe('externalRefundNote — the brand-facing refund sentence', () => {
+  it('says "refunded" only once the gateway confirmed', () => {
+    expect(externalRefundNote('refunded')).toBe(
+      'Refunded to your original payment method.'
+    );
+  });
+
+  it.each(['pending', 'processing', 'failed'] as const)(
+    'says "on its way" for %s — failed included, because the failure is ours to retry',
+    (status) => {
+      expect(externalRefundNote(status)).toBe(
+        'A refund to your original payment method is on its way.'
+      );
+    }
+  );
+});
 
 // -- The read path -----------------------------------------------------------
 

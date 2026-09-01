@@ -35,6 +35,7 @@ const TABLES = {
   funding_session: schema.fundingSession,
   payout_method: schema.payoutMethod,
   withdrawal: schema.withdrawal,
+  refund: schema.refund,
 } as const;
 
 /**
@@ -69,6 +70,7 @@ const MONEY_COLUMNS: ReadonlyArray<[keyof typeof TABLES, string]> = [
   ['ledger_entry', 'balance_after'],
   ['funding_session', 'amount'],
   ['withdrawal', 'amount'],
+  ['refund', 'amount'],
 ];
 
 const migrationSql = (() => {
@@ -82,7 +84,7 @@ const migrationSql = (() => {
 
 describe('schema tables', () => {
   it('declares all marketplace entities', () => {
-    expect(Object.keys(TABLES)).toHaveLength(17);
+    expect(Object.keys(TABLES)).toHaveLength(18);
   });
 
   it.each(Object.entries(TABLES))(
@@ -154,8 +156,8 @@ describe('generated migration', () => {
       // thing. Invariant 11 governs our entities; when a real processor arrives
       // (Q3) this table is dropped rather than migrated.
       .filter((l) => !l.includes('"provider_ref" text PRIMARY KEY'));
-    // The 17 entities plus session, account and verification.
-    expect(pkLines).toHaveLength(20);
+    // The 18 entities plus session, account and verification.
+    expect(pkLines).toHaveLength(21);
     for (const line of pkLines) {
       expect(line).toContain('"id" uuid PRIMARY KEY');
     }

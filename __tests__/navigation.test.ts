@@ -80,6 +80,7 @@ describe('getNavLinks', () => {
       'Tiers',
       'Campaigns',
       'Disputes',
+      'Payments',
       'Audit log',
     ]);
   });
