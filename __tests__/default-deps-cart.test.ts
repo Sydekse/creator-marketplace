@@ -4,7 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // modules mid-test is what times that file out under full-suite load.
 import { addToCart } from '../lib/campaigns/add-to-cart';
 import { bulkAddToCart } from '../lib/campaigns/bulk-add-to-cart';
-import { getActiveDraftCart } from '../lib/campaigns/queries';
+import {
+  getActiveDraftCart,
+  sumContractedVideos,
+} from '../lib/campaigns/queries';
 import {
   getCartItem,
   listCartItems,
@@ -161,5 +164,9 @@ describe('default deps: cart reads', () => {
     expect(await sumCartTotal(CAMPAIGN_ID)).toBe(0);
     expect(Array.isArray(await listCartItems(CAMPAIGN_ID))).toBe(true);
     expect(await getCartItem(CAMPAIGN_ID, CREATOR_ID)).toBeDefined();
+  });
+
+  it('sumContractedVideos coerces the aggregate row to a number', async () => {
+    expect(typeof (await sumContractedVideos(CAMPAIGN_ID))).toBe('number');
   });
 });
