@@ -43,6 +43,7 @@ import { sessionTiktokHandle } from '@/lib/creators/credentials';
 import { tiktokProfileUrl } from '@/lib/creators/handle';
 import { getCreatorProfileWithTier, isBookable } from '@/lib/creators/queries';
 import { listTierCandidates, selectTier } from '@/lib/creators/tier-assignment';
+import { paymentUxMode } from '@/lib/payment/gateway';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -142,6 +143,16 @@ export default async function CreatorDashboardPage() {
             <div className="mt-4 shrink-0">
               <EarningsSummary earnings={dashboard.earnings} headed={false} />
             </div>
+            {/* KAN-70 PR 3: the wallet exists only where a payout rail does —
+                in mock mode there is nothing to withdraw through. */}
+            {paymentUxMode() !== 'mock' ? (
+              <Link
+                href="/creator/wallet"
+                className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-ink underline-offset-4 hover:underline"
+              >
+                Open your wallet <CaretRight size={14} weight="bold" />
+              </Link>
+            ) : null}
           </section>
 
           <section className="flex h-full flex-col justify-between gap-4 rounded-[24px] border border-neutral-200 bg-background p-4 sm:p-5">

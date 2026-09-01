@@ -82,6 +82,12 @@ export function deepLink(
   // The creator's own account, not a deal. A brand never receives this.
   if (type === 'verification_result') return DASHBOARD[role];
 
+  // Wallet events land on the wallet, where the balance and the history row
+  // both are. Only creators receive these.
+  if (type === 'withdrawal_paid' || type === 'withdrawal_failed') {
+    return role === 'creator' ? '/creator/wallet' : DASHBOARD[role];
+  }
+
   if (DEAL_SCOPED.has(type)) {
     const dealId = payload.dealId;
     // A row written before the payload carried an id, or one whose id is not a

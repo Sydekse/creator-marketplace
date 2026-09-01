@@ -144,6 +144,22 @@ export const SAMPLE_NOTIFICATIONS: {
       pricePerVideo: 400_000,
     },
   },
+  withdrawal_paid: {
+    type: 'withdrawal_paid',
+    payload: {
+      withdrawalId: 'w1',
+      amount: 120_000,
+      bankName: 'telebirr',
+      accountNumberMasked: '••••3456',
+    },
+  },
+  withdrawal_failed: {
+    type: 'withdrawal_failed',
+    payload: {
+      withdrawalId: 'w1',
+      amount: 120_000,
+    },
+  },
 };
 
 /**

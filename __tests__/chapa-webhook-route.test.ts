@@ -2,6 +2,7 @@ import { createHmac } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import { handleChapaWebhook } from '@/app/api/webhooks/chapa/route';
 import type { SettleFundingResult } from '@/lib/campaigns/settle-funding';
+import type { SettleWithdrawalOutcome } from '@/lib/wallet/settle-withdrawal';
 
 /**
  * Webhook route tests (KAN-70).
@@ -177,5 +178,69 @@ describe('handleChapaWebhook', () => {
     expect(response.status).toBe(200);
     expect(settle).not.toHaveBeenCalled();
     expect(log.info).toHaveBeenCalled();
+  });
+
+  describe('payout leg', () => {
+    const WD_REF = 'cmwd_00000000-0000-4000-8000-000000000002';
+
+    function payoutDeps(outcome: SettleWithdrawalOutcome['outcome']) {
+      const settle = settleReturning({ outcome: 'not_found' });
+      const settlePayout = vi
+        .fn()
+        .mockResolvedValue({ outcome } as SettleWithdrawalOutcome);
+      return {
+        deps: {
+          settle,
+          settlePayout,
+          secret: () => SECRET,
+          log: silentLog,
+        },
+        settle,
+        settlePayout,
+      };
+    }
+
+    it('routes a cmwd_ reference to withdrawal settlement, not funding', async () => {
+      const { deps, settle, settlePayout } = payoutDeps('paid');
+      const body = JSON.stringify({
+        event: 'payout.success',
+        tx_ref: WD_REF,
+      });
+      const response = await handleChapaWebhook(
+        post(body, { 'chapa-signature': sign(body) }),
+        deps
+      );
+      expect(response.status).toBe(200);
+      expect(settlePayout).toHaveBeenCalledWith(WD_REF);
+      expect(settle).not.toHaveBeenCalled();
+      expect(await response.json()).toEqual({ outcome: 'paid' });
+    });
+
+    it.each([
+      'paid',
+      'failed',
+      'pending',
+      'already_settled',
+      'not_found',
+    ] as const)(
+      'answers 200 even for %s — the sweep is the retry, not Chapa',
+      async (outcome) => {
+        const { deps } = payoutDeps(outcome);
+        const body = JSON.stringify({ event: 'anything', tx_ref: WD_REF });
+        const response = await handleChapaWebhook(
+          post(body, { 'chapa-signature': sign(body) }),
+          deps
+        );
+        expect(response.status).toBe(200);
+      }
+    );
+
+    it('still bounces an unsigned payout event', async () => {
+      const { deps, settlePayout } = payoutDeps('paid');
+      const body = JSON.stringify({ event: 'payout.success', tx_ref: WD_REF });
+      const response = await handleChapaWebhook(post(body), deps);
+      expect(response.status).toBe(401);
+      expect(settlePayout).not.toHaveBeenCalled();
+    });
   });
 });
