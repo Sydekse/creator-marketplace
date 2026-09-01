@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ChapaGateway,
+  checkoutDescription,
   gatewayModeForKey,
   getPaymentGateway,
   paymentUxMode,
@@ -54,6 +55,44 @@ describe('gatewayModeForKey', () => {
   });
 });
 
+describe('checkoutDescription — Chapa validates customization at initialize', () => {
+  // The rejection that broke the first live checkout (KAN-70): Chapa's
+  // customization.description accepts only letters, numbers, hyphens,
+  // underscores, spaces, and dots — and the title tops out at 16 characters.
+  // The title is pinned in the ChapaGateway test above; this block pins the
+  // description's sanitiser.
+
+  it('passes a plain name through', () => {
+    expect(checkoutDescription('Summer Launch')).toBe(
+      'Fund campaign Summer Launch'
+    );
+  });
+
+  it('uses a title within the 16-character cap', () => {
+    expect('Fund campaign'.length).toBeLessThanOrEqual(16);
+  });
+
+  it('strips the characters Chapa rejects — colons, ampersands, emoji', () => {
+    expect(checkoutDescription('Ramadan: Beauty & Skincare ✨')).toBe(
+      'Fund campaign Ramadan Beauty Skincare'
+    );
+  });
+
+  it('keeps the punctuation Chapa allows', () => {
+    expect(checkoutDescription('Q3_push - v2.0')).toBe(
+      'Fund campaign Q3_push - v2.0'
+    );
+  });
+
+  it('survives a name with nothing usable in it', () => {
+    expect(checkoutDescription('✨✨✨')).toBe('Fund campaign');
+  });
+
+  it('caps at 100 characters', () => {
+    expect(checkoutDescription('x'.repeat(200))).toHaveLength(100);
+  });
+});
+
 describe('ChapaGateway', () => {
   it('brands the checkout with the campaign name at the funding edge', async () => {
     const initialize = vi
@@ -78,8 +117,8 @@ describe('ChapaGateway', () => {
       expect.objectContaining({
         txRef: 'cmfund_1',
         amountSantim: 250_000,
-        title: 'Creator Marketplace',
-        description: 'Fund campaign: Summer Launch',
+        title: 'Fund campaign',
+        description: 'Fund campaign Summer Launch',
       })
     );
     initialize.mockRestore();
