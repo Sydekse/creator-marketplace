@@ -32,6 +32,9 @@ const TABLES = {
   audit_log: schema.auditLog,
   notification: schema.notification,
   campaign_item: schema.campaignItem,
+  funding_session: schema.fundingSession,
+  payout_method: schema.payoutMethod,
+  withdrawal: schema.withdrawal,
 } as const;
 
 /**
@@ -64,6 +67,8 @@ const MONEY_COLUMNS: ReadonlyArray<[keyof typeof TABLES, string]> = [
   ['campaign_item', 'total_price'],
   ['ledger_entry', 'amount'],
   ['ledger_entry', 'balance_after'],
+  ['funding_session', 'amount'],
+  ['withdrawal', 'amount'],
 ];
 
 const migrationSql = (() => {
@@ -77,7 +82,7 @@ const migrationSql = (() => {
 
 describe('schema tables', () => {
   it('declares all marketplace entities', () => {
-    expect(Object.keys(TABLES)).toHaveLength(14);
+    expect(Object.keys(TABLES)).toHaveLength(17);
   });
 
   it.each(Object.entries(TABLES))(
@@ -149,8 +154,8 @@ describe('generated migration', () => {
       // thing. Invariant 11 governs our entities; when a real processor arrives
       // (Q3) this table is dropped rather than migrated.
       .filter((l) => !l.includes('"provider_ref" text PRIMARY KEY'));
-    // The 14 entities plus session, account and verification.
-    expect(pkLines).toHaveLength(17);
+    // The 17 entities plus session, account and verification.
+    expect(pkLines).toHaveLength(20);
     for (const line of pkLines) {
       expect(line).toContain('"id" uuid PRIMARY KEY');
     }
@@ -184,6 +189,8 @@ describe('generated migration', () => {
       'deal_total_price_valid',
       '"deal"."total_price" = "deal"."unit_price" * "deal"."video_count"',
     ],
+    ['funding_session_amount_positive', '"funding_session"."amount" > 0'],
+    ['withdrawal_amount_positive', '"withdrawal"."amount" > 0'],
   ])('enforces %s at the database level', (name, predicate) => {
     expect(migrationSql).toContain(`CONSTRAINT "${name}" CHECK (${predicate})`);
   });
@@ -197,6 +204,9 @@ describe('generated migration', () => {
       'campaign_item_campaign_creator_unique',
       'UNIQUE("campaign_id","creator_id")',
     ],
+    ['funding_session_tx_ref_unique', 'UNIQUE("tx_ref")'],
+    ['withdrawal_tx_ref_unique', 'UNIQUE("tx_ref")'],
+    ['payout_method_creator_id_unique', 'UNIQUE("creator_id")'],
   ])('enforces unique constraint %s', (name, columns) => {
     expect(migrationSql).toContain(`CONSTRAINT "${name}" ${columns}`);
   });
@@ -217,6 +227,17 @@ describe('generated migration', () => {
       '"campaign_id","created_at"',
     ],
     ['ledger_entry_deal_idx', 'ledger_entry', '"deal_id"'],
+    [
+      'funding_session_campaign_idx',
+      'funding_session',
+      '"campaign_id","created_at"',
+    ],
+    [
+      'withdrawal_creator_created_idx',
+      'withdrawal',
+      '"creator_id","created_at"',
+    ],
+    ['withdrawal_status_created_idx', 'withdrawal', '"status","created_at"'],
   ])('creates index %s', (name, table, columns) => {
     expect(migrationSql).toContain(
       `CREATE INDEX "${name}" ON "${table}" USING btree (${columns})`
