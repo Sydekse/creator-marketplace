@@ -34,11 +34,15 @@ import {
   countAcceptedDeals,
   getCampaignForBrand,
 } from '@/lib/campaigns/queries';
+import { getOpenFundingSession } from '@/lib/campaigns/fund-session';
+import { paymentUxMode } from '@/lib/payment/gateway';
 import { formatEtb } from '@/lib/money';
 
 import { CancelCampaignButton } from '@/components/campaign/cancel-campaign-button';
 import { ConfirmCampaignButton } from '@/components/campaign/confirm-campaign-button';
 import { FundCampaignButton } from '@/components/campaign/fund-campaign-button';
+import { FundCheckoutButton } from '@/components/campaign/fund-checkout-button';
+import { PendingPaymentBanner } from '@/components/campaign/pending-payment-banner';
 import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-button';
 import { VideoPerformance } from '@/components/campaign/video-performance';
 import { EmptyState } from '@/components/feedback/empty-state';
@@ -110,8 +114,16 @@ export default async function CampaignCartPage({
   if (!campaign) notFound();
 
   const settled = campaign.status !== 'draft';
+  // Which money rails the fund control drives (KAN-70): `mock` funds in one
+  // POST; anything else leaves for Chapa's hosted checkout, and a campaign
+  // with an open checkout shows the resume/cancel banner instead of a button.
+  const uxMode = paymentUxMode();
+  // Ordered so the draft-only-block assertion in cancel-campaign.test.ts keeps
+  // its anchor: the page's first `campaign.status === 'confirmed' &&` must
+  // remain the JSX action block, not this flag.
+  const chapaMode = uxMode !== 'mock' && campaign.status === 'confirmed';
 
-  const [items, budget, escrowed, acceptedCount, performance] =
+  const [items, budget, escrowed, acceptedCount, performance, openSession] =
     await Promise.all([
       listCartItems(campaign.id),
       readCampaignBudget(campaign.id),
@@ -120,6 +132,7 @@ export default async function CampaignCartPage({
       settled
         ? readCampaignPerformance(campaign.id)
         : Promise.resolve(EMPTY_PERFORMANCE),
+      chapaMode ? getOpenFundingSession(campaign.id) : Promise.resolve(null),
     ]);
 
   const { committed, available } = budget ?? {
@@ -368,11 +381,26 @@ export default async function CampaignCartPage({
 
             {campaign.status === 'confirmed' ? (
               <div className="border-t border-neutral-700 pt-5">
-                <FundCampaignButton
-                  campaignId={campaign.id}
-                  acceptedCount={acceptedCount}
-                  size="lg"
-                />
+                {!chapaMode ? (
+                  <FundCampaignButton
+                    campaignId={campaign.id}
+                    acceptedCount={acceptedCount}
+                    size="lg"
+                  />
+                ) : openSession ? (
+                  <PendingPaymentBanner
+                    campaignId={campaign.id}
+                    checkoutUrl={openSession.checkoutUrl}
+                  />
+                ) : (
+                  <FundCheckoutButton
+                    campaignId={campaign.id}
+                    acceptedCount={acceptedCount}
+                    formattedTotal={formatEtb(committed)}
+                    testMode={uxMode === 'chapa-test'}
+                    size="lg"
+                  />
+                )}
               </div>
             ) : null}
           </section>

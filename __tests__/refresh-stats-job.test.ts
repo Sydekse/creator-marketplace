@@ -105,7 +105,7 @@ describe('runRefreshCreatorStats', () => {
     // `runJobs`, so only reading the source catches an emptied registry.
     const routeSource = readFileSync('app/api/cron/route.ts', 'utf8');
     expect(routeSource).toMatch(
-      /jobsToRun:\s*Job\[\]\s*=\s*\[\s*expireOffersJob,\s*metricRemindersJob,\s*refreshCreatorStatsJob,?\s*\]/
+      /jobsToRun:\s*Job\[\]\s*=\s*\[\s*expireOffersJob,\s*metricRemindersJob,[\s\S]*?expireFundingSessionsJob,[\s\S]*?refreshCreatorStatsJob,?\s*\]/
     );
   });
 });

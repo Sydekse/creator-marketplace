@@ -134,3 +134,32 @@ export const CANCEL_CAMPAIGN_FAILED = 'Failed to cancel this campaign.';
  */
 export const CANCEL_NOT_CANCELLABLE_MESSAGE =
   'This campaign can no longer be cancelled. Reloading to show where it stands.';
+
+/**
+ * Chapa-mode funding (KAN-70). One flow, two moments: the checkout button
+ * that leaves for Chapa's hosted page, and the pending banner that owns the
+ * gap between "left for checkout" and "money confirmed".
+ */
+export const FUND_CHECKOUT_LABEL = 'Pay with Chapa';
+export const FUND_CHECKOUT_PENDING_LABEL = 'Opening checkout…';
+
+/**
+ * Shown under the pay button whenever the gateway runs on a test key. Demo
+ * visitors must know two things before the redirect: nothing here charges
+ * real money, and Chapa's checkout page itself offers the test numbers.
+ */
+export const FUND_TEST_MODE_HINT =
+  'Chapa test mode — no real money moves. Use the test payment options shown on the checkout page.';
+
+/**
+ * The abandoned-checkout banner. "may take a moment" is doing real work: a
+ * paid checkout settles through a webhook plus a verification round-trip, so
+ * the banner is also what a brand sees in the seconds before the page learns
+ * the campaign is funded.
+ */
+export const FUNDING_PENDING_TITLE = 'Payment in progress';
+export const FUNDING_PENDING_BODY =
+  'A Chapa checkout is open for this campaign. If you already paid, this page will show the funded state shortly — otherwise you can resume the payment or cancel it.';
+export const FUNDING_RESUME_LABEL = 'Resume payment';
+export const FUNDING_CANCEL_LABEL = 'Cancel payment';
+export const FUNDING_CANCEL_FAILED = 'Could not cancel the payment session.';

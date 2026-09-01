@@ -196,6 +196,25 @@ describe('verifyTransaction', () => {
 });
 
 describe('listBanks', () => {
+  it('accepts the status-less envelope /banks actually returns (observed live)', async () => {
+    const { client } = clientWith(() =>
+      jsonResponse({
+        message: 'Banks retrieved',
+        data: [
+          { id: 130, name: 'Abay Bank', acct_length: 16, is_mobilemoney: null },
+        ],
+      })
+    );
+    expect(await client.listBanks()).toEqual([
+      {
+        code: '130',
+        name: 'Abay Bank',
+        accountLength: 16,
+        isMobileMoney: null,
+      },
+    ]);
+  });
+
   it('maps bank ids to string codes and normalises mobile-money flags', async () => {
     const { client } = clientWith(() =>
       jsonResponse(
