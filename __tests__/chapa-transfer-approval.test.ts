@@ -7,7 +7,9 @@ import { handleTransferApproval } from '@/app/api/webhooks/chapa/transfer-approv
  *
  * This URL replaces the dashboard OTP: a 200 approves the pending transfer.
  * So the only thing that matters is the gate — nothing unsigned may ever
- * reach the approving 200, and a missing secret must fail closed.
+ * reach the approving 200, and a missing secret must fail closed. The secret
+ * is CHAPA_TRANSFER_APPROVAL_SECRET, not the webhook one — Chapa's dashboard
+ * caps this field at 25 characters.
  */
 
 const SECRET = 'whsec_test_0123456789';
