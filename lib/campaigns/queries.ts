@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { campaign, campaignItem, deal } from '@/db/schema';
 import { UUID_REGEX } from '@/lib/validation';
@@ -119,4 +119,39 @@ export async function countAcceptedDeals(campaignId: string): Promise<number> {
     .where(and(eq(deal.campaignId, campaignId), eq(deal.status, 'accepted')));
 
   return Number(row?.count ?? 0);
+}
+
+/**
+ * Deal statuses that count as "contracted" for the campaign header: the
+ * creator said yes and the deal hasn't been unwound. `pending` is an offer,
+ * `declined`/`expired` never happened, and `refunded` was contracted but the
+ * money went back — showing it as contracted would overstate what the brand
+ * is getting.
+ */
+const CONTRACTED_STATUSES = [
+  'accepted',
+  'funded',
+  'delivered',
+  'revision_requested',
+  'completed',
+] as const;
+
+/**
+ * Total videos across the campaign's contracted deals — what the header shows
+ * next to the brief's `desiredVideos` wish. Zero until a creator accepts:
+ * cart items are the brand talking to itself, not a contract (Nate chose 2
+ * videos, the header said "3 videos" from the brief, and the mismatch read as
+ * a bug).
+ */
+export async function sumContractedVideos(campaignId: string): Promise<number> {
+  const [row] = await db
+    .select({ total: sql<number>`coalesce(sum(${deal.videoCount}), 0)::int` })
+    .from(deal)
+    .where(
+      and(
+        eq(deal.campaignId, campaignId),
+        inArray(deal.status, [...CONTRACTED_STATUSES])
+      )
+    );
+  return Number(row?.total ?? 0);
 }

@@ -33,6 +33,7 @@ import {
 import {
   countAcceptedDeals,
   getCampaignForBrand,
+  sumContractedVideos,
 } from '@/lib/campaigns/queries';
 import { getOpenFundingSession } from '@/lib/campaigns/fund-session';
 import { paymentUxMode } from '@/lib/payment/gateway';
@@ -123,17 +124,28 @@ export default async function CampaignCartPage({
   // remain the JSX action block, not this flag.
   const chapaMode = uxMode !== 'mock' && campaign.status === 'confirmed';
 
-  const [items, budget, escrowed, acceptedCount, performance, openSession] =
-    await Promise.all([
-      listCartItems(campaign.id),
-      readCampaignBudget(campaign.id),
-      settled ? readCampaignEscrow(campaign.id) : Promise.resolve(0),
-      settled ? countAcceptedDeals(campaign.id) : Promise.resolve(0),
-      settled
-        ? readCampaignPerformance(campaign.id)
-        : Promise.resolve(EMPTY_PERFORMANCE),
-      chapaMode ? getOpenFundingSession(campaign.id) : Promise.resolve(null),
-    ]);
+  const [
+    items,
+    budget,
+    escrowed,
+    acceptedCount,
+    performance,
+    openSession,
+    contractedVideos,
+  ] = await Promise.all([
+    listCartItems(campaign.id),
+    readCampaignBudget(campaign.id),
+    settled ? readCampaignEscrow(campaign.id) : Promise.resolve(0),
+    settled ? countAcceptedDeals(campaign.id) : Promise.resolve(0),
+    settled
+      ? readCampaignPerformance(campaign.id)
+      : Promise.resolve(EMPTY_PERFORMANCE),
+    chapaMode ? getOpenFundingSession(campaign.id) : Promise.resolve(null),
+    // Drafts have no deals by definition — skip the query, not just the label.
+    campaign.status === 'draft'
+      ? Promise.resolve(0)
+      : sumContractedVideos(campaign.id),
+  ]);
 
   const { committed, available } = budget ?? {
     committed: 0,
@@ -178,7 +190,9 @@ export default async function CampaignCartPage({
               </Chip>
               <span>Opened {created}</span>
               <span className="font-mono tabular-nums text-neutral-700">
-                {campaign.desiredVideos} videos
+                {contractedVideos > 0
+                  ? `${contractedVideos} of ${campaign.desiredVideos} videos contracted`
+                  : `${campaign.desiredVideos} videos planned`}
               </span>
             </div>
             {campaign.goal ? (
