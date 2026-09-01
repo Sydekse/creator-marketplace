@@ -86,7 +86,7 @@ describe('requestWithdrawal', () => {
     }
   );
 
-  it('reserves before transferring, with a single-use cmwd_ reference', async () => {
+  it('reserves before transferring, with a single-use cmwd_ reference within the 36-char transfer limit', async () => {
     const sendTransfer = vi.fn().mockResolvedValue({ providerRef: 'tr-9' });
     const reserve = vi.fn().mockResolvedValue({ ok: true, id: 'w-1' });
     const deps = makeDeps({
@@ -98,7 +98,9 @@ describe('requestWithdrawal', () => {
 
     expect(result.ok).toBe(true);
     const txRef = reserve.mock.calls[0][2] as string;
-    expect(txRef).toMatch(/^cmwd_[0-9a-f-]{36}$/);
+    // Chapa's /transfers rejects references over 36 characters — seen live.
+    expect(txRef).toMatch(/^cmwd_[0-9a-f]{31}$/);
+    expect(txRef).toHaveLength(36);
     // The transfer used the reserved reference and the *full* account number.
     expect(sendTransfer).toHaveBeenCalledWith({
       txRef,

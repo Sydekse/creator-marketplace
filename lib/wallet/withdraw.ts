@@ -181,7 +181,11 @@ export async function requestWithdrawal(
   const method = await deps.getMethod(creatorProfileId);
   if (!method) return { ok: false, reason: 'no_payout_method' };
 
-  const txRef = `cmwd_${randomUUID()}`;
+  // Chapa's `/transfers` endpoint caps `reference` at 36 characters — learnt
+  // live, not from the docs (`cmwd_` + a hyphenated UUID is 41 and the whole
+  // transfer is rejected). A dashless UUID sliced to 31 hex chars keeps the
+  // webhook's `cmwd_` discriminator and 124 bits of entropy, at exactly 36.
+  const txRef = `cmwd_${randomUUID().replace(/-/g, '').slice(0, 31)}`;
   const reserved = await deps.reserve(creatorProfileId, amount, txRef, method);
   if (!reserved.ok) return { ok: false, reason: reserved.reason };
 

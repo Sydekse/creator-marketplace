@@ -124,6 +124,62 @@ describe('ChapaGateway', () => {
     initialize.mockRestore();
   });
 
+  it('strips a free-text brand name to what Chapa accepts as a first name', async () => {
+    const initialize = vi
+      .spyOn(ChapaClient.prototype, 'initializeTransaction')
+      .mockResolvedValue({ checkoutUrl: 'https://checkout.chapa.co/x/2' });
+    const gateway = new ChapaGateway(
+      new ChapaClient('CHASECK_TEST-abc'),
+      'chapa-test'
+    );
+
+    await gateway.createFundingCheckout({
+      txRef: 'cmfund_2',
+      amountSantim: 100_000,
+      email: 'brand@example.com',
+      firstName: 'Big & Bold ✨ Brand!',
+      returnUrl: 'https://app.example.com/return',
+      campaignName: 'Summer',
+    });
+    expect(initialize).toHaveBeenCalledWith(
+      expect.objectContaining({ firstName: 'Big Bold Brand' })
+    );
+
+    // A name with nothing salvageable falls back rather than sending ''.
+    await gateway.createFundingCheckout({
+      txRef: 'cmfund_3',
+      amountSantim: 100_000,
+      email: 'brand@example.com',
+      firstName: '✨🎉',
+      returnUrl: 'https://app.example.com/return',
+      campaignName: 'Summer',
+    });
+    expect(initialize).toHaveBeenLastCalledWith(
+      expect.objectContaining({ firstName: 'Brand' })
+    );
+    initialize.mockRestore();
+  });
+
+  it('strips the admin free-text reason before it reaches the refund endpoint', async () => {
+    const refund = vi
+      .spyOn(ChapaClient.prototype, 'refund')
+      .mockResolvedValue(undefined);
+    const gateway = new ChapaGateway(
+      new ChapaClient('CHASECK_TEST-abc'),
+      'chapa-test'
+    );
+
+    await gateway.refund({
+      txRef: 'cmfund_1',
+      amountSantim: 50_000,
+      reason: 'Dispute: creator no-show & refund!',
+    });
+    expect(refund).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: 'Dispute creator no-show refund' })
+    );
+    refund.mockRestore();
+  });
+
   it('delegates each verification and money-out edge to the Chapa client', async () => {
     const gateway = new ChapaGateway(
       new ChapaClient('CHASECK_TEST-abc'),
