@@ -44,6 +44,17 @@ import { logPaymentFailure } from '@/lib/payment/log';
  * A paid-but-unfundable session (deal withdrawn in between, admin quarantine)
  * is marked `failed` with the money still at Chapa — logged loudly here;
  * PR 4's admin reconciliation view is where a human refunds it.
+ *
+ * **`failed` is not terminal, because Chapa checkouts retry in place.** The
+ * hosted checkout lets the payer try again after a declined attempt (the
+ * dashboard's "allow to retry payment" window) — same tx_ref, new charge. So
+ * a `charge.failed` webhook can be the truth at 19:30 and a lie at 19:31,
+ * and the first live test hit exactly that: card declined → session failed →
+ * telebirr succeeded → every success event bounced off the terminal row with
+ * the money sitting at Chapa. The verify endpoint is the truth, so a failed
+ * session verifies again like any other, and the claim reclaims it the same
+ * conditional way. A session that stays failed answers `failed` (200 to the
+ * webhook — nothing to redeliver for), so re-checks are stable, not a storm.
  */
 
 export type SettleFundingResult =
@@ -86,7 +97,7 @@ export interface SettleFundingDeps {
   logFailure: typeof logPaymentFailure;
 }
 
-const CLAIMABLE = ['initialized', 'expired', 'verified'] as const;
+const CLAIMABLE = ['initialized', 'expired', 'verified', 'failed'] as const;
 
 const defaultDeps: SettleFundingDeps = {
   getSession: async (txRef) => {
@@ -110,7 +121,14 @@ const defaultDeps: SettleFundingDeps = {
   claimSession: async (txRef, providerRef) => {
     const rows = await db
       .update(fundingSession)
-      .set({ status: 'verified', verifiedAt: new Date(), providerRef })
+      .set({
+        status: 'verified',
+        verifiedAt: new Date(),
+        providerRef,
+        // A reclaimed `failed` row's reason describes an attempt that is no
+        // longer the truth — the verify that authorised this claim is.
+        failureReason: null,
+      })
       .where(
         and(
           eq(fundingSession.txRef, txRef),
@@ -164,9 +182,10 @@ export async function settleFundingSession(
   if (session.status === 'consumed') {
     return { outcome: 'already_consumed', campaignId };
   }
-  if (session.status === 'failed') {
-    return { outcome: 'failed', campaignId, reason: 'session already failed' };
-  }
+  // `failed` deliberately falls through to verify: the checkout retries in
+  // place (module header), so a failed session is a claim the verify endpoint
+  // may overrule. If Chapa still says failed, the markFailed below re-lands
+  // on the same row and the answer stays `failed`.
 
   // -- The truth, from the verify endpoint --------------------------------
   let verified;
