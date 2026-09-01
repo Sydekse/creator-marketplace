@@ -33,7 +33,7 @@ describe('ErrorCode enum', () => {
     expect(new Set(codes).size).toBe(codes.length);
   });
 
-  it('defines the 12 spec codes plus the thirteen of our own', () => {
+  it('defines the 12 spec codes plus the twenty of our own', () => {
     const codes = Object.values(ErrorCode);
     // 12 from the PRD table, plus PROFILE_EXISTS (KAN-21), NOT_FOUND (KAN-52
     // audit read path), CREATOR_NOT_PENDING (KAN-22), CREATOR_NOT_VERIFIED
@@ -73,9 +73,15 @@ describe('ErrorCode enum', () => {
     // Plus the two stats-refresh codes (phase 3): STATS_REFRESH_RATE_LIMITED
     // and STATS_FETCH_FAILED, for the creator "Refresh my stats" endpoint.
     //
+    // Plus the three wallet codes (KAN-70 PR 3): WITHDRAWAL_BELOW_MINIMUM
+    // (422, amount under the 100 ETB floor), INSUFFICIENT_BALANCE (409, the
+    // wallet cannot cover it — also the answer when a concurrent withdrawal
+    // wins the serializable race) and NO_PAYOUT_METHOD (409, withdraw before
+    // saving where the money should go).
+    //
     // The count is the point of this test: it is what makes adding a code a
     // deliberate act rather than something that slips in.
-    expect(codes).toHaveLength(29);
+    expect(codes).toHaveLength(32);
     expect(codes).toContain(ErrorCode.OTP_RATE_LIMITED);
     expect(codes).toContain(ErrorCode.STATS_REFRESH_RATE_LIMITED);
     expect(codes).toContain(ErrorCode.STATS_FETCH_FAILED);
@@ -92,6 +98,9 @@ describe('ErrorCode enum', () => {
     expect(codes).toContain(ErrorCode.OFFER_NOT_PENDING);
     expect(codes).toContain(ErrorCode.OFFER_EXPIRED);
     expect(codes).toContain(ErrorCode.PAYMENT_FAILED);
+    expect(codes).toContain(ErrorCode.WITHDRAWAL_BELOW_MINIMUM);
+    expect(codes).toContain(ErrorCode.INSUFFICIENT_BALANCE);
+    expect(codes).toContain(ErrorCode.NO_PAYOUT_METHOD);
     expect(codes).toContain(ErrorCode.NO_ACCEPTED_DEALS);
     expect(codes).toContain(ErrorCode.INVALID_TIKTOK_URL);
     expect(codes).toContain(ErrorCode.DEAL_NOT_FUNDED);

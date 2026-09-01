@@ -1,6 +1,7 @@
 import { parseChapaEvent, verifyChapaSignature } from '@/lib/chapa/webhook';
 import { settleFundingSession } from '@/lib/campaigns/settle-funding';
 import type { SettleFundingResult } from '@/lib/campaigns/settle-funding';
+import { settleWithdrawal } from '@/lib/wallet/settle-withdrawal';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -32,6 +33,7 @@ export const dynamic = 'force-dynamic';
 
 export interface WebhookRouteDeps {
   settle?: typeof settleFundingSession;
+  settlePayout?: typeof settleWithdrawal;
   secret?: () => string | undefined;
   log?: Pick<Console, 'error' | 'info' | 'warn'>;
 }
@@ -41,6 +43,7 @@ export async function handleChapaWebhook(
   deps: WebhookRouteDeps = {}
 ): Promise<Response> {
   const settle = deps.settle ?? settleFundingSession;
+  const settlePayout = deps.settlePayout ?? settleWithdrawal;
   const secret = (deps.secret ?? (() => process.env.CHAPA_WEBHOOK_SECRET))();
   const log = deps.log ?? console;
 
@@ -92,7 +95,21 @@ export async function handleChapaWebhook(
     return Response.json({ outcome: result.outcome }, { status: 200 });
   }
 
-  // Payout/refund legs arrive in PR 3/4. Captured verbatim so their real
+  // The payout leg (PR 3). Any signed event carrying one of our withdrawal
+  // references settles it — the discriminator is the tx_ref rather than the
+  // event name, because transfer webhook shapes vary and the settlement
+  // re-verifies via the API anyway. Always 200, unlike the funding leg's
+  // 503-on-pending: "still queued" is a normal life stage for a transfer,
+  // and the hourly sweep is the retry mechanism, not Chapa's redelivery.
+  if (event.txRef?.startsWith('cmwd_')) {
+    const result = await settlePayout(event.txRef);
+    log.info(
+      `[chapa webhook] payout event ${event.name ?? '(no name)'} tx_ref=${event.txRef} -> ${result.outcome}`
+    );
+    return Response.json({ outcome: result.outcome }, { status: 200 });
+  }
+
+  // Refund legs arrive in PR 4. Captured verbatim so their real
   // test-mode shapes are pinned before any code depends on them.
   log.info(
     `[chapa webhook] unhandled ${event.kind} event ${event.name ?? '(no name)'}: ${rawBody}`
