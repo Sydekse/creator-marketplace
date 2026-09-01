@@ -84,10 +84,15 @@ export function etbToSantim(amount: string | number): number | null {
 
 // -- Response shapes ----------------------------------------------------------
 
-/** Every Chapa response wears the same envelope. */
+/**
+ * Every Chapa response wears the same envelope — except `/banks`, observed
+ * live (2026-09-01) answering `{message, data}` with no `status` at all.
+ * So: `status` is optional, and an *absent* status on a 2xx is success;
+ * a *present* status must say so.
+ */
 const envelopeSchema = z.object({
   message: z.unknown().optional(),
-  status: z.string(),
+  status: z.string().optional(),
   data: z.unknown().optional(),
 });
 
@@ -366,7 +371,10 @@ export class ChapaClient {
     if (!envelope.success) {
       throw new ChapaError('chapa response missing envelope', 'MALFORMED');
     }
-    if (!response.ok || envelope.data.status !== 'success') {
+    if (
+      !response.ok ||
+      (envelope.data.status !== undefined && envelope.data.status !== 'success')
+    ) {
       throw new ChapaError(
         `chapa rejected ${path}: ${JSON.stringify(envelope.data.message ?? envelope.data.status)}`,
         'REJECTED',

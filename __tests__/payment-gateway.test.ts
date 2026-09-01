@@ -84,4 +84,78 @@ describe('ChapaGateway', () => {
     );
     initialize.mockRestore();
   });
+
+  it('delegates each verification and money-out edge to the Chapa client', async () => {
+    const gateway = new ChapaGateway(
+      new ChapaClient('CHASECK_TEST-abc'),
+      'chapa-test'
+    );
+
+    const verifiedTx = {
+      status: 'success',
+      amountSantim: 250_000,
+      currency: 'ETB',
+      txRef: 'cmfund_1',
+      providerRef: 'APq/x',
+      mode: 'test',
+    } as const;
+    const verifyTransaction = vi
+      .spyOn(ChapaClient.prototype, 'verifyTransaction')
+      .mockResolvedValue(verifiedTx);
+    await expect(gateway.verifyFunding('cmfund_1')).resolves.toBe(verifiedTx);
+    expect(verifyTransaction).toHaveBeenCalledWith('cmfund_1');
+
+    const banks = [
+      {
+        id: 130,
+        name: 'Abay Bank',
+        slug: 'abay_bank',
+        code: '130',
+        accountLength: 16,
+        isMobileMoney: false,
+      },
+    ];
+    vi.spyOn(ChapaClient.prototype, 'listBanks').mockResolvedValue(banks);
+    await expect(gateway.listBanks()).resolves.toBe(banks);
+
+    const createTransfer = vi
+      .spyOn(ChapaClient.prototype, 'createTransfer')
+      .mockResolvedValue({ providerRef: 'tr-1' });
+    const transferOptions = {
+      txRef: 'cmwd_1',
+      amountSantim: 10_000,
+      accountName: 'Alem T',
+      accountNumber: '0900123456',
+      bankCode: '855',
+    };
+    await expect(gateway.sendTransfer(transferOptions)).resolves.toEqual({
+      providerRef: 'tr-1',
+    });
+    expect(createTransfer).toHaveBeenCalledWith(transferOptions);
+
+    const verifiedTransfer = {
+      status: 'success',
+      amountSantim: 10_000,
+      txRef: 'cmwd_1',
+      providerRef: 'tr-1',
+    } as const;
+    const verifyTransfer = vi
+      .spyOn(ChapaClient.prototype, 'verifyTransfer')
+      .mockResolvedValue(verifiedTransfer);
+    await expect(gateway.verifyTransfer('cmwd_1')).resolves.toBe(
+      verifiedTransfer
+    );
+    expect(verifyTransfer).toHaveBeenCalledWith('cmwd_1');
+
+    const refund = vi
+      .spyOn(ChapaClient.prototype, 'refund')
+      .mockResolvedValue(undefined);
+    await gateway.refund({ txRef: 'cmfund_1', amountSantim: 50_000 });
+    expect(refund).toHaveBeenCalledWith({
+      txRef: 'cmfund_1',
+      amountSantim: 50_000,
+    });
+
+    vi.restoreAllMocks();
+  });
 });
