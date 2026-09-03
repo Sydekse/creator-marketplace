@@ -1,11 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Play } from '@phosphor-icons/react/dist/ssr';
+import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { BdShell } from '@/components/brand/v4-shell';
 import { DealHistory, DealProgressRail } from '@/components/deals/deal-history';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { MetricsForm } from '@/components/deals/metrics-form';
 import { DeliverableForm } from '@/components/deals/deliverable-form';
+import { TiktokVideoCard } from '@/components/deals/tiktok-video-card';
 import { OfferActions } from '@/components/deals/offer-actions';
 import { UsageRightsCard } from '@/components/deals/usage-rights';
 import { NO_EXPIRY_LABEL, expiryLabel, formatDeadlineUtc } from '@/lib/dates';
@@ -40,6 +41,7 @@ import {
   readCreatorDeal,
 } from '@/lib/deals/detail';
 import { getDealHistory } from '@/lib/deals/queries';
+import { parseTiktokVideoId } from '@/lib/deliverables/thumbnail';
 import { formatEtb } from '@/lib/money';
 import { isMoneyHeld } from '@/lib/payment/ledger';
 import { cn } from '@/lib/utils';
@@ -310,16 +312,19 @@ export default async function CreatorDealDetailPage({
                   key={video.id}
                   className={`bd-cr-video ${REVIEW_ACCENT[video.reviewStatus] ?? ''}`}
                 >
-                  {/* The 9:16 frame the landing page's deliverable mockup
-                      established — same shape, real data. */}
-                  <div className="bd-cr-video-frame">
-                    <span className="bd-cr-video-play">
-                      <Play size={12} weight="fill" aria-hidden />
-                    </span>
-                  </div>
+                  {/* Same submitted-video frame the brand sees: stored
+                      thumbnail first, in-app playback on demand, deliberate
+                      TikTok open as fallback. */}
+                  <TiktokVideoCard
+                    tiktokUrl={video.tiktokUrl}
+                    thumbnailUrl={video.thumbnailUrl}
+                    tiktokVideoId={
+                      video.tiktokVideoId ?? parseTiktokVideoId(video.tiktokUrl)
+                    }
+                    videoLabel={videoHeading(index)}
+                  />
                   <div className="bd-cr-video-copy">
                     <h3>{videoHeading(index)}</h3>
-                    <p className="bd-cr-video-url bd-mono">{video.tiktokUrl}</p>
                     <p className="bd-cr-video-meta">
                       {SUBMITTED_AT_LABEL}:{' '}
                       {formatDeadlineUtc(video.submittedAt)}

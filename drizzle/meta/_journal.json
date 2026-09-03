@@ -134,6 +134,13 @@
       "when": 1788361022033,
       "tag": "0018_material_blade",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788463829475,
+      "tag": "0019_deliverable_thumbnail",
+      "breakpoints": true
     }
   ]
 }

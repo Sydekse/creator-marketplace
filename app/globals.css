@@ -2663,6 +2663,12 @@ body {
   outline: 2px solid var(--bd-brand);
   outline-offset: 2px;
 }
+.bd .bd-dlthumb.bd-tiktokframe--playing {
+  flex-basis: min(325px, 100%);
+  width: min(325px, 100%);
+  min-height: 0;
+  aspect-ratio: 9 / 16;
+}
 .bd .bd-dlvidbody {
   display: flex;
   flex-direction: column;

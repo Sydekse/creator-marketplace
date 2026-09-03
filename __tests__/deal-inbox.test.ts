@@ -371,6 +371,8 @@ describe('the detail read returns every field AC-2 names', () => {
         reviewStatus: 'approved' as const,
         reviewedAt: new Date('2026-08-03T00:00:00.000Z'),
         rejectionReason: null,
+        thumbnailUrl: null,
+        tiktokVideoId: null,
       },
       {
         id: 'dl-10',
@@ -379,6 +381,8 @@ describe('the detail read returns every field AC-2 names', () => {
         reviewStatus: 'pending' as const,
         reviewedAt: null,
         rejectionReason: null,
+        thumbnailUrl: null,
+        tiktokVideoId: null,
       },
     ];
 

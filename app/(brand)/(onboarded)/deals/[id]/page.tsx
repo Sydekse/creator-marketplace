@@ -8,6 +8,7 @@ import {
   ApproveDealButton,
   RejectVideoForm,
 } from '@/components/deals/review-actions';
+import { TiktokVideoCard } from '@/components/deals/tiktok-video-card';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { canReview, labelForReviewStatus, labelForStatus } from '@/lib/deals';
 import type { DealStatus } from '@/db/schema';
@@ -32,8 +33,9 @@ import {
   readBrandDeal,
 } from '@/lib/deals/brand-detail';
 import { getDealHistory } from '@/lib/deals/queries';
+import { parseTiktokVideoId } from '@/lib/deliverables/thumbnail';
 import { formatEtb } from '@/lib/money';
-import { cn, textLinkFeedback } from '@/lib/utils';
+import { cn } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -195,19 +197,17 @@ export default async function BrandDealReviewPage({
 
               {deal.deliverables.map((video, index) => (
                 <div key={video.id} className="bd-dlvid">
-                  {/* Decorative stand-in, deliberately not a fetched preview:
-                    nothing on this page talks to the video host (Tech Spec
-                    §6.3). The thumb is the same deliberate outbound link as
-                    the URL below it. */}
-                  <a
-                    href={video.tiktokUrl}
-                    target="_blank"
-                    rel="noopener noreferrer nofollow"
-                    className="bd-dlthumb"
-                    aria-label={`Open ${videoHeading(index)} on TikTok`}
-                  >
-                    <span className="bd-dlplay" aria-hidden="true" />
-                  </a>
+                  {/* The shared submitted-video frame: our stored thumbnail when
+                      present, TikTok's embed only after the brand asks for
+                      playback, and a deliberate external open as the fallback. */}
+                  <TiktokVideoCard
+                    tiktokUrl={video.tiktokUrl}
+                    thumbnailUrl={video.thumbnailUrl}
+                    tiktokVideoId={
+                      video.tiktokVideoId ?? parseTiktokVideoId(video.tiktokUrl)
+                    }
+                    videoLabel={videoHeading(index)}
+                  />
                   <div className="bd-dlvidbody">
                     <div className="bd-dlvidhead">
                       <h3>{videoHeading(index)}</h3>
@@ -224,14 +224,6 @@ export default async function BrandDealReviewPage({
                         {labelForReviewStatus(video.reviewStatus)}
                       </span>
                     </div>
-                    <a
-                      href={video.tiktokUrl}
-                      target="_blank"
-                      rel="noopener noreferrer nofollow"
-                      className={cn('bd-dlurl bd-mono', textLinkFeedback)}
-                    >
-                      {video.tiktokUrl}
-                    </a>
                     <p className="bd-dlmeta">
                       {SUBMITTED_AT_LABEL}:{' '}
                       {formatDeadlineUtc(video.submittedAt)}

@@ -125,6 +125,8 @@ const video = (
   reviewStatus: 'pending',
   reviewedAt: null,
   rejectionReason: null,
+  thumbnailUrl: null,
+  tiktokVideoId: null,
   ...over,
 });
 
@@ -764,12 +766,15 @@ describe('the review page is the surface the endpoints were missing', () => {
   });
 
   it('does not fetch or embed the submitted URL', () => {
-    // Tech Spec §6.3 — the link is stored and displayed, never followed by the
-    // platform, and an anchor the brand clicks carries `rel` so the destination
-    // gets no handle on the opener.
-    expect(page).toContain('rel="noopener noreferrer nofollow"');
+    // Tech Spec §6.3 — the link is stored, never followed by the platform. The
+    // card renders our own blob snapshot and TikTok's player from a numeric id;
+    // the submitted URL itself leaves this page only as the card's explicit
+    // external link (which carries `rel` — asserted in the card's own suite).
+    expect(page).toContain('TiktokVideoCard');
     expect(page).not.toContain('<iframe');
     expect(page).not.toMatch(/fetch\(/);
+    // The raw URL is no longer linked by the page itself.
+    expect(page).not.toContain('href={video.tiktokUrl}');
   });
 
   it('computes no money of its own', () => {
