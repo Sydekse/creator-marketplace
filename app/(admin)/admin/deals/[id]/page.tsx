@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { buttonVariants } from '@/components/ui/button';
-import { PageHeader } from '@/components/layout/page-header';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { DealHistory } from '@/components/deals/deal-history';
 import { getDealHistory } from '@/lib/deals/queries';
 import { ForbiddenError } from '@/lib/authz';
@@ -23,6 +22,9 @@ export const runtime = 'nodejs';
  * before the query, so a mistyped link is not a 500) and for a deal this
  * admin cannot see — which for an admin is no deal at all. A thrown
  * `ForbiddenError` on a nonexistent deal reads as a 404, not an oracle.
+ *
+ * v4 conversion: shared admin shell and framed audit trail, with history reads
+ * and URL campaign context untouched.
  */
 export default async function AdminDealPage({
   params,
@@ -48,38 +50,38 @@ export default async function AdminDealPage({
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-10">
-      <div className="flex flex-col gap-3">
-        <Link
-          href="/admin/worklist"
-          className={cn('text-sm text-muted-foreground', textLinkFeedback)}
-        >
-          ← Dispute worklist
-        </Link>
-        <PageHeader
-          label="Deal audit trail"
-          title="Deal history"
-          description={
-            <>
-              {campaignName ? `Campaign: ${campaignName}. ` : ''}
-              Every state transition this deal has been through, oldest first.
-            </>
-          }
-        />
-      </div>
+    <BdShell className="bd-ad bd-ad-dealhistory">
+      <Link
+        href="/admin/worklist"
+        className={cn('bd-cdback', textLinkFeedback)}
+      >
+        ← Dispute worklist
+      </Link>
+      <BdPageHead
+        eyebrow="Admin console"
+        title="Deal history"
+        facts={
+          <>
+            {campaignName ? `Campaign: ${campaignName} · ` : ''}
+            <span className="bd-mono">{events.length}</span> state transitions
+          </>
+        }
+        ruled
+        rise={1}
+      />
 
-      <div className="border-y border-neutral-200 bg-neutral-100/35 px-4 py-5 sm:px-6">
+      <div
+        className="bd-ad-historybox bd-rise"
+        style={{ '--i': 2 } as React.CSSProperties}
+      >
         <DealHistory events={events} />
       </div>
 
       <div>
-        <Link
-          href="/admin"
-          className={buttonVariants({ variant: 'outline', size: 'sm' })}
-        >
+        <Link href="/admin" className="bd-btn bd-btn--ghost">
           Back to the console
         </Link>
       </div>
-    </div>
+    </BdShell>
   );
 }

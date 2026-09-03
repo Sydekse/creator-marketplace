@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Megaphone, Scales, Scroll, Tag } from '@phosphor-icons/react/dist/ssr';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
-import { PageHeader } from '@/components/layout/page-header';
 import { requireRole } from '@/lib/auth';
 import { formatEtb } from '@/lib/money';
 import {
@@ -13,6 +13,10 @@ import { countAwaitingTier } from '@/lib/creators/awaiting-tier';
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
 
+/**
+ * Admin console overview — v4 shell conversion for the operational queues and
+ * platform money roll-up; data reads remain unchanged.
+ */
 export default async function AdminConsolePage() {
   const user = await requireRole('admin');
 
@@ -31,103 +35,106 @@ export default async function AdminConsolePage() {
   const campaigns = await listCampaignsForAdmin();
 
   return (
-    <div className="flex flex-col gap-12">
-      <PageHeader
-        label="Operations"
+    <BdShell className="bd-ad bd-ad-console">
+      <BdPageHead
+        eyebrow="Admin console"
         title="Admin console"
-        description={
-          <div className="flex items-center gap-2">
+        facts={
+          <span className="bd-ad-userline">
             <InitialsAvatar
               name={user.name ?? user.email}
               image={user.image}
               size="sm"
             />
-            <span>Signed in as {user.name ?? user.email}.</span>
-          </div>
+            <span>
+              Signed in as {user.name ?? user.email}.{' '}
+              <span className="bd-mono">{campaigns.length}</span> campaigns ·{' '}
+              <span className="bd-mono">{disputed.length}</span> disputes ·{' '}
+              <span className="bd-mono">{awaitingTier}</span> awaiting tier
+            </span>
+          </span>
         }
+        ruled
       />
-      <section>
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Operational queues
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Review people, money, and exceptions that need an operator.
-            </p>
-          </div>
+
+      <dl
+        className="bd-cdfacts bd-ad-consolefacts bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
+        <div className="bd-cdfact">
+          <dt className="bd-cdfactlab">Campaigns</dt>
+          <dd className="bd-cdfactval bd-mono">{campaigns.length}</dd>
         </div>
-        <div className="grid border-y border-neutral-200 lg:grid-cols-[1.15fr_0.85fr]">
-          <Link
-            href="/admin/campaigns"
-            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:border-r"
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+        <div className="bd-cdfact">
+          <dt className="bd-cdfactlab">Needs resolution</dt>
+          <dd className="bd-cdfactval bd-mono">{disputed.length}</dd>
+        </div>
+        <div className="bd-cdfact">
+          <dt className="bd-cdfactlab">Awaiting tier</dt>
+          <dd className="bd-cdfactval bd-mono">{awaitingTier}</dd>
+        </div>
+      </dl>
+
+      <section
+        className="bd-ad-section bd-rise"
+        style={{ '--i': 2 } as React.CSSProperties}
+      >
+        <div className="bd-capruler">
+          <span className="bd-caprulertitle">Operational queues</span>
+          <span className="bd-caprulerline" aria-hidden="true" />
+          <span className="bd-caprulernote">
+            Review people, money, and exceptions
+          </span>
+        </div>
+        <div className="bd-ad-queues">
+          <Link href="/admin/campaigns" className="bd-ad-tile">
+            <span className="bd-ad-icon">
               <Megaphone className="h-4 w-4" weight="regular" aria-hidden />
             </span>
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold text-neutral-900">Campaigns</h2>
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-medium text-neutral-600">
-                {campaigns.length}
-              </span>
+            <div className="bd-ad-tilehead">
+              <h2>Campaigns</h2>
+              <span className="bd-ad-count bd-mono">{campaigns.length}</span>
             </div>
-            <p className="text-sm text-muted-foreground">
-              Budgets, escrow held, payouts, commission and refunds
-            </p>
+            <p>Budgets, escrow held, payouts, commission and refunds</p>
           </Link>
-          <Link
-            href="/admin/worklist"
-            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+          <Link href="/admin/worklist" className="bd-ad-tile">
+            <span className="bd-ad-icon">
               <Scales className="h-4 w-4" weight="regular" aria-hidden />
             </span>
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold text-neutral-900">
-                Dispute worklist
-              </h2>
+            <div className="bd-ad-tilehead">
+              <h2>Dispute worklist</h2>
               {disputed.length > 0 && (
-                <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-neutral-50">
+                <span className="bd-capstatus bd-capstatus--wait bd-mono">
                   {disputed.length}
                 </span>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">
-              Flagged or money-held deals awaiting resolution
-            </p>
+            <p>Flagged or money-held deals awaiting resolution</p>
           </Link>
-          <Link
-            href="/admin/tiers"
-            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none sm:border-r"
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+          <Link href="/admin/tiers" className="bd-ad-tile">
+            <span className="bd-ad-icon">
               <Tag className="h-4 w-4" weight="regular" aria-hidden />
             </span>
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold text-neutral-900">Awaiting tier</h2>
+            <div className="bd-ad-tilehead">
+              <h2>Awaiting tier</h2>
               {awaitingTier > 0 && (
-                <span className="rounded-full bg-destructive px-2 py-0.5 text-xs font-medium text-neutral-50">
+                <span className="bd-capstatus bd-capstatus--wait bd-mono">
                   {awaitingTier}
                 </span>
               )}
             </div>
-            <p className="text-sm text-muted-foreground">
+            <p>
               {awaitingTier > 0
                 ? 'Verified creators with no price, so not bookable'
                 : 'Every verified creator has a tier'}
             </p>
           </Link>
-          <Link
-            href="/admin/audit-log"
-            className="group flex min-h-40 flex-col gap-6 border-b border-neutral-200 p-6 transition-[background-color,transform] duration-300 ease-out hover:bg-neutral-100/70 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-neutral-900 focus-visible:outline-none"
-          >
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-neutral-100 text-neutral-600 transition-colors duration-300 ease-out group-hover:bg-neutral-900 group-hover:text-neutral-50">
+          <Link href="/admin/audit-log" className="bd-ad-tile">
+            <span className="bd-ad-icon">
               <Scroll className="h-4 w-4" weight="regular" aria-hidden />
             </span>
-            <h2 className="font-semibold text-neutral-900">Audit log</h2>
-            <p className="text-sm text-muted-foreground">
-              Trace every administrative action in chronological order.
-            </p>
+            <h2>Audit log</h2>
+            <p>Trace every administrative action in chronological order.</p>
           </Link>
         </div>
       </section>
@@ -136,38 +143,43 @@ export default async function AdminConsolePage() {
           sum the campaigns array into aggregate totals rather than requiring a
           second read. Only shown when there is at least one campaign. */}
       {campaigns.length > 0 && (
-        <section className="rounded-[24px] bg-neutral-900 p-6 text-neutral-50 sm:p-8">
-          <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-            Platform totals
-          </h2>
-          <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-4">
-            <div className="flex flex-col gap-0.5">
-              <dt className="text-xs text-neutral-400">Held in escrow</dt>
-              <dd className="mt-1 font-mono text-sm font-medium text-neutral-50">
+        <section
+          className="bd-ad-section bd-rise"
+          style={{ '--i': 3 } as React.CSSProperties}
+        >
+          <div className="bd-capruler">
+            <span className="bd-caprulertitle">Platform totals</span>
+            <span className="bd-caprulerline" aria-hidden="true" />
+            <span className="bd-caprulernote">Ledger-derived sums</span>
+          </div>
+          <dl className="bd-caprail bd-ad-totals">
+            <div className="bd-railcell">
+              <dt className="bd-railk">Held in escrow</dt>
+              <dd className="bd-railv bd-mono">
                 {formatEtb(campaigns.reduce((sum, c) => sum + c.held, 0))}
               </dd>
             </div>
-            <div className="flex flex-col gap-0.5">
-              <dt className="text-xs text-neutral-400">Paid out</dt>
-              <dd className="mt-1 font-mono text-sm font-medium text-neutral-50">
+            <div className="bd-railcell">
+              <dt className="bd-railk">Paid out</dt>
+              <dd className="bd-railv bd-mono">
                 {formatEtb(campaigns.reduce((sum, c) => sum + c.paidOut, 0))}
               </dd>
             </div>
-            <div className="flex flex-col gap-0.5">
-              <dt className="text-xs text-neutral-400">Commission</dt>
-              <dd className="mt-1 font-mono text-sm font-medium text-neutral-50">
+            <div className="bd-railcell">
+              <dt className="bd-railk">Commission</dt>
+              <dd className="bd-railv bd-mono">
                 {formatEtb(campaigns.reduce((sum, c) => sum + c.commission, 0))}
               </dd>
             </div>
-            <div className="flex flex-col gap-0.5">
-              <dt className="text-xs text-neutral-400">Refunded</dt>
-              <dd className="mt-1 font-mono text-sm font-medium text-neutral-50">
+            <div className="bd-railcell">
+              <dt className="bd-railk">Refunded</dt>
+              <dd className="bd-railv bd-mono">
                 {formatEtb(campaigns.reduce((sum, c) => sum + c.refunded, 0))}
               </dd>
             </div>
           </dl>
         </section>
       )}
-    </div>
+    </BdShell>
   );
 }

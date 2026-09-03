@@ -1075,7 +1075,7 @@ describe('the not-found page is not an existence oracle', () => {
   });
 
   it('offers the way back as a styled link, never a Button wrapping one', () => {
-    expect(source).toContain('buttonVariants');
+    expect(source).toContain('className="bd-btn bd-btn--ghost"');
     expect(source).not.toMatch(/<Button\s+render=/);
   });
 });

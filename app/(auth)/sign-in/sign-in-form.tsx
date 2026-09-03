@@ -61,7 +61,7 @@ export function SignInForm() {
   }
 
   return (
-    <div className="surface-card auth-card w-full max-w-md rounded-[28px] border border-neutral-200 p-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:p-8">
+    <div className="auth-card hero-plate hero-plate--sm w-full max-w-md rounded-[28px] border border-[oklch(0.79_0.004_220)] p-6 sm:p-8">
       <p className="text-[13px] font-bold uppercase tracking-[0.14em] text-brand-ink">
         Welcome back
       </p>
@@ -158,7 +158,7 @@ export function SignInForm() {
           type="submit"
           disabled={loading}
           size="xl"
-          className="w-full bg-brand-deep text-neutral-50 hover:bg-brand-strong"
+          className="btn-shine w-full bg-brand-deep text-neutral-50 hover:bg-brand-strong"
         >
           {loading ? 'Signing in…' : 'Sign in'}
         </Button>

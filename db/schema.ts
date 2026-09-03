@@ -425,6 +425,35 @@ export const videoMetric = pgTable('video_metric', {
   stale: boolean('stale').notNull().default(false),
 });
 
+/**
+ * Append-only history of view counts, one row per metric write (KAN mock v4:
+ * "new reach this week"). `video_metric` keeps only the latest totals, so any
+ * "how much did reach grow since X" question needs the value as of X — this
+ * table is that memory. Written alongside the upsert in
+ * `lib/deals/record-metrics.ts`; never updated, never deleted.
+ */
+export const videoMetricSnapshot = pgTable(
+  'video_metric_snapshot',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    deliverableId: uuid('deliverable_id')
+      .notNull()
+      .references(() => deliverable.id),
+    views: integer('views').notNull(),
+    capturedAt: timestamp('captured_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // Every read is "this deliverable's views as of a cutoff" — the dashboard
+    // resolves one row per deliverable via max(captured_at) <= cutoff.
+    index('video_metric_snapshot_deliverable_captured_idx').on(
+      t.deliverableId,
+      t.capturedAt
+    ),
+  ]
+);
+
 // -- Money ------------------------------------------------------------------
 
 /**
@@ -534,6 +563,36 @@ export const notification = pgTable(
   },
   (t) => [index('notification_user_created_idx').on(t.userId, t.createdAt)]
 );
+
+// -- Notification preferences -------------------------------------------------
+
+/**
+ * Per-user email opt-outs, one row per user, absent meaning "everything on".
+ *
+ * Four category booleans rather than a per-type map: thirteen toggles is a
+ * chore no one completes, and new notification types get a sensible default by
+ * joining a category instead of being silently unmuteable. The in-app feed is
+ * deliberately not muteable — these govern *email* dispatch only, so a muted
+ * category still writes its `notification` row and shows in the bell.
+ */
+export const notificationPref = pgTable('notification_pref', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => user.id),
+  /** Offers, deliveries, reviews, disputes — the deal lifecycle. */
+  emailDeals: boolean('email_deals').notNull().default(true),
+  /** Funding and wallet movement. */
+  emailMoney: boolean('email_money').notNull().default(true),
+  /** Verification results and tier changes. */
+  emailAccount: boolean('email_account').notNull().default(true),
+  /** Scheduled nudges (metric reminders). */
+  emailReminders: boolean('email_reminders').notNull().default(true),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 // -- Chapa payment rails (KAN-70) ---------------------------------------------
 

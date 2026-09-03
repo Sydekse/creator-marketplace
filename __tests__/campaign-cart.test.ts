@@ -1059,7 +1059,7 @@ describe('remove-from-cart button (AC-015 — the brand-facing half)', () => {
 
     const ternary = PAGE.search(/settled \? \(/);
     const settledBranch = PAGE.indexOf('<VideoPerformance');
-    const cartBranch = PAGE.indexOf('Cart ({items.length})');
+    const cartBranch = PAGE.indexOf('bd-cartgrid');
     const button = PAGE.indexOf('<RemoveFromCartButton');
 
     expect(ternary).toBeGreaterThan(-1);

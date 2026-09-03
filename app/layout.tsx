@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
+import 'slot-text/style.css';
 import './globals.css';
 
 const dmSans = localFont({

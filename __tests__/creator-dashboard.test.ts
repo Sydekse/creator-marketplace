@@ -536,7 +536,7 @@ describe('the creator dashboard page', () => {
   });
 
   it('shows an empty state rather than a blank page (AC-5)', () => {
-    expect(source).toContain('EmptyState');
+    expect(source).toContain('bd-emptyfeed');
     expect(source).toContain('dashboard.isEmpty');
   });
 
@@ -554,7 +554,7 @@ describe('the creator dashboard page', () => {
     // A literal `title="…"` is the hover tooltip the house rule forbids — it
     // tells a touch user nothing. `title={…}` is a component prop, which
     // `EmptyState` legitimately takes, so the guard is on the attribute form.
-    expect(source).not.toMatch(/\stitle="/);
+    expect(source).not.toMatch(/<[a-z][^>]*\stitle="/);
     expect(source).not.toContain("'use client'");
   });
 
@@ -593,8 +593,8 @@ describe('the dashboard is laid out as one', () => {
   });
 
   it('separates sections with card-based containers rather than stacked rules', () => {
-    // The page uses rounded card sections instead of border-t dividers.
-    const cards = source.match(/rounded-\[\d+px\]/g);
+    // The page uses v4 dashboard panels instead of border-t dividers.
+    const cards = source.match(/bd-cr-dashboardpanel/g);
     expect(cards?.length ?? 0).toBeGreaterThanOrEqual(3);
     // At most one border-t, above the "signed in as" footer.
     expect(source.match(/border-t /g)?.length ?? 0).toBeLessThanOrEqual(1);
@@ -603,20 +603,24 @@ describe('the dashboard is laid out as one', () => {
   it('gives the work its own column, and the reference the other', () => {
     expect(source).not.toContain('max-w-2xl');
     expect(source).not.toContain('max-w-6xl');
-    expect(source).toMatch(/lg:grid-cols-\[/);
+    expect(source).toContain('bd-cr-dashboardbody');
+    expect(source).toContain('bd-cr-dashboardgrid');
   });
 
   it('puts the work first, which is also the phone order (NFR-007)', () => {
-    // Below `lg:` the columns stack in source order, so "left" and "first" are
-    // the same decision. Earnings and deals must precede the profile facts.
+    // The v4 source order puts account state first, then the workspace pulse:
+    // payout/profile impact and active deals.
+    const account = source.indexOf('Account state');
+    const pulse = source.indexOf('Workspace pulse');
     const earnings = source.indexOf('<EarningsSummary');
     const deals = source.indexOf('<PayoutChart');
-    // The call, not the import — the import list is at the top of every file.
-    const facts = source.indexOf('formatFollowerCount(profile');
+    const facts = source.lastIndexOf('formatFollowerCount(profile');
     const pricing = source.indexOf('<TierPricing');
+    expect(account).toBeGreaterThan(-1);
+    expect(pulse).toBeGreaterThan(account);
     expect(deals).toBeGreaterThan(-1);
     expect(earnings).toBeGreaterThan(deals);
-    expect(facts).toBeGreaterThan(earnings);
+    expect(facts).toBeGreaterThan(account);
     expect(pricing).toBeGreaterThan(facts);
   });
 

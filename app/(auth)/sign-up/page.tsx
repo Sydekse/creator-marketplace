@@ -13,15 +13,24 @@ import { SignUpCard } from './sign-up-card';
 export default async function SignUpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string | string[] }>;
+  searchParams: Promise<{
+    error?: string | string[];
+    role?: string | string[];
+  }>;
 }) {
-  const raw = (await searchParams).error;
+  const params = await searchParams;
+  const raw = params.error;
   const code = Array.isArray(raw) ? raw[0] : raw;
+  const rawRole = Array.isArray(params.role) ? params.role[0] : params.role;
+  // Deep links from marketing preselect the account type on the slider.
+  const initialRole =
+    rawRole === 'creator' || rawRole === 'brand' ? rawRole : undefined;
 
   return (
     <SignUpCard
       creatorDemoSignup={process.env.CREATOR_DEMO_SIGNUP === 'true'}
       oauthError={tiktokOAuthErrorMessage(code)}
+      initialRole={initialRole}
     />
   );
 }

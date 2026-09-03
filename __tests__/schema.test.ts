@@ -28,6 +28,7 @@ const TABLES = {
   deal_event: schema.dealEvent,
   deliverable: schema.deliverable,
   video_metric: schema.videoMetric,
+  video_metric_snapshot: schema.videoMetricSnapshot,
   ledger_entry: schema.ledgerEntry,
   audit_log: schema.auditLog,
   notification: schema.notification,
@@ -84,7 +85,7 @@ const migrationSql = (() => {
 
 describe('schema tables', () => {
   it('declares all marketplace entities', () => {
-    expect(Object.keys(TABLES)).toHaveLength(18);
+    expect(Object.keys(TABLES)).toHaveLength(19);
   });
 
   it.each(Object.entries(TABLES))(
@@ -156,8 +157,8 @@ describe('generated migration', () => {
       // thing. Invariant 11 governs our entities; when a real processor arrives
       // (Q3) this table is dropped rather than migrated.
       .filter((l) => !l.includes('"provider_ref" text PRIMARY KEY'));
-    // The 18 entities plus session, account and verification.
-    expect(pkLines).toHaveLength(21);
+    // The 20 entities plus session, account and verification.
+    expect(pkLines).toHaveLength(23);
     for (const line of pkLines) {
       expect(line).toContain('"id" uuid PRIMARY KEY');
     }

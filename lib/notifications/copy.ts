@@ -17,7 +17,7 @@ export function inAppNotificationDetail(
       typeof payload.campaignTitle === 'string'
         ? payload.campaignTitle
         : 'the campaign';
-    return `${handle} accepted ${campaign}. Fund the campaign to hold the money — they cannot start until you do.`;
+    return `${handle} accepted ${campaign}. Fund the campaign to hold the money. They cannot start until you do.`;
   }
   return null;
 }

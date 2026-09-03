@@ -1,11 +1,12 @@
-'use client';
+﻿'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { authClient } from '@/lib/auth-client';
 import { ContinueWithTiktok } from '@/components/auth/continue-with-tiktok';
 import { RoleNotch } from '@/components/auth/role-notch';
+import { AUTH_ROLE_EVENT } from '../auth-panel';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -57,6 +58,7 @@ type FieldErrors = {
 export function SignUpCard({
   creatorDemoSignup,
   oauthError = null,
+  initialRole,
 }: {
   /**
    * Whether the email/password creator path (demo accounts) is offered.
@@ -69,6 +71,8 @@ export function SignUpCard({
    * alert) are not hidden behind the brand default.
    */
   oauthError?: string | null;
+  /** Preselected account type from a marketing deep link (?role=...). */
+  initialRole?: RoleOption;
 }) {
   const router = useRouter();
   const [name, setName] = useState('');
@@ -76,12 +80,18 @@ export function SignUpCard({
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<RoleOption>(
-    oauthError ? 'creator' : 'brand'
+    oauthError ? 'creator' : (initialRole ?? 'brand')
   );
   const [creatorDemo, setCreatorDemo] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent(AUTH_ROLE_EVENT, { detail: { role } })
+    );
+  }, [role]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -138,7 +148,7 @@ export function SignUpCard({
   }
 
   return (
-    <div className="surface-card auth-card relative w-full max-w-md rounded-[28px] border border-neutral-200 px-7 pb-6 pt-12 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.35)] sm:px-9 sm:pb-8 sm:pt-13">
+    <div className="auth-card hero-plate hero-plate--sm relative w-full max-w-md rounded-[28px] border border-[oklch(0.79_0.004_220)] px-6 pb-4 pt-9 sm:px-8 sm:pb-5 sm:pt-10">
       <RoleNotch
         value={role}
         onChange={(next) => {
@@ -151,29 +161,24 @@ export function SignUpCard({
       <p className="text-[13px] font-bold uppercase tracking-[0.14em] text-brand-ink">
         Create account
       </p>
-      <h1 className="mt-3 font-display text-3xl font-medium tracking-tight text-neutral-900 sm:text-4xl">
+      <h1 className="mt-2 font-display text-2xl font-medium tracking-tight text-neutral-900 sm:text-[1.75rem]">
         Join the marketplace.
       </h1>
-      <p className="mt-3 max-w-[40ch] text-sm leading-relaxed text-neutral-600">
-        {role === 'creator'
-          ? 'Creators continue with TikTok. We only ask for a public profile.'
-          : 'Brands create a free profile with email and password.'}
-      </p>
 
-      <div className="mt-5 border-b border-neutral-200" aria-hidden="true" />
+      <div className="mt-3 border-b border-neutral-200" aria-hidden="true" />
 
       {/* One credential form, two placements: brands always, creators only
           when the demo flag has revealed it. The same `handleSubmit` runs
-          either way — the only difference is which accordion it sits in. */}
+          either way â€” the only difference is which accordion it sits in. */}
       <AccordionPanel
         open={role === 'brand' || (role === 'creator' && creatorDemo)}
       >
         <form
           onSubmit={handleSubmit}
           noValidate
-          className="mt-4 flex flex-col gap-4"
+          className="mt-3 flex flex-col gap-2.5"
         >
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="name"
               className="text-[13px] font-semibold text-neutral-700"
@@ -193,12 +198,12 @@ export function SignUpCard({
               autoComplete="name"
               aria-invalid={!!errors.name}
               aria-describedby={errors.name ? 'name-error' : undefined}
-              className="h-10 px-3"
+              className="h-9 px-3"
             />
             <FieldError id="name-error" message={errors.name} />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="email"
               className="text-[13px] font-semibold text-neutral-700"
@@ -219,12 +224,12 @@ export function SignUpCard({
               autoComplete="email"
               aria-invalid={!!errors.email}
               aria-describedby={errors.email ? 'email-error' : undefined}
-              className="h-10 px-3"
+              className="h-9 px-3"
             />
             <FieldError id="email-error" message={errors.email} />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="password"
               className="text-[13px] font-semibold text-neutral-700"
@@ -245,12 +250,12 @@ export function SignUpCard({
               autoComplete="new-password"
               aria-invalid={!!errors.password}
               aria-describedby={errors.password ? 'password-error' : undefined}
-              className="h-10 px-3"
+              className="h-9 px-3"
             />
             <FieldError id="password-error" message={errors.password} />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-1.5">
             <label
               htmlFor="confirmPassword"
               className="text-[13px] font-semibold text-neutral-700"
@@ -272,7 +277,7 @@ export function SignUpCard({
               aria-describedby={
                 errors.confirmPassword ? 'confirm-password-error' : undefined
               }
-              className="h-10 px-3"
+              className="h-9 px-3"
             />
             <FieldError
               id="confirm-password-error"
@@ -293,9 +298,9 @@ export function SignUpCard({
             type="submit"
             disabled={loading}
             size="xl"
-            className="w-full bg-brand-deep text-neutral-50 hover:bg-brand-strong"
+            className="btn-shine h-11 w-full bg-brand-deep text-neutral-50 hover:bg-brand-strong"
           >
-            {loading ? 'Creating account…' : 'Create account'}
+            {loading ? 'Creating accountâ€¦' : 'Create account'}
           </Button>
         </form>
       </AccordionPanel>
@@ -321,9 +326,9 @@ export function SignUpCard({
         </div>
       </AccordionPanel>
 
-      <div className="mt-7 border-t border-neutral-200" aria-hidden="true" />
+      <div className="mt-4 border-t border-neutral-200" aria-hidden="true" />
 
-      <p className="mt-5 text-center text-[13px] text-neutral-600">
+      <p className="mt-3 text-center text-[13px] text-neutral-600">
         Already have an account?{' '}
         <Link
           href="/sign-in"

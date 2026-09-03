@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { ArrowSquareOut, TiktokLogo } from '@phosphor-icons/react/dist/ssr';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { NICHE_LABELS } from '@/lib/config/creator-profile';
 import type { Niche } from '@/lib/config/creator-profile';
@@ -51,17 +50,12 @@ function Fact({
   note?: string;
 }) {
   return (
-    <div className="flex min-w-0 flex-col gap-1 px-2 first:pl-0 last:pr-0">
-      <dt className="text-[10px] font-semibold tracking-[0.12em] text-neutral-600 uppercase">
-        {label}
-      </dt>
-      <dd className="text-[13px] font-semibold tabular-nums text-neutral-900">
+    <div className="bd-discfact">
+      <dt className="bd-discfactlab">{label}</dt>
+      <dd className="bd-discfactval bd-mono">
         <TruncatedText text={value} />
         {note ? (
-          <TruncatedText
-            text={note}
-            className="mt-0.5 text-[11px] font-normal text-neutral-600"
-          />
+          <TruncatedText text={note} className="bd-discfactnote" />
         ) : null}
       </dd>
     </div>
@@ -86,10 +80,11 @@ export function CreatorCard({
     detailsHref === undefined ? `/discover/${creator.id}` : detailsHref;
 
   return (
-    // `h-full` so cards in a row match height when one handle wraps. `relative`
-    // is what makes the stretched link below work, and `focus-within` moves the
-    // ring onto the card now that the link no longer wraps it.
-    <Card className="relative h-full overflow-hidden border-neutral-200 bg-neutral-50 py-5 [--card-spacing:1.2rem] transition-[border-color,box-shadow] duration-300 ease-[var(--ease-smooth)] hover:border-neutral-300 hover:shadow-[0_22px_44px_-24px_rgba(23,23,23,0.35)] focus-within:ring-2 focus-within:ring-ring">
+    // An `<article>` in the v4 card grammar rather than the shadcn Card —
+    // `relative` is what makes the stretched link below work, and
+    // `focus-within` moves the ring onto the card now that the link no longer
+    // wraps it. Height stretches so cards in a row match when a handle wraps.
+    <article className="bd-disccard focus-within:ring">
       {/* The whole-card hit target. It covers the card instead of wrapping it
           because an `<a>` inside an `<a>` is invalid HTML — the browser closes
           the outer one early and the TikTok link ends up outside the card
@@ -99,74 +94,61 @@ export function CreatorCard({
         <Link
           href={href}
           aria-label={creator.tiktokHandle}
-          className="absolute inset-0 rounded-xl"
+          className="absolute inset-0 rounded-2xl"
         />
       )}
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <InitialsAvatar name={creator.tiktokHandle} image={creator.image} />
-            <div className="relative z-10 min-w-0">
-              <TruncatedText
-                text={`@${creator.tiktokHandle.replace(/^@+/, '')}`}
-                className="text-base font-semibold text-neutral-900"
-              />
-              <span className="mt-0.5 block text-xs text-muted-foreground">
-                {NICHE_LABELS[creator.niche as Niche] ?? creator.niche}
-              </span>
-            </div>
-          </div>
-          {/* The tier name is context for the price beside it, not a fact a
-              brand filters on, so it reads as a label rather than a figure. */}
-          <span className="shrink-0 pt-1 text-[11px] font-semibold tracking-[0.12em] text-brand-ink uppercase">
-            {creator.tierName}
+      <div className="bd-dischead">
+        <InitialsAvatar name={creator.tiktokHandle} image={creator.image} />
+        <div className="bd-discid">
+          <TruncatedText
+            text={`@${creator.tiktokHandle.replace(/^@+/, '')}`}
+            className="bd-dischandle"
+          />
+          <span className="bd-discniche">
+            {NICHE_LABELS[creator.niche as Niche] ?? creator.niche}
           </span>
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
-        {/* Two columns at phone widths and four from `sm:` up (NFR-007). No
-            fixed widths anywhere, so nothing here can scroll sideways at
-            375px — the facts reflow instead. */}
-        <dl className="relative z-10 grid grid-cols-3 divide-x divide-neutral-200 border-y border-neutral-200 py-3">
-          {/* Absent is not zero. Both of these come from
-              `lib/creators/profile-facts.ts`, which is also what the creator's
-              own dashboard renders them through, so a blank optional field
-              cannot read as a claim on one screen and a gap on the other. */}
-          <Fact
-            label="Followers"
-            value={formatFollowerCount(creator.followerCount)}
-          />
-          <Fact
-            label="Engagement"
-            value={formatEngagementRate(creator.engagementRate)}
-          />
-          <Fact
-            label="Price"
-            value={formatEtb(creator.pricePerVideo)}
-            note="per video"
-          />
-        </dl>
+        </div>
+        {/* The tier name is context for the price beside it, not a fact a
+            brand filters on, so it reads as a label rather than a figure. */}
+        <span className="bd-disctier">{creator.tierName}</span>
+      </div>
 
-        {/* `relative z-10` lifts this above the stretched link, which otherwise
-            covers it. `noopener noreferrer` because the tab we open must not get
-            a handle on ours, and `nofollow` because we are not vouching for a
-            profile nobody has checked yet. */}
-        {profileUrl && (
-          <a
-            href={profileUrl}
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            className={cn(
-              'relative z-10 inline-flex items-center gap-2 self-start border-t border-neutral-200 pt-3 text-xs font-medium text-brand-ink',
-              textLinkFeedback
-            )}
-          >
-            <TiktokLogo size={14} weight="regular" aria-hidden />
-            {VIEW_ON_TIKTOK_LABEL}
-            <ArrowSquareOut size={12} weight="regular" aria-hidden />
-          </a>
-        )}
-      </CardContent>
-    </Card>
+      {/* Absent is not zero. Both optional figures come from
+          `lib/creators/profile-facts.ts`, which is also what the creator's
+          own dashboard renders them through, so a blank optional field
+          cannot read as a claim on one screen and a gap on the other. */}
+      <dl className="bd-discfacts">
+        <Fact
+          label="Followers"
+          value={formatFollowerCount(creator.followerCount)}
+        />
+        <Fact
+          label="Engagement"
+          value={formatEngagementRate(creator.engagementRate)}
+        />
+        <Fact
+          label="Price"
+          value={formatEtb(creator.pricePerVideo)}
+          note="per video"
+        />
+      </dl>
+
+      {/* `relative z-10` lifts this above the stretched link, which otherwise
+          covers it. `noopener noreferrer` because the tab we open must not get
+          a handle on ours, and `nofollow` because we are not vouching for a
+          profile nobody has checked yet. */}
+      {profileUrl && (
+        <a
+          href={profileUrl}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          className={cn('relative z-10 bd-disctiktok', textLinkFeedback)}
+        >
+          <TiktokLogo size={14} weight="regular" aria-hidden />
+          {VIEW_ON_TIKTOK_LABEL}
+          <ArrowSquareOut size={12} weight="regular" aria-hidden />
+        </a>
+      )}
+    </article>
   );
 }

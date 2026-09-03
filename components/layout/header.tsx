@@ -6,6 +6,7 @@ import type { CartTarget } from '@/components/nav/main-nav';
 import { MobileNav } from '@/components/nav/mobile-nav';
 import { UserMenu } from '@/components/nav/user-menu';
 import { NotificationBell } from './notification-bell';
+import { NotificationToaster } from '@/components/notifications/notification-toaster';
 import { unreadCount } from '@/lib/notifications/queries';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import { getActiveDraftCart } from '@/lib/campaigns/queries';
@@ -24,19 +25,23 @@ export async function Header({ user }: HeaderProps) {
     // Swallow — the bell simply shows no badge.
   }
 
-  // The cart icon is brand-only and resolves to the active draft's cart. Like
-  // the bell, a failure must not break the header — the icon just falls back to
-  // the campaigns list with no badge.
+  // The cart icon is brand-only and resolves to the active draft's cart.
+  // With no draft there is nothing to stand in, so the entry hides entirely —
+  // a cart pointing at the campaigns list is a dead link. Like the bell, a
+  // query failure must not break the header; it simply hides the icon too.
   let cart: CartTarget | undefined;
   if (user.role === 'brand') {
     try {
       const profile = await getBrandProfileByUserId(user.id);
       const draft = profile ? await getActiveDraftCart(profile.id) : null;
-      cart = draft
-        ? { href: `/campaigns/${draft.campaignId}`, itemCount: draft.itemCount }
-        : { href: '/campaigns', itemCount: 0 };
+      if (draft) {
+        cart = {
+          href: `/campaigns/${draft.campaignId}`,
+          itemCount: draft.itemCount,
+        };
+      }
     } catch {
-      cart = { href: '/campaigns', itemCount: 0 };
+      // Swallow — the cart entry simply does not render.
     }
   }
 
@@ -67,6 +72,9 @@ export async function Header({ user }: HeaderProps) {
       </header>
       {/* Spacer prevents page content from hiding behind the fixed header. */}
       <div aria-hidden className="h-[calc(3.5rem+0.75rem)]" />
+      {/* Global toasts for fresh, actionable notifications — the header is
+          the one component every signed-in page renders. */}
+      <NotificationToaster role={user.role} />
     </>
   );
 }

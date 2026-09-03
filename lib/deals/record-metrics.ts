@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { deliverable, videoMetric } from '@/db/schema';
+import { deliverable, videoMetric, videoMetricSnapshot } from '@/db/schema';
 import type { MetricSource } from '@/db/schema';
 import { withAdminAudit } from '@/lib/authz';
 import type { AuditEntry, AuthzContext, Tx } from '@/lib/authz';
@@ -148,6 +148,19 @@ const defaultDeps: RecordMetricsDeps = {
         shares: videoMetric.shares,
         comments: videoMetric.comments,
       });
+
+    // History for "reach as of a date" (brand dashboard's weekly delta). Only
+    // writes that touched `views` leave a snapshot — a likes-only update says
+    // nothing new about reach. Same runner: the snapshot commits or rolls
+    // back with the metric row it describes.
+    if (values.views !== undefined && row.views !== null) {
+      await runner.insert(videoMetricSnapshot).values({
+        deliverableId,
+        views: row.views,
+        capturedAt: lastUpdatedAt,
+      });
+    }
+
     return row;
   },
   runAdminAudit: (entry, fn) => withAdminAudit(entry, fn),

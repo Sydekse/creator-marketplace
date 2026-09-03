@@ -1,9 +1,7 @@
 import Link from 'next/link';
-import { buttonVariants } from '@/components/ui/button';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { Chip } from '@/components/ui/chip';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
-import { PageHeader } from '@/components/layout/page-header';
-import { EmptyState } from '@/components/feedback/empty-state';
 import { FlagDealButton } from '@/components/admin/flag-deal-button';
 import { listWorklistForAdmin } from '@/lib/admin/overview';
 import { ageLabel } from '@/lib/dates';
@@ -26,91 +24,111 @@ export const runtime = 'nodejs';
  * A resolution POSTs to the existing `/api/admin/deals/{id}/resolve` endpoint
  * (validation, ledger, audit) and refreshes; the resolved row leaves the
  * list, which is the confirmation the page needs — no extra state.
+ *
+ * v4 conversion: shared admin shell plus compact worklist rows; dispute forms
+ * and action endpoints are untouched.
  */
 export default async function AdminWorklistPage() {
   const worklist = await listWorklistForAdmin();
 
   return (
-    <div className="flex flex-col gap-10">
-      <PageHeader
-        label="Risk operations"
+    <BdShell className="bd-ad bd-ad-worklist">
+      <BdPageHead
+        eyebrow="Admin console"
         title="Dispute worklist"
-        description="Resolve flagged deals and decide whether held funds return to the brand, release to the creator, or stay held for revision."
+        facts={
+          <>
+            <span className="bd-mono">{worklist.length}</span> held-funds rows ·
+            resolve, refund, or keep in revision.
+          </>
+        }
+        ruled
       />
 
       {worklist.length === 0 ? (
-        <EmptyState
-          align="start"
-          title="Nothing awaiting resolution"
-          description="Every deal is either resolved, or money is not held on it."
-          action={
-            <Link
-              href="/admin"
-              className={buttonVariants({ variant: 'outline' })}
-            >
+        <div className="bd-rise" style={{ '--i': 1 } as React.CSSProperties}>
+          <div className="bd-emptyfeed">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 5.5h10" />
+              <path d="M8.5 5.5v12" />
+              <path d="M15.5 5.5v12" />
+              <path d="M5 17.5h14" />
+              <path d="M9 9.5l-3 4h6z" />
+              <path d="M15 9.5l-3 4h6z" />
+            </svg>
+            <h3>Nothing awaiting resolution</h3>
+            <p>Every deal is either resolved, or money is not held on it.</p>
+            <Link href="/admin" className="bd-btn bd-btn--ghost">
               Back to the console
             </Link>
-          }
-        />
+          </div>
+        </div>
       ) : (
-        <ul className="border-y border-neutral-200">
-          {worklist.map((row) => (
-            <li
-              key={row.id}
-              className="border-b border-neutral-200 px-1 py-6 transition-colors duration-300 last:border-b-0 hover:bg-neutral-100/60 sm:px-4"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="font-semibold text-neutral-900">
-                      {row.campaignName}
-                    </h2>
-                    {row.flagged && <Chip tone="red">Flagged</Chip>}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <InitialsAvatar name={row.brandCompanyName} size="sm" />
-                    <InitialsAvatar
-                      name={row.creatorHandle}
-                      image={row.creatorImage}
-                      size="sm"
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      {row.brandCompanyName} ·{' '}
-                      {displayTiktokHandle(row.creatorHandle)} ·{' '}
-                      {row.videoCount} video{row.videoCount === 1 ? '' : 's'}
+        <section
+          className="bd-ad-section bd-rise"
+          style={{ '--i': 1 } as React.CSSProperties}
+        >
+          <div className="bd-capruler">
+            <span className="bd-caprulertitle">Resolution queue</span>
+            <span className="bd-caprulerline" aria-hidden="true" />
+            <span className="bd-caprulercount bd-mono">
+              {worklist.length} {worklist.length === 1 ? 'deal' : 'deals'}
+            </span>
+          </div>
+          <ul className="bd-ad-list">
+            {worklist.map((row) => (
+              <li key={row.id} className="bd-ad-workrow bd-ad-workrow--wait">
+                <div className="bd-ad-workgrid">
+                  <div className="bd-ad-workmain">
+                    <div className="bd-ad-worktitle">
+                      <h2>{row.campaignName}</h2>
+                      {row.flagged && <Chip tone="red">Flagged</Chip>}
+                    </div>
+                    <div className="bd-ad-avatarline">
+                      <InitialsAvatar name={row.brandCompanyName} size="sm" />
+                      <InitialsAvatar
+                        name={row.creatorHandle}
+                        image={row.creatorImage}
+                        size="sm"
+                      />
+                      <p>
+                        {row.brandCompanyName} ·{' '}
+                        {displayTiktokHandle(row.creatorHandle)} ·{' '}
+                        {row.videoCount} video{row.videoCount === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    <p className="bd-ad-muted">
+                      {row.status} ·{' '}
+                      <span className="bd-mono">
+                        {formatEtb(row.totalPrice)}
+                      </span>{' '}
+                      held · {ageLabel(row.createdAt)}
                     </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {row.status} · {formatEtb(row.totalPrice)} held ·{' '}
-                    {ageLabel(row.createdAt)}
-                  </p>
+                  <div className="bd-ad-workactions">
+                    <ResolveDisputeForm
+                      dealId={row.id}
+                      status={row.status}
+                      campaignName={row.campaignName}
+                    />
+                    <FlagDealButton
+                      dealId={row.id}
+                      campaignName={row.campaignName}
+                      flagged={row.flagged}
+                    />
+                    <Link
+                      href={`/admin/deals/${row.id}?campaign=${encodeURIComponent(row.campaignName)}`}
+                      className={cn('bd-ad-link', textLinkFeedback)}
+                    >
+                      View deal history
+                    </Link>
+                  </div>
                 </div>
-                <div className="flex flex-col items-end gap-2">
-                  <ResolveDisputeForm
-                    dealId={row.id}
-                    status={row.status}
-                    campaignName={row.campaignName}
-                  />
-                  <FlagDealButton
-                    dealId={row.id}
-                    campaignName={row.campaignName}
-                    flagged={row.flagged}
-                  />
-                  <Link
-                    href={`/admin/deals/${row.id}?campaign=${encodeURIComponent(row.campaignName)}`}
-                    className={cn(
-                      'text-sm text-muted-foreground',
-                      textLinkFeedback
-                    )}
-                  >
-                    View deal history
-                  </Link>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
-    </div>
+    </BdShell>
   );
 }

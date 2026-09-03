@@ -827,7 +827,7 @@ describe('VideoPerformance', () => {
     // brand-facing screen. Cards with a responsive grid instead.
     expect(source).not.toContain('overflow-x-auto');
     expect(source).not.toContain('<table');
-    expect(source).toMatch(/grid-cols-2[^"]*sm:grid-cols-4/);
+    expect(source).toContain('bd-vpmetrics');
   });
 
   it('uses the shared status vocabulary', () => {
@@ -892,7 +892,9 @@ describe('VideoPerformance', () => {
     // The assertion that keeps an unreachable state unreachable: nothing sets
     // `stale` today, so a marker rendered unconditionally would tell every brand
     // their fresh numbers are out of date.
-    expect(source).toMatch(/\{video\.stale \? \(?\s*<Chip/);
+    expect(source).toMatch(
+      /\{video\.stale \? \(?\s*<div className="bd-vpvideohead"/
+    );
     expect(source).toMatch(/\{video\.stale \?[\s\S]{0,200}STALE_NOTE/);
     expect(source).toContain('STALE_LABEL');
   });
@@ -1017,11 +1019,13 @@ describe('the source guards are not vacuous', () => {
     // The guard that matters most, because the state it protects is unreachable:
     // nothing sets `stale`, so a marker rendered unconditionally would never fail
     // in a walkthrough and would tell every brand their numbers are out of date.
-    const gated = /\{video\.stale \? \(?\s*<Chip/;
-    expect('<Chip tone="red">{STALE_LABEL}</Chip>').not.toMatch(gated);
-    expect('{video.stale ? (\n  <Chip tone="red">{STALE_LABEL}</Chip>').toMatch(
+    const gated = /\{video\.stale \? \(?\s*<div className="bd-vpvideohead"/;
+    expect('<div className="bd-vpvideohead">{STALE_LABEL}</div>').not.toMatch(
       gated
     );
+    expect(
+      '{video.stale ? (\n  <div className="bd-vpvideohead">{STALE_LABEL}</div>'
+    ).toMatch(gated);
   });
 
   it('would catch a placeholdered timestamp', () => {

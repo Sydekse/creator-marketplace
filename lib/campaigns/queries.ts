@@ -1,6 +1,12 @@
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { campaign, campaignItem, deal } from '@/db/schema';
+import {
+  campaign,
+  campaignItem,
+  deal,
+  deliverable,
+  ledgerEntry,
+} from '@/db/schema';
 import { UUID_REGEX } from '@/lib/validation';
 
 /**
@@ -69,6 +75,75 @@ export async function listCampaignsByBrand(brandProfileId: string) {
     .from(campaign)
     .where(eq(campaign.brandId, brandProfileId))
     .orderBy(desc(campaign.createdAt));
+}
+
+/**
+ * The campaign list with the numbers the v4 list rows render: money committed
+ * (ledger holds — never recomputed, invariant 4), videos ordered across live
+ * deals, and videos delivered. Three grouped reads merged in memory: each
+ * aggregates a different child table, and one query with two 1-many joins
+ * would cross-multiply the rows.
+ */
+export async function listCampaignsWithProgress(brandProfileId: string) {
+  const [campaigns, committedRows, orderedRows, deliveredRows] =
+    await Promise.all([
+      listCampaignsByBrand(brandProfileId),
+      db
+        .select({
+          campaignId: ledgerEntry.campaignId,
+          committed: sql<number>`coalesce(sum(case when ${ledgerEntry.entryType} = 'hold' then ${ledgerEntry.amount} else 0 end), 0)::int`,
+        })
+        .from(ledgerEntry)
+        .innerJoin(campaign, eq(ledgerEntry.campaignId, campaign.id))
+        .where(eq(campaign.brandId, brandProfileId))
+        .groupBy(ledgerEntry.campaignId),
+      db
+        .select({
+          campaignId: deal.campaignId,
+          ordered: sql<number>`coalesce(sum(${deal.videoCount}), 0)::int`,
+        })
+        .from(deal)
+        .innerJoin(campaign, eq(deal.campaignId, campaign.id))
+        .where(
+          and(
+            eq(campaign.brandId, brandProfileId),
+            inArray(deal.status, [
+              'funded',
+              'delivered',
+              'revision_requested',
+              'completed',
+            ])
+          )
+        )
+        .groupBy(deal.campaignId),
+      db
+        .select({
+          campaignId: deal.campaignId,
+          delivered: sql<number>`count(${deliverable.id})::int`,
+        })
+        .from(deliverable)
+        .innerJoin(deal, eq(deliverable.dealId, deal.id))
+        .innerJoin(campaign, eq(deal.campaignId, campaign.id))
+        .where(eq(campaign.brandId, brandProfileId))
+        .groupBy(deal.campaignId),
+    ]);
+
+  const committed = new Map(
+    committedRows.map((r) => [r.campaignId, Number(r.committed)])
+  );
+  const ordered = new Map(
+    orderedRows.map((r) => [r.campaignId, Number(r.ordered)])
+  );
+  const delivered = new Map(
+    deliveredRows.map((r) => [r.campaignId, Number(r.delivered)])
+  );
+
+  return campaigns.map((c) => ({
+    ...c,
+    committed: committed.get(c.id) ?? 0,
+    orderedVideos: ordered.get(c.id) ?? 0,
+    deliveredVideos: delivered.get(c.id) ?? 0,
+  }));
 }
 
 /**

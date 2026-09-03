@@ -1028,13 +1028,14 @@ describe('confirm button and campaign pages', () => {
 
   it('lists campaigns of every status, not drafts only', () => {
     // A draft-only list would drop a campaign the instant it was confirmed.
-    expect(CAMPAIGNS_LIST).toContain('listCampaignsByBrand');
+    expect(CAMPAIGNS_LIST).toContain('listCampaignsWithProgress');
     expect(CAMPAIGNS_LIST).not.toContain('listDraftCampaignsByBrand');
   });
 
   it('sends a confirmed campaign to its detail page, not the locked edit form', () => {
-    expect(CAMPAIGNS_LIST).toContain("camp.status === 'draft'");
-    expect(CAMPAIGNS_LIST).toContain('View campaign');
+    expect(CAMPAIGNS_LIST).toContain("row.status === 'draft'");
+    expect(CAMPAIGNS_LIST).toContain('href={`/campaigns/${row.id}`}');
+    expect(CAMPAIGNS_LIST).toContain('aria-label={`Open ${row.name}`}');
   });
 });
 
