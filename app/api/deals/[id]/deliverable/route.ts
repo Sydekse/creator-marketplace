@@ -2,6 +2,8 @@ import { ForbiddenError, guard, toErrorResponse } from '@/lib/authz';
 import type { AuthzContext, GuardOptions } from '@/lib/authz';
 import { submitDeliverable } from '@/lib/deals/submit-deliverable';
 import type { SubmitDeliverableDeps } from '@/lib/deals/submit-deliverable';
+import { storeDeliverableThumbnail } from '@/lib/deliverables/thumbnail';
+import type { StoreThumbnailDeps } from '@/lib/deliverables/thumbnail';
 import {
   ErrorCode,
   ErrorHttpStatus,
@@ -19,6 +21,7 @@ export const runtime = 'nodejs';
 export interface RouteDeps {
   submitDeliverableDeps?: SubmitDeliverableDeps;
   guard?: (opts: GuardOptions) => Promise<AuthzContext>;
+  storeThumbnailDeps?: Partial<StoreThumbnailDeps>;
 }
 
 /**
@@ -130,6 +133,18 @@ export async function handleSubmitDeliverable(
         });
     }
   }
+
+  // The video-card enrichment (thumbnail snapshot + video id), after the
+  // submission transaction has committed — the row must exist for the update
+  // to land, and a thumbnail must never fail a submission. Awaited rather
+  // than fire-and-forget because a serverless invocation may be frozen the
+  // moment the response is returned; failure-tolerant by the module's own
+  // contract (every failure path inside returns nulls).
+  await storeDeliverableThumbnail(
+    result.deliverableId,
+    parsed.data.tiktokUrl,
+    deps?.storeThumbnailDeps
+  );
 
   return Response.json(
     {

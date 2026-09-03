@@ -1,10 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { ArrowLeft, Play } from '@phosphor-icons/react/dist/ssr';
+import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { DealHistory, DealProgressRail } from '@/components/deals/deal-history';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { MetricsForm } from '@/components/deals/metrics-form';
 import { DeliverableForm } from '@/components/deals/deliverable-form';
+import { TiktokVideoCard } from '@/components/deals/tiktok-video-card';
+import { parseTiktokVideoId } from '@/lib/deliverables/thumbnail';
 import { OfferActions } from '@/components/deals/offer-actions';
 import { UsageRightsCard } from '@/components/deals/usage-rights';
 import { NO_EXPIRY_LABEL, expiryLabel, formatDeadlineUtc } from '@/lib/dates';
@@ -291,24 +293,23 @@ export default async function CreatorDealDetailPage({
                   className="flex gap-5 rounded-[20px] border border-neutral-200 bg-background p-5"
                 >
                   {/* The 9:16 frame the landing page's deliverable mockup
-                      established — same shape, real data. */}
-                  <div className="grid aspect-[9/16] w-24 shrink-0 place-items-center rounded-xl border border-neutral-200 bg-neutral-100">
-                    <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-deep">
-                      <Play
-                        size={12}
-                        weight="fill"
-                        className="text-neutral-50"
-                        aria-hidden
-                      />
-                    </span>
-                  </div>
+                      established — now the real cover, with in-app playback
+                      and the deliberate TikTok open beneath it. The raw URL is
+                      the card's business, not the page's. */}
+                  <TiktokVideoCard
+                    tiktokUrl={video.tiktokUrl}
+                    thumbnailUrl={video.thumbnailUrl}
+                    tiktokVideoId={
+                      // Rows submitted before the id column existed still play:
+                      // long-form URLs carry the id in the path.
+                      video.tiktokVideoId ?? parseTiktokVideoId(video.tiktokUrl)
+                    }
+                    videoLabel={videoHeading(index)}
+                  />
                   <div className="flex min-w-0 flex-col gap-2">
                     <h3 className="text-sm font-medium">
                       {videoHeading(index)}
                     </h3>
-                    <p className="font-mono text-xs break-all text-muted-foreground">
-                      {video.tiktokUrl}
-                    </p>
                     <p className="text-xs text-muted-foreground">
                       {SUBMITTED_AT_LABEL}:{' '}
                       {formatDeadlineUtc(video.submittedAt)}

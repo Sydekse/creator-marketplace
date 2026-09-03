@@ -120,6 +120,13 @@
       "when": 1788265869854,
       "tag": "0016_chapa_refunds",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1788425294612,
+      "tag": "0017_deliverable-thumbnail",
+      "breakpoints": true
     }
   ]
 }

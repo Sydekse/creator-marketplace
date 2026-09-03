@@ -66,10 +66,23 @@ import type { DealStatus } from '../db/schema';
  */
 
 const guardMock = vi.hoisted(() => vi.fn());
+const storeThumbnailMock = vi.hoisted(() =>
+  vi.fn(async () => ({ thumbnailUrl: null, tiktokVideoId: null }))
+);
 
 vi.mock('../lib/authz', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lib/authz')>();
   return { ...actual, guard: guardMock };
+});
+
+// The route's post-commit video-card enrichment. Mocked module-wide: it is
+// best-effort by contract and its own suite (`deliverable-thumbnail.test.ts`)
+// covers the real thing — here it only matters that the route calls it after
+// a stored submission and never before one.
+vi.mock('../lib/deliverables/thumbnail', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../lib/deliverables/thumbnail')>();
+  return { ...actual, storeDeliverableThumbnail: storeThumbnailMock };
 });
 
 const { handleSubmitDeliverable } =
@@ -789,6 +802,7 @@ describe('AC-8 — the URL is never fetched server-side', () => {
 describe('POST /api/deals/[id]/deliverable', () => {
   beforeEach(() => {
     guardMock.mockReset();
+    storeThumbnailMock.mockClear();
     guardMock.mockResolvedValue({
       user: {
         id: CREATOR_USER_ID,
@@ -828,6 +842,43 @@ describe('POST /api/deals/[id]/deliverable', () => {
       submitted: 1,
       video_count: 1,
     });
+  });
+
+  it('stores the video-card enrichment after the submission committed', async () => {
+    // Thumbnail + video id, per the deliverable video cards feature. After the
+    // transaction, because the row must exist to be updated; awaited rather
+    // than fire-and-forget, because a serverless invocation may be frozen the
+    // moment the response returns.
+    const { deps } = makeDeps();
+
+    await handleSubmitDeliverable(post({ tiktokUrl: TIKTOK_URL }), DEAL_ID, {
+      submitDeliverableDeps: deps,
+    });
+
+    expect(storeThumbnailMock).toHaveBeenCalledTimes(1);
+    expect(storeThumbnailMock).toHaveBeenCalledWith(
+      DELIVERABLE_ID,
+      TIKTOK_URL,
+      undefined
+    );
+    expect(SUBMIT_ROUTE.indexOf('await submitDeliverable')).toBeLessThan(
+      SUBMIT_ROUTE.indexOf('storeDeliverableThumbnail(')
+    );
+  });
+
+  it('stores no enrichment when the submission was refused', async () => {
+    // A refused submission wrote no row — there is nothing to enrich, and a
+    // blob keyed to a rolled-back id would be an orphan by construction.
+    const { deps } = makeDeps({ status: 'accepted' });
+
+    const response = await handleSubmitDeliverable(
+      post({ tiktokUrl: TIKTOK_URL }),
+      DEAL_ID,
+      { submitDeliverableDeps: deps }
+    );
+
+    expect(response.status).not.toBe(200);
+    expect(storeThumbnailMock).not.toHaveBeenCalled();
   });
 
   it('reports a partial delivery as a success that did not move the deal', async () => {
