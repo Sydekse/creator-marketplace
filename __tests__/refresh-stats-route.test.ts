@@ -66,7 +66,11 @@ function serviceDeps(
       statsRefreshedAt: null,
     }),
     linkedHandle: async () => '@selam',
-    fetchStats: async () => ({ followerCount: 12_000, engagementRate: '2.50' }),
+    fetchStats: async () => ({
+      followerCount: 12_000,
+      engagementRate: '2.50',
+      avatarUrl: null,
+    }),
     now: () => NOW,
     notifyDeps: fakeNotifyDeps(),
     assignTierDeps: { loadTiers: async () => TIERS },
@@ -164,6 +168,7 @@ describe('POST /api/creators/stats/refresh', () => {
         fetchStats: async () => ({
           followerCount: 500,
           engagementRate: '0.50',
+          avatarUrl: null,
         }),
       })
     );

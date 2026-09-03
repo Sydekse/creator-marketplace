@@ -10,6 +10,8 @@ import type { Job, SchedulerRunResult } from '@/lib/scheduler/harness';
 import { expireOffersJob } from '@/lib/deals/expire-offers';
 import { metricRemindersJob } from '@/lib/deals/metric-reminders';
 import { refreshCreatorStatsJob } from '@/lib/creators/refresh-stats-job';
+import { expireFundingSessionsJob } from '@/lib/campaigns/expire-funding-sessions';
+import { sweepWithdrawalsJob } from '@/lib/wallet/sweep-withdrawals';
 import { ErrorCode, ErrorHttpStatus, errorResponse } from '@/lib/validation';
 
 export const dynamic = 'force-dynamic';
@@ -40,6 +42,14 @@ const CRON_TIMEOUT_ABORT_REASON = 'Internal execution timeout';
 const jobsToRun: Job[] = [
   expireOffersJob,
   metricRemindersJob,
+  // One conditional UPDATE clearing abandoned checkouts (KAN-70) — cheap,
+  // and ahead of the stats batch for the same reason the others are: a
+  // person may be waiting on the fund button it re-enables.
+  expireFundingSessionsJob,
+  // Withdrawals the payout webhook never resolved (KAN-70 PR 3): re-verify
+  // stale `processing` rows, re-credit day-old `pending` ones. Before the
+  // stats batch because a creator may be staring at a stuck withdrawal.
+  sweepWithdrawalsJob,
   refreshCreatorStatsJob,
 ];
 

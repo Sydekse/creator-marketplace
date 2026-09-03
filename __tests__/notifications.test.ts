@@ -183,6 +183,10 @@ describe('notification types', () => {
       // the moment a creator actually becomes bookable when onboarding could
       // not price them. Direction-neutral by design; see the type's comment.
       'tier_assigned',
+      // KAN-70 PR 3: the two ends of a wallet withdrawal. See the types'
+      // comment for why they are a pair rather than one outcome-branched type.
+      'withdrawal_paid',
+      'withdrawal_failed',
     ]);
   });
 

@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { db } from '@/db';
 import {
@@ -6,9 +6,12 @@ import {
   creatorProfile,
   deal,
   deliverable,
+  ledgerEntry,
+  refund,
   rightsTerms,
+  user,
 } from '@/db/schema';
-import type { DealStatus, ReviewStatus } from '@/db/schema';
+import type { DealStatus, RefundStatus, ReviewStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
 import { canReview } from '@/lib/deals/state-machine';
 import { UUID_REGEX } from '@/lib/validation';
@@ -81,6 +84,8 @@ export interface BrandDealDetail {
    * direction, where the creator sees a company name rather than a person.
    */
   creatorHandle: string;
+  /** The creator's profile picture; initials fallback when null. */
+  creatorImage: string | null;
   videoCount: number;
   unitPrice: number;
   totalPrice: number;
@@ -110,6 +115,22 @@ export interface BrandDealDetail {
    * progress, which is also why `canReview(status)` is false there.
    */
   deliverables: BrandDeliverableView[];
+  /**
+   * How the money split once the deal completed (KAN-70 PR 4) — the creator's
+   * payout and the platform's commission, summed from the deal's own ledger
+   * entries. `null` until the deal is `completed`: before approval the split
+   * is the ledger's to compute at that moment (invariant 8), and quoting an
+   * expected figure earlier would be a second source for it. Read from the
+   * ledger, never recomputed from the rate, for the same reason.
+   */
+  settlement: { payout: number; commission: number } | null;
+  /**
+   * The external refund's standing, for a `refunded` deal in Chapa mode
+   * (KAN-70 PR 4). `null` when the deal is not refunded, or when no external
+   * leg exists (mock mode) — the internal ledger refund is complete either
+   * way, so absence means only "nothing external to report".
+   */
+  externalRefundStatus: RefundStatus | null;
 }
 
 /**
@@ -133,6 +154,7 @@ export interface BrandDealJoinRow {
   campaignId: string;
   campaignName: string;
   creatorHandle: string;
+  creatorImage: string | null;
   videoCount: number;
   unitPrice: number;
   totalPrice: number;
@@ -155,24 +177,30 @@ export interface BrandDealJoinRow {
  * (`brandDealDeliverablesQuery`), which is also what lets them be ordered.
  */
 export function brandDealQuery(where: SQL) {
-  return db
-    .select({
-      id: deal.id,
-      status: deal.status,
-      campaignId: campaign.id,
-      campaignName: campaign.name,
-      creatorHandle: creatorProfile.tiktokHandle,
-      videoCount: deal.videoCount,
-      unitPrice: deal.unitPrice,
-      totalPrice: deal.totalPrice,
-      rightsTermsVersion: rightsTerms.version,
-    })
-    .from(deal)
-    .innerJoin(campaign, eq(deal.campaignId, campaign.id))
-    .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
-    .leftJoin(rightsTerms, eq(deal.rightsTermsId, rightsTerms.id))
-    .where(where)
-    .limit(1);
+  return (
+    db
+      .select({
+        id: deal.id,
+        status: deal.status,
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        creatorHandle: creatorProfile.tiktokHandle,
+        creatorImage: user.image,
+        videoCount: deal.videoCount,
+        unitPrice: deal.unitPrice,
+        totalPrice: deal.totalPrice,
+        rightsTermsVersion: rightsTerms.version,
+      })
+      .from(deal)
+      .innerJoin(campaign, eq(deal.campaignId, campaign.id))
+      .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
+      // Only `image` travels off `user` — the face beside the handle, nothing
+      // contactable (NFR-010's actual concern).
+      .innerJoin(user, eq(creatorProfile.userId, user.id))
+      .leftJoin(rightsTerms, eq(deal.rightsTermsId, rightsTerms.id))
+      .where(where)
+      .limit(1)
+  );
 }
 
 /**
@@ -224,6 +252,52 @@ export interface BrandDealDeps {
    * not own.
    */
   selectDeliverables: (dealId: string) => Promise<BrandDeliverableView[]>;
+  /**
+   * The completed deal's ledger-derived split (KAN-70 PR 4). Optional so the
+   * existing tests' full deps objects stay valid; called only for a
+   * `completed` deal, after ownership is proven.
+   */
+  selectSettlement?: (
+    dealId: string
+  ) => Promise<{ payout: number; commission: number } | null>;
+  /**
+   * The external refund row's status, if one exists (KAN-70 PR 4). Optional
+   * for the same reason; called only for a `refunded` deal.
+   */
+  selectRefundStatus?: (dealId: string) => Promise<RefundStatus | null>;
+}
+
+/**
+ * The completed deal's split, from its own ledger entries. Both types negate
+ * (money leaving escrow is negative — `readCampaignSpend` documents the sign),
+ * so the figures come back positive. `null` when nothing has been released,
+ * which for a `completed` deal would itself be worth an admin's attention —
+ * the page renders nothing rather than a zero that looks like an answer.
+ */
+async function selectSettlementFromLedger(
+  dealId: string
+): Promise<{ payout: number; commission: number } | null> {
+  const [row] = await db
+    .select({
+      payout: sql<number>`coalesce(sum(case when ${ledgerEntry.entryType} = 'release_payout' then -${ledgerEntry.amount} else 0 end), 0)::int`,
+      commission: sql<number>`coalesce(sum(case when ${ledgerEntry.entryType} = 'commission' then -${ledgerEntry.amount} else 0 end), 0)::int`,
+    })
+    .from(ledgerEntry)
+    .where(eq(ledgerEntry.dealId, dealId));
+  const payout = Number(row?.payout ?? 0);
+  const commission = Number(row?.commission ?? 0);
+  return payout === 0 && commission === 0 ? null : { payout, commission };
+}
+
+async function selectRefundStatusRow(
+  dealId: string
+): Promise<RefundStatus | null> {
+  const [row] = await db
+    .select({ status: refund.status })
+    .from(refund)
+    .where(eq(refund.dealId, dealId))
+    .limit(1);
+  return row?.status ?? null;
 }
 
 const defaultDeps: BrandDealDeps = {
@@ -233,6 +307,8 @@ const defaultDeps: BrandDealDeps = {
     return row ?? null;
   },
   selectDeliverables: (dealId) => brandDealDeliverablesQuery(dealId),
+  selectSettlement: selectSettlementFromLedger,
+  selectRefundStatus: selectRefundStatusRow,
 };
 
 /**
@@ -263,7 +339,24 @@ export async function readBrandDeal(
   const row = await deps.select(buildBrandDealWhere(dealId, brandProfileId));
   if (!row) return null;
 
-  return { ...row, deliverables: await deps.selectDeliverables(row.id) };
+  // Both post-ownership, both conditional on the status that makes them
+  // meaningful — a delivered deal has no settlement to fetch and a completed
+  // one no refund. The fallbacks keep older test deps objects valid.
+  const settlement =
+    row.status === 'completed'
+      ? await (deps.selectSettlement ?? selectSettlementFromLedger)(row.id)
+      : null;
+  const externalRefundStatus =
+    row.status === 'refunded'
+      ? await (deps.selectRefundStatus ?? selectRefundStatusRow)(row.id)
+      : null;
+
+  return {
+    ...row,
+    deliverables: await deps.selectDeliverables(row.id),
+    settlement,
+    externalRefundStatus,
+  };
 }
 
 /**
@@ -285,6 +378,25 @@ export const CREATOR_LABEL = 'Creator';
 export const VIDEO_COUNT_LABEL = 'Videos';
 export const UNIT_PRICE_LABEL = 'Price per video';
 export const TOTAL_PRICE_LABEL = 'Deal total';
+export const PAYOUT_LABEL = 'Creator payout';
+export const COMMISSION_LABEL = 'Platform commission';
+
+/**
+ * The refund sentence a brand reads on a refunded deal in Chapa mode
+ * (KAN-70 PR 4).
+ *
+ * A function of the row's status rather than one string, because "issued" and
+ * "arrived" are different promises. `failed` deliberately reads the same as
+ * in-flight: the failure is the *gateway's*, ours to retry from the admin
+ * payments view — telling the brand "failed" would send them to support for
+ * something already being handled, and the books (their escrow refund) are
+ * correct either way.
+ */
+export function externalRefundNote(status: RefundStatus): string {
+  return status === 'refunded'
+    ? 'Refunded to your original payment method.'
+    : 'A refund to your original payment method is on its way.';
+}
 
 /**
  * The heading over the list of submitted videos, and how one video is named

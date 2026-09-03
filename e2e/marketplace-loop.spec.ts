@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
   DEMO,
   expectMutationOk,
+  fillHydrated,
   openCampaign,
   openConfirmDialog,
   openCreatorDeal,
@@ -185,11 +186,13 @@ test('flow 2: budget ceiling blocks adding an over-budget creator (AC-014)', asy
 
   // A tiny budget — less than one video at any seeded tier price.
   await brand.goto('/campaigns/new');
-  await brand.locator('#name').fill('Tiny Budget Campaign');
-  await brand.locator('#budget').fill('100');
-  await brand.locator('#desiredVideos').fill('1');
-  await brand.locator('#goal').fill('Prove the ceiling holds.');
-  await brand.locator('#targetAudience').fill('Everyone');
+  await fillHydrated(brand, [
+    ['#name', 'Tiny Budget Campaign'],
+    ['#budget', '100'],
+    ['#desiredVideos', '1'],
+    ['#goal', 'Prove the ceiling holds.'],
+    ['#targetAudience', 'Everyone'],
+  ]);
   await brand.getByRole('button', { name: 'Create draft campaign' }).click();
   // A new brief's next step is picking creators, so saving lands on discover.
   await expect(brand).toHaveURL(/\/discover$/, { timeout: 15_000 });

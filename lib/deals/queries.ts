@@ -11,7 +11,7 @@ export interface DealHistoryEvent {
   reason: string | null;
   createdAt: Date;
   /** Null when the system acted — the expiry sweep has no user behind it. */
-  actor: { id: string; name: string } | null;
+  actor: { id: string; name: string; image: string | null } | null;
 }
 
 export interface DealHistoryDeps {
@@ -51,6 +51,7 @@ export function dealHistoryQuery(dealId: string) {
         createdAt: dealEvent.createdAt,
         actorId: dealEvent.actorId,
         actorName: user.name,
+        actorImage: user.image,
       })
       .from(dealEvent)
       // Left, not inner: a system transition has a null `actor_id`, and an inner
@@ -65,6 +66,7 @@ export function dealHistoryQuery(dealId: string) {
 export interface DealHistoryJoinRow extends Omit<DealHistoryEvent, 'actor'> {
   actorId: string | null;
   actorName: string | null;
+  actorImage: string | null;
 }
 
 /**
@@ -85,11 +87,15 @@ export interface DealHistoryJoinRow extends Omit<DealHistoryEvent, 'actor'> {
 export function toHistoryEvent({
   actorId,
   actorName,
+  actorImage,
   ...event
 }: DealHistoryJoinRow): DealHistoryEvent {
   return {
     ...event,
-    actor: actorId && actorName ? { id: actorId, name: actorName } : null,
+    actor:
+      actorId && actorName
+        ? { id: actorId, name: actorName, image: actorImage }
+        : null,
   };
 }
 

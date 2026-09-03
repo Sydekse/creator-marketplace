@@ -38,6 +38,16 @@ const EXEMPT = new Set([
   // Vercel Cron trigger harness (KAN-56). Authenticated via shared CRON_SECRET
   // bearer token rather than a user session guard.
   'app/api/cron/route.ts',
+  // Chapa webhook receiver (KAN-70). The caller is Chapa's delivery machinery,
+  // not a user with a session — authenticated by HMAC-SHA256 signature
+  // verification against CHAPA_WEBHOOK_SECRET (verifyChapaSignature, checked
+  // before the body is even parsed), and no value is given from the payload:
+  // settlement re-verifies via Chapa's API before crediting anything.
+  'app/api/webhooks/chapa/route.ts',
+  // Chapa transfer-approval hook (KAN-70 PR 3). Same caller and same HMAC gate
+  // as the webhook above; a 200 approves a transfer we ourselves initiated
+  // from a serializable balance reservation, so no session exists to guard.
+  'app/api/webhooks/chapa/transfer-approval/route.ts',
 ]);
 
 const MUTATING_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];

@@ -84,7 +84,11 @@ function refreshDeps(overrides: Partial<RefreshStatsDeps> = {}) {
       statsRefreshedAt: null,
     }),
     linkedHandle: async () => '@selam',
-    fetchStats: async () => ({ followerCount: 12_000, engagementRate: '2.50' }),
+    fetchStats: async () => ({
+      followerCount: 12_000,
+      engagementRate: '2.50',
+      avatarUrl: null,
+    }),
     now: () => NOW,
     notifyDeps,
     assignTierDeps: { loadTiers: async () => TIERS },
@@ -186,6 +190,38 @@ describe('refreshCreatorStats', () => {
     expect(recorded.committed).toBe(true);
   });
 
+  it('re-stores the avatar when the fetch carries one', async () => {
+    // TikTok's avatar URLs die in ~24–48h; this per-refresh copy into blob
+    // storage is what keeps the picture alive between weekly cron runs.
+    const storeAvatar = vi.fn(async () => 'https://blob/avatar.jpg');
+    const { deps } = refreshDeps({
+      fetchStats: async () => ({
+        followerCount: 12_000,
+        engagementRate: '2.50',
+        avatarUrl: 'https://p16.tiktokcdn.com/avatar.jpeg',
+      }),
+      storeAvatar,
+    });
+
+    await expect(refreshCreatorStats('u1', deps)).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(storeAvatar).toHaveBeenCalledWith(
+      'u1',
+      'https://p16.tiktokcdn.com/avatar.jpeg'
+    );
+  });
+
+  it('skips the avatar store when TikTok returned none', async () => {
+    const storeAvatar = vi.fn(async () => null);
+    const { deps } = refreshDeps({ storeAvatar });
+
+    await expect(refreshCreatorStats('u1', deps)).resolves.toMatchObject({
+      ok: true,
+    });
+    expect(storeAvatar).not.toHaveBeenCalled();
+  });
+
   it('upgrades an untiered creator and emails them', async () => {
     const { deps, recorded } = refreshDeps();
     const result = await refreshCreatorStats('u1', deps);
@@ -219,6 +255,7 @@ describe('refreshCreatorStats', () => {
       fetchStats: async () => ({
         followerCount: 80_000,
         engagementRate: '4.00',
+        avatarUrl: null,
       }),
     });
     const result = await refreshCreatorStats('u1', deps);
@@ -240,6 +277,7 @@ describe('refreshCreatorStats', () => {
       fetchStats: async () => ({
         followerCount: 15_000,
         engagementRate: '2.20',
+        avatarUrl: null,
       }),
     });
     const result = await refreshCreatorStats('u1', deps);
@@ -263,6 +301,7 @@ describe('refreshCreatorStats', () => {
       fetchStats: async () => ({
         followerCount: 12_000,
         engagementRate: '2.50',
+        avatarUrl: null,
       }),
     });
     const result = await refreshCreatorStats('u1', deps);
@@ -280,7 +319,11 @@ describe('refreshCreatorStats', () => {
         tierId: 'tier-micro',
         statsRefreshedAt: null,
       }),
-      fetchStats: async () => ({ followerCount: 500, engagementRate: '0.50' }),
+      fetchStats: async () => ({
+        followerCount: 500,
+        engagementRate: '0.50',
+        avatarUrl: null,
+      }),
     });
     const result = await refreshCreatorStats('u1', deps);
 
@@ -290,7 +333,11 @@ describe('refreshCreatorStats', () => {
 
   it('leaves an untiered creator below every band unflagged', async () => {
     const { deps, recorded } = refreshDeps({
-      fetchStats: async () => ({ followerCount: 500, engagementRate: '0.50' }),
+      fetchStats: async () => ({
+        followerCount: 500,
+        engagementRate: '0.50',
+        avatarUrl: null,
+      }),
     });
     const result = await refreshCreatorStats('u1', deps);
 

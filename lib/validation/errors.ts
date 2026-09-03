@@ -103,6 +103,31 @@ export enum ErrorCode {
   DEAL_NOT_FUNDED = 'DEAL_NOT_FUNDED',
   DEAL_NOT_DELIVERED = 'DEAL_NOT_DELIVERED',
   /**
+   * A wallet withdrawal under the 100 ETB floor (KAN-70 PR 3). Its own code
+   * rather than VALIDATION_ERROR because the request was well-formed — the
+   * amount is simply below policy, and the sentence should say the policy.
+   */
+  WITHDRAWAL_BELOW_MINIMUM = 'WITHDRAWAL_BELOW_MINIMUM',
+  /**
+   * A withdrawal larger than the wallet's available balance (KAN-70 PR 3).
+   * 409 rather than 422: the request is well-formed and would have succeeded
+   * against a different current state — a payout may have just been spent by
+   * a concurrent withdrawal, and reloading shows the real figure.
+   */
+  INSUFFICIENT_BALANCE = 'INSUFFICIENT_BALANCE',
+  /**
+   * A withdrawal with no payout method on file (KAN-70 PR 3). The remedy is a
+   * different form, so the message points there instead of at the amount.
+   */
+  NO_PAYOUT_METHOD = 'NO_PAYOUT_METHOD',
+  /**
+   * An admin retried an external refund that is already `processing` or
+   * `refunded` (KAN-70 PR 4). 409, not 200: answering success would tell the
+   * admin their click did something when the claim refused it — the row's
+   * status on reload is the truth.
+   */
+  REFUND_ALREADY_SETTLED = 'REFUND_ALREADY_SETTLED',
+  /**
    * A rejection of a delivered deliverable carried no reason (KAN-47, AC-024,
    * Tech Spec §4.4 reject).
    *
@@ -201,6 +226,12 @@ export const ErrorMessage: Record<ErrorCode, string> = {
   [ErrorCode.INVALID_TIKTOK_URL]: 'Enter a valid public TikTok video link.',
   [ErrorCode.DEAL_NOT_FUNDED]: 'Deal has not been funded yet.',
   [ErrorCode.DEAL_NOT_DELIVERED]: 'Deal has not been delivered yet.',
+  [ErrorCode.WITHDRAWAL_BELOW_MINIMUM]: 'The minimum withdrawal is 100.00 ETB.',
+  [ErrorCode.INSUFFICIENT_BALANCE]:
+    'That is more than your available balance. Reload to see the current figure.',
+  [ErrorCode.NO_PAYOUT_METHOD]: 'Add a payout method before withdrawing.',
+  [ErrorCode.REFUND_ALREADY_SETTLED]:
+    'This refund is already in flight or settled.',
   [ErrorCode.REASON_REQUIRED]: 'A rejection reason is required.',
   [ErrorCode.OTP_RATE_LIMITED]:
     'A code was just sent. Wait a moment before requesting another.',
@@ -237,6 +268,10 @@ export const ErrorHttpStatus: Record<ErrorCode, number> = {
   [ErrorCode.INVALID_TIKTOK_URL]: 422,
   [ErrorCode.DEAL_NOT_FUNDED]: 409,
   [ErrorCode.DEAL_NOT_DELIVERED]: 409,
+  [ErrorCode.WITHDRAWAL_BELOW_MINIMUM]: 422,
+  [ErrorCode.INSUFFICIENT_BALANCE]: 409,
+  [ErrorCode.NO_PAYOUT_METHOD]: 409,
+  [ErrorCode.REFUND_ALREADY_SETTLED]: 409,
   [ErrorCode.REASON_REQUIRED]: 422,
   [ErrorCode.OTP_RATE_LIMITED]: 429,
   [ErrorCode.STATS_REFRESH_RATE_LIMITED]: 429,

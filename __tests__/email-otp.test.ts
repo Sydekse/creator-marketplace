@@ -4,6 +4,7 @@ import {
   OTP_RESEND_COOLDOWN_MS,
   OTP_TTL_MS,
   otpIdentifier,
+  peekEmailOtp,
   requestEmailOtp,
   verifyEmailOtp,
   type EmailOtpDeps,
@@ -228,5 +229,29 @@ describe('verifyEmailOtp', () => {
     await verifyEmailOtp(USER, EMAIL, wrong, deps);
 
     expect(await verifyEmailOtp(USER, EMAIL, code, deps)).toEqual({ ok: true });
+  });
+});
+
+describe('peekEmailOtp', () => {
+  it('accepts a correct code without consuming it', async () => {
+    const { deps, store, sent } = makeDeps();
+    await requestEmailOtp(USER, EMAIL, deps);
+    const code = codeFrom(sent);
+
+    expect(await peekEmailOtp(USER, EMAIL, code, deps)).toEqual({ ok: true });
+    expect(store.has(otpIdentifier(USER))).toBe(true);
+    expect(await verifyEmailOtp(USER, EMAIL, code, deps)).toEqual({ ok: true });
+  });
+
+  it('counts a wrong peek as an attempt', async () => {
+    const { deps, sent } = makeDeps();
+    await requestEmailOtp(USER, EMAIL, deps);
+    const code = codeFrom(sent);
+    const wrong = code === '000000' ? '000001' : '000000';
+
+    expect(await peekEmailOtp(USER, EMAIL, wrong, deps)).toEqual({
+      ok: false,
+      error: 'invalid_code',
+    });
   });
 });

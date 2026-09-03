@@ -12,7 +12,8 @@ append-only ledger inside the same database transaction as the deal state change
 
 **Live at [creator-marketplace-mu.vercel.app](https://creator-marketplace-mu.vercel.app)**
 
-> **Scope.** Creator verification and engagement metrics are entered manually, and the payment
+> **Scope.** TikTok sign-ups get server-fetched stats, instant verification, and automatic tier
+> assignment; the manual-entry path remains for demo (email/password) accounts only. The payment
 > processor is a mock implementation behind a `PaymentProvider` interface. Everything else — auth,
 > RBAC, escrow accounting, the deal state machine, email, scheduled jobs — is real.
 
@@ -23,7 +24,7 @@ append-only ledger inside the same database transaction as the deal state change
 **Accounts and access**
 
 - Three roles — brand, creator, admin — gated server-side on every request and every action
-- Email/password auth with HTTP-only session cookies
+- TikTok OAuth (Login Kit) for creators; email/password with OTP-verified email for demo accounts; HTTP-only session cookies
 - Role-scoped route groups, so a brand route can't be reached by a creator
 
 **Creator supply**
@@ -82,8 +83,8 @@ append-only ledger inside the same database transaction as the deal state change
 BRAND                              CREATOR                       ADMIN
   │                                                                │
   ├─ sign up, create profile                                       │
-  │                              sign up, create profile ─────────►│ verify
-  │                                                                │ assign tier
+  │                              sign up w/ TikTok, auto-verify ──►│ assign tier
+  │                              refresh stats (self + weekly cron)│ review downgrade flags
   ├─ write campaign brief                                          │
   ├─ discover creators ◄──────────── (verified + tiered only) ─────┘
   ├─ shortlist within budget
@@ -131,21 +132,52 @@ npm run dev                    # http://localhost:3000
 
 ### Environment variables
 
-| Variable             | Required  | Notes                                                                                                                            |
-| -------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`       | yes       | Postgres connection string. Use the pooled host (contains `-pooler`) so serverless functions don't exhaust the connection limit. |
-| `BETTER_AUTH_SECRET` | yes       | Signs session cookies. Generate with `openssl rand -base64 32`.                                                                  |
-| `BETTER_AUTH_URL`    | yes       | The app's canonical origin. Must match the deployment it runs on; also used to build links inside emails.                        |
-| `RESEND_API_KEY`     | for email | Resend API key.                                                                                                                  |
-| `EMAIL_FROM`         | for email | A verified sender, e.g. `Creator Marketplace <noreply@example.com>`.                                                             |
-| `EMAIL_SEND`         | for email | Must be exactly `"true"`.                                                                                                        |
-| `EMAIL_TEST_INBOX`   | no        | When set, every email is redirected to this address with the intended recipient in the subject line.                             |
-| `CRON_SECRET`        | for cron  | Bearer token required by the cron endpoint. Generate with `openssl rand -hex 32`.                                                |
+| Variable                         | Required  | Notes                                                                                                                            |
+| -------------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`                   | yes       | Postgres connection string. Use the pooled host (contains `-pooler`) so serverless functions don't exhaust the connection limit. |
+| `BETTER_AUTH_SECRET`             | yes       | Signs session cookies. Generate with `openssl rand -base64 32`.                                                                  |
+| `BETTER_AUTH_URL`                | yes       | The app's canonical origin. Must match the deployment it runs on; also used to build links inside emails.                        |
+| `RESEND_API_KEY`                 | for email | Resend API key.                                                                                                                  |
+| `EMAIL_FROM`                     | for email | A verified sender, e.g. `Creator Marketplace <noreply@example.com>`.                                                             |
+| `EMAIL_SEND`                     | for email | Must be exactly `"true"`.                                                                                                        |
+| `EMAIL_TEST_INBOX`               | no        | When set, every email is redirected to this address with the intended recipient in the subject line.                             |
+| `CRON_SECRET`                    | for cron  | Bearer token required by the cron endpoint. Generate with `openssl rand -hex 32`.                                                |
+| `CHAPA_SECRET_KEY`               | for Chapa | Chapa secret key (`CHASECK_TEST-…` in test mode). Unset → the instant mock payment provider (CI, e2e, offline dev).              |
+| `CHAPA_WEBHOOK_SECRET`           | for Chapa | The webhook secret hash configured in the Chapa dashboard. Verifies `chapa-signature` on `/api/webhooks/chapa`.                  |
+| `CHAPA_TRANSFER_APPROVAL_SECRET` | for Chapa | The transfer-approval secret from the dashboard (max 25 chars there). Verifies `/api/webhooks/chapa/transfer-approval`.          |
 
 Real email sending requires three switches together: `EMAIL_SEND === "true"`, `RESEND_API_KEY`, and
 `EMAIL_FROM`. If any is missing, the app falls back to a console provider that logs each message
 instead of sending it — so an environment that inherits credentials still won't mail real users
 until sending is explicitly turned on.
+
+### Chapa (payments)
+
+Payments run in one of two modes, decided by `CHAPA_SECRET_KEY` alone:
+
+- **Mock mode** (unset): funding is an instant in-process call, withdrawals and refunds are
+  ledger-only. This is what CI, e2e, and seeded demo data use.
+- **Chapa mode** (set): brands deposit through Chapa's hosted checkout, creators withdraw via the
+  Transfers API, and dispute refunds go back to the brand's original payment method via the Refund
+  API. Internal escrow accounting (the append-only ledger) is identical in both modes — Chapa only
+  touches money at those three edges.
+
+Dashboard setup (test mode — [dashboard.chapa.co](https://dashboard.chapa.co)):
+
+1. **Webhook** (Settings → Webhooks): URL `https://<host>/api/webhooks/chapa`, secret hash =
+   `CHAPA_WEBHOOK_SECRET`. Tick both "Receive Webhook" boxes. The same endpoint handles funding,
+   payout, and refund events.
+2. **Transfers** (Settings → General/Preference): enable **API Transfers**; tick **Approve
+   transfers using URL verification**; approval URL
+   `https://<host>/api/webhooks/chapa/transfer-approval`, approval secret =
+   `CHAPA_TRANSFER_APPROVAL_SECRET` (the dashboard caps this field at 25 characters, which is why
+   it is a separate, shorter secret).
+3. Optionally set the **Refund Webhook** field to the same `/api/webhooks/chapa` URL.
+
+Test mode moves no real money: use Chapa's published test cards / test telebirr numbers at
+checkout (the fund dialog shows a hint), and transfers/refunds are simulated as successful.
+`/admin/payments` shows every deposit, withdrawal, and refund with its gateway status, plus the
+totals to reconcile the ledger against the Chapa dashboard balance.
 
 `.env.example` documents every variable in full.
 
@@ -178,7 +210,7 @@ app/
   (auth)/                  sign-in, sign-up
   (brand)/(onboarded)/     dashboard, campaigns, discovery, deals
   (creator)/creator/       dashboard, onboarding, deals
-  (admin)/admin/           verification, tiers, campaigns, deals, worklist, audit log
+  (admin)/admin/           tiers, campaigns, deals, worklist, audit log
   api/                     31 route handlers
   notifications/           in-app notification feed
 

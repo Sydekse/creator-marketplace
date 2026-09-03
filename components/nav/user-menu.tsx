@@ -34,6 +34,7 @@ export function UserMenu({ user }: UserMenuProps) {
       <DropdownMenuTrigger className="rounded-full p-0.5 outline-none focus-visible:ring-2 focus-visible:ring-neutral-50 focus-visible:ring-offset-2 focus-visible:ring-offset-neutral-900">
         <InitialsAvatar
           name={displayName}
+          image={user.image}
           className="size-8 cursor-pointer border-neutral-50/20 bg-neutral-50 text-[11px] text-neutral-900 shadow-none transition-transform duration-300 ease-out hover:scale-105 active:scale-95"
         />
       </DropdownMenuTrigger>

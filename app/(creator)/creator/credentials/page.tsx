@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation';
-import { PageHeader } from '@/components/layout/page-header';
 import { needsCredentials, requireRole } from '@/lib/auth';
-import { readCredentialsStatus } from '@/lib/creators/credentials';
+import {
+  readCredentialsStatus,
+  sessionTiktokHandle,
+} from '@/lib/creators/credentials';
 import { CreatorCredentialsForm } from './credentials-form';
 
 export const runtime = 'nodejs';
@@ -21,17 +23,15 @@ export default async function CreatorCredentialsPage() {
     redirect('/creator/onboarding');
   }
 
+  const tiktokHandle =
+    (await sessionTiktokHandle(user.id)) ?? status.tiktokHandle;
+
   return (
-    <div className="mx-auto w-full max-w-md py-8">
-      <PageHeader
-        label="One more step"
-        title="Where can we reach you?"
-        description="TikTok does not share an email. Add one now, and set a password so you can sign back in without it."
-        className="mb-6"
-      />
+    <div className="flex justify-center py-8">
       <CreatorCredentialsForm
         needsEmail={status.needsEmail}
         hasPassword={status.hasPassword}
+        tiktokHandle={tiktokHandle}
       />
     </div>
   );

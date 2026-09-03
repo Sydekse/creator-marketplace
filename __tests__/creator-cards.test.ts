@@ -46,6 +46,7 @@ const ID = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
 const detail = (over: Partial<CreatorDetail> = {}): CreatorDetail => ({
   id: ID,
   tiktokHandle: '@demo_creator',
+  image: null,
   niche: 'lifestyle',
   followerCount: 25_000,
   engagementRate: '3.50',
@@ -109,13 +110,18 @@ describe('the detail query selects no PII', () => {
     expect(sql).not.toContain('phone');
   });
 
-  it('joins the tier and nothing else', () => {
-    // The account table is where a name and an address live. Never joining it
-    // is what makes "cards show no PII" a fact about the query rather than a
-    // habit of whoever writes the next component over this row.
+  it('joins the tier, and touches user for the avatar alone', () => {
+    // The user table is where a name and an email live. The avatar feature
+    // joins it, but only `image` may travel off it — this pin is what keeps
+    // "cards show no PII" a fact about the query rather than a habit of
+    // whoever writes the next component over this row.
     expect(sql).toContain('"pricing_tier"');
-    expect(sql).not.toContain('"user"');
-    expect(sql.match(/ join /g) ?? []).toHaveLength(1);
+    expect(sql).toContain('"user"."image"');
+    expect(sql.match(/"user"\."(\w+)"/g)).toEqual([
+      '"user"."image"',
+      '"user"."id"', // the join condition itself
+    ]);
+    expect(sql.match(/ join /g) ?? []).toHaveLength(2);
   });
 
   it('reads one row', () => {

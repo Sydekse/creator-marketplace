@@ -614,6 +614,7 @@ describe('createCreatorProfile', () => {
       sessionStats: async () => ({
         followerCount: 54_321,
         engagementRate: '7.89',
+        avatarUrl: null,
       }),
     });
 
@@ -662,7 +663,8 @@ describe('createCreatorProfile', () => {
   it('rejects when neither the session nor the body carries a handle', async () => {
     const insert = okInsertFn();
     const { deps } = profileDeps(insert);
-    const { tiktokHandle: _drop, ...rest } = validPayload();
+    const rest: Record<string, unknown> = { ...validPayload() };
+    delete rest.tiktokHandle;
 
     await expect(
       createCreatorProfile(CREATOR_ID, createCreatorSchema.parse(rest), deps)

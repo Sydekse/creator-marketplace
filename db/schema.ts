@@ -11,6 +11,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import { user } from './auth-schema';
@@ -57,6 +58,44 @@ export type LedgerEntryType =
   'hold' | 'release_payout' | 'commission' | 'refund';
 
 export type MetricSource = 'creator' | 'admin';
+
+/**
+ * A Chapa hosted-checkout attempt to fund one campaign (KAN-70).
+ *
+ *   initialized → verified → consumed     (the happy path)
+ *   initialized → failed | expired        (rejected charge / abandoned)
+ *   verified    → failed                  (charge landed but the campaign was
+ *                                          no longer fundable — admin case)
+ *
+ * `verified` means Chapa's verify endpoint confirmed the charge; `consumed`
+ * means the escrow ledger has taken the money into holds. Two states rather
+ * than one because the money exists at Chapa the moment the charge succeeds,
+ * whether or not our funding transaction can run — a session stuck at
+ * `verified` is real money awaiting an admin, not a bug to ignore.
+ */
+export type FundingSessionStatus =
+  'initialized' | 'verified' | 'consumed' | 'failed' | 'expired';
+
+/**
+ * One wallet withdrawal (KAN-70): `pending` (row written, balance debited) →
+ * `processing` (Chapa transfer accepted) → `paid` | `failed`. A failed
+ * withdrawal re-credits the wallet by ceasing to count against it — see
+ * `lib/wallet` for the balance arithmetic.
+ */
+export type WithdrawalStatus = 'pending' | 'processing' | 'paid' | 'failed';
+
+/** Where a creator's withdrawals go. Telebirr rides Chapa's bank list too. */
+export type PayoutMethodKind = 'bank' | 'telebirr';
+
+/**
+ * The external leg of a dispute refund (KAN-70 PR 4): `pending` (row written,
+ * about to ask Chapa) → `processing` (Chapa accepted the refund request) →
+ * `refunded` (refund webhook confirmed) | `failed` (Chapa said no — retryable
+ * from the admin payments view). The internal escrow refund has already
+ * committed before this row exists; this table tracks only whether the money
+ * made it back onto the brand's card/telebirr.
+ */
+export type RefundStatus = 'pending' | 'processing' | 'refunded' | 'failed';
 
 /**
  * The state of a hold at the payment processor (KAN-200).
@@ -494,6 +533,186 @@ export const notification = pgTable(
       .defaultNow(),
   },
   (t) => [index('notification_user_created_idx').on(t.userId, t.createdAt)]
+);
+
+// -- Chapa payment rails (KAN-70) ---------------------------------------------
+
+/**
+ * One brand's trip through Chapa's hosted checkout to fund one campaign.
+ *
+ * The mock provider funds in-process, synchronously. Chapa funds via redirect:
+ * the brand leaves for checkout.chapa.co and the money's arrival is announced
+ * asynchronously (webhook, return-page verify, or both — whichever lands
+ * first). This row is the state that survives the round trip.
+ *
+ * `amount` is the santim total the checkout was opened for. The webhook
+ * handler verifies Chapa's charge against it exactly — a mismatch quarantines
+ * the session (`failed`) rather than funding a campaign with the wrong money.
+ */
+export const fundingSession = pgTable(
+  'funding_session',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    campaignId: uuid('campaign_id')
+      .notNull()
+      .references(() => campaign.id),
+    brandId: uuid('brand_id')
+      .notNull()
+      .references(() => brandProfile.id),
+    /**
+     * Our merchant reference at Chapa (`cmfund_<uuid>`), single-use. Unique
+     * here and unique at Chapa; it is the join between their books and ours.
+     */
+    txRef: text('tx_ref').notNull().unique(),
+    amount: integer('amount').notNull(),
+    status: text('status')
+      .$type<FundingSessionStatus>()
+      .notNull()
+      .default('initialized'),
+    /** Chapa's hosted checkout URL — kept so "Resume payment" can re-enter it. */
+    checkoutUrl: text('checkout_url').notNull(),
+    /** Chapa's own reference for the charge, recorded at verification. */
+    providerRef: text('provider_ref'),
+    failureReason: text('failure_reason'),
+    verifiedAt: timestamp('verified_at', { withTimezone: true }),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // One open checkout per campaign: resume it or cancel it, never stack a
+    // second one that could double-charge the brand.
+    uniqueIndex('funding_session_open_unique')
+      .on(t.campaignId)
+      .where(sql`${t.status} = 'initialized'`),
+    index('funding_session_campaign_idx').on(t.campaignId, t.createdAt),
+    check('funding_session_amount_positive', sql`${t.amount} > 0`),
+  ]
+);
+
+/**
+ * Where a creator's withdrawals go. One per creator for the MVP (unique on
+ * `creator_id`, updated in place) — multiple saved methods are a settings-page
+ * problem for later, and a withdrawal snapshots what it used anyway.
+ *
+ * `bank_code`/`bank_name` come from Chapa's `GET /banks` at save time; the
+ * name is a display snapshot so the wallet page never needs the banks API to
+ * render.
+ */
+export const payoutMethod = pgTable('payout_method', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  creatorId: uuid('creator_id')
+    .notNull()
+    .unique()
+    .references(() => creatorProfile.id),
+  kind: text('kind').$type<PayoutMethodKind>().notNull(),
+  bankCode: text('bank_code').notNull(),
+  bankName: text('bank_name').notNull(),
+  accountNumber: text('account_number').notNull(),
+  accountName: text('account_name').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * One wallet withdrawal (KAN-70). This table *is* the wallet's ledger:
+ * available balance = Σ `release_payout` ledger entries for the creator's
+ * deals − Σ withdrawals here whose status is not `failed`. Pending and
+ * processing rows count against the balance — the money is spoken for the
+ * moment the row exists, which is what makes a concurrent second withdrawal
+ * unable to double-spend.
+ *
+ * Deliberately NOT new `ledger_entry` types: that table's `balance_after` is
+ * a per-campaign escrow running balance, and a creator's wallet spans
+ * campaigns. Bolting wallet rows onto it would corrupt the invariant the
+ * admin reconciliation view checks.
+ *
+ * The payout method is snapshotted (kind/bank/masked account/name) so the
+ * receipt still says where the money went after the creator changes methods.
+ */
+export const withdrawal = pgTable(
+  'withdrawal',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    creatorId: uuid('creator_id')
+      .notNull()
+      .references(() => creatorProfile.id),
+    amount: integer('amount').notNull(),
+    status: text('status')
+      .$type<WithdrawalStatus>()
+      .notNull()
+      .default('pending'),
+    /** Our merchant reference at Chapa (`cmwd_<uuid>`), single-use. */
+    txRef: text('tx_ref').notNull().unique(),
+    /** Chapa's transfer reference, recorded once the transfer is accepted. */
+    providerRef: text('provider_ref'),
+    methodKind: text('method_kind').$type<PayoutMethodKind>().notNull(),
+    bankName: text('bank_name').notNull(),
+    /** Last-4 masked at write time — the full number never leaves `payout_method`. */
+    accountNumberMasked: text('account_number_masked').notNull(),
+    accountName: text('account_name').notNull(),
+    failureReason: text('failure_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('withdrawal_creator_created_idx').on(t.creatorId, t.createdAt),
+    index('withdrawal_status_created_idx').on(t.status, t.createdAt),
+    check('withdrawal_amount_positive', sql`${t.amount} > 0`),
+  ]
+);
+
+/**
+ * The external leg of one deal's dispute refund (KAN-70 PR 4).
+ *
+ * The escrow ledger's `refund` entry is the book truth and has already
+ * committed when this row is written — a failure here never un-refunds the
+ * deal internally. What this row tracks is the Chapa partial refund against
+ * the original funding charge (`funding_tx_ref`), so the admin payments view
+ * can see which refunds actually reached the brand's payment method and retry
+ * the ones that did not.
+ *
+ * One row per deal (unique on `deal_id`): a deal refunds at most once
+ * internally (`refunded` is terminal), so retries update this row's status
+ * rather than stacking attempts — the row is the reconciliation line.
+ */
+export const refund = pgTable(
+  'refund',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    // One refund row per deal — the internal refund is terminal, so the
+    // uniqueness is what makes a retry an UPDATE rather than a second row.
+    // Declared table-level: the deliverable-table guard test forbids the
+    // inline `deal_id`-unique shape schema-wide.
+    dealId: uuid('deal_id')
+      .notNull()
+      .references(() => deal.id),
+    campaignId: uuid('campaign_id')
+      .notNull()
+      .references(() => campaign.id),
+    /** The consumed funding session's `cmfund_` reference — what Chapa refunds against. */
+    fundingTxRef: text('funding_tx_ref').notNull(),
+    amount: integer('amount').notNull(),
+    status: text('status').$type<RefundStatus>().notNull().default('pending'),
+    failureReason: text('failure_reason'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => [
+    unique('refund_deal_id_unique').on(t.dealId),
+    index('refund_status_created_idx').on(t.status, t.createdAt),
+    index('refund_funding_tx_ref_idx').on(t.fundingTxRef),
+    check('refund_amount_positive', sql`${t.amount} > 0`),
+  ]
 );
 
 // -- Mock payment processor -------------------------------------------------

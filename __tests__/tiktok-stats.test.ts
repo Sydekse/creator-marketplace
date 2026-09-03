@@ -82,8 +82,12 @@ function jsonResponse(body: unknown, ok = true) {
   return { ok, json: async () => body } as Response;
 }
 
-function userInfoBody(followerCount: unknown) {
-  return { data: { user: { follower_count: followerCount } } };
+function userInfoBody(followerCount: unknown, avatarUrl?: unknown) {
+  return {
+    data: {
+      user: { follower_count: followerCount, avatar_url: avatarUrl },
+    },
+  };
 }
 
 function videoListBody(videos: unknown) {
@@ -130,7 +134,53 @@ describe('fetchTiktokStats', () => {
     await expect(fetchTiktokStats('user-1')).resolves.toEqual({
       followerCount: 12_345,
       engagementRate: '5.00',
+      avatarUrl: null,
     });
+  });
+
+  it('carries the avatar URL alongside the numbers', async () => {
+    getAccessToken.mockResolvedValue(token('tok'));
+    respondWith(
+      jsonResponse(
+        userInfoBody(12_345, 'https://p16.tiktokcdn.com/a.jpeg?x-expires=1')
+      ),
+      jsonResponse(videoListBody([{ like_count: 5, view_count: 100 }]))
+    );
+
+    await expect(fetchTiktokStats('user-1')).resolves.toEqual({
+      followerCount: 12_345,
+      engagementRate: '5.00',
+      avatarUrl: 'https://p16.tiktokcdn.com/a.jpeg?x-expires=1',
+    });
+  });
+
+  it.each([
+    ['not a string', 42],
+    ['not https', 'http://p16.tiktokcdn.com/a.jpeg'],
+    ['missing', undefined],
+  ])('rejects an avatar URL that is %s', async (_label, avatar) => {
+    getAccessToken.mockResolvedValue(token('tok'));
+    respondWith(
+      jsonResponse(userInfoBody(100, avatar)),
+      jsonResponse(videoListBody([{ like_count: 1, view_count: 100 }]))
+    );
+
+    await expect(fetchTiktokStats('user-1')).resolves.toMatchObject({
+      avatarUrl: null,
+    });
+  });
+
+  it('returns null when only the avatar came back — an avatar is not stats', async () => {
+    // A refresh that stamped and wrote nulls over real numbers because the
+    // stats scope was revoked but user.info still answered would be worse
+    // than a failed refresh.
+    getAccessToken.mockResolvedValue(token('tok'));
+    respondWith(
+      jsonResponse(userInfoBody(undefined, 'https://p16.tiktokcdn.com/a.jpeg')),
+      jsonResponse({}, false)
+    );
+
+    await expect(fetchTiktokStats('user-1')).resolves.toBeNull();
   });
 
   it('sends the token as a bearer header to both endpoints', async () => {
@@ -170,6 +220,7 @@ describe('fetchTiktokStats', () => {
     await expect(fetchTiktokStats('user-1')).resolves.toEqual({
       followerCount: 500,
       engagementRate: null,
+      avatarUrl: null,
     });
   });
 
@@ -202,6 +253,7 @@ describe('fetchTiktokStats', () => {
     await expect(fetchTiktokStats('user-1')).resolves.toEqual({
       followerCount: null,
       engagementRate: '1.00',
+      avatarUrl: null,
     });
   });
 
@@ -215,6 +267,7 @@ describe('fetchTiktokStats', () => {
     await expect(fetchTiktokStats('user-1')).resolves.toEqual({
       followerCount: 100,
       engagementRate: null,
+      avatarUrl: null,
     });
   });
 

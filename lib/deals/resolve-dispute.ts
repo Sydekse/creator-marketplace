@@ -18,6 +18,7 @@ import type {
   RefundDealOptions,
 } from '@/lib/payment/ledger';
 import { logPaymentFailure } from '@/lib/payment/log';
+import { issueExternalRefund } from '@/lib/refunds/external-refund';
 import { extractSafeErrorDetails, toLogString } from '@/lib/logging';
 
 /**
@@ -107,7 +108,10 @@ export type ResolveDisputeResult =
 export interface ResolveDeal {
   id: string;
   status: DealStatus;
+  campaignId: string;
   campaignName: string;
+  /** The deal's price in santim — the external refund leg's amount (PR 4). */
+  totalPrice: number;
   brandUserId: string;
   creatorUserId: string;
 }
@@ -152,6 +156,15 @@ export interface ResolveDisputeDeps {
   ) => Promise<DealRow>;
   /** Passed through to `withNotifications`; undefined means its lazy defaults. */
   notifyDeps?: NotifyDeps;
+  /**
+   * The Chapa partial refund against the original funding charge (KAN-70
+   * PR 4). Optional with `issueExternalRefund` as the default: in mock mode
+   * it answers immediately without touching anything, so tests and the mock
+   * flow never see it. Runs post-ledger — the books are already correct, and
+   * a failure leaves a retryable `failed` refund row for the admin payments
+   * view instead of vetoing the resolution.
+   */
+  externalRefund?: typeof issueExternalRefund;
   /** Passed through to `withAdminAudit`; undefined means its lazy defaults. */
   adminAuditDeps?: Omit<AdminAuditDeps, 'transaction'>;
   /** The KAN-44 rule: a money-path failure must leave a trace. */
@@ -179,7 +192,9 @@ export const defaultDeps: ResolveDisputeDeps = {
       .select({
         id: deal.id,
         status: deal.status,
+        campaignId: campaign.id,
         campaignName: campaign.name,
+        totalPrice: deal.totalPrice,
         brandUserId: brandProfile.userId,
         creatorUserId: creatorProfile.userId,
       })
@@ -398,6 +413,28 @@ async function resolveWithLedger(
 
     if (!failure) throw error;
     return failure;
+  }
+
+  // The external refund leg (PR 4), post-ledger like the notifications: our
+  // books are already final, so a Chapa failure here downgrades to a
+  // retryable `failed` refund row (admin payments view), never a failed
+  // resolution. `issueExternalRefund` handles gateway errors itself; the
+  // catch is for the unexpected — traced, swallowed, same policy as below.
+  if (input.resolution === 'refund') {
+    try {
+      await (deps.externalRefund ?? issueExternalRefund)({
+        dealId: row.id,
+        campaignId: row.campaignId,
+        amount: row.totalPrice,
+        reason: 'Dispute resolved: refunded to brand',
+      });
+    } catch (error) {
+      deps.logFailure(error, {
+        operation: 'resolve_dispute_external_refund',
+        dealId: row.id,
+        actorId: actorUserId,
+      });
+    }
   }
 
   // The ledger has committed: money, status and the audit row are final (F39).

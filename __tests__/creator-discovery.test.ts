@@ -51,6 +51,7 @@ const BRAND_USER = { id: 'user-brand', role: 'brand' } as const;
 const row = (over: Partial<DiscoveryCreator> = {}): DiscoveryCreator => ({
   id: 'creator-1',
   tiktokHandle: '@demo_creator',
+  image: null,
   niche: 'lifestyle',
   followerCount: 25_000,
   engagementRate: '3.50',

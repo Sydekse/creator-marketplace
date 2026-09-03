@@ -1,6 +1,6 @@
 import { desc, eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { campaign, creatorProfile, deal } from '@/db/schema';
+import { campaign, creatorProfile, deal, user } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
 
@@ -26,6 +26,8 @@ export interface BrandInboxDeal {
   id: string;
   status: DealStatus;
   creatorHandle: string;
+  /** The creator's profile picture; initials fallback when null. */
+  creatorImage: string | null;
   campaignName: string;
   campaignId: string;
   videoCount: number;
@@ -53,21 +55,26 @@ export interface BrandInboxDeps {
 const defaultDeps: BrandInboxDeps = {
   requireBrand: () => guard({ roles: ['brand'] }),
   selectDeals: async (brandProfileId) => {
-    return db
-      .select({
-        id: deal.id,
-        status: deal.status,
-        creatorHandle: creatorProfile.tiktokHandle,
-        campaignName: campaign.name,
-        campaignId: campaign.id,
-        videoCount: deal.videoCount,
-        totalPrice: deal.totalPrice,
-      })
-      .from(deal)
-      .innerJoin(campaign, eq(deal.campaignId, campaign.id))
-      .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
-      .where(eq(campaign.brandId, brandProfileId))
-      .orderBy(desc(deal.createdAt));
+    return (
+      db
+        .select({
+          id: deal.id,
+          status: deal.status,
+          creatorHandle: creatorProfile.tiktokHandle,
+          creatorImage: user.image,
+          campaignName: campaign.name,
+          campaignId: campaign.id,
+          videoCount: deal.videoCount,
+          totalPrice: deal.totalPrice,
+        })
+        .from(deal)
+        .innerJoin(campaign, eq(deal.campaignId, campaign.id))
+        .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
+        // Only `image` travels off `user` — the row's face, nothing contactable.
+        .innerJoin(user, eq(creatorProfile.userId, user.id))
+        .where(eq(campaign.brandId, brandProfileId))
+        .orderBy(desc(deal.createdAt))
+    );
   },
 };
 

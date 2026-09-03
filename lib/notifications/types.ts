@@ -54,6 +54,14 @@ export const NOTIFICATION_TYPES = [
   // apply upgrades, downgrades and first-time pricing alike, and the creator
   // is told the new fact, not sold a story about it.
   'tier_assigned',
+  // `withdrawal_paid` / `withdrawal_failed` (KAN-70 PR 3) — the two ends a
+  // wallet withdrawal can reach after Chapa accepts the transfer. Paired
+  // types rather than one with an outcome field: unlike `verification_result`
+  // they carry different facts (a destination that worked, a failure that
+  // re-credited), and a creator scanning their inbox should see which at a
+  // glance.
+  'withdrawal_paid',
+  'withdrawal_failed',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -207,6 +215,19 @@ export interface NotificationPayloadMap {
     tierName: string;
     /** The creator's new asking price, in santim (invariant 4). */
     pricePerVideo: number;
+  };
+  withdrawal_paid: {
+    withdrawalId: string;
+    /** Santim (invariant 4). */
+    amount: number;
+    bankName: string;
+    /** Already masked at write time — the full number never enters a payload. */
+    accountNumberMasked: string;
+  };
+  withdrawal_failed: {
+    withdrawalId: string;
+    /** Santim (invariant 4) — the figure that was re-credited. */
+    amount: number;
   };
 }
 

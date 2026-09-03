@@ -371,6 +371,10 @@ const subjects: {
   metric_reminder: (p) => `Metrics still pending for ${p.campaignTitle}`,
   tier_upgraded: (p) => `You moved up to the ${p.tierName} tier`,
   tier_assigned: (p) => `Your tier was set to ${p.tierName}`,
+  withdrawal_paid: (p) =>
+    `Your ${formatEtb(p.amount)} withdrawal is on its way`,
+  withdrawal_failed: (p) =>
+    `Your ${formatEtb(p.amount)} withdrawal could not be sent`,
 };
 
 function Content({ type, payload }: NotificationInput): React.ReactElement {
@@ -725,6 +729,38 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             visible to brands at that price.
           </Text>
           <Cta href={appUrl('/creator')} label="View your profile →" />
+        </Layout>
+      );
+
+    case 'withdrawal_paid':
+      return (
+        <Layout
+          preview={`${formatEtb(payload.amount)} sent to ${payload.bankName}`}
+          heading="Your withdrawal is on its way"
+        >
+          <Text style={styles.text}>
+            <strong>{formatEtb(payload.amount)}</strong> was sent to your{' '}
+            {payload.bankName} account ({payload.accountNumberMasked}).
+          </Text>
+          <Cta href={appUrl('/creator/wallet')} label="View your wallet →" />
+        </Layout>
+      );
+
+    case 'withdrawal_failed':
+      // The one promise that matters here: the money is back. The failed row
+      // stops counting against the balance the moment it flips, so "returned
+      // to your wallet" is a fact about the ledger, not customer-service tone.
+      return (
+        <Layout
+          preview={`${formatEtb(payload.amount)} was returned to your wallet`}
+          heading="Your withdrawal could not be sent"
+        >
+          <Text style={styles.text}>
+            The transfer of <strong>{formatEtb(payload.amount)}</strong> did not
+            go through. The full amount is back in your wallet — check your
+            payout details and try again.
+          </Text>
+          <Cta href={appUrl('/creator/wallet')} label="Try again →" />
         </Layout>
       );
   }

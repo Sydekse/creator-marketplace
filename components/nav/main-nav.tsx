@@ -11,6 +11,7 @@ import {
   Briefcase,
   ChartDonut,
   ClipboardText,
+  CurrencyCircleDollar,
   Megaphone,
   ShoppingCart,
   Stack,
@@ -101,5 +102,6 @@ const NAV_ICONS = {
   cart: ShoppingCart,
   tiers: Stack,
   worklist: WarningCircle,
+  payments: CurrencyCircleDollar,
   audit: ClipboardText,
 } as const;

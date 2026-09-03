@@ -67,7 +67,9 @@ const DEAL_ID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
 const DEAL: ResolveDeal = {
   id: DEAL_ID,
   status: 'delivered',
+  campaignId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
   campaignName: 'Summer launch',
+  totalPrice: 100_000,
   brandUserId: BRAND_USER_ID,
   creatorUserId: CREATOR_USER_ID,
 };
@@ -98,6 +100,8 @@ function makeDeps(
     failAudit?: Error;
     /** Thrown by the post-ledger notification writes — traced and swallowed. */
     failNotifications?: Error;
+    /** Thrown by the external (Chapa) refund leg — traced and swallowed. */
+    failExternalRefund?: Error;
   } = {}
 ): { deps: ResolveDisputeDeps; recorded: Recorded; fakeTx: Tx } {
   const recorded: Recorded = {
@@ -228,6 +232,10 @@ function makeDeps(
       loadOwnerRefs: async () => null,
     },
     logFailure: vi.fn() as unknown as ResolveDisputeDeps['logFailure'],
+    externalRefund: vi.fn(async () => {
+      if (overrides.failExternalRefund) throw overrides.failExternalRefund;
+      return { ok: true as const, status: 'mock' as const };
+    }),
     logPostLedgerFailure:
       vi.fn() as unknown as ResolveDisputeDeps['logPostLedgerFailure'],
   };
@@ -482,6 +490,53 @@ describe('refund — returns the held amount to the brand (AC-3)', () => {
       code: ErrorCode.DEAL_NOT_FUNDED,
     });
     expect(recorded.rows).toHaveLength(0);
+  });
+
+  it('asks for the external refund after the ledger, with the deal’s own figures (KAN-70 PR 4)', async () => {
+    const { deps } = makeDeps({ deal: { ...DEAL, status: 'funded' } });
+
+    const result = await resolve(deps, { resolution: 'refund' });
+
+    expect(result).toMatchObject({ ok: true, status: 'refunded' });
+    // The external leg is addressed by the deal's own campaign and priced at
+    // its own total — the partial refund against the funding charge is sized
+    // to the one deal being refunded, never the whole campaign.
+    expect(deps.externalRefund).toHaveBeenCalledWith({
+      dealId: DEAL_ID,
+      campaignId: DEAL.campaignId,
+      amount: DEAL.totalPrice,
+      reason: 'Dispute resolved: refunded to brand',
+    });
+  });
+
+  it('never asks for an external refund on release or revision', async () => {
+    for (const resolution of ['release', 'revision'] as const) {
+      const { deps } = makeDeps();
+
+      const result = await resolve(deps, { resolution });
+
+      expect(result).toMatchObject({ ok: true });
+      expect(deps.externalRefund).not.toHaveBeenCalled();
+    }
+  });
+
+  it('resolves anyway when the external leg throws — traced, never a veto', async () => {
+    // The ledger's refund is the book truth and has committed by the time the
+    // external leg runs; a Chapa failure leaves a retryable row for the admin
+    // payments view, it does not un-resolve the dispute.
+    const { deps } = makeDeps({
+      deal: { ...DEAL, status: 'funded' },
+      failExternalRefund: new Error('chapa unreachable'),
+    });
+
+    const result = await resolve(deps, { resolution: 'refund' });
+
+    expect(result).toMatchObject({ ok: true, status: 'refunded' });
+    expect(deps.logFailure).toHaveBeenCalledWith(expect.any(Error), {
+      operation: 'resolve_dispute_external_refund',
+      dealId: DEAL_ID,
+      actorId: ACTOR_USER_ID,
+    });
   });
 });
 

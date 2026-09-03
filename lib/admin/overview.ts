@@ -6,6 +6,7 @@ import {
   creatorProfile,
   deal,
   ledgerEntry,
+  user,
 } from '@/db/schema';
 import type { CampaignStatus, DealStatus } from '@/db/schema';
 import { ForbiddenError, guard } from '@/lib/authz';
@@ -141,6 +142,8 @@ export interface AdminWorklistRow {
   campaignName: string;
   brandCompanyName: string;
   creatorHandle: string;
+  /** The creator's profile picture; initials fallback when null. */
+  creatorImage: string | null;
   createdAt: Date;
 }
 
@@ -229,12 +232,15 @@ const defaultDeps: AdminOverviewDeps = {
           campaignName: campaign.name,
           brandCompanyName: brandProfile.companyName,
           creatorHandle: creatorProfile.tiktokHandle,
+          creatorImage: user.image,
           createdAt: deal.createdAt,
         })
         .from(deal)
         .innerJoin(campaign, eq(deal.campaignId, campaign.id))
         .innerJoin(brandProfile, eq(campaign.brandId, brandProfile.id))
         .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
+        // Only `image` travels off `user` — the row's face, nothing more.
+        .innerJoin(user, eq(creatorProfile.userId, user.id))
         // KAN-69 (F40): the AC-4 union — flagged, or money held and unresolved.
         .where(or(deal.flagged, inArray(deal.status, REFUNDABLE_FROM)))
         // Oldest unresolved first: the worklist is an age-ordered queue.
