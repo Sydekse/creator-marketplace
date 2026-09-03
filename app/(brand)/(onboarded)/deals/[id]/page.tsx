@@ -35,7 +35,8 @@ import {
 } from '@/lib/deals/brand-detail';
 import { getDealHistory } from '@/lib/deals/queries';
 import { formatEtb } from '@/lib/money';
-import { cn, textLinkFeedback } from '@/lib/utils';
+import { TiktokVideoCard } from '@/components/deals/tiktok-video-card';
+import { parseTiktokVideoId } from '@/lib/deliverables/thumbnail';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -179,10 +180,13 @@ export default async function BrandDealReviewPage({
         ) : null}
       </section>
 
-      {/* The submitted videos, one section each (F38). Shown as text rather than
-          an embed or a preview: nothing on this page fetches the URL, so a hostile
-          link cannot make the brand's browser talk to an arbitrary host (Tech Spec
-          §6.3). The brand opens it deliberately, in a new tab, with `rel` set.
+      {/* The submitted videos, one section each (F38). Nothing on this page
+          fetches the submitted URL, so a hostile link cannot make the brand's
+          browser talk to an arbitrary host (Tech Spec §6.3) — the card's
+          thumbnail is our own blob snapshot, its player iframe src is built
+          from a numeric video id on a TikTok host we chose, and the submitted
+          URL itself appears only as the href of the explicit "View on TikTok"
+          open: a new tab, with `rel` set, exactly as the raw link was.
 
           The reject control sits inside each video's own section, so the reason the
           brand writes is unambiguously about the video above it — with three on a
@@ -203,14 +207,16 @@ export default async function BrandDealReviewPage({
               className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5"
             >
               <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
-              <a
-                href={video.tiktokUrl}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className={cn('font-mono text-sm break-all', textLinkFeedback)}
-              >
-                {video.tiktokUrl}
-              </a>
+              <TiktokVideoCard
+                tiktokUrl={video.tiktokUrl}
+                thumbnailUrl={video.thumbnailUrl}
+                tiktokVideoId={
+                  // Rows submitted before the id column existed still play:
+                  // long-form URLs carry the id in the path.
+                  video.tiktokVideoId ?? parseTiktokVideoId(video.tiktokUrl)
+                }
+                videoLabel={videoHeading(index)}
+              />
               <p className="text-sm text-muted-foreground">
                 {SUBMITTED_AT_LABEL}: {formatDeadlineUtc(video.submittedAt)}
               </p>

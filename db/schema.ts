@@ -395,6 +395,24 @@ export const deliverable = pgTable(
       .default('pending'),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     rejectionReason: text('rejection_reason'),
+    /**
+     * Snapshot of the video's cover image, copied into our Vercel Blob store
+     * at submit (KAN-46 follow-up). Stored rather than fetched per render
+     * because TikTok's oEmbed thumbnail URLs are signed and expire — and the
+     * snapshot survives the video being deleted or made private, which is
+     * exactly when the brand needs evidence of what was submitted. Null when
+     * the best-effort copy failed (no blob token, oEmbed down, …); the UI
+     * falls back to the placeholder frame.
+     */
+    thumbnailUrl: text('thumbnail_url'),
+    /**
+     * TikTok's numeric video id, resolved from the oEmbed response at submit.
+     * Long-form URLs carry it in the path, but `vm.tiktok.com` share links do
+     * not — and the in-app player (`tiktok.com/embed/v2/{id}`) needs it. Null
+     * when oEmbed could not be reached; the card then falls back to opening
+     * TikTok instead of playing inline.
+     */
+    tiktokVideoId: text('tiktok_video_id'),
   },
   (t) => [
     // Replaces the unique constraint's index. Every read of this table is

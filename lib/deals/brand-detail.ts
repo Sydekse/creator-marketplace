@@ -67,6 +67,18 @@ export interface BrandDeliverableView {
   reviewedAt: Date | null;
   /** The brand's own words from a previous rejection, or null if never rejected. */
   rejectionReason: string | null;
+  /**
+   * Our blob-store snapshot of the video's cover, or null when the
+   * best-effort copy at submit failed — the card falls back to the
+   * placeholder frame.
+   */
+  thumbnailUrl: string | null;
+  /**
+   * TikTok's numeric video id, for the in-app embed player. Null when
+   * unresolvable (oEmbed down at submit and a `vm.` share link, which carries
+   * no id itself) — the card then opens TikTok instead of playing inline.
+   */
+  tiktokVideoId: string | null;
 }
 
 export interface BrandDealDetail {
@@ -222,6 +234,8 @@ export function brandDealDeliverablesQuery(dealId: string) {
       reviewStatus: deliverable.reviewStatus,
       reviewedAt: deliverable.reviewedAt,
       rejectionReason: deliverable.rejectionReason,
+      thumbnailUrl: deliverable.thumbnailUrl,
+      tiktokVideoId: deliverable.tiktokVideoId,
     })
     .from(deliverable)
     .where(eq(deliverable.dealId, dealId))
