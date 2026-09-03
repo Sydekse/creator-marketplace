@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { AuthPanel } from './auth-panel';
-import { AuthRouteTransition } from './auth-route-transition';
 import { Mark } from '@/components/brand/mark';
 import { Toaster } from '@/components/ui/sonner';
 
@@ -44,7 +43,7 @@ export default function AuthLayout({
         </header>
 
         <main className="relative flex min-h-0 flex-1 items-center justify-center px-4 py-8 sm:px-6 sm:py-10 lg:py-6">
-          <AuthRouteTransition>{children}</AuthRouteTransition>
+          {children}
         </main>
       </div>
 

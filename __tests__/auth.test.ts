@@ -221,22 +221,4 @@ describe('TikTok Login Kit wiring', () => {
     expect(card).toContain('new CustomEvent(AUTH_ROLE_EVENT');
     expect(layout).toContain('<AuthPanel />');
   });
-
-  it('keeps auth route transitions scoped to the form card', () => {
-    const transition = readFileSync(
-      join(ROOT, 'app/(auth)/auth-route-transition.tsx'),
-      'utf8'
-    );
-    const layout = readFileSync(join(ROOT, 'app/(auth)/layout.tsx'), 'utf8');
-    expect(layout).toContain(
-      '<AuthRouteTransition>{children}</AuthRouteTransition>'
-    );
-    expect(transition).toContain('usePathname');
-    expect(transition).toContain('min-h-[40rem]');
-    expect(transition).toContain('mode="wait"');
-    expect(transition).toContain('10 * direction');
-    expect(transition).not.toContain('clipPath');
-    expect(transition).not.toContain('overflow-hidden');
-    expect(transition).not.toContain('LayoutGroup');
-  });
 });
