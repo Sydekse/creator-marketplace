@@ -1,7 +1,8 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { campaign, ledgerEntry } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
+import { checkedSum } from '@/lib/campaigns/insight-model';
 
 /**
  * Campaign-level reads over `ledger_entry` — the `escrowed` and `spent` views of
@@ -130,4 +131,47 @@ export async function sumSettledByCampaign(
     commission: Number(row?.commission ?? 0),
     refunded: Number(row?.refunded ?? 0),
   };
+}
+
+export type CampaignSettlement = {
+  paidOut: number;
+  commission: number;
+  refunded: number;
+};
+
+/** Owner-scoped batch leaf; callers supply their consistent read snapshot. */
+export async function sumSettledByCampaigns(
+  campaignIds: readonly string[],
+  brandId: string,
+  client: typeof db | Tx
+): Promise<Map<string, CampaignSettlement>> {
+  if (!campaignIds.length) return new Map();
+  const rows = await client
+    .select({
+      campaignId: ledgerEntry.campaignId,
+      paidOut: sql<string>`coalesce(sum(case when ${ledgerEntry.entryType} = 'release_payout' then -${ledgerEntry.amount}::bigint else 0 end), 0)`,
+      commission: sql<string>`coalesce(sum(case when ${ledgerEntry.entryType} = 'commission' then -${ledgerEntry.amount}::bigint else 0 end), 0)`,
+      refunded: sql<string>`coalesce(sum(case when ${ledgerEntry.entryType} = 'refund' then -${ledgerEntry.amount}::bigint else 0 end), 0)`,
+    })
+    .from(ledgerEntry)
+    .innerJoin(campaign, eq(campaign.id, ledgerEntry.campaignId))
+    .where(
+      and(eq(campaign.brandId, brandId), inArray(campaign.id, [...campaignIds]))
+    )
+    .groupBy(ledgerEntry.campaignId);
+  const safe = (value: string) => {
+    if (!/^\d+$/.test(String(value)))
+      throw new RangeError('Invalid settlement total');
+    return checkedSum([Number(value)]);
+  };
+  return new Map(
+    rows.map((row) => [
+      row.campaignId,
+      {
+        paidOut: safe(row.paidOut),
+        commission: safe(row.commission),
+        refunded: safe(row.refunded),
+      },
+    ])
+  );
 }

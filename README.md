@@ -157,6 +157,51 @@ replay, races and rollback with `tests/integration/delivery-deadlines.test.ts`;
 notifications, initial delivery and campaign reporting. Run these only in an
 isolated CI/test database, never against preview or production data.
 
+### Overall Insights
+
+The brand-only **Insights** destination (`/insights`) compares the brand's own
+activity across campaigns. A compact dashboard summary links to the all-time
+report without replacing the existing 12-week financial overview or review queue.
+
+Campaign selection, current status and inclusive UTC **campaign-created** dates
+apply to every report section: accounting, recorded results, campaign/creator
+comparisons, collaboration history, waiting work and initial-delivery punctuality.
+The dates select campaigns, not metric accrual or ledger-entry periods. Results
+are the latest recorded counts and lifetime-to-current costs for that selection.
+Invalid filters never silently broaden the report. Filter, comparison and page
+state live in shareable URLs.
+
+The guarded batch reader uses a read-only repeatable-read transaction and
+brand-constrained queries. It does not loop over campaign reports, whose
+collaboration sections intentionally include other owned campaigns. Each selected
+deal is counted once; rates use raw denominators and medians use raw duration
+samples. A lightweight dashboard read reuses the performance calculations without
+fetching historical event arrays.
+
+Blended CPV/CPE divide eligible cost by eligible results, not average ratios.
+Comparative cohorts remain completed, fully measured deals; known zero results
+retain their cost, and a zero denominator is unavailable. Duplicate TikTok video
+identities are detected across the entire selection **before** campaign/creator
+grouping. Affected deals stay excluded in every comparison. Raw recorded totals
+remain record sums with warnings, not unique reach; opaque short links are not
+resolved by guesswork. Selecting a different campaign set can therefore change
+the duplicate exclusions compared with a standalone campaign report.
+
+Campaign/creator lists paginate 20 rows at a time; charts show up to 10 of those
+rows. These are display limits only: totals and contribution-share denominators
+always cover the entire selected eligible cohort. Every exact row and its
+underlying campaign/deal evidence remains reachable. Creator histories stay within
+the selected campaigns, never marketplace-wide.
+
+All six Tier 1 reporting areas are covered: cost/results and measurement coverage,
+blended efficiency, campaign comparison, creator relationships, operational
+health, and initial-delivery punctuality. Unknown counts and limited legacy
+history remain unknown. Revision reasons describe feedback, not fault; waiting
+durations are elapsed time, not labor. Different objectives, video ages and
+reporting freshness still limit comparisons. Automated spending recommendations,
+causal ROI, metric time-series, unique reach and global creator scores remain
+future work.
+
 **Money**
 
 - Per-deal escrow holds at the payment provider, placed when a campaign is funded
