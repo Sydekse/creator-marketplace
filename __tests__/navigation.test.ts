@@ -60,6 +60,7 @@ describe('getNavLinks', () => {
     expect(links.map((l) => l.label)).toEqual([
       'Dashboard',
       'Campaigns',
+      'Insights',
       'Discover',
       'Deals',
       // The cart is a nav element for brands; its href is a placeholder that
@@ -71,6 +72,20 @@ describe('getNavLinks', () => {
   it('returns creator links for creator role', () => {
     const links = getNavLinks('creator');
     expect(links.map((l) => l.label)).toEqual(['Dashboard', 'Deals']);
+  });
+
+  it('exposes Insights only to brands and lights only that destination', () => {
+    const links = getNavLinks('brand');
+    const active = links.filter((link) =>
+      isNavLinkActive(link, '/insights', '/campaigns/draft', links)
+    );
+    expect(active.map((link) => link.label)).toEqual(['Insights']);
+    expect(
+      getNavLinks('creator').some((link) => link.href === '/insights')
+    ).toBe(false);
+    expect(getNavLinks('admin').some((link) => link.href === '/insights')).toBe(
+      false
+    );
   });
 
   it('returns admin links for admin role', () => {

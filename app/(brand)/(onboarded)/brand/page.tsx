@@ -18,6 +18,7 @@ import {
 import { formatEtb } from '@/lib/money';
 import { TruncatedText } from '@/components/ui/truncated-text';
 import { displayTiktokHandle } from '@/lib/creators/handle';
+import { OverallInsightSummary } from '@/components/insights/dashboard-summary';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -114,6 +115,8 @@ export default async function BrandDashboardPage() {
             </div>
           </dl>
         </div>
+
+        <OverallInsightSummary />
 
         {/* §13: the work — same row language for queue and campaigns. */}
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:items-start">
