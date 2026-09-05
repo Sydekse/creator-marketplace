@@ -336,7 +336,7 @@ const defaultDeps: BrandDealDeps = {
 
 /**
  * One of the caller's own deals by id, or `null`. Throws `ForbiddenError` for
- * every non-brand caller, including unauthenticated ones — `guard` fails closed.
+ * every non-brand caller with a well-formed id — `guard` fails closed.
  *
  * The id's shape is checked first — a pure format test that touches no data, so
  * a malformed link resolves to not-found without a DB round trip and without
