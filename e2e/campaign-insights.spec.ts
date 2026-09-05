@@ -39,12 +39,14 @@ async function screenshot(page: Page, info: TestInfo, name: string) {
   await page.screenshot({
     path: resolve(folder, `${info.project.name}-${name}.png`),
     fullPage: true,
+    scale: 'css',
     animations: 'disabled',
   });
   if (name === 'populated-comparison') {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({
       path: resolve(folder, `${info.project.name}-above-fold.png`),
+      scale: 'css',
       animations: 'disabled',
     });
     await panel(page)
@@ -52,6 +54,7 @@ async function screenshot(page: Page, info: TestInfo, name: string) {
       .scrollIntoViewIfNeeded();
     await page.screenshot({
       path: resolve(folder, `${info.project.name}-contribution-detail.png`),
+      scale: 'css',
       animations: 'disabled',
     });
   }
@@ -311,9 +314,12 @@ test('populated math and painted contributions reconcile without hover', async (
 });
 
 test('keyboard and touch expose revision, timing and exact efficiency evidence with reduced motion', async ({
-  page,
+  page: signedInPage,
   isMobile,
 }, info) => {
+  // A fresh authenticated tab isolates hydration from the dashboard's
+  // in-flight prefetch requests being aborted on navigation in WebKit.
+  const page = await signedInPage.context().newPage();
   const browserErrors: string[] = [];
   page.on('pageerror', (error) => browserErrors.push(error.message));
   await page.emulateMedia({ reducedMotion: 'reduce' });
