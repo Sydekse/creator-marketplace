@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * KAN-60 helpers — deterministic seeded data only (AC-9). Every test signs in
@@ -68,14 +68,36 @@ export async function settledMain(page: Page): Promise<void> {
   }).toPass({ timeout: 30_000 });
 }
 
+/**
+ * Click a link and require the URL to actually change.
+ *
+ * A Next.js `<Link>` click that lands before hydration can be swallowed: the
+ * router attaches its own handler mid-flight and the native navigation never
+ * fires (flow 1 burned its whole 5-minute budget waiting for `/deals/[id]`
+ * this way on webkit-desktop). Unobservable from outside, so click, give the
+ * navigation a beat, and click again if the URL never moved.
+ */
+export async function clickToUrl(
+  page: Page,
+  link: Locator,
+  urlPattern: RegExp
+): Promise<void> {
+  await expect(async () => {
+    if (!urlPattern.test(page.url())) {
+      await link.click();
+    }
+    await page.waitForURL(urlPattern, { timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
+}
+
 /** Open the creator's deal detail page by campaign name. */
 export async function openCreatorDeal(page: Page, campaignName: string) {
   await page.goto('/creator/deals');
-  await page
-    .getByRole('link', { name: new RegExp(campaignName) })
-    .first()
-    .click();
-  await page.waitForURL(/\/creator\/deals\/[0-9a-f-]+/);
+  await clickToUrl(
+    page,
+    page.getByRole('link', { name: new RegExp(campaignName) }).first(),
+    /\/creator\/deals\/[0-9a-f-]+/
+  );
   await settledMain(page);
 }
 
@@ -231,14 +253,16 @@ export async function openCampaign(page: Page, campaignName: string) {
   // "Edit brief" instead, inside the row that names the campaign.
   const open = page.getByRole('link', { name: `Open ${campaignName}` });
   if ((await open.count()) > 0) {
-    await open.first().click();
+    await clickToUrl(page, open.first(), /\/campaigns\/[0-9a-f-]+/);
   } else {
-    await page
-      .locator('.bd-caprow')
-      .filter({ hasText: campaignName })
-      .getByRole('link', { name: /Edit brief/i })
-      .click();
+    await clickToUrl(
+      page,
+      page
+        .locator('.bd-caprow')
+        .filter({ hasText: campaignName })
+        .getByRole('link', { name: /Edit brief/i }),
+      /\/campaigns\/[0-9a-f-]+/
+    );
   }
-  await page.waitForURL(/\/campaigns\/[0-9a-f-]+/);
   await settledMain(page);
 }
