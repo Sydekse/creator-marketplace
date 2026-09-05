@@ -21,6 +21,7 @@ export interface CreateCampaignDeps {
     targetAudience?: Record<string, unknown>;
     budget: number;
     desiredVideos: number;
+    deliveryWindowDays?: number | null;
   }) => Promise<{ id: string; status: CampaignStatus }>;
 }
 
@@ -35,6 +36,7 @@ const defaultDeps: CreateCampaignDeps = {
         targetAudience: values.targetAudience,
         budget: values.budget,
         desiredVideos: values.desiredVideos,
+        deliveryWindowDays: values.deliveryWindowDays,
         status: 'draft',
       })
       .returning({
@@ -74,6 +76,7 @@ export async function createCampaign(
       targetAudience: input.targetAudience,
       budget: input.budget,
       desiredVideos: input.desiredVideos,
+      deliveryWindowDays: input.deliveryWindowDays,
     });
 
     return { ok: true, campaign: created };

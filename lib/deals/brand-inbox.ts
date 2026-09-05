@@ -3,6 +3,8 @@ import { db } from '@/db';
 import { campaign, creatorProfile, deal, user } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import { guard } from '@/lib/authz';
+import type { DeadlineEvidence } from './deadline';
+import { deadlineColumns } from './deadline-columns';
 
 /**
  * The brand's deals inbox (§15).
@@ -22,7 +24,7 @@ import { guard } from '@/lib/authz';
  * produce the same set (NFR-001).
  */
 
-export interface BrandInboxDeal {
+export interface BrandInboxDeal extends DeadlineEvidence {
   id: string;
   status: DealStatus;
   creatorHandle: string;
@@ -66,6 +68,7 @@ const defaultDeps: BrandInboxDeps = {
           campaignId: campaign.id,
           videoCount: deal.videoCount,
           totalPrice: deal.totalPrice,
+          ...deadlineColumns,
         })
         .from(deal)
         .innerJoin(campaign, eq(deal.campaignId, campaign.id))

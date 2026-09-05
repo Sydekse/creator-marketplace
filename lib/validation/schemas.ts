@@ -313,8 +313,14 @@ export const MAX_CAMPAIGN_NAME_LENGTH = 120;
 export const MAX_CAMPAIGN_GOAL_LENGTH = 1000;
 export const MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH = 1000;
 
+import {
+  deliveryWindowSchema,
+  DELIVERY_TERMS_VERSION,
+} from '@/lib/deals/deadline';
+
 export const createCampaignSchema = z
   .object({
+    deliveryWindowDays: deliveryWindowSchema.nullable().optional(),
     name: z
       .string({ message: 'Campaign name is required.' })
       .trim()
@@ -360,6 +366,7 @@ export const createCampaignSchema = z
  */
 export const updateCampaignSchema = z
   .object({
+    deliveryWindowDays: deliveryWindowSchema.nullable().optional(),
     name: z
       .string({ message: 'Campaign name is required.' })
       .trim()
@@ -434,6 +441,8 @@ export type BulkAddCampaignItemsInput = z.infer<
 >;
 
 export const acceptDealSchema = z.object({
+  deliveryWindowDays: deliveryWindowSchema.nullable().optional(),
+  deliveryTermsVersion: z.literal(DELIVERY_TERMS_VERSION).optional(),
   rightsTermsId: z
     .string()
     .uuid({ message: 'Valid rights terms ID is required.' }),

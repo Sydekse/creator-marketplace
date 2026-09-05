@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DeadlineSection } from '@/components/deals/deadline-section';
 import { notFound } from 'next/navigation';
 import { VideoHistory } from '@/components/deals/video-history';
 import { selectVideoHistory } from '@/lib/deliverables/read-history';
@@ -206,6 +207,7 @@ export default async function CreatorDealDetailPage({
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.75fr)] lg:items-start lg:gap-8">
         <div className="flex flex-col gap-6">
+          <DeadlineSection dealId={id} />
           {/* The money — the page's reason to exist, wearing the dashboard's
               payout-card surface: full teal wash, brand border, and the
               expected payout in a white inset panel inside it. */}
@@ -252,7 +254,11 @@ export default async function CreatorDealDetailPage({
           <section className="animate-rise-in-2 flex flex-col gap-4 rounded-[24px] border border-neutral-200 bg-background p-5 shadow-[0_16px_40px_-24px_rgba(23,23,23,0.2)] sm:p-6">
             <SectionLabel>Your decision</SectionLabel>
             {isPending ? (
-              <OfferActions dealId={deal.id} terms={deal.rightsTerms} />
+              <OfferActions
+                dealId={deal.id}
+                terms={deal.rightsTerms}
+                deliveryWindowDays={deal.deliveryWindowDays}
+              />
             ) : (
               <p className="text-sm leading-relaxed text-neutral-700">
                 {deal.status === 'declined' || deal.status === 'expired'

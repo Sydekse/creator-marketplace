@@ -238,6 +238,7 @@ export default async function CampaignCartPage({
                 <ConfirmCampaignButton
                   campaignId={campaign.id}
                   itemCount={items.length}
+                  deliveryWindowDays={campaign.deliveryWindowDays}
                 />
                 <CancelCampaignButton
                   campaignId={campaign.id}

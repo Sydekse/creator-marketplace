@@ -98,8 +98,7 @@ error handling rather than being replaced with fabricated empty data.
 **Supported:** current recorded efficiency, cohort contributions, brand-only
 acceptance/completion/revision evidence and recorded elapsed workflow timing.
 **Limited:** legacy history, incomplete or stale manual counts, unresolved video
-identities and differently aged observations. **Deferred:** agreed deadlines and
-punctuality (PR3), fault attribution, independent video approval, automatic
+identities and differently aged observations. **Deferred:** fault attribution, independent video approval, automatic
 deliverable metrics, growth/time-series, unique reach, conversions/ROI,
 cross-brand rankings and global reliability scores.
 
@@ -109,6 +108,54 @@ Browser fixtures require an isolated local test database and include separate
 CPV/CPE cohorts, measured zeros, partial coverage, stale/old-version records,
 duplicates, refunds, legacy evidence, admin release and JavaScript-disabled
 exact-value views. Never point fixture/migration commands at a live database.
+
+### Delivery agreements and punctuality
+
+Draft campaigns can record an explicit delivery window of 1–90 days, with no
+default. Sending offers requires a chosen window and snapshots it onto each deal.
+Creators accept the displayed window and interpretation version alongside usage
+rights; stale delivery terms return 409. Already-sent legacy contracts remain
+without a recorded delivery deadline. Editing a draft never changes sent offers.
+
+`EscrowLedgerService.holdForCampaign()` initializes `fundedAt`, original and current
+due dates in the successful transaction shared by mock funding and verified Chapa
+settlement. A day is 24 elapsed hours; all displayed deadlines are explicitly UTC.
+Retries and return/webhook replays never restart the clock. Offer expiry is a
+separate acceptance deadline.
+
+Either party can request a later delivery date on funded work before its first
+complete submission. `POST /api/deals/{id}/deadline` requires `expectedDueAt`,
+`proposedDueAt` and a note. `PATCH` requires the immutable `requestId`,
+`expectedDueAt` and `decision` (`accepted`, `rejected`, `withdrawn`). Only the
+counterparty decides; only the proposer withdraws. The service locks the deal
+before requests, rechecks ownership/state/clock, and serializes submission and
+refund races. One pending request per deal is enforced by a partial unique index.
+Identical decisions are idempotent; conflicts return 409 with refresh guidance.
+Requests are immutable proposals with one decision, not an append-only table.
+In-app notifications commit with the action; email is sent afterward.
+
+The first full delivery freezes its timestamp and effective due date; revisions,
+approval and refunds cannot reset them. First delivery and refunds close pending
+requests through the authoritative deal transition. Acceptance **after** the
+previous due time permanently records that a commitment was missed; acceptance
+at that time is still prospective. Delivery at the effective deadline is on time
+only if no earlier deadline was missed. “Within extended deadline; earlier
+deadline missed” remains a distinct result.
+
+Shared deal cards, inbox summaries, Campaign Insights and owned collaboration
+history use the same classifier. Rates include only initial deliveries with
+trustworthy agreements; due/overdue open work, unknown legacy evidence and closed
+work are separate. Admins can inspect deadline history but cannot override mutual
+agreement. Timing never changes escrow, legal deal status or payment eligibility.
+
+Migration `0019_moaning_dreadnoughts.sql` is additive and deliberately backfills no
+agreement or delivery timestamps. Do not drop the history table to roll back UI.
+An old-writer deployment can leave incomplete evidence; those records stay
+unknown, not automatically on-time. Validate real database constraints, funding
+replay, races and rollback with `tests/integration/delivery-deadlines.test.ts`;
+`e2e/delivery-agreements.spec.ts` covers both parties, admin read-only visibility,
+notifications, initial delivery and campaign reporting. Run these only in an
+isolated CI/test database, never against preview or production data.
 
 **Money**
 
@@ -128,7 +175,8 @@ exact-value views. Never point fixture/migration commands at a live database.
 
 **Notifications**
 
-- 11 transactional email types rendered with React Email and delivered via Resend
+- Transactional email types rendered with React Email and delivered via Resend,
+  including delivery extension requests, decisions and withdrawals
 - An in-app notification feed, written inside the same transaction as the event it describes
 - Emails flush only after that transaction commits, so a mail failure can never roll back money
 

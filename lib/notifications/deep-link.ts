@@ -45,6 +45,10 @@ const DEALS_INDEX: Record<UserRole, string> = {
  * creator.
  */
 const DEAL_SCOPED = new Set([
+  'deadline_requested',
+  'deadline_accepted',
+  'deadline_rejected',
+  'deadline_withdrawn',
   'deliverable_submitted',
   'deliverable_approved',
   'revision_requested',

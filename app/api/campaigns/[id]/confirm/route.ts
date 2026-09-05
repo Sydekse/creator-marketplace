@@ -64,6 +64,15 @@ export async function handleConfirmCampaign(
 
   if (!result.ok) {
     switch (result.reason) {
+      case 'missing_delivery_window':
+        return Response.json(
+          validationError({
+            deliveryWindowDays: [
+              'Edit the draft and choose a delivery window of 1–90 days before confirming offers.',
+            ],
+          }),
+          { status: 422 }
+        );
       // Collapsed into 403 like every other owner-scoped route: a distinct 404
       // would make this endpoint an existence oracle for other brands' campaign
       // ids.

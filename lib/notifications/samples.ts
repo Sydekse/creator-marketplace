@@ -30,6 +30,50 @@ import type { NotificationInput, NotificationType } from './types';
 export const SAMPLE_NOTIFICATIONS: {
   [K in NotificationType]: Extract<NotificationInput, { type: K }>;
 } = {
+  deadline_requested: {
+    type: 'deadline_requested',
+    payload: {
+      dealId: 'd1',
+      requestId: 'r1',
+      campaignTitle: 'Spring Coffee Push',
+      recipientRole: 'brand',
+      previousDueAt: '2026-09-01T09:00:00.000Z',
+      proposedDueAt: '2026-09-04T09:00:00.000Z',
+    },
+  },
+  deadline_accepted: {
+    type: 'deadline_accepted',
+    payload: {
+      dealId: 'd1',
+      requestId: 'r1',
+      campaignTitle: 'Spring Coffee Push',
+      recipientRole: 'creator',
+      previousDueAt: '2026-09-01T09:00:00.000Z',
+      proposedDueAt: '2026-09-04T09:00:00.000Z',
+    },
+  },
+  deadline_rejected: {
+    type: 'deadline_rejected',
+    payload: {
+      dealId: 'd1',
+      requestId: 'r1',
+      campaignTitle: 'Spring Coffee Push',
+      recipientRole: 'brand',
+      previousDueAt: '2026-09-01T09:00:00.000Z',
+      proposedDueAt: '2026-09-04T09:00:00.000Z',
+    },
+  },
+  deadline_withdrawn: {
+    type: 'deadline_withdrawn',
+    payload: {
+      dealId: 'd1',
+      requestId: 'r1',
+      campaignTitle: 'Spring Coffee Push',
+      recipientRole: 'creator',
+      previousDueAt: '2026-09-01T09:00:00.000Z',
+      proposedDueAt: '2026-09-04T09:00:00.000Z',
+    },
+  },
   offer_received: {
     type: 'offer_received',
     payload: {

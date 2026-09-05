@@ -1,5 +1,9 @@
 import type { DealStatus } from '@/db/schema';
 import {
+  punctualityAggregate,
+  type DeadlineEvidence,
+} from '@/lib/deals/deadline';
+import {
   REVISION_CATEGORIES,
   REVISION_CATEGORY_LABELS,
   type DeliverableEventKind,
@@ -35,6 +39,7 @@ export interface CollaborationStatusInput {
 }
 
 export interface CollaborationDealInput {
+  deadline?: DeadlineEvidence;
   id: string;
   creatorId: string;
   status: DealStatus;
@@ -93,6 +98,7 @@ export interface HistoryVideoRounds {
 }
 
 export interface CollaborationSummary {
+  punctuality: ReturnType<typeof punctualityAggregate>;
   acceptance: {
     accepted: number;
     issued: number;
@@ -443,6 +449,10 @@ function summarize(
   now: string
 ): CollaborationSummary {
   const summary: CollaborationSummary = {
+    punctuality: punctualityAggregate(
+      deals.map((d) => d.deadline ?? { status: d.status }),
+      new Date(now)
+    ),
     acceptance: {
       accepted: 0,
       issued: deals.length,

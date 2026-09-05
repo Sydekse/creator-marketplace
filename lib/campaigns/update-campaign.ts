@@ -17,6 +17,7 @@ export interface UpdatedCampaign {
   targetAudience: unknown;
   budget: number;
   desiredVideos: number;
+  deliveryWindowDays?: number | null;
   status: CampaignStatus;
 }
 
@@ -30,6 +31,7 @@ export interface UpdateCampaignDeps {
     brandId: string
   ) => Promise<{ id: string; status: CampaignStatus } | null>;
   update: (args: {
+    deliveryWindowDays?: number | null;
     id: string;
     brandId: string;
     name: string;
@@ -57,6 +59,7 @@ const defaultDeps: UpdateCampaignDeps = {
     targetAudience,
     budget,
     desiredVideos,
+    deliveryWindowDays,
   }) => {
     const [row] = await db
       .update(campaign)
@@ -66,8 +69,15 @@ const defaultDeps: UpdateCampaignDeps = {
         targetAudience: targetAudience ?? null,
         budget,
         desiredVideos,
+        deliveryWindowDays,
       })
-      .where(and(eq(campaign.id, id), eq(campaign.brandId, brandId)))
+      .where(
+        and(
+          eq(campaign.id, id),
+          eq(campaign.brandId, brandId),
+          eq(campaign.status, 'draft')
+        )
+      )
       .returning({
         id: campaign.id,
         name: campaign.name,
@@ -120,6 +130,7 @@ export async function updateCampaign(
       targetAudience: input.targetAudience,
       budget: input.budget,
       desiredVideos: input.desiredVideos,
+      deliveryWindowDays: input.deliveryWindowDays,
     });
 
     if (!updated) {
