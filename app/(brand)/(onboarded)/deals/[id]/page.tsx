@@ -109,8 +109,10 @@ export default async function BrandDealReviewPage({
   const deal = await readBrandDeal(id);
   if (!deal) notFound();
 
-  const history = await getDealHistory(id);
-  const videoHistory = await selectVideoHistory(id);
+  const [history, videoHistory] = await Promise.all([
+    getDealHistory(id),
+    selectVideoHistory(id),
+  ]);
 
   const reviewable = canReview(deal.status);
 

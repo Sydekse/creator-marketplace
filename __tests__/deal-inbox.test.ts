@@ -843,12 +843,16 @@ describe('the detail page shows the deal history', () => {
     // `getDealHistory` throws where `readCreatorDeal` returns null, and this app
     // has no error boundary — running them together turns a stale link into an
     // unstyled 500 instead of the not-found page.
-    expect(page).not.toContain('Promise.all');
     const detailAt = page.indexOf('readCreatorDeal(');
+    const parallelAt = page.indexOf('Promise.all(');
     const historyAt = page.indexOf('getDealHistory(');
     expect(detailAt).toBeGreaterThan(-1);
-    expect(historyAt).toBeGreaterThan(detailAt);
-    expect(page.indexOf('notFound()')).toBeLessThan(historyAt);
+    expect(page.indexOf('if (!deal) notFound();')).toBeGreaterThan(detailAt);
+    expect(parallelAt).toBeGreaterThan(page.indexOf('if (!deal) notFound();'));
+    expect(historyAt).toBeGreaterThan(parallelAt);
+    expect(page).toMatch(
+      /Promise\.all\(\[\s*getDealHistory\(id\),\s*selectVideoHistory\(id\),?\s*\]\)/
+    );
   });
 
   it('names a null actor as the system rather than leaving it blank', () => {
@@ -944,21 +948,31 @@ describe('ownership is in the where clause on the detail read', () => {
     expect(params).toContain(DEAL_ID);
   });
 
-  it('gates before it looks at the id', async () => {
+  it('rejects malformed ids without auth reads, but gates every valid id', async () => {
     const select = vi.fn();
+    const selectDeliverables = vi.fn();
+    const currentTerms = vi.fn();
+    const requireCreator = vi.fn(async () => {
+      throw new ForbiddenError('not a creator');
+    });
+    const deps: CreatorDealDeps = {
+      requireCreator,
+      select,
+      selectDeliverables,
+      currentTerms,
+    };
 
-    await expect(
-      readCreatorDeal('not-a-uuid', {
-        requireCreator: async () => {
-          throw new ForbiddenError('not a creator');
-        },
-        select,
-        selectDeliverables: async () => [],
-        currentTerms: async () => null,
-      })
-    ).rejects.toBeInstanceOf(ForbiddenError);
-
+    await expect(readCreatorDeal('not-a-uuid', deps)).resolves.toBeNull();
+    expect(requireCreator).not.toHaveBeenCalled();
     expect(select).not.toHaveBeenCalled();
+
+    await expect(readCreatorDeal(DEAL_ID, deps)).rejects.toBeInstanceOf(
+      ForbiddenError
+    );
+    expect(requireCreator).toHaveBeenCalledOnce();
+    expect(select).not.toHaveBeenCalled();
+    expect(selectDeliverables).not.toHaveBeenCalled();
+    expect(currentTerms).not.toHaveBeenCalled();
   });
 
   it('short-circuits a malformed id before Postgres sees it', async () => {

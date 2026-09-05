@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
 import { bdMono, bdSans } from '@/lib/fonts';
-import 'slot-text/style.css';
 import './globals.css';
 
 /** Editorial serif reserved for landing-page display headlines. */

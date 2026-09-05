@@ -75,10 +75,14 @@ export default async function CreatorDetailPage({
 }) {
   const { id } = await params;
 
-  const creator = await readCreatorDetail(id);
+  // Independent: the detail read guards itself internally, so it can run in
+  // parallel with the role gate. The profile/campaign reads depend on the user.
+  const [creator, user] = await Promise.all([
+    readCreatorDetail(id),
+    requireRole('brand'),
+  ]);
   if (!creator) notFound();
 
-  const user = await requireRole('brand');
   const profile = await getBrandProfileByUserId(user.id);
   const campaigns = profile ? await listDraftCampaignsByBrand(profile.id) : [];
   const profileUrl = tiktokProfileUrl(creator.tiktokHandle);

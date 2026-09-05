@@ -51,8 +51,10 @@ export default async function AdminDealPage({
   let events;
   let evidence;
   try {
-    events = await getDealHistory(id);
-    evidence = await readVideoEvidence(id);
+    [events, evidence] = await Promise.all([
+      getDealHistory(id),
+      readVideoEvidence(id),
+    ]);
   } catch (error) {
     if (error instanceof ForbiddenError) notFound();
     throw error;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,7 @@ import {
   missingFieldLabel,
   missingTierFields,
 } from '@/lib/creators/tier-rules';
-import { updateCreatorNumbersSchema } from '@/lib/validation';
+import { updateCreatorNumbersSchema } from '@/lib/validation/schemas';
 import type { TierResponse } from '@/lib/creators/tier-assignment';
 
 /**
@@ -92,43 +92,40 @@ function announceTierOutcome(handle: string, tier: TierResponse | null): void {
 
 function RetryButton({ creator }: { creator: AwaitingTierCreator }) {
   const router = useRouter();
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, startTransition] = useTransition();
 
-  async function handleRetry() {
-    setSubmitting(true);
+  function handleRetry() {
+    startTransition(async () => {
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/admin/creators/${encodeURIComponent(creator.id)}/assign-tier`,
+          { method: 'POST' }
+        );
+      } catch {
+        toast.error('Could not reach the server. Check your connection.');
+        return;
+      }
 
-    let response: Response;
-    try {
-      response = await fetch(
-        `/api/admin/creators/${encodeURIComponent(creator.id)}/assign-tier`,
-        { method: 'POST' }
-      );
-    } catch {
-      toast.error('Could not reach the server. Check your connection.');
-      setSubmitting(false);
-      return;
-    }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(
+          body?.error?.message ?? 'Something went wrong. Please try again.'
+        );
+        return;
+      }
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      toast.error(
-        body?.error?.message ?? 'Something went wrong. Please try again.'
-      );
-      setSubmitting(false);
-      return;
-    }
+      const payload = (await response.json().catch(() => null)) as {
+        tier?: TierResponse;
+      } | null;
+      announceTierOutcome(creator.tiktokHandle, payload?.tier ?? null);
 
-    const payload = (await response.json().catch(() => null)) as {
-      tier?: TierResponse;
-    } | null;
-    announceTierOutcome(creator.tiktokHandle, payload?.tier ?? null);
-
-    // Reset before the refresh, not after: an assigned creator leaves this list
-    // and the component unmounts, but an unassigned one stays, keyed by the same
-    // id, so React reuses this instance — and a `submitting` left true would
-    // disable the button until the page is reloaded by hand.
-    setSubmitting(false);
-    router.refresh();
+      // An assigned creator leaves this list and the component unmounts, but an
+      // unassigned one stays, keyed by the same id, so React reuses this
+      // instance — the transition's pending flag clears itself once the refresh
+      // settles, re-enabling the button.
+      router.refresh();
+    });
   }
 
   return (
@@ -173,9 +170,9 @@ function EditNumbersForm({
       ? ''
       : String(parseFloat(creator.engagementRate))
   );
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, startTransition] = useTransition();
 
-  async function handleSave() {
+  function handleSave() {
     const payload = {
       followerCount: toOptionalNumber(followerCount),
       engagementRate: toOptionalNumber(engagementRate),
@@ -192,45 +189,42 @@ function EditNumbersForm({
       return;
     }
 
-    setSubmitting(true);
+    startTransition(async () => {
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/admin/creators/${encodeURIComponent(creator.id)}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed.data),
+          }
+        );
+      } catch {
+        toast.error('Could not reach the server. Check your connection.');
+        return;
+      }
 
-    let response: Response;
-    try {
-      response = await fetch(
-        `/api/admin/creators/${encodeURIComponent(creator.id)}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(parsed.data),
-        }
-      );
-    } catch {
-      toast.error('Could not reach the server. Check your connection.');
-      setSubmitting(false);
-      return;
-    }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(
+          body?.error?.message ?? 'Something went wrong. Please try again.'
+        );
+        return;
+      }
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      toast.error(
-        body?.error?.message ?? 'Something went wrong. Please try again.'
-      );
-      setSubmitting(false);
-      return;
-    }
+      const body = (await response.json().catch(() => null)) as {
+        tier?: TierResponse;
+      } | null;
+      announceTierOutcome(creator.tiktokHandle, body?.tier ?? null);
 
-    const body = (await response.json().catch(() => null)) as {
-      tier?: TierResponse;
-    } | null;
-    announceTierOutcome(creator.tiktokHandle, body?.tier ?? null);
-
-    // Close before refreshing: an assigned creator leaves this list and the row
-    // unmounts, but one still below a band stays keyed by the same id, so React
-    // reuses this instance — collapsing the form is what returns it to its
-    // resting state instead of leaving the editor open over stale values.
-    setSubmitting(false);
-    onDone();
-    router.refresh();
+      // Close before refreshing: an assigned creator leaves this list and the row
+      // unmounts, but one still below a band stays keyed by the same id, so React
+      // reuses this instance — collapsing the form is what returns it to its
+      // resting state instead of leaving the editor open over stale values.
+      onDone();
+      router.refresh();
+    });
   }
 
   return (

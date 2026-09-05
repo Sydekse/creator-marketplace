@@ -20,19 +20,14 @@ export const runtime = 'nodejs';
 export default async function AdminConsolePage() {
   const user = await requireRole('admin');
 
-  // KAN-23, AC-5. A creator who matched no tier is verified, invisible to
-  // discovery, and on no other screen — so the console has to say how many there
-  // are, or the only person who ever learns about them is whoever happened to be
-  // looking at the toast when they were approved.
-  const awaitingTier = await countAwaitingTier();
-
-  // KAN-51 AC-030: the disputed/refundable worklist count — the one number an
-  // admin should see without a click, because money is sitting on every row.
-  const disputed = await listWorklistForAdmin();
-
-  // KAN-78: the campaign count is the read layer's own list — the console card
-  // links to it, and the number is the same query the list page runs.
-  const campaigns = await listCampaignsForAdmin();
+  // KAN-23 AC-5 / KAN-51 AC-030 / KAN-78: three independent console reads —
+  // awaiting-tier count, disputed worklist, and the campaign list — fetched in
+  // parallel.
+  const [awaitingTier, disputed, campaigns] = await Promise.all([
+    countAwaitingTier(),
+    listWorklistForAdmin(),
+    listCampaignsForAdmin(),
+  ]);
 
   return (
     <BdShell className="bd-ad bd-ad-console">

@@ -16,7 +16,7 @@ import {
   HistoryValues,
   Stat,
 } from '@/components/campaign/insights';
-import { InsightChart } from '@/components/campaign/insight-chart';
+import { InsightChart } from '@/components/campaign/insight-chart-lazy';
 import { formatEtb } from '@/lib/money';
 import { formatDeadlineUtc } from '@/lib/dates';
 import {
