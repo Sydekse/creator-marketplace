@@ -167,9 +167,17 @@ export async function fillHydrated(
 /** Open the brand's campaign page by name. */
 export async function openCampaign(page: Page, campaignName: string) {
   await page.goto('/campaigns');
-  // The list renders the campaign name as the card title and the action as a
-  // "View campaign" / "Edit brief" link — the name itself is not a link. So
-  // the card is found by its text and the action link inside it is clicked.
-  const card = page.locator('li').filter({ hasText: campaignName });
-  await card.getByRole('link', { name: /View campaign|Edit brief/i }).click();
+  // Live campaigns render as whole-card links and closed ones as ledger
+  // rows — both carry an "Open {name}" accessible name. Drafts offer
+  // "Edit brief" instead, inside the row that names the campaign.
+  const open = page.getByRole('link', { name: `Open ${campaignName}` });
+  if ((await open.count()) > 0) {
+    await open.first().click();
+    return;
+  }
+  await page
+    .locator('.bd-caprow')
+    .filter({ hasText: campaignName })
+    .getByRole('link', { name: /Edit brief/i })
+    .click();
 }

@@ -40,14 +40,16 @@ test('KAN-78: a campaign ledger lists entries and reconciles', async ({
   await admin.goto('/admin/campaigns');
   await admin.getByRole('link', { name: 'Holiday Fashion' }).click();
 
-  // The completed deal's ledger: hold in, then payout + commission out.
+  // The completed deal's ledger: hold in, then payout + commission out. The
+  // v4 ledger renders as a column-ruled list, not a table.
   await expect(admin.getByText('Reconciled')).toBeVisible({ timeout: 15_000 });
-  await expect(admin.locator('tbody')).toContainText('hold');
-  await expect(admin.locator('tbody')).toContainText('release_payout');
-  await expect(admin.locator('tbody')).toContainText('commission'); // The totals cards render the money that left escrow. Scope to the dark
-  // card (the <dl>) to disambiguate from the ledger table rows below,
-  // which also contain 'Commission' and 'Paid out'.
-  const totals = admin.locator('dl');
+  const ledger = admin.locator('.bd-ad-ledgerlist');
+  await expect(ledger).toContainText('hold');
+  await expect(ledger).toContainText('release_payout');
+  await expect(ledger).toContainText('commission');
+  // The totals rail renders the money that left escrow. Scope to the dl that
+  // carries the Commission figure to disambiguate from the ledger rows below.
+  const totals = admin.locator('dl').filter({ hasText: 'Commission' });
   await expect(totals.getByText('Paid out')).toBeVisible();
   await expect(totals.getByText('Commission')).toBeVisible();
   await admin.close();

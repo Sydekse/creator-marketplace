@@ -34,10 +34,9 @@ test('flow 5: a failed payment leaves the campaign unfunded (AC-020)', async ({
   await brand.waitForURL(/\/(brand|creator|admin)(\/|$)/);
 
   await brand.goto('http://localhost:3002/campaigns');
-  // The list renders the campaign name as the card title; the action is a
-  // "View campaign" link inside the card (same shape the shared helper opens).
-  const card = brand.locator('li').filter({ hasText: 'Coffee Launch' });
-  await card.getByRole('link', { name: /View campaign/i }).click();
+  // The campaign renders as a ledger row whose action link carries the
+  // "Open {name}" accessible name (same shape the shared helper opens).
+  await brand.getByRole('link', { name: 'Open Coffee Launch' }).click();
   // Funding asks first through the shared ConfirmDialog — open it
   // (hydration-safe: the first click can land before React attaches the
   // handler, which is how this spec once idled to the full test timeout),
