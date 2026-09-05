@@ -181,6 +181,37 @@ describe('readBrandDeal — settlement and external refund are status-gated', ()
     };
   }
 
+  it.each(['completed', 'refunded'] as const)(
+    'starts the %s money read without waiting for deliverables',
+    async (status) => {
+      const { deps, selectSettlement, selectRefundStatus } = settlementDeps(
+        joinRow({ status })
+      );
+      let releaseVideos: (videos: BrandDeliverableView[]) => void = () => {};
+      const videos = new Promise<BrandDeliverableView[]>((resolve) => {
+        releaseVideos = resolve;
+      });
+      const selectDeliverables = vi.fn(() => videos);
+      const result = readBrandDeal(DEAL_ID, { ...deps, selectDeliverables });
+
+      try {
+        await vi.waitFor(() => {
+          expect(selectDeliverables).toHaveBeenCalledWith(DEAL_ID);
+          expect(
+            status === 'completed' ? selectSettlement : selectRefundStatus
+          ).toHaveBeenCalledWith(DEAL_ID);
+        });
+      } finally {
+        releaseVideos([video()]);
+      }
+
+      expect((await result)?.deliverables).toEqual([video()]);
+      expect(
+        status === 'completed' ? selectRefundStatus : selectSettlement
+      ).not.toHaveBeenCalled();
+    }
+  );
+
   it('fetches the ledger split only for a completed deal', async () => {
     const { deps, selectSettlement, selectRefundStatus } = settlementDeps(
       joinRow({ status: 'completed' })
@@ -284,15 +315,13 @@ describe('readBrandDeal — ownership is the base of the lookup', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('gates before it looks at the id', async () => {
-    // Order matters: a shape check that ran first would tell an unauthenticated
-    // caller which ids are well-formed. The gate throws, so a malformed id from a
-    // denied caller must still be a denial rather than a null.
+  it('rejects malformed ids without auth reads, but gates every valid id', async () => {
     const calls: SQL[] = [];
+    const requireBrand = vi.fn(async () => {
+      throw new Error('forbidden');
+    });
     const deps: BrandDealDeps = {
-      requireBrand: async () => {
-        throw new Error('forbidden');
-      },
+      requireBrand,
       select: async (where) => {
         calls.push(where);
         return null;
@@ -300,9 +329,12 @@ describe('readBrandDeal — ownership is the base of the lookup', () => {
       selectDeliverables: async () => [],
     };
 
-    await expect(readBrandDeal('not-a-uuid', deps)).rejects.toThrow(
-      'forbidden'
-    );
+    await expect(readBrandDeal('not-a-uuid', deps)).resolves.toBeNull();
+    expect(requireBrand).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
+
+    await expect(readBrandDeal(DEAL_ID, deps)).rejects.toThrow('forbidden');
+    expect(requireBrand).toHaveBeenCalledOnce();
     expect(calls).toHaveLength(0);
   });
 
