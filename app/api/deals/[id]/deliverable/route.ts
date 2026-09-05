@@ -108,6 +108,10 @@ export async function handleSubmitDeliverable(
       creatorProfileId,
       actorUserId,
       tiktokUrl: parsed.data.tiktokUrl,
+      requestId: parsed.data.requestId,
+      deliverableId: parsed.data.deliverableId,
+      expectedVersion: parsed.data.expectedVersion,
+      expectedSubmitted: parsed.data.expectedSubmitted,
     },
     deps?.submitDeliverableDeps
   );
@@ -143,13 +147,17 @@ export async function handleSubmitDeliverable(
   await storeDeliverableThumbnail(
     result.deliverableId,
     parsed.data.tiktokUrl,
-    deps?.storeThumbnailDeps
+    deps?.storeThumbnailDeps,
+    result.submissionVersion,
+    result.previousThumbnailUrl
   );
 
   return Response.json(
     {
       deal_id: result.dealId,
       deliverable_id: result.deliverableId,
+      submission_version: result.submissionVersion,
+      video_ordinal: result.videoOrdinal,
       status: result.status,
       // ISO string, like every timestamp in these envelopes.
       submitted_at: result.submittedAt.toISOString(),

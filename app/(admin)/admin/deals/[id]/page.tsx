@@ -6,6 +6,12 @@ import { DealHistory } from '@/components/deals/deal-history';
 import { getDealHistory } from '@/lib/deals/queries';
 import { ForbiddenError } from '@/lib/authz';
 import { cn, textLinkFeedback } from '@/lib/utils';
+import { readVideoEvidence } from '@/lib/deliverables/read-history';
+import { VideoHistory } from '@/components/deals/video-history';
+import { MetricsForm } from '@/components/deals/metrics-form';
+import { ResolveDisputeForm } from '@/components/admin/resolve-dispute-form';
+import { REVISION_CATEGORY_LABELS } from '@/lib/deliverables/evidence';
+import { labelForReviewStatus } from '@/lib/deals';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -40,8 +46,10 @@ export default async function AdminDealPage({
     typeof rawCampaign === 'string' ? rawCampaign : undefined;
 
   let events;
+  let evidence;
   try {
     events = await getDealHistory(id);
+    evidence = await readVideoEvidence(id);
   } catch (error) {
     if (error instanceof ForbiddenError) notFound();
     throw error;
@@ -71,6 +79,50 @@ export default async function AdminDealPage({
       <div className="border-y border-neutral-200 bg-neutral-100/35 px-4 py-5 sm:px-6">
         <DealHistory events={events} />
       </div>
+      {evidence.videos.map((video) => (
+        <section
+          key={video.id}
+          className="flex flex-col gap-3 rounded-xl border p-5"
+        >
+          <h2 className="font-medium">
+            Video {video.videoOrdinal} · Version {video.submissionVersion}
+          </h2>
+          <p>{labelForReviewStatus(video.reviewStatus)}</p>
+          <a
+            href={video.tiktokUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="break-all underline"
+          >
+            Current TikTok link
+          </a>
+          {video.revisionCategory && (
+            <p>{REVISION_CATEGORY_LABELS[video.revisionCategory]}</p>
+          )}
+          {video.rejectionReason && <p>{video.rejectionReason}</p>}
+          <VideoHistory
+            events={evidence.events.filter(
+              (event) => event.deliverableId === video.id
+            )}
+            limited={video.historyCompleteness === 'legacy_baseline'}
+          />
+          <MetricsForm
+            key={`${video.id}-${video.submissionVersion}`}
+            deliverableId={video.id}
+            expectedVersion={video.submissionVersion}
+          />
+        </section>
+      ))}
+      {['funded', 'delivered', 'revision_requested'].includes(
+        evidence.status
+      ) && (
+        <ResolveDisputeForm
+          dealId={id}
+          status={evidence.status}
+          campaignName={campaignName ?? 'Deal'}
+          displayedVideos={evidence.videos}
+        />
+      )}
 
       <div>
         <Link

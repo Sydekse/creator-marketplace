@@ -98,6 +98,8 @@ describe('computeSplit — commission and payout (spike §3.3)', () => {
  * this ticket.
  */
 interface Seed {
+  videos?: (typeof schema.deliverable.$inferSelect)[];
+  failHistory?: boolean;
   campaignStatus?: schema.CampaignStatus;
   /** When true the campaign lookup returns no row. */
   campaignMissing?: boolean;
@@ -168,6 +170,7 @@ class FakeDb {
     if (t === schema.dealEvent) return 'deal_event';
     if (t === schema.ledgerEntry) return 'ledger_entry';
     if (t === schema.deliverable) return 'deliverable';
+    if (t === schema.deliverableEvent) return 'deliverable_event';
     return 'unknown';
   }
 
@@ -185,6 +188,7 @@ class FakeDb {
     whereId?: string
   ): Record<string, unknown>[] {
     const name = this.tableName(table);
+    if (name === 'deliverable') return this.seed.videos ?? [];
 
     if (name === 'campaign') {
       if (this.seed.campaignMissing) return [];
@@ -283,6 +287,7 @@ class FakeDb {
         limited = true;
         return builder;
       },
+      orderBy: () => builder,
       then: (
         resolve: (v: Record<string, unknown>[]) => unknown,
         reject?: (e: unknown) => unknown
@@ -306,6 +311,8 @@ class FakeDb {
           v: Record<string, unknown> | Record<string, unknown>[]
         ) => {
           this.log.push(`insert:${this.tableName(table)}`);
+          if (table === schema.deliverableEvent && this.seed.failHistory)
+            throw new Error('history write failed');
           this.inserts.push({
             table: this.tableName(table),
             values: Array.isArray(v) ? v : [v],

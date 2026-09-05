@@ -1,5 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { VideoHistory } from '@/components/deals/video-history';
+import { selectVideoHistory } from '@/lib/deliverables/read-history';
+import { REVISION_CATEGORY_LABELS } from '@/lib/deliverables/evidence';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { DealHistory, DealProgressRail } from '@/components/deals/deal-history';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
@@ -107,6 +110,7 @@ export default async function CreatorDealDetailPage({
   if (!deal) notFound();
 
   const history = await getDealHistory(id);
+  const videoHistory = await selectVideoHistory(id);
 
   const isPending = canAct(deal.status);
 
@@ -287,10 +291,10 @@ export default async function CreatorDealDetailPage({
                 </p>
               </div>
 
-              {deal.deliverables.map((video, index) => (
+              {deal.deliverables.map((video) => (
                 <div
                   key={video.id}
-                  className="flex gap-5 rounded-[20px] border border-neutral-200 bg-background p-5"
+                  className="flex flex-col gap-5 rounded-[20px] border border-neutral-200 bg-background p-5 sm:flex-row"
                 >
                   {/* The 9:16 frame the landing page's deliverable mockup
                       established — now the real cover, with in-app playback
@@ -304,11 +308,12 @@ export default async function CreatorDealDetailPage({
                       // long-form URLs carry the id in the path.
                       video.tiktokVideoId ?? parseTiktokVideoId(video.tiktokUrl)
                     }
-                    videoLabel={videoHeading(index)}
+                    videoLabel={videoHeading(video.videoOrdinal - 1)}
                   />
                   <div className="flex min-w-0 flex-col gap-2">
                     <h3 className="text-sm font-medium">
-                      {videoHeading(index)}
+                      {videoHeading(video.videoOrdinal - 1)} · Version{' '}
+                      {video.submissionVersion}
                     </h3>
                     <p className="text-xs text-muted-foreground">
                       {SUBMITTED_AT_LABEL}:{' '}
@@ -331,9 +336,24 @@ export default async function CreatorDealDetailPage({
                         </p>
                       </div>
                     ) : null}
+                    {video.revisionCategory && (
+                      <p className="text-sm text-muted-foreground">
+                        {REVISION_CATEGORY_LABELS[video.revisionCategory]}
+                      </p>
+                    )}
+                    <VideoHistory
+                      events={videoHistory.filter(
+                        (event) => event.deliverableId === video.id
+                      )}
+                      limited={video.historyCompleteness === 'legacy_baseline'}
+                    />
                     {canReportMetrics(deal.status) ? (
                       <div className="pt-2">
-                        <MetricsForm deliverableId={video.id} />
+                        <MetricsForm
+                          key={`${video.id}-${video.submissionVersion}`}
+                          deliverableId={video.id}
+                          expectedVersion={video.submissionVersion}
+                        />
                       </div>
                     ) : null}
                   </div>
@@ -355,7 +375,15 @@ export default async function CreatorDealDetailPage({
                     {REMAINING_VIDEOS_MESSAGE}
                   </p>
                 ) : null}
-                <DeliverableForm dealId={deal.id} />
+                <DeliverableForm
+                  key={`${deal.deliverables.length}-${deal.deliverables[rejectedIndex]?.submissionVersion ?? 0}`}
+                  dealId={deal.id}
+                  deliverableId={deal.deliverables[rejectedIndex]?.id ?? null}
+                  expectedVersion={
+                    deal.deliverables[rejectedIndex]?.submissionVersion ?? 0
+                  }
+                  expectedSubmitted={deal.deliverables.length}
+                />
               </div>
             </div>
           ) : null}

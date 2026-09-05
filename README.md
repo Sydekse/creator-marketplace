@@ -53,6 +53,7 @@ append-only ledger inside the same database transaction as the deal state change
 
 - Guarded deal state machine; an illegal transition changes nothing and returns a specific error
 - Deliverable submission with TikTok URL validation
+- Stable video slots and permanent submission/revision history, with structured reported revision categories
 - Brand review — approve to pay, or reject with a reason while funds stay held for a revision
 - Engagement metrics per video, with totals on the campaign dashboard
 
@@ -232,16 +233,57 @@ components/                UI primitives and feature components
 
 ### Data model
 
-18 tables. The domain ones:
+23 tables. The core domain ones:
 
 `creator_profile` · `brand_profile` · `pricing_tier` · `campaign` · `campaign_item` ·
-`rights_terms` · `deal` · `deal_event` · `deliverable` · `video_metric` · `ledger_entry` ·
+`rights_terms` · `deal` · `deal_event` · `deliverable` · `deliverable_event` · `video_metric` · `ledger_entry` ·
 `audit_log` · `notification` · `provider_hold`
 
 Plus `user`, `session`, `account`, and `verification`, managed by Better Auth.
 
-`deal_event`, `ledger_entry`, and `audit_log` are append-only — inserts only, never updates — so the
+`deal_event`, `deliverable_event`, `ledger_entry`, and `audit_log` are append-only — inserts only, never updates — so the
 history of a deal and of every money movement is permanent.
+
+### Deliverable evidence and version consistency
+
+`deliverable.video_ordinal` is assigned under the deal lock and never changes on replacement.
+New videos begin at submission version 1. Migration `0018_kind_hemingway.sql` adopts surviving
+legacy rows as version 0 in deterministic submitted-time/ID order, preserving the currently
+recorded URL, review note/status, timestamps and latest metrics in a `legacy_baseline` event.
+This is not a reconstructed first submission: prior revisions and actor identities remain unknown.
+The completeness marker stays limited even after a legacy video is replaced.
+
+Submission, supersession, revision, review-ready/interrupted cycles and final dispositions are
+written inside the authoritative domain transaction. Partial submissions create video events
+without changing deal status. Approval remains one deal-level payout; all final versions receive
+batch approval together. Admin release/refund are distinct outcomes, and admin revision names
+one current video that the creator can replace. Event sequence orders tied timestamps.
+
+Submission bodies require `requestId` (UUID), `deliverableId` (null for a new slot),
+`expectedVersion` (0 for a new slot) and `expectedSubmitted`, alongside `tiktokUrl`.
+Retry the same request ID/payload after a lost response; changing its payload is a conflict.
+Rejection requires `deliverableId`, `expectedVersion`, `category` and `reason`.
+Approval takes `expectedVersions: [{ id, submissionVersion }]`, never payment amounts.
+Metrics require `expectedVersion` plus one or more counts; version 0 remains writable.
+`DELIVERABLE_VERSION_STALE` is a 409 instructing the user to reload.
+
+Replacing even the same URL archives the prior latest metric row as supersession evidence,
+then clears current metrics and media atomically. Metrics lock the deal before checking the
+current version. Post-commit thumbnail saves compare version and prior thumbnail atomically;
+losing results are discarded and only unreferenced application blobs are cleaned up.
+Historical evidence retains URLs/text, not a thumbnail/video-file archive.
+
+Supported now: recorded revision reasons, submission versions, deal review-cycle evidence and
+current-version metric isolation. Partial: historical coverage (explicitly limited for legacy
+records), best-effort current thumbnails, and manually reported latest metrics. Deferred:
+Campaign Insights/ratios/charts, agreed deadlines/punctuality, independent video approval,
+automatic metrics, time series and historical media storage.
+
+Deploy the additive migration together with the version-aware application; older forms must
+reload. Do not drop evidence tables for an application rollback. An older writer can leave
+coverage gaps: use a forward fix or explicitly mark affected history limited, never claim
+gap-free evidence across an old-writer deployment. Database migration/integration tests must
+use an isolated disposable database, not preview or production.
 
 ### API errors
 

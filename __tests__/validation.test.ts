@@ -84,7 +84,8 @@ describe('ErrorCode enum', () => {
     //
     // The count is the point of this test: it is what makes adding a code a
     // deliberate act rather than something that slips in.
-    expect(codes).toHaveLength(33);
+    expect(codes).toHaveLength(34);
+    expect(codes).toContain(ErrorCode.DELIVERABLE_VERSION_STALE);
     expect(codes).toContain(ErrorCode.OTP_RATE_LIMITED);
     expect(codes).toContain(ErrorCode.STATS_REFRESH_RATE_LIMITED);
     expect(codes).toContain(ErrorCode.STATS_FETCH_FAILED);
@@ -508,8 +509,15 @@ describe('acceptDealSchema', () => {
 });
 
 describe('submitDeliverableSchema', () => {
+  const request = {
+    requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    deliverableId: null,
+    expectedVersion: 0,
+    expectedSubmitted: 0,
+  };
   it('accepts a valid TikTok video URL', () => {
     const result = submitDeliverableSchema.parse({
+      ...request,
       tiktokUrl: 'https://www.tiktok.com/@user/video/1234567890123456789',
     });
     expect(result.tiktokUrl).toContain('tiktok.com');
@@ -520,6 +528,7 @@ describe('submitDeliverableSchema', () => {
     // a valid public video link on the `m.` host is still a valid public
     // video link.
     const result = submitDeliverableSchema.parse({
+      ...request,
       tiktokUrl: 'https://m.tiktok.com/@user/video/1234567890123456789',
     });
     expect(result.tiktokUrl).toContain('m.tiktok.com');
@@ -546,11 +555,13 @@ describe('submitDeliverableSchema', () => {
   it('accepts a vm.tiktok.com short URL with or without a trailing slash', () => {
     expect(
       submitDeliverableSchema.parse({
+        ...request,
         tiktokUrl: 'https://vm.tiktok.com/abc123/',
       }).tiktokUrl
     ).toBe('https://vm.tiktok.com/abc123/');
     expect(
       submitDeliverableSchema.parse({
+        ...request,
         tiktokUrl: 'https://vm.tiktok.com/abc123',
       }).tiktokUrl
     ).toBe('https://vm.tiktok.com/abc123');
@@ -560,6 +571,7 @@ describe('submitDeliverableSchema', () => {
     // TikTok share links arrive with `?is_from_webapp=1&…`; bouncing them
     // would reject the exact strings a creator copies out of the app.
     const result = submitDeliverableSchema.parse({
+      ...request,
       tiktokUrl:
         'https://www.tiktok.com/@user/video/1234567890123456789?is_from_webapp=1&sender_device=pc',
     });
@@ -569,6 +581,7 @@ describe('submitDeliverableSchema', () => {
   it('accepts a protocol-less link and trims paste whitespace', () => {
     expect(
       submitDeliverableSchema.parse({
+        ...request,
         tiktokUrl: '  www.tiktok.com/@user/video/123  ',
       }).tiktokUrl
     ).toBe('www.tiktok.com/@user/video/123');
@@ -635,6 +648,8 @@ describe('rejectDeliverableSchema', () => {
 
   it('accepts a rejection with a video and a reason', () => {
     const result = rejectDeliverableSchema.parse({
+      expectedVersion: 1,
+      category: 'brief_requirement',
       deliverableId: VIDEO_ID,
       reason: 'Does not match the brief.',
     });
@@ -660,6 +675,8 @@ describe('rejectDeliverableSchema', () => {
     // The reason fans out to the deliverable row and the creator's email;
     // leading/trailing whitespace would be stored and quoted verbatim.
     const result = rejectDeliverableSchema.parse({
+      expectedVersion: 1,
+      category: 'brief_requirement',
       deliverableId: VIDEO_ID,
       reason: '  Does not match the brief.  ',
     });
@@ -731,13 +748,17 @@ describe('flagDealSchema', () => {
 
 describe('updateMetricsSchema', () => {
   it('accepts partial metrics', () => {
-    const result = updateMetricsSchema.parse({ views: 1000, likes: 500 });
+    const result = updateMetricsSchema.parse({
+      expectedVersion: 1,
+      views: 1000,
+      likes: 500,
+    });
     expect(result.views).toBe(1000);
     expect(result.likes).toBe(500);
   });
 
   it('accepts a genuine zero', () => {
-    const result = updateMetricsSchema.parse({ views: 0 });
+    const result = updateMetricsSchema.parse({ expectedVersion: 0, views: 0 });
     expect(result.views).toBe(0);
   });
 
@@ -758,9 +779,10 @@ describe('updateMetricsSchema', () => {
   });
 
   it('accepts the top of the Postgres integer range', () => {
-    expect(updateMetricsSchema.parse({ views: 2_147_483_647 }).views).toBe(
-      2_147_483_647
-    );
+    expect(
+      updateMetricsSchema.parse({ expectedVersion: 1, views: 2_147_483_647 })
+        .views
+    ).toBe(2_147_483_647);
   });
 
   it('rejects unknown fields instead of stripping them', () => {
@@ -802,6 +824,7 @@ describe('resolveDisputeSchema', () => {
   it('accepts release resolution', () => {
     const result = resolveDisputeSchema.parse({
       resolution: 'release',
+      expectedVersions: [],
       note: 'Approved after review.',
     });
     expect(result.resolution).toBe('release');
@@ -818,6 +841,9 @@ describe('resolveDisputeSchema', () => {
   it('accepts revision resolution', () => {
     const result = resolveDisputeSchema.parse({
       resolution: 'revision',
+      deliverableId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      expectedVersion: 1,
+      category: 'brief_requirement',
       note: 'Requesting re-edit.',
     });
     expect(result.resolution).toBe('revision');

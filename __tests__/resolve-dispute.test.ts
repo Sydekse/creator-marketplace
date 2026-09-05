@@ -639,8 +639,15 @@ describe('resolveDisputeSchema', () => {
   it('accepts all three resolutions with a note', () => {
     for (const resolution of ['release', 'refund', 'revision'] as const) {
       expect(
-        resolveDisputeSchema.parse({ resolution, note: 'Resolved.' })
-      ).toEqual({ resolution, note: 'Resolved.' });
+        resolveDisputeSchema.parse({
+          resolution,
+          note: 'Resolved.',
+          expectedVersions: [],
+          deliverableId: DEAL_ID,
+          expectedVersion: 1,
+          category: 'brief_requirement',
+        })
+      ).toMatchObject({ resolution, note: 'Resolved.' });
     }
   });
 
@@ -707,6 +714,14 @@ describe('POST /api/admin/deals/[id]/resolve', () => {
   });
 
   function post(body: unknown, id = DEAL_ID): Request {
+    if (typeof body === 'object' && body !== null)
+      body = {
+        expectedVersions: [],
+        deliverableId: DEAL_ID,
+        expectedVersion: 1,
+        category: 'brief_requirement',
+        ...body,
+      };
     return new Request(`http://localhost/api/admin/deals/${id}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

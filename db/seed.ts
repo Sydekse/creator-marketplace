@@ -850,6 +850,9 @@ async function walkDealTo(
     Array.from({ length: videoCount }, (_, index) => ({
       dealId,
       tiktokUrl: `https://www.tiktok.com/${creatorHandle}/video/${demoVideoId(dealId, index)}`,
+      videoOrdinal: index + 1,
+      submissionVersion: 0,
+      historyCompleteness: 'legacy_baseline' as const,
       submittedAt: new Date(submittedAt.getTime() + index * 1000),
     }))
   );

@@ -3,6 +3,7 @@ import {
   bigserial,
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -15,6 +16,11 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { user } from './auth-schema';
+import type {
+  DeliverableEventKind,
+  EvidenceMetadata,
+  RevisionCategory,
+} from '@/lib/deliverables/evidence';
 
 /**
  * Data model for the Creator Marketplace MVP — Tech Spec §3.2.
@@ -386,6 +392,14 @@ export const deliverable = pgTable(
       .notNull()
       .references(() => deal.id),
     tiktokUrl: text('tiktok_url').notNull(),
+    videoOrdinal: integer('video_ordinal').notNull(),
+    submissionVersion: integer('submission_version').notNull().default(1),
+    historyCompleteness: text('history_completeness')
+      .$type<'complete' | 'legacy_baseline'>()
+      .notNull()
+      .default('complete'),
+    revisionCategory: text('revision_category').$type<RevisionCategory>(),
+    reviewCycleId: uuid('review_cycle_id'),
     submittedAt: timestamp('submitted_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -420,6 +434,59 @@ export const deliverable = pgTable(
     // metric-reminder sweep — so the lookup that was free under `unique` has
     // to stay free without it.
     index('deliverable_deal_id_idx').on(t.dealId),
+    unique('deliverable_deal_ordinal_unique').on(t.dealId, t.videoOrdinal),
+    unique('deliverable_id_deal_unique').on(t.id, t.dealId),
+    check('deliverable_ordinal_positive', sql`${t.videoOrdinal} > 0`),
+    check('deliverable_version_nonnegative', sql`${t.submissionVersion} >= 0`),
+    check(
+      'deliverable_history_completeness',
+      sql`${t.historyCompleteness} in ('complete', 'legacy_baseline')`
+    ),
+  ]
+);
+
+export const deliverableEvent = pgTable(
+  'deliverable_event',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    seq: bigserial('seq', { mode: 'number' }).notNull().unique(),
+    dealId: uuid('deal_id').notNull(),
+    deliverableId: uuid('deliverable_id').notNull(),
+    submissionVersion: integer('submission_version').notNull(),
+    kind: text('kind').$type<DeliverableEventKind>().notNull(),
+    actorId: uuid('actor_id').references(() => user.id),
+    actorRole: text('actor_role')
+      .$type<UserRole | 'system' | 'unknown'>()
+      .notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    tiktokUrl: text('tiktok_url').notNull(),
+    revisionCategory: text('revision_category').$type<RevisionCategory>(),
+    note: text('note'),
+    reviewCycleId: uuid('review_cycle_id'),
+    requestId: uuid('request_id'),
+    metadata: jsonb('metadata').$type<EvidenceMetadata>().notNull().default({}),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.deliverableId, t.dealId],
+      foreignColumns: [deliverable.id, deliverable.dealId],
+    }),
+    index('deliverable_event_deal_seq_idx').on(t.dealId, t.seq),
+    index('deliverable_event_video_seq_idx').on(t.deliverableId, t.seq),
+    index('deliverable_event_kind_time_idx').on(t.kind, t.occurredAt),
+    uniqueIndex('deliverable_event_request_unique')
+      .on(t.dealId, t.requestId)
+      .where(sql`${t.requestId} is not null`),
+    uniqueIndex('deliverable_event_version_kind_unique')
+      .on(t.deliverableId, t.submissionVersion, t.kind)
+      .where(sql`${t.kind} not in ('review_ready', 'review_interrupted')`),
+    uniqueIndex('deliverable_event_cycle_unique')
+      .on(t.deliverableId, t.reviewCycleId, t.kind)
+      .where(sql`${t.reviewCycleId} is not null`),
+    check(
+      'deliverable_event_version_nonnegative',
+      sql`${t.submissionVersion} >= 0`
+    ),
   ]
 );
 
@@ -435,6 +502,7 @@ export const videoMetric = pgTable('video_metric', {
     .unique()
     .references(() => deliverable.id),
   views: integer('views'),
+  submissionVersion: integer('submission_version').notNull().default(0),
   likes: integer('likes'),
   shares: integer('shares'),
   comments: integer('comments'),

@@ -178,6 +178,7 @@ export async function transitionDeal(
   actorId?: string | null,
   opts?: {
     reason?: string;
+    occurredAt?: Date;
     /**
      * Extra columns written in the same UPDATE as the status. The accept path
      * uses this to stamp the agreed rights terms atomically with `accepted`:
@@ -222,6 +223,7 @@ export async function transitionDeal(
     toStatus,
     actorId: actorId ?? null,
     reason: opts?.reason,
+    ...(opts?.occurredAt ? { createdAt: opts.occurredAt } : {}),
   });
 
   return { ...row, status: toStatus };

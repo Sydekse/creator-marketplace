@@ -127,6 +127,13 @@
       "when": 1788425294612,
       "tag": "0017_deliverable-thumbnail",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788583888865,
+      "tag": "0018_kind_hemingway",
+      "breakpoints": true
     }
   ]
 }

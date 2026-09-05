@@ -50,6 +50,11 @@ import { UUID_REGEX } from '@/lib/validation';
 
 /** One submitted video, as the reviewing brand sees it. */
 export interface BrandDeliverableView {
+  videoOrdinal: number;
+  submissionVersion: number;
+  historyCompleteness: 'complete' | 'legacy_baseline';
+  revisionCategory:
+    import('@/lib/deliverables/evidence').RevisionCategory | null;
   /**
    * The row's own id — the target of `POST /api/deals/{id}/reject`, which now
    * names which video is being sent back (F38). The URL is not enough: two
@@ -229,6 +234,10 @@ export function brandDealDeliverablesQuery(dealId: string) {
   return db
     .select({
       id: deliverable.id,
+      videoOrdinal: deliverable.videoOrdinal,
+      submissionVersion: deliverable.submissionVersion,
+      historyCompleteness: deliverable.historyCompleteness,
+      revisionCategory: deliverable.revisionCategory,
       tiktokUrl: deliverable.tiktokUrl,
       submittedAt: deliverable.submittedAt,
       reviewStatus: deliverable.reviewStatus,
@@ -239,7 +248,7 @@ export function brandDealDeliverablesQuery(dealId: string) {
     })
     .from(deliverable)
     .where(eq(deliverable.dealId, dealId))
-    .orderBy(asc(deliverable.submittedAt));
+    .orderBy(asc(deliverable.videoOrdinal));
 }
 
 /*

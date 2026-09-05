@@ -220,6 +220,7 @@ export async function createMoneyFixture(opts: {
   flagged?: boolean;
   /** Human tag embedded in the campaign name, for greppable fixtures. */
   label: string;
+  videoCount?: number;
 }): Promise<{ dealId: string; campaignId: string }> {
   const { kind, flagged = false, label } = opts;
 
@@ -252,7 +253,7 @@ export async function createMoneyFixture(opts: {
     throw new Error('[integration] no rights terms seeded');
   }
 
-  const videoCount = 2;
+  const videoCount = opts.videoCount ?? 2;
   const totalPrice = creator.pricePerVideo * videoCount;
   const tag = crypto.randomUUID().slice(0, 8);
 

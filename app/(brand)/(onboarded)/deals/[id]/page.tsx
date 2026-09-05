@@ -1,5 +1,8 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { VideoHistory } from '@/components/deals/video-history';
+import { selectVideoHistory } from '@/lib/deliverables/read-history';
+import { REVISION_CATEGORY_LABELS } from '@/lib/deliverables/evidence';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { DealHistory } from '@/components/deals/deal-history';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
@@ -87,6 +90,7 @@ export default async function BrandDealReviewPage({
   if (!deal) notFound();
 
   const history = await getDealHistory(id);
+  const videoHistory = await selectVideoHistory(id);
 
   const reviewable = canReview(deal.status);
 
@@ -201,12 +205,15 @@ export default async function BrandDealReviewPage({
             </p>
           </div>
 
-          {deal.deliverables.map((video, index) => (
+          {deal.deliverables.map((video) => (
             <div
               key={video.id}
               className="flex flex-col gap-2 rounded-[20px] border border-neutral-200 bg-neutral-50 p-5"
             >
-              <h3 className="text-sm font-medium">{videoHeading(index)}</h3>
+              <h3 className="text-sm font-medium">
+                {videoHeading(video.videoOrdinal - 1)} · Version{' '}
+                {video.submissionVersion}
+              </h3>
               <TiktokVideoCard
                 tiktokUrl={video.tiktokUrl}
                 thumbnailUrl={video.thumbnailUrl}
@@ -215,7 +222,7 @@ export default async function BrandDealReviewPage({
                   // long-form URLs carry the id in the path.
                   video.tiktokVideoId ?? parseTiktokVideoId(video.tiktokUrl)
                 }
-                videoLabel={videoHeading(index)}
+                videoLabel={videoHeading(video.videoOrdinal - 1)}
               />
               <p className="text-sm text-muted-foreground">
                 {SUBMITTED_AT_LABEL}: {formatDeadlineUtc(video.submittedAt)}
@@ -248,6 +255,17 @@ export default async function BrandDealReviewPage({
                   </p>
                 </div>
               ) : null}
+              {video.revisionCategory && (
+                <p className="text-sm text-muted-foreground">
+                  {REVISION_CATEGORY_LABELS[video.revisionCategory]}
+                </p>
+              )}
+              <VideoHistory
+                events={videoHistory.filter(
+                  (event) => event.deliverableId === video.id
+                )}
+                limited={video.historyCompleteness === 'legacy_baseline'}
+              />
               {/* AC-024, per video. Gated on the same `canReview` as the deal-level
                   approve: a deal the brand has already sent back is with the
                   creator, so there is nothing to send back a second time. */}
@@ -256,7 +274,8 @@ export default async function BrandDealReviewPage({
                   <RejectVideoForm
                     dealId={deal.id}
                     deliverableId={video.id}
-                    videoLabel={videoHeading(index)}
+                    expectedVersion={video.submissionVersion}
+                    videoLabel={videoHeading(video.videoOrdinal - 1)}
                   />
                 </div>
               ) : null}
@@ -280,7 +299,14 @@ export default async function BrandDealReviewPage({
           here: the case order matters and the page is the wrong place to keep a
           rule worth testing. */}
       {reviewable ? (
-        <ApproveDealButton dealId={deal.id} videoCount={deal.videoCount} />
+        <ApproveDealButton
+          dealId={deal.id}
+          videoCount={deal.videoCount}
+          expectedVersions={deal.deliverables.map((video) => ({
+            id: video.id,
+            submissionVersion: video.submissionVersion,
+          }))}
+        />
       ) : null}
       {absence ? (
         <p className="text-sm text-muted-foreground">{absence}</p>

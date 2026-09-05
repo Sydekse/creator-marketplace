@@ -119,6 +119,10 @@ const joinRow = (over: Partial<BrandDealJoinRow> = {}): BrandDealJoinRow => ({
 const video = (
   over: Partial<BrandDeliverableView> = {}
 ): BrandDeliverableView => ({
+  videoOrdinal: 1,
+  submissionVersion: 1,
+  historyCompleteness: 'complete',
+  revisionCategory: null,
   id: DELIVERABLE_ID,
   tiktokUrl: 'https://www.tiktok.com/@selam/video/123',
   submittedAt: new Date('2026-08-15T09:00:00Z'),
@@ -418,7 +422,7 @@ describe('readBrandDeal — the deal’s videos are a second, gated read (F38)',
     );
 
     expect(query).toContain('eq(deliverable.dealId, dealId)');
-    expect(query).toContain('asc(deliverable.submittedAt)');
+    expect(query).toContain('asc(deliverable.videoOrdinal)');
   });
 
   it('no longer joins the deliverable into the one-row deal query', () => {
@@ -438,7 +442,7 @@ describe('readBrandDeal — the deal’s videos are a second, gated read (F38)',
     // The reject endpoint takes a `deliverableId` now. Without the id on the read
     // the screen could render three videos and send back none of them.
     expect(src(READ_MODULE)).toMatch(
-      /interface BrandDeliverableView \{\s*\n\s*id: string/
+      /interface BrandDeliverableView \{[^}]*id: string/
     );
   });
 
@@ -716,7 +720,7 @@ describe('the review page is the surface the endpoints were missing', () => {
 
   it('lists every submitted video with its own link and timestamp (AC-3)', () => {
     expect(page).toContain('DELIVERABLES_TITLE');
-    expect(page).toContain('videoHeading(index)');
+    expect(page).toContain('videoHeading(video.videoOrdinal - 1)');
     expect(page).toContain('SUBMITTED_AT_LABEL');
     expect(page).toContain('video.tiktokUrl');
   });
@@ -836,15 +840,15 @@ describe('ReviewActions posts to the endpoints and re-reads the server', () => {
     );
   });
 
-  it('sends no body to approve', () => {
+  it('sends current versions, never payment amounts, to approve', () => {
     // The amounts are derived under the ledger's lock, so there is nothing for a
     // client to vary except which deal — and that is in the path.
     const approve = source.slice(
       source.indexOf('export function ApproveDealButton'),
       source.indexOf('export function RejectVideoForm')
     );
-    expect(approve).toMatch(/\{ method: 'POST' \}/);
-    expect(approve).not.toContain('JSON.stringify');
+    expect(approve).toMatch(/JSON.stringify\(\{\s*expectedVersions\s*\}\)/);
+    expect(approve).not.toContain('JSON.stringify({payout');
   });
 
   it('confirms before an irreversible payment, naming the whole deal', () => {

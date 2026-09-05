@@ -9,7 +9,6 @@ import {
   guardForCookie,
   profileIdForEmail,
   realAssignTierDeps,
-  seededDeal,
   signInCookie,
 } from './helpers';
 
@@ -67,7 +66,10 @@ describe('RBAC per endpoint (NFR-005)', () => {
     // A deliverable row the creator's own deal would have — built by the test
     // so the ownership question is about *this* row, whatever state the other
     // suites leave the seeded deals in.
-    const { dealId } = await seededDeal('Coffee Launch');
+    const { dealId } = await createMoneyFixture({
+      kind: 'funded',
+      label: 'metrics ownership',
+    });
     const [deliv] = await db
       .insert(deliverable)
       .values({
@@ -75,6 +77,7 @@ describe('RBAC per endpoint (NFR-005)', () => {
         tiktokUrl:
           'https://www.tiktok.com/@creator.demo/video/integration-rbac',
         reviewStatus: 'pending',
+        videoOrdinal: 1,
       })
       .returning({ id: deliverable.id });
 
@@ -83,21 +86,30 @@ describe('RBAC per endpoint (NFR-005)', () => {
     const brandCookie = await signInCookie('brand@demo.com');
 
     const asBrand = await handleRecordMetrics(
-      request(`/api/deliverables/${deliv.id}/metrics`, { views: 5 }),
+      request(`/api/deliverables/${deliv.id}/metrics`, {
+        views: 5,
+        expectedVersion: 1,
+      }),
       deliv.id,
       { guard: guardForCookie(brandCookie) }
     );
     expect(asBrand.status).toBe(403);
 
     const asOtherOwner = await handleRecordMetrics(
-      request(`/api/deliverables/${deliv.id}/metrics`, { views: 5 }),
+      request(`/api/deliverables/${deliv.id}/metrics`, {
+        views: 5,
+        expectedVersion: 1,
+      }),
       deliv.id,
       { guard: guardForCookie(otherCreatorCookie) }
     );
     expect(asOtherOwner.status).toBe(403);
 
     const asOwner = await handleRecordMetrics(
-      request(`/api/deliverables/${deliv.id}/metrics`, { views: 5 }),
+      request(`/api/deliverables/${deliv.id}/metrics`, {
+        views: 5,
+        expectedVersion: 1,
+      }),
       deliv.id,
       { guard: guardForCookie(ownerCookie) }
     );
@@ -126,9 +138,13 @@ describe('RBAC per endpoint (NFR-005)', () => {
     // The brand owns this deal, so the guard admits them and the payout runs
     // for real against the live hold — 200 proves authorization AND the money
     // path end to end.
-    const asBrand = await handleApproveDeliverable(dealId, {
-      guard: guardForCookie(brandCookie),
-    });
+    const asBrand = await handleApproveDeliverable(
+      dealId,
+      {
+        guard: guardForCookie(brandCookie),
+      },
+      request(`/api/deals/${dealId}/approve`, { expectedVersions: [] })
+    );
     expect(asBrand.status).toBe(200);
   });
 });
