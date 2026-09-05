@@ -46,6 +46,8 @@ import { FundCheckoutButton } from '@/components/campaign/fund-checkout-button';
 import { PendingPaymentBanner } from '@/components/campaign/pending-payment-banner';
 import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-button';
 import { VideoPerformance } from '@/components/campaign/video-performance';
+import { CampaignInsightsPanel } from '@/components/campaign/insights';
+import { readCampaignInsights } from '@/lib/campaigns/insights';
 import { EmptyState } from '@/components/feedback/empty-state';
 import { MagneticLink } from '@/components/motion/magnetic-link';
 import { StatusPulse } from '@/components/motion/status-pulse';
@@ -115,6 +117,8 @@ export default async function CampaignCartPage({
   if (!campaign) notFound();
 
   const settled = campaign.status !== 'draft';
+  const PageFrame = settled ? 'div' : StaggerIn;
+  const BackLink = settled ? Link : MagneticLink;
   // Which money rails the fund control drives (KAN-70): `mock` funds in one
   // POST; anything else leaves for Chapa's hosted checkout, and a campaign
   // with an open checkout shows the resume/cancel banner instead of a button.
@@ -132,6 +136,7 @@ export default async function CampaignCartPage({
     performance,
     openSession,
     contractedVideos,
+    insights,
   ] = await Promise.all([
     listCartItems(campaign.id),
     readCampaignBudget(campaign.id),
@@ -145,6 +150,7 @@ export default async function CampaignCartPage({
     campaign.status === 'draft'
       ? Promise.resolve(0)
       : sumContractedVideos(campaign.id),
+    settled ? readCampaignInsights(campaign.id) : Promise.resolve(null),
   ]);
 
   const { committed, available } = budget ?? {
@@ -159,8 +165,8 @@ export default async function CampaignCartPage({
   });
 
   return (
-    <StaggerIn className="mx-auto flex max-w-6xl flex-col gap-10 py-4">
-      <MagneticLink
+    <PageFrame className="mx-auto flex max-w-6xl flex-col gap-10 py-4">
+      <BackLink
         href="/campaigns"
         className="group inline-flex w-fit items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-700 transition-[border-color,background-color,color,transform] duration-200 ease-[var(--ease-smooth)] hover:border-neutral-300 hover:bg-white hover:text-neutral-900 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
       >
@@ -171,7 +177,7 @@ export default async function CampaignCartPage({
           className="transition-transform duration-200 ease-[var(--ease-smooth)] group-hover:-translate-x-0.5"
         />
         Back to campaigns
-      </MagneticLink>
+      </BackLink>
 
       <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.9fr)] lg:gap-16">
         <div className="flex min-w-0 flex-col gap-10">
@@ -185,7 +191,14 @@ export default async function CampaignCartPage({
                 tone={campaignStatusTone[campaign.status] ?? 'gray'}
                 className="capitalize"
               >
-                <StatusPulse className="mr-1.5" />
+                {settled ? (
+                  <span
+                    className="mr-1.5 inline-flex size-1.5 rounded-full bg-current"
+                    aria-hidden
+                  />
+                ) : (
+                  <StatusPulse className="mr-1.5" />
+                )}
                 {campaignStatusLabel(campaign.status)}
               </Chip>
               <span>Opened {created}</span>
@@ -235,12 +248,7 @@ export default async function CampaignCartPage({
             <div className="border-b border-neutral-200" aria-hidden="true" />
           </header>
 
-          {settled ? (
-            <VideoPerformance
-              deals={performance.deals}
-              totals={performance.totals}
-            />
-          ) : (
+          {settled ? null : (
             <>
               <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
                 Cart ({items.length})
@@ -420,6 +428,13 @@ export default async function CampaignCartPage({
           </section>
         </aside>
       </div>
-    </StaggerIn>
+      {settled && insights && <CampaignInsightsPanel insights={insights} />}
+      {settled ? (
+        <VideoPerformance
+          deals={performance.deals}
+          totals={performance.totals}
+        />
+      ) : null}
+    </PageFrame>
   );
 }

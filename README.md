@@ -40,6 +40,75 @@ append-only ledger inside the same database transaction as the deal state change
 - A shortlist that enforces the budget ceiling as a server-side invariant, re-checked on confirm
   and again on fund
 - Versioned usage-rights terms, snapshotted onto each deal at acceptance
+- Campaign Insights: recorded costs/results, separate CPV/CPE cohorts, creator
+  contributions, and your brand's collaboration evidence (see below).
+
+### Campaign Insights: interpreting the evidence
+
+Non-draft campaign pages keep funding and the authoritative settlement panel
+above insights; the draft cart is unchanged. Recharts v3 renders small client
+islands beside server-rendered exact values. All comparisons and sorting use
+the same pure model, with unavailable ratios last. Native disclosures, contained
+table scrolling, fixed chart dimensions and non-animated bars support keyboard,
+touch and reduced motion. Campaign routes deliberately do not use streaming
+`loading.tsx` fallbacks: an authenticated, JavaScript-disabled browser receives
+the exact values rather than a loading screen that needs a script to resolve.
+
+- **Cost:** prices remain integer santim. Settled spend is ledger payout plus
+  commission (never commission added twice); refunds are separate. Committed
+  cost uses the existing status-aware budget policy, not the settlement total.
+- **Efficiency:** video CPV uses unit price; deal CPV needs views for every
+  ordered current video. CPE needs likes, comments **and** shares for every
+  included video. Headline and creator figures divide summed completed,
+  fully measured deal cost by summed results, never average individual ratios.
+  CPV and CPE can include different deals. Measured zero-result deals retain
+  their cost in a cohort; a zero total denominator is unavailable. Each chart
+  states its included deals/videos/cost and exclusions.
+- **Contributions:** cost share and result share always use the same eligible
+  cohort. Known repeated TikTok identities exclude affected deals from
+  comparisons; raw totals remain labeled as potentially double-counted.
+  Opaque short-link identities are not guessed.
+- **Coverage:** each count has its own measured-video denominator. Null means
+  unknown, not zero. Only current-submission-version metrics are read. Raw
+  totals cover all issued-deal statuses, unlike completed-deal comparisons.
+  Counts are creator/admin reported; the row-wide timestamp is a last record
+  update, not the measurement time of every field. Stale values stay qualified.
+  Small ETB ratios use four decimal places, or `<0.0001 ETB`.
+- **Your collaboration history:** includes only the viewing brand's campaigns
+  involving displayed creators. Acceptance means ever accepted/all issued;
+  completion means completed/ever funded, with ongoing/refunded separated.
+  Deal revision incidence separates open/closed and brand/admin evidence.
+  Video incidence and revision-free batch approvals require fully captured
+  history; revision rounds are separate counts. Admin payment release is not
+  brand approval. Reported reason categories remain feedback, including unknown.
+- **Elapsed timing:** medians and sample counts cover funding to first full
+  delivery, complete review-ready cycles to recorded decisions, and rejection
+  to its next-version replacement. Open waiting and interrupted intervals are
+  separate, not completed samples. Missing legacy evidence never becomes an
+  instant delivery or a revision-free approval. This is not active review
+  effort or a judgment about responsibility.
+
+`lib/campaigns/insights.ts` guards ownership, rechecks the owner and reads all
+related rows in one read-only repeatable-read transaction. Every read is
+brand-scoped; creators, videos and evidence are fetched in batches, not per card.
+Pure `insight-model.ts`, `insight-history.ts` and `insight-display.ts` own
+calculation and presentation projections. Read failures propagate to the route's
+error handling rather than being replaced with fabricated empty data.
+
+**Supported:** current recorded efficiency, cohort contributions, brand-only
+acceptance/completion/revision evidence and recorded elapsed workflow timing.
+**Limited:** legacy history, incomplete or stale manual counts, unresolved video
+identities and differently aged observations. **Deferred:** agreed deadlines and
+punctuality (PR3), fault attribution, independent video approval, automatic
+deliverable metrics, growth/time-series, unique reach, conversions/ROI,
+cross-brand rankings and global reliability scores.
+
+Validation uses the existing Vitest unit/coverage and PostgreSQL integration
+runners plus `e2e/campaign-insights.spec.ts` for desktop/mobile Chromium/WebKit.
+Browser fixtures require an isolated local test database and include separate
+CPV/CPE cohorts, measured zeros, partial coverage, stale/old-version records,
+duplicates, refunds, legacy evidence, admin release and JavaScript-disabled
+exact-value views. Never point fixture/migration commands at a live database.
 
 **Money**
 
