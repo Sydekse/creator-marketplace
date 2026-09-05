@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { JetBrains_Mono, Outfit } from 'next/font/google';
+import { bdMono, bdSans } from '@/lib/fonts';
 import { FilterCount } from '@/components/discovery/filter-count';
 import { DiscoverFilterForm } from '@/components/discovery/filter-form';
 import { FilterSelect } from '@/components/discovery/filter-select';
@@ -70,17 +70,6 @@ export const runtime = 'nodejs';
  * The bookable rule appears nowhere below. `readDiscovery` owns it, seeded into
  * the query before any filter here is read (AC-006).
  */
-
-const bdSans = Outfit({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-bd-sans',
-});
-const bdMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-bd-mono',
-});
 
 type DiscoverFilters = ReturnType<typeof discoverCreatorsSchema.parse>;
 

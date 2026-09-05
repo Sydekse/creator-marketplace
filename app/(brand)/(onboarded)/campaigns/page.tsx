@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { JetBrains_Mono, Outfit } from 'next/font/google';
+import { bdMono, bdSans } from '@/lib/fonts';
 import { CancelCampaignButton } from '@/components/campaign/cancel-campaign-button';
 import { CampaignSort } from '@/components/campaign/campaign-sort';
 import { requireRole } from '@/lib/auth';
@@ -33,17 +33,6 @@ export const runtime = 'nodejs';
  * is still theirs, and a draft-only list would drop it from view the moment
  * they sent its offers.
  */
-
-const bdSans = Outfit({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-bd-sans',
-});
-const bdMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-bd-mono',
-});
 
 const STATUS_TONE: Record<CampaignStatus, string> = {
   draft: 'bd-capstatus--draft',

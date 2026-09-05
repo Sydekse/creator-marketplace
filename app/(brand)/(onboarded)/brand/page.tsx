@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { JetBrains_Mono, Outfit } from 'next/font/google';
+import { bdMono, bdSans } from '@/lib/fonts';
 import { CountUp, Greeting } from '@/components/brand/dashboard-bits';
 import { ReachBubbles } from '@/components/brand/reach-bubbles';
 import type { ReachVideo } from '@/components/brand/reach-bubbles';
@@ -29,17 +29,6 @@ export const runtime = 'nodejs';
  * is ledger- or query-derived in `readBrandDashboard` — nothing recomputed
  * here beyond display arithmetic.
  */
-
-const bdSans = Outfit({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-bd-sans',
-});
-const bdMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-bd-mono',
-});
 
 function initials(name: string): string {
   return name

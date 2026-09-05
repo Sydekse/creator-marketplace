@@ -1,4 +1,4 @@
-import { JetBrains_Mono, Outfit } from 'next/font/google';
+import { bdMono, bdSans } from '@/lib/fonts';
 import { CampaignBriefForm } from '@/components/campaign/campaign-brief-form';
 import { cn } from '@/lib/utils';
 
@@ -11,17 +11,6 @@ export const runtime = 'nodejs';
  * primitives through scoped CSS so the edit page keeps its own look until
  * it too moves to v4.
  */
-
-const bdSans = Outfit({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-bd-sans',
-});
-const bdMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-bd-mono',
-});
 
 const STEPS: { title: string; note: string }[] = [
   {

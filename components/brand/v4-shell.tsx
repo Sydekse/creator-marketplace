@@ -1,23 +1,12 @@
-import { JetBrains_Mono, Outfit } from 'next/font/google';
+import { bdMono, bdSans } from '@/lib/fonts';
 import { cn } from '@/lib/utils';
 
 /**
  * The v4 brand-surface shell, shared by every converted page: the scoped
  * `.bd` design layer (app/globals.css) with Outfit/JetBrains Mono wired
  * through the CSS variables the layer's tokens read. Server-safe — fonts are
- * module-scope constants and the shell renders plain elements.
+ * module-scope constants (lib/fonts.ts) and the shell renders plain elements.
  */
-
-const bdSans = Outfit({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-bd-sans',
-});
-const bdMono = JetBrains_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500', '600'],
-  variable: '--font-bd-mono',
-});
 
 export function BdShell({
   className,
