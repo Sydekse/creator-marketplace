@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   DEMO,
+  clickToUrl,
   expectMutationOk,
   openCampaign,
   openCreatorDeal,
@@ -40,8 +41,11 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Tech Review Series');
-  await brand.getByRole('link', { name: '@demo_creator' }).click();
-  await brand.waitForURL(/\/deals\/[0-9a-f-]+/);
+  await clickToUrl(
+    brand,
+    brand.getByRole('link', { name: '@demo_creator' }),
+    /\/deals\/[0-9a-f-]+/
+  );
   await settledMain(brand);
   await pickOption(brand, 'Revision category', 'Message accuracy');
   // The reject form asks for a reason (AC-024) — fill it and confirm.

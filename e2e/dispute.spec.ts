@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   DEMO,
+  clickToUrl,
   openCampaign,
   openConfirmDialog,
   openCreatorDeal,
@@ -184,8 +185,11 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   await admin.goto('/admin');
   // The admin console has both a nav link and a card link to Audit log.
   // Use the card link (the larger one) by scoping to the card grid.
-  await admin.locator('a[href="/admin/audit-log"]').last().click();
-  await admin.waitForURL(/\/admin\/audit-log/);
+  await clickToUrl(
+    admin,
+    admin.locator('a[href="/admin/audit-log"]').last(),
+    /\/admin\/audit-log/
+  );
   await settledMain(admin);
   await expect(admin.getByRole('heading', { name: 'Audit log' })).toBeVisible({
     timeout: 15_000,
