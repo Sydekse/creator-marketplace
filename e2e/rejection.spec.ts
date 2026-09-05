@@ -27,13 +27,11 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   const creator = await browser.newPage();
   await signIn(creator, DEMO.creator);
   await openCreatorDeal(creator, 'Tech Review Series');
-  await creator
-    .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/1112223334445556667');
-  await creator.getByRole('button', { name: 'Submit your video' }).click();
-  await expect(creator.getByText(/submitted/i).first()).toBeVisible({
-    timeout: 15_000,
-  });
+  await submitVideo(
+    creator,
+    'https://www.tiktok.com/@creator.demo/video/1112223334445556667',
+    '1 of 1 video submitted'
+  );
 
   // Brand rejects with a reason. There is no standalone `/deals` list — the
   // brand reaches the deal review screen through the campaign page, whose

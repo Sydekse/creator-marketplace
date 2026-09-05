@@ -192,13 +192,18 @@ export async function expectMutationOk(
  *    outlive a fixed expect window even though the POST has long committed.
  *    A reload re-reads the same server truth without trusting the refresh,
  *    so poll: check, reload, check again.
+ * 3. The submit click can land before hydration attaches the form's onSubmit
+ *    and the POST never fires (flow 1 on webkit-mobile burned its budget in
+ *    waitForResponse this way). Blindly re-clicking risks a double submit, so
+ *    prove hydration first: `#tiktokUrl` is useState-controlled, and a fill
+ *    that survives the mount (fillHydrated) means the handlers are live.
  */
 export async function submitVideo(
   page: Page,
   videoUrl: string,
   progressCopy: string
 ): Promise<void> {
-  await page.locator('#tiktokUrl').fill(videoUrl);
+  await fillHydrated(page, [['#tiktokUrl', videoUrl]]);
   await expectMutationOk(page, '/deliverable', () =>
     page.getByRole('button', { name: 'Submit your video' }).click()
   );
