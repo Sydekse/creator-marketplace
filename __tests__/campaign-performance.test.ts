@@ -726,7 +726,12 @@ describe('the campaign page shows the performance section', () => {
     // F34 both document.
     expect(page).toContain('VideoPerformance');
     expect(page).toContain('readCampaignPerformance');
-    expect(page).toMatch(/settled \? \(\s*<VideoPerformance/);
+    // The settled arm now leads with the insights panel (KAN-158), so assert
+    // VideoPerformance renders inside that arm rather than immediately after it.
+    const ternary = page.search(/settled \? \(/);
+    const video = page.indexOf('<VideoPerformance');
+    expect(ternary).toBeGreaterThan(-1);
+    expect(video).toBeGreaterThan(ternary);
   });
 
   it('skips the read entirely for a draft', () => {

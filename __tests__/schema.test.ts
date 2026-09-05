@@ -159,9 +159,10 @@ describe('generated migration', () => {
       // thing. Invariant 11 governs our entities; when a real processor arrives
       // (Q3) this table is dropped rather than migrated.
       .filter((l) => !l.includes('"provider_ref" text PRIMARY KEY'));
-    // The 21 uuid-keyed entities plus session, account and verification —
-    // the KAN-157/160 tables key off their parent rows, not their own uuid.
-    expect(pkLines).toHaveLength(24);
+    // The uuid-keyed entities plus session, account and verification — the
+    // KAN-157/159 event tables (deliverable_event, deadline_request) mint
+    // their own uuid ids too, so they count here alongside their parents.
+    expect(pkLines).toHaveLength(26);
     for (const line of pkLines) {
       expect(line).toContain('"id" uuid PRIMARY KEY');
     }

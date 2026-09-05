@@ -170,7 +170,9 @@ export function DeadlineCard({
             Extension pending — not yet agreed
           </p>
           <p className="bd-agreepending-ask">
-            {pending.proposedBy === userId ? 'You propose' : `The ${pending.proposerRole} proposes`}{' '}
+            {pending.proposedBy === userId
+              ? 'You propose'
+              : `The ${pending.proposerRole} proposes`}{' '}
             <b className="bd-mono">
               {formatDeadlineUtc(pending.proposedDueAt)}
             </b>

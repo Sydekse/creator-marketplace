@@ -8,7 +8,7 @@ import type { NotificationType } from './types';
 /**
  * Email notification preferences (settings page) — the server half.
  *
- * Four categories over thirteen types: a toggle per type is a chore nobody
+ * Four categories over seventeen types: a toggle per type is a chore nobody
  * finishes, and a new type gets a sensible default by joining a category.
  * These govern **email dispatch only** — the in-app `notification` row is
  * always written, so the bell and the feed stay complete.
@@ -38,6 +38,10 @@ export const TYPE_CATEGORY: Record<NotificationType, EmailPrefKey> = {
   deliverable_approved: 'emailDeals',
   revision_requested: 'emailDeals',
   dispute_resolved: 'emailDeals',
+  deadline_requested: 'emailDeals',
+  deadline_accepted: 'emailDeals',
+  deadline_rejected: 'emailDeals',
+  deadline_withdrawn: 'emailDeals',
   campaign_funded: 'emailMoney',
   withdrawal_paid: 'emailMoney',
   withdrawal_failed: 'emailMoney',

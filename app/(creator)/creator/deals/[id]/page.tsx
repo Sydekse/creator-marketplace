@@ -254,9 +254,7 @@ export default async function CreatorDealDetailPage({
                   </div>
                   <div>
                     <dt>{COMMISSION_LABEL}</dt>
-                    <dd className="bd-mono">
-                      −{formatEtb(deal.commission)}
-                    </dd>
+                    <dd className="bd-mono">−{formatEtb(deal.commission)}</dd>
                   </div>
                 </dl>
               </div>
@@ -271,37 +269,38 @@ export default async function CreatorDealDetailPage({
                 </span>
               </div>
               <div className="bd-dv-flow">
-              <div className="bd-dv-cell">
-                <span className="bd-dv-lab">{TOTAL_PRICE_LABEL}</span>
-                <span className="bd-dv-num bd-mono">
-                  {formatEtb(deal.totalPrice)}
+                <div className="bd-dv-cell">
+                  <span className="bd-dv-lab">{TOTAL_PRICE_LABEL}</span>
+                  <span className="bd-dv-num bd-mono">
+                    {formatEtb(deal.totalPrice)}
+                  </span>
+                  <span className="bd-dv-sub">
+                    {deal.videoCount}{' '}
+                    {deal.videoCount === 1 ? 'video' : 'videos'} ×{' '}
+                    {formatEtb(deal.unitPrice)}
+                  </span>
+                </div>
+                <span className="bd-dv-arrow" aria-hidden="true">
+                  −
                 </span>
-                <span className="bd-dv-sub">
-                  {deal.videoCount} {deal.videoCount === 1 ? 'video' : 'videos'}{' '}
-                  × {formatEtb(deal.unitPrice)}
+                <div className="bd-dv-cell">
+                  <span className="bd-dv-lab">{COMMISSION_LABEL}</span>
+                  <span className="bd-dv-num bd-mono">
+                    {formatEtb(deal.commission)}
+                  </span>
+                  <span className="bd-dv-sub">withheld at approval</span>
+                </div>
+                <span className="bd-dv-arrow" aria-hidden="true">
+                  =
                 </span>
+                <div className="bd-dv-cell bd-dv-cell--payout">
+                  <span className="bd-dv-lab">{EXPECTED_PAYOUT_LABEL}</span>
+                  <span className="bd-dv-num bd-mono">
+                    {formatEtb(deal.expectedPayout)}
+                  </span>
+                  <span className="bd-dv-sub">{PAYOUT_ESTIMATE_NOTE}</span>
+                </div>
               </div>
-              <span className="bd-dv-arrow" aria-hidden="true">
-                −
-              </span>
-              <div className="bd-dv-cell">
-                <span className="bd-dv-lab">{COMMISSION_LABEL}</span>
-                <span className="bd-dv-num bd-mono">
-                  {formatEtb(deal.commission)}
-                </span>
-                <span className="bd-dv-sub">withheld at approval</span>
-              </div>
-              <span className="bd-dv-arrow" aria-hidden="true">
-                =
-              </span>
-              <div className="bd-dv-cell bd-dv-cell--payout">
-                <span className="bd-dv-lab">{EXPECTED_PAYOUT_LABEL}</span>
-                <span className="bd-dv-num bd-mono">
-                  {formatEtb(deal.expectedPayout)}
-                </span>
-                <span className="bd-dv-sub">{PAYOUT_ESTIMATE_NOTE}</span>
-              </div>
-            </div>
             </section>
           )}
 
@@ -364,7 +363,10 @@ export default async function CreatorDealDetailPage({
                   />
                   <div className="bd-cr-video-copy">
                     <h3>
-                      <span className="bd-cr-frameidx bd-mono" aria-hidden="true">
+                      <span
+                        className="bd-cr-frameidx bd-mono"
+                        aria-hidden="true"
+                      >
                         {String(video.videoOrdinal).padStart(2, '0')}
                       </span>
                       {videoHeading(video.videoOrdinal - 1)} · Version{' '}

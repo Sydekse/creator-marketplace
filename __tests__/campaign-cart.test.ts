@@ -1055,6 +1055,7 @@ describe('remove-from-cart button (AC-015 — the brand-facing half)', () => {
     const button = PAGE.indexOf('<RemoveFromCartButton');
 
     expect(ternary).toBeGreaterThan(-1);
+    expect(settledBranch).toBeGreaterThan(ternary);
     expect(cartBranch).toBeGreaterThan(ternary);
     expect(button).toBeGreaterThan(cartBranch);
   });
