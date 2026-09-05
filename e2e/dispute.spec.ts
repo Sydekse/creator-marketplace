@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test';
 import {
   DEMO,
+  clickToUrl,
   openCampaign,
   openConfirmDialog,
   openCreatorDeal,
   settledMain,
   signIn,
+  submitVideo,
 } from './helpers';
 
 /**
@@ -62,13 +64,11 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   const submitter = await browser.newPage();
   await signIn(submitter, DEMO.creator);
   await openCreatorDeal(submitter, 'Summer Dispute');
-  await submitter
-    .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/9876543210987654321');
-  await submitter.getByRole('button', { name: 'Submit your video' }).click();
-  await expect(submitter.getByText(/submitted/i).first()).toBeVisible({
-    timeout: 15_000,
-  });
+  await submitVideo(
+    submitter,
+    'https://www.tiktok.com/@creator.demo/video/9876543210987654321',
+    '1 of 1 video submitted'
+  );
   await submitter.close();
 
   // -- Admin refunds from the worklist --------------------------------------
@@ -184,8 +184,11 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   await admin.goto('/admin');
   // The admin console has both a nav link and a card link to Audit log.
   // Use the card link (the larger one) by scoping to the card grid.
-  await admin.locator('a[href="/admin/audit-log"]').last().click();
-  await admin.waitForURL(/\/admin\/audit-log/);
+  await clickToUrl(
+    admin,
+    admin.locator('a[href="/admin/audit-log"]').last(),
+    /\/admin\/audit-log/
+  );
   await settledMain(admin);
   await expect(admin.getByRole('heading', { name: 'Audit log' })).toBeVisible({
     timeout: 15_000,

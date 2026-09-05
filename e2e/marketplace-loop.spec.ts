@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import {
   DEMO,
+  clickToUrl,
   expectMutationOk,
   fillHydrated,
   openCampaign,
@@ -98,8 +99,11 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const early = await browser.newPage();
   await signIn(early, DEMO.brand);
   await openCampaign(early, 'Ramadan Beauty Push');
-  await early.getByRole('link', { name: '@demo_creator' }).click();
-  await early.waitForURL(/\/deals\/[0-9a-f-]+/);
+  await clickToUrl(
+    early,
+    early.getByRole('link', { name: '@demo_creator' }),
+    /\/deals\/[0-9a-f-]+/
+  );
   await settledMain(early);
   await expect(early.getByText('1 of 2 videos submitted')).toBeVisible({
     timeout: 15_000,
@@ -127,8 +131,11 @@ test('flow 1: full marketplace loop (US-001 to US-009)', async ({
   const approver = await browser.newPage();
   await signIn(approver, DEMO.brand);
   await openCampaign(approver, 'Ramadan Beauty Push');
-  await approver.getByRole('link', { name: '@demo_creator' }).click();
-  await approver.waitForURL(/\/deals\/[0-9a-f-]+/);
+  await clickToUrl(
+    approver,
+    approver.getByRole('link', { name: '@demo_creator' }),
+    /\/deals\/[0-9a-f-]+/
+  );
   await settledMain(approver);
   // The approve control asks first through the shared ConfirmDialog — open
   // it (hydration-safe), confirm, and hold for the payout POST.
