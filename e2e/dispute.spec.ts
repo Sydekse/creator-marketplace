@@ -7,6 +7,7 @@ import {
   openCreatorDeal,
   settledMain,
   signIn,
+  submitVideo,
 } from './helpers';
 
 /**
@@ -63,13 +64,11 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   const submitter = await browser.newPage();
   await signIn(submitter, DEMO.creator);
   await openCreatorDeal(submitter, 'Summer Dispute');
-  await submitter
-    .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/9876543210987654321');
-  await submitter.getByRole('button', { name: 'Submit your video' }).click();
-  await expect(submitter.getByText(/submitted/i).first()).toBeVisible({
-    timeout: 15_000,
-  });
+  await submitVideo(
+    submitter,
+    'https://www.tiktok.com/@creator.demo/video/9876543210987654321',
+    '1 of 1 video submitted'
+  );
   await submitter.close();
 
   // -- Admin refunds from the worklist --------------------------------------
