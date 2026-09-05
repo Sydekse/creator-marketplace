@@ -45,6 +45,11 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
     await brand.getByRole('button', { name: 'Create draft campaign' }).click();
     const response = await created;
     expect(response.status()).toBe(201);
+    // The brief form pushes to /discover after creating. Let that client
+    // navigation commit before the next goto — webkit aborts a page.goto that
+    // races an in-flight push ("interrupted by another navigation"), the same
+    // trap signIn documents for the role-home redirect.
+    await brand.waitForURL(/\/discover/);
     const { id: campaignId } = await response.json();
     const [profile] = await db
       .select({ id: creatorProfile.id })
