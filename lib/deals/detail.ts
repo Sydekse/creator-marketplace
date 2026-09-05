@@ -82,6 +82,7 @@ export interface CreatorDealDetail {
    */
   expectedPayout: number;
   offerExpiresAt: Date | null;
+  deliveryWindowDays?: number | null;
   /**
    * The terms the creator is being asked to agree to, or is governed by.
    *
@@ -207,6 +208,7 @@ export interface CreatorDealJoinRow {
   totalPrice: number;
   commissionRate: string;
   offerExpiresAt: Date | null;
+  deliveryWindowDays?: number | null;
   rightsTerms: DealRightsTerms | null;
 }
 
@@ -240,6 +242,7 @@ export function creatorDealQuery(where: SQL) {
       totalPrice: deal.totalPrice,
       commissionRate: deal.commissionRate,
       offerExpiresAt: deal.offerExpiresAt,
+      deliveryWindowDays: deal.deliveryWindowDays,
       rightsTerms: rightsTerms,
     })
     .from(deal)

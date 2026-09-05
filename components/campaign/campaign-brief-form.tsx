@@ -35,6 +35,7 @@ export interface CampaignBriefFormProps {
     targetAudience?: unknown;
     budget: number; // in santim
     desiredVideos: number;
+    deliveryWindowDays?: number | null;
   };
 }
 
@@ -42,6 +43,9 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
   const router = useRouter();
 
   const [name, setName] = useState(campaign?.name ?? '');
+  const [deliveryWindowDays, setDeliveryWindowDays] = useState(
+    campaign?.deliveryWindowDays?.toString() ?? ''
+  );
   // Budget is entered in ETB by the brand (1 ETB = 100 santim); fractional
   // values like 1500.50 are valid and round-trip losslessly through santim.
   const [budget, setBudget] = useState(
@@ -91,6 +95,9 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
       name,
       budget: santim,
       desiredVideos: videosNum,
+      deliveryWindowDays: deliveryWindowDays.trim()
+        ? Number(deliveryWindowDays)
+        : null,
     };
 
     if (goal.trim()) {
@@ -156,6 +163,27 @@ export function CampaignBriefForm({ mode, campaign }: CampaignBriefFormProps) {
   return (
     <form onSubmit={handleSubmit} noValidate>
       <FieldGroup className="gap-6">
+        <Field data-invalid={!!fieldErrorsAt(errors, 'deliveryWindowDays')}>
+          <FieldLabel htmlFor="deliveryWindowDays">
+            Delivery window (days after funding)
+          </FieldLabel>
+          <Input
+            id="deliveryWindowDays"
+            type="number"
+            min="1"
+            max="90"
+            step="1"
+            value={deliveryWindowDays}
+            onChange={(event) => setDeliveryWindowDays(event.target.value)}
+            aria-invalid={!!fieldErrorsAt(errors, 'deliveryWindowDays')}
+          />
+          <FieldDescription>
+            Choose 1–90 days before confirming offers. All ordered videos are
+            due within this many 24-hour days after funding. The agreement is
+            fixed when offers are sent.
+          </FieldDescription>
+          <FieldError errors={fieldErrorsAt(errors, 'deliveryWindowDays')} />
+        </Field>
         <Field data-invalid={nameErrors !== undefined || undefined}>
           <FieldLabel htmlFor="name">Campaign name</FieldLabel>
           <Input

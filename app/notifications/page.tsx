@@ -21,7 +21,10 @@ export const runtime = 'nodejs';
  * One label per entry in `NOTIFICATION_TYPES`, in the same order, so the admin
  * who greps the codebase sees the same list the page renders.
  */
+import { DEADLINE_NOTIFICATION_LABELS } from '@/lib/notifications/copy';
+
 const NOTIFICATION_LABELS: Record<string, string> = {
+  ...DEADLINE_NOTIFICATION_LABELS,
   offer_received: 'New offer',
   verification_result: 'Verification update',
   campaign_funded: 'Campaign funded',

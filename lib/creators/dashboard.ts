@@ -47,7 +47,10 @@ export interface CreatorEarnings {
   inEscrow: number;
 }
 
-export interface CreatorDealRow {
+import type { DeadlineEvidence } from '@/lib/deals/deadline';
+import { deadlineColumns } from '@/lib/deals/deadline-columns';
+
+export interface CreatorDealRow extends DeadlineEvidence {
   id: string;
   status: DealStatus;
   campaignName: string;
@@ -178,6 +181,7 @@ export function dealsQuery(creatorProfileId: string) {
       videoCount: deal.videoCount,
       totalPrice: deal.totalPrice,
       offerExpiresAt: deal.offerExpiresAt,
+      ...deadlineColumns,
     })
     .from(deal)
     .innerJoin(campaign, eq(deal.campaignId, campaign.id))

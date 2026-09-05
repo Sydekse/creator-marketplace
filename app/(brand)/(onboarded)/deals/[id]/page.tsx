@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DeadlineSection } from '@/components/deals/deadline-section';
 import { notFound } from 'next/navigation';
 import { VideoHistory } from '@/components/deals/video-history';
 import { selectVideoHistory } from '@/lib/deliverables/read-history';
@@ -113,6 +114,7 @@ export default async function BrandDealReviewPage({
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-10 py-4">
+      <DeadlineSection dealId={id} />
       <Link
         href={`/campaigns/${deal.campaignId}`}
         className="inline-flex w-fit items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-700 transition-[border-color,box-shadow,color] duration-200 ease-[var(--ease-smooth)] hover:border-neutral-300 hover:text-neutral-900 hover:shadow-[0_12px_24px_-16px_rgba(23,23,23,0.35)] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"

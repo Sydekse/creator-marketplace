@@ -228,6 +228,7 @@ function Comparison({
 function HistoryValues({ value }: { value: CollaborationSummary }) {
   return (
     <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <PunctualityStat value={value.punctuality} />
       <Stat
         label="Offers ever accepted / issued"
         value={rate(value.acceptance.accepted, value.acceptance.issued)}
@@ -260,6 +261,20 @@ function HistoryValues({ value }: { value: CollaborationSummary }) {
         note={`${value.approvalWithoutRevision.excludedIncomplete} limited histories excluded. ${value.approvalWithoutRevision.adminReleased} admin-released videos are not brand approvals (${value.dealRevisions.adminReleased} deals).`}
       />
     </dl>
+  );
+}
+
+function PunctualityStat({
+  value,
+}: {
+  value: CollaborationSummary['punctuality'];
+}) {
+  return (
+    <Stat
+      label="Initial delivery without a missed agreed deadline"
+      value={rate(value.on_time, value.eligible)}
+      note={`${formatShare(value.onTimeRate)} · ${value.late} late · ${value.earlier_missed} within extended deadline; earlier deadline missed. Open work: ${value.due} due / ${value.overdue} overdue. ${value.unknown} without recorded deadline history; ${value.awaiting_funding} awaiting funding; ${value.closed} closed without initial delivery. Rate includes only initial deliveries with agreed deadline history (${value.eligible} of ${value.total} deals).`}
+    />
   );
 }
 
@@ -487,6 +502,15 @@ export function CampaignInsightsPanel({
         <Comparison model={model} metric="cpv" />
         <Comparison model={model} metric="cpe" />
       </div>
+      <section
+        aria-label="Campaign delivery timing"
+        className="rounded-lg border p-5"
+      >
+        <h3 className="mb-4 font-medium">Campaign delivery timing</h3>
+        <dl>
+          <PunctualityStat value={insights.punctuality} />
+        </dl>
+      </section>
       <Card>
         <CardHeader>
           <CardTitle>Your collaboration history</CardTitle>

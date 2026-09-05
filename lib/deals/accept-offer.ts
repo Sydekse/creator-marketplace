@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { DELIVERY_TERMS_VERSION } from '@/lib/deals/deadline';
 import type { SQL } from 'drizzle-orm';
 import { brandProfile, campaign, creatorProfile, deal } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
@@ -51,6 +52,7 @@ import type { ErrorCode } from '@/lib/validation/errors';
 
 /** What the action needs about the deal, its campaign, and both parties. */
 export interface AcceptOfferRow {
+  deliveryWindowDays?: number | null;
   id: string;
   status: DealStatus;
   totalPrice: number;
@@ -72,7 +74,10 @@ export interface AcceptOfferRow {
 
 export type AcceptOfferResult =
   | { ok: true; dealId: string; rightsTermsId: string; rightsAcceptedAt: Date }
-  | { ok: false; reason: 'not_found' | 'stale_terms' | 'expired' }
+  | {
+      ok: false;
+      reason: 'not_found' | 'stale_terms' | 'stale_delivery_terms' | 'expired';
+    }
   | { ok: false; reason: 'illegal'; code: ErrorCode };
 
 export interface AcceptOfferDeps {
@@ -149,6 +154,7 @@ const defaultDeps: AcceptOfferDeps = {
         status: deal.status,
         totalPrice: deal.totalPrice,
         offerExpiresAt: deal.offerExpiresAt,
+        deliveryWindowDays: deal.deliveryWindowDays,
         campaignId: deal.campaignId,
         campaignName: campaign.name,
         brandUserId: brandProfile.userId,
@@ -223,6 +229,8 @@ export async function acceptOffer(
     creatorProfileId: string;
     actorUserId: string;
     submittedRightsTermsId: string;
+    deliveryWindowDays?: number | null;
+    deliveryTermsVersion?: string;
   },
   deps: AcceptOfferDeps = defaultDeps
 ): Promise<AcceptOfferResult> {
@@ -230,6 +238,13 @@ export async function acceptOffer(
     const row = await deps.loadDeal(tx, dealId, input.creatorProfileId);
     if (!row) {
       return { ok: false, reason: 'not_found' };
+    }
+    if (
+      (row.deliveryWindowDays != null &&
+        input.deliveryTermsVersion !== DELIVERY_TERMS_VERSION) ||
+      (input.deliveryWindowDays ?? null) !== (row.deliveryWindowDays ?? null)
+    ) {
+      return { ok: false, reason: 'stale_delivery_terms' };
     }
 
     // Before the transition, so a refusal leaves no history behind.

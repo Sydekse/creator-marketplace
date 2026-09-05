@@ -96,12 +96,25 @@ export async function handleAcceptDeal(
       creatorProfileId,
       actorUserId,
       submittedRightsTermsId: parsed.data.rightsTermsId,
+      deliveryWindowDays: parsed.data.deliveryWindowDays,
+      deliveryTermsVersion: parsed.data.deliveryTermsVersion,
     },
     deps?.acceptOfferDeps
   );
 
   if (!result.ok) {
     switch (result.reason) {
+      case 'stale_delivery_terms':
+        return Response.json(
+          {
+            error: {
+              code: 'DELIVERY_TERMS_STALE',
+              message:
+                'Delivery terms changed. Refresh the offer and accept the displayed agreement.',
+            },
+          },
+          { status: 409 }
+        );
       // Collapsed into 403 like every other owner-scoped route. The guard above
       // already denied anyone who does not own this deal, so reaching this means
       // the row went away between the two reads — still not something to answer

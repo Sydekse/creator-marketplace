@@ -190,6 +190,7 @@ test('flow 2: budget ceiling blocks adding an over-budget creator (AC-014)', asy
     ['#name', 'Tiny Budget Campaign'],
     ['#budget', '100'],
     ['#desiredVideos', '1'],
+    ['#deliveryWindowDays', '7'],
     ['#goal', 'Prove the ceiling holds.'],
     ['#targetAudience', 'Everyone'],
   ]);

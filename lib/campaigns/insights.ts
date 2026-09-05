@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray } from 'drizzle-orm';
+import { punctualityAggregate } from '@/lib/deals/deadline';
 import { db } from '@/db';
 import {
   campaign,
@@ -111,6 +112,7 @@ export async function readCampaignInsights(
       const byVideo = grouped(evidence, (r) => r.event.deliverableId);
       const now = new Date().toISOString();
       const history: CollaborationDealInput[] = rows.map(({ deal: d }) => ({
+        deadline: d,
         id: d.id,
         creatorId: d.creatorId,
         status: d.status,
@@ -130,6 +132,12 @@ export async function readCampaignInsights(
       }));
       return {
         asOf: now,
+        punctuality: punctualityAggregate(
+          rows
+            .filter((r) => r.deal.campaignId === campaignId)
+            .map((r) => r.deal),
+          new Date(now)
+        ),
         campaign: calculateCampaignInsights(
           rows
             .filter((r) => r.deal.campaignId === campaignId)

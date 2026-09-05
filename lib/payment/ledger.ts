@@ -299,6 +299,8 @@ export class EscrowLedgerService {
       const total = deals.reduce((sum, d) => sum + d.totalPrice, 0);
 
       let balance = await this.sumBalance(tx, campaignId);
+      const fundedAt = new Date();
+      const { fundingDeadline } = await import('@/lib/deals/deadline');
 
       for (const d of deals) {
         // One hold per deal, keyed per deal. The suffix is not decoration:
@@ -326,6 +328,20 @@ export class EscrowLedgerService {
 
         await transitionDeal(tx, d.id, 'funded', actorId, {
           reason: 'Campaign funded',
+          occurredAt: fundedAt,
+          set: d.fundedAt
+            ? undefined
+            : {
+                fundedAt,
+                originalDeliveryDueAt: fundingDeadline(
+                  d.deliveryWindowDays,
+                  fundedAt
+                ),
+                currentDeliveryDueAt: fundingDeadline(
+                  d.deliveryWindowDays,
+                  fundedAt
+                ),
+              },
         });
       }
 

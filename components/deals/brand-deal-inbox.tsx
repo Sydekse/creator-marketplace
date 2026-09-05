@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DeadlineSummary } from './deadline-summary';
 import { CaretRight } from '@phosphor-icons/react/dist/ssr';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { Chip } from '@/components/ui/chip';
@@ -43,6 +44,7 @@ function DealRow({ deal }: { deal: BrandInboxDeal }) {
               text={displayTiktokHandle(deal.creatorHandle)}
               className="text-sm font-medium"
             />
+            <DeadlineSummary deal={deal} />
             <div className="flex items-center gap-2">
               <Chip tone={dealStatusTone[deal.status] ?? 'gray'} size="sm">
                 {labelForStatus(deal.status)}

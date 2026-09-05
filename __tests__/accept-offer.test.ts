@@ -94,6 +94,7 @@ interface Recorded {
 }
 
 interface Overrides {
+  deliveryWindowDays?: number | null;
   status?: DealStatus;
   offerExpiresAt?: Date | null;
   dealMissing?: boolean;
@@ -130,6 +131,7 @@ function makeDeps(overrides: Overrides = {}): {
 
       return {
         id: dealId,
+        deliveryWindowDays: overrides.deliveryWindowDays ?? null,
         status,
         totalPrice: TOTAL_PRICE,
         offerExpiresAt:
@@ -232,6 +234,49 @@ const ALL_STATUSES = Object.keys(LEGAL_TRANSITIONS) as DealStatus[];
 const NON_PENDING = ALL_STATUSES.filter((s) => s !== 'pending');
 
 // -- AC-1: the deal moves, and the agreement is recorded ---------------------
+
+describe('snapshotted delivery acceptance', () => {
+  it.each([
+    { deliveryWindowDays: 8, deliveryTermsVersion: 'funding-24h-v1' },
+    { deliveryWindowDays: 7, deliveryTermsVersion: 'old-version' },
+    { deliveryWindowDays: 7 },
+    {},
+  ])('refuses mismatched or missing echoed terms %j', async (terms) => {
+    const { deps, recorded } = makeDeps({ deliveryWindowDays: 7 });
+    const result = await acceptOffer(
+      DEAL_ID,
+      {
+        creatorProfileId: CREATOR_PROFILE_ID,
+        actorUserId: CREATOR_USER_ID,
+        submittedRightsTermsId: CURRENT_TERMS_ID,
+        ...terms,
+      },
+      deps
+    );
+    expect(result).toEqual({ ok: false, reason: 'stale_delivery_terms' });
+    expect(recorded.transitions).toEqual([]);
+    expect(recorded.notifications).toEqual([]);
+  });
+  it('accepts the displayed snapshot and retains honest legacy acceptance', async () => {
+    const { deps } = makeDeps({ deliveryWindowDays: 7 });
+    expect(
+      await acceptOffer(
+        DEAL_ID,
+        {
+          creatorProfileId: CREATOR_PROFILE_ID,
+          actorUserId: CREATOR_USER_ID,
+          submittedRightsTermsId: CURRENT_TERMS_ID,
+          deliveryWindowDays: 7,
+          deliveryTermsVersion: 'funding-24h-v1',
+        },
+        deps
+      )
+    ).toMatchObject({ ok: true });
+    expect(
+      await accept(makeDeps({ deliveryWindowDays: null }).deps)
+    ).toMatchObject({ ok: true });
+  });
+});
 
 describe('AC-1 — accepting records the agreement with its timestamp', () => {
   it('moves the deal to accepted through the state machine', async () => {
@@ -342,7 +387,7 @@ describe('AC-2 — a deal can never be accepted with a null rights column', () =
     // rather than a property of one code path.
     const check = SCHEMA.slice(
       SCHEMA.indexOf('deal_rights_accepted_when_accepted')
-    ).slice(0, 400);
+    ).split('`')[1];
 
     for (const status of ['pending', 'declined', 'expired']) {
       expect(check).toContain(`'${status}'`);

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DeadlineSection } from '@/components/deals/deadline-section';
 import { notFound } from 'next/navigation';
 import { buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/layout/page-header';
@@ -79,6 +80,7 @@ export default async function AdminDealPage({
       <div className="border-y border-neutral-200 bg-neutral-100/35 px-4 py-5 sm:px-6">
         <DealHistory events={events} />
       </div>
+      <DeadlineSection dealId={id} />
       {evidence.videos.map((video) => (
         <section
           key={video.id}

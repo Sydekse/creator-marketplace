@@ -203,6 +203,13 @@ function makeDeps(
         offerExpiresAt: null,
         createdAt: new Date(),
         flagged: false,
+        deliveryWindowDays: null,
+        fundedAt: null,
+        originalDeliveryDueAt: null,
+        currentDeliveryDueAt: null,
+        firstDeliveredAt: null,
+        dueAtFirstDelivery: null,
+        missedDeliveryCommitment: false,
       } satisfies DealRow;
     },
     notifyDeps: {

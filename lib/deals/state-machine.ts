@@ -185,7 +185,16 @@ export async function transitionDeal(
      * `deal_rights_accepted_when_accepted` is a per-statement CHECK, so a
      * follow-up UPDATE could never satisfy it.
      */
-    set?: Partial<Pick<DealRow, 'rightsTermsId' | 'rightsAcceptedAt'>>;
+    set?: Partial<
+      Pick<
+        DealRow,
+        | 'rightsTermsId'
+        | 'rightsAcceptedAt'
+        | 'fundedAt'
+        | 'originalDeliveryDueAt'
+        | 'currentDeliveryDueAt'
+      >
+    >;
   }
 ): Promise<DealRow> {
   const [row] = await tx
@@ -212,9 +221,30 @@ export async function transitionDeal(
     );
   }
 
+  const occurredAt = opts?.occurredAt ?? new Date();
+  const firstDelivery =
+    toStatus === 'delivered' &&
+    row.status === 'funded' &&
+    !row.firstDeliveredAt;
+  const frozen = firstDelivery
+    ? {
+        firstDeliveredAt: occurredAt,
+        dueAtFirstDelivery: row.currentDeliveryDueAt,
+      }
+    : {};
+  if (firstDelivery || toStatus === 'refunded') {
+    const { closeDeadlineRequests } =
+      await import('@/lib/deals/deadline-requests');
+    await closeDeadlineRequests(
+      tx,
+      dealId,
+      firstDelivery ? 'first_delivery' : 'refunded',
+      occurredAt
+    );
+  }
   await tx
     .update(deal)
-    .set({ status: toStatus, ...opts?.set })
+    .set({ status: toStatus, ...opts?.set, ...frozen })
     .where(eq(deal.id, dealId));
 
   await tx.insert(dealEvent).values({
@@ -226,7 +256,7 @@ export async function transitionDeal(
     ...(opts?.occurredAt ? { createdAt: opts.occurredAt } : {}),
   });
 
-  return { ...row, status: toStatus };
+  return { ...row, ...opts?.set, ...frozen, status: toStatus };
 }
 
 /**
