@@ -340,7 +340,9 @@ export default async function CreatorDealDetailPage({
               <div className="bd-capruler">
                 <span className="bd-caprulertitle">{DELIVERABLES_TITLE}</span>
                 <span className="bd-caprulerline" aria-hidden="true" />
-                <span className="bd-caprulernote">
+                {/* The progress is data, not garnish — it rides the count
+                    slot, which stays visible when mobile sheds the note. */}
+                <span className="bd-caprulercount bd-mono">
                   {deliveryProgress(standing, deal.videoCount)}
                 </span>
               </div>

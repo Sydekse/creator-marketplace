@@ -24,8 +24,10 @@ export async function signIn(page: Page, email: string): Promise<void> {
   await page.locator('#email').fill(email);
   await page.locator('#password').fill(DEMO_PASSWORD);
   await page.getByRole('button', { name: 'Sign In' }).click();
-  // Landing on a role home is the sign-in succeeding.
-  await expect(page).not.toHaveURL(/sign-in/);
+  // Landing on a role home is the sign-in succeeding. Auth does several DB
+  // round trips; against a remote database (local runs on Neon) that can
+  // outlive the 5s default, so give it the same budget as other steps.
+  await expect(page).not.toHaveURL(/sign-in/, { timeout: 15_000 });
   // The sign-in flow router.push()es to /dashboard, which server-redirects to
   // the role home — a client-side navigation. Wait for that redirect to commit
   // before the caller navigates again: webkit aborts a page.goto that races

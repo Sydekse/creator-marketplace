@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import {
   DEMO,
   openCampaign,
+  openConfirmDialog,
   openCreatorDeal,
   settledMain,
   signIn,
@@ -42,9 +43,11 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Summer Dispute');
-  // Funding asks first through the shared ConfirmDialog — click Fund, then
-  // the dialog's confirm button.
-  await brand.getByRole('button', { name: 'Fund campaign' }).click();
+  // Funding asks first through the shared ConfirmDialog — open it
+  // (hydration-safe: the first click can land before React attaches the
+  // handler and burn the whole test timeout waiting on a dialog that never
+  // opens), then confirm.
+  await openConfirmDialog(brand, 'Fund campaign');
   await brand
     .getByRole('dialog')
     .getByRole('button', { name: 'Fund campaign' })

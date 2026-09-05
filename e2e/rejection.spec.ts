@@ -4,6 +4,7 @@ import {
   expectMutationOk,
   openCampaign,
   openCreatorDeal,
+  settledMain,
   signIn,
   submitVideo,
 } from './helpers';
@@ -39,6 +40,8 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Tech Review Series');
   await brand.getByRole('link', { name: '@demo_creator' }).click();
+  await brand.waitForURL(/\/deals\/[0-9a-f-]+/);
+  await settledMain(brand);
   await brand.getByLabel('Revision category').click();
   await brand
     .getByRole('option', { name: 'Message accuracy', exact: true })
@@ -50,6 +53,7 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
     brand.getByRole('button', { name: 'Request changes', exact: true }).click()
   );
   await creator.reload();
+  await settledMain(creator);
   await expect(creator.getByText('Message accuracy').first()).toBeVisible();
   await expect(
     creator.getByText('Please include the actual engagement numbers.').first()
@@ -65,6 +69,7 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
     creator.getByRole('heading', { name: 'Video 1 · Version 2', exact: true })
   ).toBeVisible();
   await brand.reload();
+  await settledMain(brand);
   await brand.getByLabel('Revision category').click();
   await brand
     .getByRole('option', { name: 'Audio / visual quality', exact: true })
@@ -74,6 +79,7 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
     brand.getByRole('button', { name: 'Request changes', exact: true }).click()
   );
   await creator.reload();
+  await settledMain(creator);
   await submitVideo(
     creator,
     'https://www.tiktok.com/@creator.demo/video/1112223334445556669',
