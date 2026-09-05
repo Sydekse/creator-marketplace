@@ -157,8 +157,8 @@ describe('generated migration', () => {
       // thing. Invariant 11 governs our entities; when a real processor arrives
       // (Q3) this table is dropped rather than migrated.
       .filter((l) => !l.includes('"provider_ref" text PRIMARY KEY'));
-    // The 20 entities plus session, account and verification.
-    expect(pkLines).toHaveLength(23);
+    // The 21 entities plus session, account and verification.
+    expect(pkLines).toHaveLength(24);
     for (const line of pkLines) {
       expect(line).toContain('"id" uuid PRIMARY KEY');
     }

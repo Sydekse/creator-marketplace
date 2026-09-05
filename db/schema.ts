@@ -458,6 +458,9 @@ export const videoMetricSnapshot = pgTable(
       .notNull()
       .references(() => deliverable.id),
     views: integer('views').notNull(),
+    likes: integer('likes'),
+    shares: integer('shares'),
+    comments: integer('comments'),
     capturedAt: timestamp('captured_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -467,6 +470,34 @@ export const videoMetricSnapshot = pgTable(
     // resolves one row per deliverable via max(captured_at) <= cutoff.
     index('video_metric_snapshot_deliverable_captured_idx').on(
       t.deliverableId,
+      t.capturedAt
+    ),
+  ]
+);
+
+/**
+ * Append-only creator profile metric history. `creator_profile` stores the
+ * latest follower/engagement numbers; this table remembers the trend each time
+ * a TikTok refresh succeeds so the creator dashboard can show growth and tier
+ * movement instead of a static profile snapshot.
+ */
+export const creatorMetricSnapshot = pgTable(
+  'creator_metric_snapshot',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    creatorId: uuid('creator_id')
+      .notNull()
+      .references(() => creatorProfile.id),
+    followerCount: integer('follower_count').notNull(),
+    engagementRate: numeric('engagement_rate', { precision: 5, scale: 2 }),
+    capturedAt: timestamp('captured_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    source: text('source').notNull().default('tiktok'),
+  },
+  (t) => [
+    index('creator_metric_snapshot_creator_captured_idx').on(
+      t.creatorId,
       t.capturedAt
     ),
   ]

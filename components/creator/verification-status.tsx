@@ -87,23 +87,24 @@ export function VerificationStatus({
           already renders the same handle as a serif page title, so the two
           screens now agree on what a handle looks like. Nothing on this page
           asks the creator to *type* it. */}
-      <div className="flex flex-col gap-3 border-b border-neutral-200 pb-3 sm:gap-4 sm:pb-4">
+      <div className="flex flex-col gap-3 sm:gap-4">
         <p className="text-[11px] font-semibold tracking-[0.12em] text-brand-ink uppercase sm:text-[13px] sm:tracking-[0.14em]">
           Welcome back
         </p>
-        <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[auto_auto] items-center gap-x-2 gap-y-1 sm:gap-x-4 sm:gap-y-1">
-          <div className="avatar-stack-circle row-span-2">
-            <InitialsAvatar
-              name={name}
-              image={image}
-              className="!size-full rounded-full border-neutral-900 bg-neutral-900 text-neutral-50 shadow-none"
-            />
-          </div>
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto] items-center gap-x-3 gap-y-1 sm:gap-x-4">
+          <InitialsAvatar
+            name={name}
+            image={image}
+            size="lg"
+            className="row-span-2 self-center"
+          />
           <h1 className="page-title opener-title min-w-0">{name}</h1>
-          <StatusChip status={status} />
-          <p className="col-span-2 col-start-2 font-mono text-xs text-neutral-600 sm:text-sm">
-            {tiktokHandle}
-          </p>
+          <div className="col-start-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <p className="font-mono text-xs text-neutral-600 sm:text-sm">
+              {tiktokHandle}
+            </p>
+            <StatusChip status={status} />
+          </div>
         </div>
       </div>
 

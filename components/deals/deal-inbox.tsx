@@ -175,7 +175,7 @@ function Group({ group, now }: { group: InboxGroup; now: Date }) {
   const Mark = GROUP_MARK[group.group];
 
   return (
-    <section className="bd-cr-group">
+    <section className="bd-cr-group" id={group.group}>
       <div className="bd-capruler bd-cr-groupruler">
         <h2 className="bd-caprulertitle">{title}</h2>
         <span className="bd-caprulerline" aria-hidden="true" />

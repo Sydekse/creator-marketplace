@@ -89,6 +89,28 @@ const okDeps = (
     measuredVideos: 0,
     totalVideos: 0,
   }),
+  selectTopVideos: async () => [],
+  selectRelationships: async () => ({
+    brandsWorkedWith: 0,
+    repeatBrands: 0,
+  }),
+  selectReliability: async () => ({
+    avgSubmitDays: null,
+    approvalRate: null,
+    revisionRate: null,
+  }),
+  selectGrowth: async () => ({
+    followersDelta: null,
+    engagementDelta: null,
+    latestAt: null,
+    previousAt: null,
+  }),
+  selectWeeklyLift: async () => ({
+    views: null,
+    likes: null,
+    shares: null,
+    comments: null,
+  }),
 });
 
 const src = (file: string) =>
@@ -424,19 +446,11 @@ describe('readCreatorDashboard', () => {
     const selectPayoutEvents = vi.fn(async () => []);
 
     await readCreatorDashboard({
+      ...okDeps(),
       requireCreator: async () => ({ creatorProfileId: CREATOR_PROFILE_ID }),
       selectEarnings,
       selectDeals,
       selectPayoutEvents,
-      selectUnmeasuredDeals: vi.fn(async () => []),
-      selectMetrics: vi.fn(async () => ({
-        views: null,
-        likes: null,
-        shares: null,
-        comments: null,
-        measuredVideos: 0,
-        totalVideos: 0,
-      })),
     });
 
     expect(selectEarnings).toHaveBeenCalledWith(CREATOR_PROFILE_ID);
@@ -456,14 +470,13 @@ describe('readCreatorDashboard', () => {
 
       await expect(
         readCreatorDashboard({
+          ...okDeps(),
           requireCreator: async () => {
             throw new ForbiddenError(`role ${who} not permitted`);
           },
           selectEarnings,
           selectDeals,
           selectPayoutEvents,
-          selectUnmeasuredDeals: vi.fn(),
-          selectMetrics: vi.fn(),
         })
       ).rejects.toBeInstanceOf(ForbiddenError);
 
@@ -482,12 +495,11 @@ describe('readCreatorDashboard', () => {
 
     await expect(
       readCreatorDashboard({
+        ...okDeps(),
         requireCreator: async () => ({ creatorProfileId: null }),
         selectEarnings,
         selectDeals,
         selectPayoutEvents,
-        selectUnmeasuredDeals: vi.fn(),
-        selectMetrics: vi.fn(),
       })
     ).resolves.toBeNull();
 
@@ -518,8 +530,10 @@ describe('the creator dashboard page', () => {
     for (const component of [
       'VerificationStatus',
       'TierPricing',
-      'EarningsSummary',
-      'PayoutChart',
+      'ShowreelChart',
+      'EarningsSteps',
+      'ApprovalRing',
+      'QueueFlow',
     ]) {
       expect(source).toContain(component);
     }
@@ -593,8 +607,10 @@ describe('the dashboard is laid out as one', () => {
   });
 
   it('separates sections with card-based containers rather than stacked rules', () => {
-    // The page uses v4 dashboard panels instead of border-t dividers.
-    const cards = source.match(/bd-cr-dashboardpanel/g);
+    // The page uses v4 panels and bd-crx cards instead of border-t dividers.
+    const panels = source.match(/bd-cr-dashboardpanel/g);
+    expect(panels?.length ?? 0).toBeGreaterThanOrEqual(2);
+    const cards = source.match(/bd-crx-card/g);
     expect(cards?.length ?? 0).toBeGreaterThanOrEqual(3);
     // At most one border-t, above the "signed in as" footer.
     expect(source.match(/border-t /g)?.length ?? 0).toBeLessThanOrEqual(1);
@@ -603,25 +619,22 @@ describe('the dashboard is laid out as one', () => {
   it('gives the work its own column, and the reference the other', () => {
     expect(source).not.toContain('max-w-2xl');
     expect(source).not.toContain('max-w-6xl');
-    expect(source).toContain('bd-cr-dashboardbody');
+    expect(source).toContain('bd-crx-body');
+    expect(source).toContain('bd-crx-aside');
     expect(source).toContain('bd-cr-dashboardgrid');
   });
 
   it('puts the work first, which is also the phone order (NFR-007)', () => {
-    // The v4 source order puts account state first, then the workspace pulse:
-    // payout/profile impact and active deals.
-    const account = source.indexOf('Account state');
-    const pulse = source.indexOf('Workspace pulse');
-    const earnings = source.indexOf('<EarningsSummary');
-    const deals = source.indexOf('<PayoutChart');
-    const facts = source.lastIndexOf('formatFollowerCount(profile');
+    // Account state opens, the showreel and triptych follow, and the
+    // profile/rate reference rail comes after the work.
+    const account = source.indexOf('VerificationStatus');
+    const reel = source.indexOf('bd-crx-reel');
+    const triptych = source.indexOf('bd-crx-triptych');
     const pricing = source.indexOf('<TierPricing');
     expect(account).toBeGreaterThan(-1);
-    expect(pulse).toBeGreaterThan(account);
-    expect(deals).toBeGreaterThan(-1);
-    expect(earnings).toBeGreaterThan(deals);
-    expect(facts).toBeGreaterThan(account);
-    expect(pricing).toBeGreaterThan(facts);
+    expect(reel).toBeGreaterThan(account);
+    expect(triptych).toBeGreaterThan(reel);
+    expect(pricing).toBeGreaterThan(triptych);
   });
 
   it('still ships no client bundle', () => {

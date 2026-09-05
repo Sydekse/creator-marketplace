@@ -38,10 +38,16 @@ const TIERS: TierCandidate[] = [
   },
 ];
 
-/** A tx fake that records every `update().set()` payload and notify row. */
+/**
+ * A tx fake that records every `update().set()` payload, notify row, and
+ * metric snapshot. Snapshot inserts (recognised by their `capturedAt`) are
+ * kept apart from notification rows so assertions about "what was the
+ * creator told" are not polluted by the history row every refresh writes.
+ */
 function fakeTx() {
   const updates: Record<string, unknown>[] = [];
   const rows: unknown[] = [];
+  const snapshots: unknown[] = [];
   const tx = {
     update: vi.fn(() => ({
       set: vi.fn((payload: Record<string, unknown>) => {
@@ -51,17 +57,21 @@ function fakeTx() {
     })),
     insert: vi.fn(() => ({
       values: vi.fn((row: unknown) => {
-        rows.push(row);
+        if (row !== null && typeof row === 'object' && 'capturedAt' in row) {
+          snapshots.push(row);
+        } else {
+          rows.push(row);
+        }
         return { returning: async () => [{ id: 'n-1' }] };
       }),
     })),
   } as unknown as Tx;
-  return { tx, updates, rows };
+  return { tx, updates, rows, snapshots };
 }
 
 function refreshDeps(overrides: Partial<RefreshStatsDeps> = {}) {
-  const { tx, updates, rows } = fakeTx();
-  const recorded = { updates, rows, committed: false };
+  const { tx, updates, rows, snapshots } = fakeTx();
+  const recorded = { updates, rows, snapshots, committed: false };
 
   const notifyDeps = {
     db: {
@@ -288,6 +298,15 @@ describe('refreshCreatorStats', () => {
     expect(recorded.updates).toHaveLength(1);
     expect(recorded.updates[0]).toMatchObject({ tierReviewAt: null });
     expect(recorded.rows).toEqual([]);
+    // Every successful refresh writes one history point for the growth chart.
+    expect(recorded.snapshots).toEqual([
+      expect.objectContaining({
+        creatorId: 'profile-1',
+        followerCount: 15_000,
+        engagementRate: '2.20',
+        source: 'tiktok',
+      }),
+    ]);
   });
 
   it('flags a downgrade for admin review and keeps the tier', async () => {

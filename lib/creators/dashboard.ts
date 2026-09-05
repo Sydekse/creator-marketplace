@@ -2,6 +2,7 @@ import { and, desc, eq, isNull, or, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   campaign,
+  creatorMetricSnapshot,
   deal,
   deliverable,
   ledgerEntry,
@@ -95,6 +96,47 @@ export interface CreatorDashboard {
     comments: number | null;
     measuredVideos: number;
     totalVideos: number;
+  };
+  actions: {
+    pendingOffers: number;
+    readyToDeliver: number;
+    needsRevision: number;
+    needsMetrics: number;
+  };
+  topVideos: Array<{
+    deliverableId: string;
+    dealId: string;
+    campaignName: string;
+    tiktokUrl: string;
+    thumbnailUrl: string | null;
+    tiktokVideoId: string | null;
+    reviewStatus: string;
+    submittedAt: Date;
+    views: number | null;
+    likes: number | null;
+    shares: number | null;
+    comments: number | null;
+  }>;
+  relationships: {
+    brandsWorkedWith: number;
+    repeatBrands: number;
+  };
+  reliability: {
+    avgSubmitDays: number | null;
+    approvalRate: number | null;
+    revisionRate: number | null;
+  };
+  growth: {
+    followersDelta: number | null;
+    engagementDelta: number | null;
+    latestAt: Date | null;
+    previousAt: Date | null;
+  };
+  weeklyLift: {
+    views: number | null;
+    likes: number | null;
+    shares: number | null;
+    comments: number | null;
   };
 }
 
@@ -239,6 +281,174 @@ export function creatorMetricsQuery(creatorProfileId: string) {
     .where(eq(deal.creatorId, creatorProfileId));
 }
 
+export function topVideosQuery(creatorProfileId: string) {
+  return db
+    .select({
+      deliverableId: deliverable.id,
+      dealId: deal.id,
+      campaignName: campaign.name,
+      tiktokUrl: deliverable.tiktokUrl,
+      thumbnailUrl: deliverable.thumbnailUrl,
+      tiktokVideoId: deliverable.tiktokVideoId,
+      reviewStatus: deliverable.reviewStatus,
+      submittedAt: deliverable.submittedAt,
+      views: videoMetric.views,
+      likes: videoMetric.likes,
+      shares: videoMetric.shares,
+      comments: videoMetric.comments,
+    })
+    .from(deliverable)
+    .innerJoin(deal, eq(deliverable.dealId, deal.id))
+    .innerJoin(campaign, eq(deal.campaignId, campaign.id))
+    .leftJoin(videoMetric, eq(videoMetric.deliverableId, deliverable.id))
+    .where(eq(deal.creatorId, creatorProfileId))
+    .orderBy(
+      sql`${videoMetric.views} desc nulls last`,
+      desc(deliverable.submittedAt)
+    )
+    .limit(5);
+}
+
+export async function relationshipStatsQuery(creatorProfileId: string) {
+  const result = await db.execute<{
+    brands_worked_with: number;
+    repeat_brands: number;
+  }>(sql`
+    with brand_counts as (
+      select c.brand_id, count(*)::int as deals
+      from deal d
+      inner join campaign c on c.id = d.campaign_id
+      where d.creator_id = ${creatorProfileId}
+      group by c.brand_id
+    )
+    select
+      count(*)::int as brands_worked_with,
+      count(*) filter (where deals > 1)::int as repeat_brands
+    from brand_counts
+  `);
+  const row = result.rows[0];
+
+  return {
+    brandsWorkedWith: Number(row?.brands_worked_with ?? 0),
+    repeatBrands: Number(row?.repeat_brands ?? 0),
+  };
+}
+
+export async function reliabilityQuery(creatorProfileId: string) {
+  const result = await db.execute<{
+    avg_submit_days: number | null;
+    approval_rate: number | null;
+    revision_rate: number | null;
+  }>(sql`
+    select
+      avg(extract(epoch from (dl.submitted_at - d.created_at)) / 86400.0)::float as avg_submit_days,
+      (
+        count(*) filter (where dl.review_status = 'approved')::float
+        / nullif(count(*), 0)
+      ) as approval_rate,
+      (
+        count(*) filter (where dl.review_status = 'rejected')::float
+        / nullif(count(*), 0)
+      ) as revision_rate
+    from deliverable dl
+    inner join deal d on d.id = dl.deal_id
+    where d.creator_id = ${creatorProfileId}
+  `);
+  const row = result.rows[0];
+
+  return {
+    avgSubmitDays:
+      row?.avg_submit_days === null || row?.avg_submit_days === undefined
+        ? null
+        : Number(row.avg_submit_days),
+    approvalRate:
+      row?.approval_rate === null || row?.approval_rate === undefined
+        ? null
+        : Number(row.approval_rate),
+    revisionRate:
+      row?.revision_rate === null || row?.revision_rate === undefined
+        ? null
+        : Number(row.revision_rate),
+  };
+}
+
+export async function growthQuery(
+  creatorProfileId: string
+): Promise<CreatorDashboard['growth']> {
+  const rows = await db
+    .select({
+      followerCount: creatorMetricSnapshot.followerCount,
+      engagementRate: creatorMetricSnapshot.engagementRate,
+      capturedAt: creatorMetricSnapshot.capturedAt,
+    })
+    .from(creatorMetricSnapshot)
+    .where(eq(creatorMetricSnapshot.creatorId, creatorProfileId))
+    .orderBy(desc(creatorMetricSnapshot.capturedAt))
+    .limit(2);
+
+  const [latest, previous] = rows;
+  return {
+    followersDelta:
+      latest && previous ? latest.followerCount - previous.followerCount : null,
+    engagementDelta:
+      latest && previous && latest.engagementRate !== null
+        ? Number(latest.engagementRate) - Number(previous.engagementRate ?? 0)
+        : null,
+    latestAt: latest?.capturedAt ?? null,
+    previousAt: previous?.capturedAt ?? null,
+  };
+}
+
+export async function weeklyLiftQuery(
+  creatorProfileId: string,
+  now: Date
+): Promise<CreatorDashboard['weeklyLift']> {
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const result = await db.execute<{
+    views: number | null;
+    likes: number | null;
+    shares: number | null;
+    comments: number | null;
+  }>(sql`
+    with creator_deliverables as (
+      select dl.id
+      from deliverable dl
+      inner join deal d on d.id = dl.deal_id
+      where d.creator_id = ${creatorProfileId}
+    ),
+    latest as (
+      select distinct on (s.deliverable_id)
+        s.deliverable_id, s.views, s.likes, s.shares, s.comments
+      from video_metric_snapshot s
+      inner join creator_deliverables cd on cd.id = s.deliverable_id
+      order by s.deliverable_id, s.captured_at desc
+    ),
+    baseline as (
+      select distinct on (s.deliverable_id)
+        s.deliverable_id, s.views, s.likes, s.shares, s.comments
+      from video_metric_snapshot s
+      inner join creator_deliverables cd on cd.id = s.deliverable_id
+      where s.captured_at <= ${weekAgo}
+      order by s.deliverable_id, s.captured_at desc
+    )
+    select
+      sum(latest.views - baseline.views)::int as views,
+      sum(latest.likes - baseline.likes)::int as likes,
+      sum(latest.shares - baseline.shares)::int as shares,
+      sum(latest.comments - baseline.comments)::int as comments
+    from latest
+    inner join baseline on baseline.deliverable_id = latest.deliverable_id
+  `);
+  const row = result.rows[0];
+
+  return {
+    views: row?.views ?? null,
+    likes: row?.likes ?? null,
+    shares: row?.shares ?? null,
+    comments: row?.comments ?? null,
+  };
+}
+
 /**
  * Partitions rows into all five groups, in `DEAL_GROUPS` order.
  *
@@ -264,6 +474,22 @@ export interface CreatorDashboardDeps {
   selectMetrics: (
     creatorProfileId: string
   ) => Promise<CreatorDashboard['metrics']>;
+  selectTopVideos: (
+    creatorProfileId: string
+  ) => Promise<CreatorDashboard['topVideos']>;
+  selectRelationships: (
+    creatorProfileId: string
+  ) => Promise<CreatorDashboard['relationships']>;
+  selectReliability: (
+    creatorProfileId: string
+  ) => Promise<CreatorDashboard['reliability']>;
+  selectGrowth: (
+    creatorProfileId: string
+  ) => Promise<CreatorDashboard['growth']>;
+  selectWeeklyLift: (
+    creatorProfileId: string,
+    now: Date
+  ) => Promise<CreatorDashboard['weeklyLift']>;
 }
 
 async function selectEarnings(
@@ -318,6 +544,11 @@ const defaultDeps: CreatorDashboardDeps = {
   selectPayoutEvents,
   selectUnmeasuredDeals,
   selectMetrics,
+  selectTopVideos: topVideosQuery,
+  selectRelationships: relationshipStatsQuery,
+  selectReliability: reliabilityQuery,
+  selectGrowth: growthQuery,
+  selectWeeklyLift: weeklyLiftQuery,
 };
 
 /**
@@ -339,15 +570,30 @@ export async function readCreatorDashboard(
   const { creatorProfileId } = await deps.requireCreator();
   if (!creatorProfileId) return null;
 
-  const [earnings, rows, payoutEvents, unmeasured, metrics] = await Promise.all(
-    [
-      deps.selectEarnings(creatorProfileId),
-      deps.selectDeals(creatorProfileId),
-      deps.selectPayoutEvents(creatorProfileId),
-      deps.selectUnmeasuredDeals(creatorProfileId),
-      deps.selectMetrics(creatorProfileId),
-    ]
-  );
+  const now = new Date();
+  const [
+    earnings,
+    rows,
+    payoutEvents,
+    unmeasured,
+    metrics,
+    topVideos,
+    relationships,
+    reliability,
+    growth,
+    weeklyLift,
+  ] = await Promise.all([
+    deps.selectEarnings(creatorProfileId),
+    deps.selectDeals(creatorProfileId),
+    deps.selectPayoutEvents(creatorProfileId),
+    deps.selectUnmeasuredDeals(creatorProfileId),
+    deps.selectMetrics(creatorProfileId),
+    deps.selectTopVideos(creatorProfileId),
+    deps.selectRelationships(creatorProfileId),
+    deps.selectReliability(creatorProfileId),
+    deps.selectGrowth(creatorProfileId),
+    deps.selectWeeklyLift(creatorProfileId, now),
+  ]);
 
   const unmeasuredDealIds = [...new Set(unmeasured.map((r) => r.dealId))];
   const cutoff = Date.now() + 48 * 60 * 60 * 1000;
@@ -378,11 +624,25 @@ export async function readCreatorDashboard(
         createdAt: event.createdAt,
         paidOut: -event.amount,
       })),
-      new Date()
+      now
     ),
     unmeasuredDealIds,
     expiringOffers,
     metrics,
+    actions: {
+      pendingOffers: rows.filter((r) => r.status === 'pending').length,
+      readyToDeliver: rows.filter(
+        (r) => r.status === 'funded' || r.status === 'accepted'
+      ).length,
+      needsRevision: rows.filter((r) => r.status === 'revision_requested')
+        .length,
+      needsMetrics: unmeasuredDealIds.length,
+    },
+    topVideos,
+    relationships,
+    reliability,
+    growth,
+    weeklyLift,
   };
 }
 

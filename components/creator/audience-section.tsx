@@ -43,7 +43,7 @@ export function AudienceSection({
             {markets.length > 0 ? markets.join(', ') : NOT_PROVIDED}
           </dd>
         </div>
-        <div className="flex flex-col gap-1">
+        <div className="flex flex-col gap-1 sm:border-l sm:border-neutral-200 sm:pl-6">
           <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-600">
             Age range
           </dt>

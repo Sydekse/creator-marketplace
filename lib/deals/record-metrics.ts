@@ -149,14 +149,17 @@ const defaultDeps: RecordMetricsDeps = {
         comments: videoMetric.comments,
       });
 
-    // History for "reach as of a date" (brand dashboard's weekly delta). Only
-    // writes that touched `views` leave a snapshot — a likes-only update says
-    // nothing new about reach. Same runner: the snapshot commits or rolls
-    // back with the metric row it describes.
-    if (values.views !== undefined && row.views !== null) {
+    // History for "reach as of a date" (brand dashboard's weekly delta) and
+    // creator-side engagement trend. Snapshot the merged row whenever views are
+    // known, even if this write only touched likes/shares/comments; the row then
+    // records a complete point-in-time engagement state.
+    if (row.views !== null) {
       await runner.insert(videoMetricSnapshot).values({
         deliverableId,
         views: row.views,
+        likes: row.likes,
+        shares: row.shares,
+        comments: row.comments,
         capturedAt: lastUpdatedAt,
       });
     }

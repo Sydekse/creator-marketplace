@@ -141,6 +141,13 @@
       "when": 1788463829475,
       "tag": "0019_deliverable_thumbnail",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788557219005,
+      "tag": "0020_sticky_the_spike",
+      "breakpoints": true
     }
   ]
 }

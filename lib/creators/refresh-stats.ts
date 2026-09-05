@@ -1,6 +1,10 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { creatorProfile, pricingTier } from '@/db/schema';
+import {
+  creatorMetricSnapshot,
+  creatorProfile,
+  pricingTier,
+} from '@/db/schema';
 import type { Tx } from '@/lib/authz';
 import { sessionTiktokHandle } from '@/lib/creators/credentials';
 import {
@@ -223,6 +227,19 @@ export async function refreshCreatorStats(
         tierReviewAt: flagged ? refreshedAt : null,
       })
       .where(eq(creatorProfile.id, profile.id));
+
+    // One history point per successful refresh — but only when TikTok
+    // actually returned a follower count. A snapshot without the one number
+    // the growth chart plots would be a fake zero, not a data point.
+    if (stats.followerCount !== null) {
+      await tx.insert(creatorMetricSnapshot).values({
+        creatorId: profile.id,
+        followerCount: stats.followerCount,
+        engagementRate: stats.engagementRate,
+        capturedAt: refreshedAt,
+        source: 'tiktok',
+      });
+    }
 
     if (upgraded && outcome.assigned) {
       // Writes tier_id via the same code path onboarding and the admin retry
