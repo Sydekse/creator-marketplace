@@ -1,7 +1,12 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import * as d3 from 'd3';
+import { easeCubicOut } from 'd3-ease';
+import { scaleLinear, scalePoint } from 'd3-scale';
+import { pointer, select } from 'd3-selection';
+import { area as areaShape, curveMonotoneX, line as lineShape } from 'd3-shape';
+// Side-effect import: patches `.transition()` onto d3 selections.
+import 'd3-transition';
 
 /**
  * The 12-week spend line — a 1:1 port of the v4 mock's D3 block: monotone
@@ -48,8 +53,7 @@ export function SpendChart({ points }: { points: SpendPoint[] }) {
     tip.className = 'bd-tip';
     host.appendChild(tip);
 
-    const svg = d3
-      .select(host)
+    const svg = select(host)
       .append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('role', 'img')
@@ -60,8 +64,8 @@ export function SpendChart({ points }: { points: SpendPoint[] }) {
       .style('width', '100%')
       .style('height', 'auto');
 
-    const x = d3.scalePoint(weeks, [M.l, W - M.r]);
-    const y = d3.scaleLinear([0, maxValue], [H - M.b, M.t]);
+    const x = scalePoint(weeks, [M.l, W - M.r]);
+    const y = scaleLinear([0, maxValue], [H - M.b, M.t]);
 
     const grad = svg
       .append('defs')
@@ -98,17 +102,15 @@ export function SpendChart({ points }: { points: SpendPoint[] }) {
       .attr('stroke', LINE)
       .attr('stroke-dasharray', '3 5');
 
-    const area = d3
-      .area<SpendPoint>()
+    const area = areaShape<SpendPoint>()
       .x((d) => x(d.week) ?? 0)
       .y0(y(0))
       .y1((d) => y(d.value))
-      .curve(d3.curveMonotoneX);
-    const line = d3
-      .line<SpendPoint>()
+      .curve(curveMonotoneX);
+    const line = lineShape<SpendPoint>()
       .x((d) => x(d.week) ?? 0)
       .y((d) => y(d.value))
-      .curve(d3.curveMonotoneX);
+      .curve(curveMonotoneX);
 
     svg
       .append('path')
@@ -133,7 +135,7 @@ export function SpendChart({ points }: { points: SpendPoint[] }) {
           .attr('stroke-dashoffset', len)
           .transition()
           .duration(1300)
-          .ease(d3.easeCubicOut)
+          .ease(easeCubicOut)
           .attr('stroke-dashoffset', 0);
       }
     }
@@ -179,7 +181,7 @@ export function SpendChart({ points }: { points: SpendPoint[] }) {
       .attr('height', H - M.t - M.b)
       .attr('fill', 'transparent')
       .on('mousemove', (ev: MouseEvent) => {
-        const [mx] = d3.pointer(ev);
+        const [mx] = pointer(ev);
         const i = Math.max(
           0,
           Math.min(

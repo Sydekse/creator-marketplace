@@ -1,7 +1,18 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import * as d3 from 'd3';
+import { easeBackOut } from 'd3-ease';
+import {
+  forceCollide,
+  forceSimulation,
+  forceX,
+  forceY,
+  type SimulationNodeDatum,
+} from 'd3-force';
+import { scaleLinear, scaleSqrt } from 'd3-scale';
+import { select } from 'd3-selection';
+// Side-effect import: patches `.transition()` onto d3 selections.
+import 'd3-transition';
 
 /**
  * The reach bubble swarm — a 1:1 port of the v4 mock's D3 block. One bubble
@@ -37,7 +48,7 @@ const W = 680;
 const H = 252;
 const LABEL_BAND = 30;
 
-interface Node extends d3.SimulationNodeDatum {
+interface Node extends SimulationNodeDatum {
   c: number;
   r: number;
   video: ReachVideo;
@@ -90,8 +101,8 @@ export function ReachBubbles({ videos }: { videos: ReachVideo[] }) {
     }
 
     const maxViews = Math.max(19000, ...measured.map((v) => v.views ?? 0));
-    const size = d3.scaleSqrt([0, maxViews], [0, 32]);
-    const tone = d3.scaleLinear([0, maxViews], [0.45, 1]);
+    const size = scaleSqrt([0, maxViews], [0, 32]);
+    const tone = scaleLinear([0, maxViews], [0.45, 1]);
 
     // Deterministic jitter (index-seeded) instead of Math.random(): the same
     // data always settles into the same swarm, render after render.
@@ -108,13 +119,12 @@ export function ReachBubbles({ videos }: { videos: ReachVideo[] }) {
       };
     });
 
-    const sim = d3
-      .forceSimulation(nodes)
-      .force('x', d3.forceX<Node>((d) => centers[d.c].x).strength(0.14))
-      .force('y', d3.forceY<Node>((d) => centers[d.c].y).strength(0.12))
+    const sim = forceSimulation(nodes)
+      .force('x', forceX<Node>((d) => centers[d.c].x).strength(0.14))
+      .force('y', forceY<Node>((d) => centers[d.c].y).strength(0.12))
       .force(
         'collide',
-        d3.forceCollide<Node>((d) => d.r + 2.5)
+        forceCollide<Node>((d) => d.r + 2.5)
       )
       .stop();
     for (let i = 0; i < 260; i += 1) sim.tick();
@@ -125,8 +135,7 @@ export function ReachBubbles({ videos }: { videos: ReachVideo[] }) {
     tip.className = 'bd-tip';
     host.appendChild(tip);
 
-    const svg = d3
-      .select(host)
+    const svg = select(host)
       .append('svg')
       .attr('viewBox', `0 0 ${W} ${H}`)
       .attr('role', 'img')
@@ -202,7 +211,7 @@ export function ReachBubbles({ videos }: { videos: ReachVideo[] }) {
         .transition()
         .duration(700)
         .delay((_, i) => 250 + i * 45)
-        .ease(d3.easeBackOut.overshoot(1.4))
+        .ease(easeBackOut.overshoot(1.4))
         .attr('r', (d) => d.r);
     }
 

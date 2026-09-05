@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { SlotText } from 'slot-text/react';
-import { useReducedMotion } from 'framer-motion';
+import { useReducedMotion } from '@/lib/use-reduced-motion';
 import type { SelfRegisterableRole } from '@/lib/auth-policy';
 
 const PANEL_COPY: Record<
@@ -42,11 +42,11 @@ export function AuthPanel() {
   return (
     <aside
       aria-hidden
-      className="relative hidden overflow-hidden bg-neutral-50 lg:grid lg:place-items-center lg:p-12 xl:p-16"
+      className="auth-reveal-panel relative hidden overflow-hidden bg-neutral-50 lg:grid lg:place-items-center lg:p-12 xl:p-16"
     >
-      <div className="absolute -top-8 -right-8 -bottom-8 -left-74 overflow-hidden [mask-image:linear-gradient(to_right,transparent_0%,transparent_35%,rgba(0,0,0,0.03)_39%,rgba(0,0,0,0.09)_46%,rgba(0,0,0,0.2)_56%,rgba(0,0,0,0.4)_68%,rgba(0,0,0,0.65)_83%,rgba(0,0,0,0.86)_94%,black_100%)]">
+      <div className="absolute -top-8 -right-8 -bottom-8 -left-74 overflow-hidden [mask-image:linear-gradient(to_right,transparent_0%,transparent_45%,rgba(0,0,0,0.03)_50%,rgba(0,0,0,0.09)_57%,rgba(0,0,0,0.2)_66%,rgba(0,0,0,0.42)_76%,rgba(0,0,0,0.68)_88%,rgba(0,0,0,0.88)_96%,black_100%)]">
         <Image
-          src="/marketing/auth-panel-teal.png"
+          src="/marketing/auth-panel-teal.webp"
           alt=""
           fill
           sizes="44vw"
@@ -54,7 +54,7 @@ export function AuthPanel() {
           priority
         />
       </div>
-      <div className="pointer-events-none absolute inset-y-0 left-0 w-16 bg-neutral-50" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-neutral-50" />
       <div className="relative grid w-full max-w-[33rem] -translate-x-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-6 text-left xl:-translate-x-16">
         <div className="font-display text-[3.35rem] font-semibold leading-[0.78] tracking-[-0.08em] text-[oklch(0.18_0.055_185)] xl:text-[3.8rem]">
           <span className="block">Tap</span>

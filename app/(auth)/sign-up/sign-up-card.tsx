@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -169,7 +169,7 @@ export function SignUpCard({
 
       {/* One credential form, two placements: brands always, creators only
           when the demo flag has revealed it. The same `handleSubmit` runs
-          either way â€” the only difference is which accordion it sits in. */}
+          either way — the only difference is which accordion it sits in. */}
       <AccordionPanel
         open={role === 'brand' || (role === 'creator' && creatorDemo)}
       >
@@ -300,7 +300,7 @@ export function SignUpCard({
             size="xl"
             className="btn-shine h-11 w-full bg-brand-deep text-neutral-50 hover:bg-brand-strong"
           >
-            {loading ? 'Creating accountâ€¦' : 'Create account'}
+            {loading ? 'Creating account…' : 'Create account'}
           </Button>
         </form>
       </AccordionPanel>

@@ -1,17 +1,18 @@
-﻿import Image from 'next/image';
+import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, CaretDown, Check } from '@phosphor-icons/react/dist/ssr';
 import { Mark } from '@/components/brand/mark';
 import { TikTokIcon } from '@/components/brand/tiktok-icon';
+import { BrandWorkspaceScrollRail } from '@/components/marketing/brand-workspace-scroll-rail';
 import { Reveal } from '@/components/marketing/reveal';
 import { SectionLabel } from '@/components/layout/section-label';
 
-/** The landing page's SectionLabel, pill chrome stripped â€” bare teal eyebrow text. */
+/** The landing page's SectionLabel, pill chrome stripped — bare teal eyebrow text. */
 const FLAT_LABEL = 'rounded-none bg-transparent px-0 py-0 shadow-none';
 import { cn } from '@/lib/utils';
 
 /* -------------------------------------------------------------------------- */
-/*  Landing page â€” Creator Marketplace                                        */
+/*  Landing page — Creator Marketplace                                        */
 /*  Direction: editorial, monochrome. Inspired by the Straton layout:         */
 /*  floating pill nav, serif display headlines, hairline dividers, CSS-built  */
 /*  app mockups, bordered pricing rows, multi-column footer.                  */
@@ -177,7 +178,7 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-neutral-50 text-neutral-900 antialiased">
       {/* ------------------------------------------------------------------ */}
-      {/*  NAV â€” floating pill, dark on light                               */}
+      {/*  NAV — floating pill, dark on light                               */}
       {/* ------------------------------------------------------------------ */}
       <nav
         aria-label="Primary"
@@ -229,7 +230,7 @@ export default function HomePage() {
 
       <main>
         {/* ---------------------------------------------------------------- */}
-        {/*  HERO â€” editorial headline beside the real dashboard, cropped    */}
+        {/*  HERO — editorial headline beside the real dashboard, cropped    */}
         {/*  by the viewport edge the way the reference frames its product.  */}
         {/* ---------------------------------------------------------------- */}
         <section className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-20 lg:min-h-[calc((100vw-36rem)*0.7472+336px)] lg:pt-32 lg:pb-0">
@@ -329,7 +330,7 @@ export default function HomePage() {
                     </div>
                     <div className="min-h-0 flex-1">
                       <Image
-                        src="/marketing/brand-dashboard.png"
+                        src="/marketing/brand-dashboard.webp"
                         alt=""
                         width={2880}
                         height={2152}
@@ -349,7 +350,7 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  HOW IT WORKS â€” numbered steps, hairline-divided                  */}
+        {/*  HOW IT WORKS — numbered steps, hairline-divided                  */}
         {/* ---------------------------------------------------------------- */}
         <section id="how-it-works" className="scroll-mt-28 py-16 sm:py-20">
           <div className="w-full px-5 sm:px-9 [--step-run:0px] lg:[--step-run:8rem] xl:[--step-run:10rem]">
@@ -466,7 +467,7 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  WHY â€” label + serif headline + right-aligned description         */}
+        {/*  WHY — label + serif headline + right-aligned description         */}
         {/* ---------------------------------------------------------------- */}
         <section id="platform" className="scroll-mt-28 py-16 sm:py-20">
           <div className="w-full px-5 sm:px-9">
@@ -485,41 +486,75 @@ export default function HomePage() {
             {/* The record itself: everything the deal carries, chained on one
                 hairline. A pulse walks the chain, token by token. */}
             <Reveal className="mt-14">
-              {/* Mobile: the record as one framed line — tokens chained by
-                  arrows, the teal wash walking the sentence. */}
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-2 rounded-2xl border border-[oklch(0.79_0.004_220)] bg-white px-4 py-3.5 shadow-[0_2px_0_rgba(23,23,23,0.07)] sm:hidden">
-                {['Brief', 'Creator', 'Deliverable', 'Payment', 'History'].map(
-                  (token, i, arr) => (
-                    <span
-                      key={token}
-                      className="inline-flex items-center gap-2"
-                    >
+              {/* Mobile: a curved two-row route. When the chain wraps, the line
+                  bends down and back instead of breaking into a scroll strip. */}
+              <div className="relative overflow-hidden rounded-2xl border border-[oklch(0.79_0.004_220)] bg-white px-4 py-5 shadow-[0_2px_0_rgba(23,23,23,0.07)] sm:hidden">
+                <svg
+                  aria-hidden
+                  viewBox="0 0 340 156"
+                  preserveAspectRatio="none"
+                  className="pointer-events-none absolute inset-x-4 top-5 h-[156px] text-brand/35"
+                >
+                  <path
+                    d="M42 24 H170 H298 Q326 24 326 52 V104 Q326 132 298 132 H170"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M42 24 H170 H298 Q326 24 326 52 V104 Q326 132 298 132 H170"
+                    fill="none"
+                    stroke="oklch(0.51 0.11 185)"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeDasharray="24 420"
+                    className="animate-[chain-route-sweep_7s_ease-in-out_infinite]"
+                  />
+                </svg>
+                <div className="relative grid grid-cols-3 gap-x-2 gap-y-16">
+                  {[
+                    'Brief',
+                    'Creator',
+                    'Deliverable',
+                    'History',
+                    'Payment',
+                  ].map((token, i) => {
+                    const order =
+                      token === 'History' ? 5 : token === 'Payment' ? 4 : i + 1;
+                    return (
                       <span
-                        className="chain-token rounded-md border border-transparent px-1.5 py-0.5 font-mono text-[11px] uppercase tracking-[0.08em] text-neutral-600"
-                        style={{ '--chain-i': i } as React.CSSProperties}
+                        key={token}
+                        className={cn(
+                          'chain-token inline-flex items-center justify-between gap-2 rounded-full border border-brand bg-brand px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-50 shadow-[0_0_0_4px_oklch(0.51_0.11_185/0.12)]',
+                          token === 'History' && 'col-start-1 row-start-2',
+                          token === 'Payment' && 'col-start-2 row-start-2'
+                        )}
+                        style={
+                          { '--chain-i': order - 1 } as React.CSSProperties
+                        }
                       >
-                        {token}
-                      </span>
-                      {i < arr.length - 1 && (
+                        <span>{token}</span>
                         <span
                           aria-hidden
-                          className="font-mono text-[11px] text-neutral-400"
+                          className="text-[9px] text-neutral-50/70"
                         >
-                          →
+                          {String(order).padStart(2, '0')}
                         </span>
-                      )}
-                    </span>
-                  )
-                )}
+                      </span>
+                    );
+                  })}
+                </div>
               </div>
-              {/* From sm up: the horizontal rail, pills seated on one line,
-                  a spark sweeping each connector as the pulse passes. */}
-              <div className="hidden sm:flex sm:flex-wrap sm:items-center sm:gap-y-4">
+              {/* From sm up: a full-width rail. The tokens sit on a grid and
+                  the connectors stretch to the next station so the line nearly
+                  reaches the viewport edge, echoing the four-step rail above. */}
+              <div className="hidden sm:grid sm:w-full sm:grid-cols-[auto_minmax(2rem,1fr)_auto_minmax(2rem,1fr)_auto_minmax(2rem,1fr)_auto_minmax(2rem,1fr)_auto] sm:items-center">
                 {['Brief', 'Creator', 'Deliverable', 'Payment', 'History'].map(
                   (token, i, arr) => (
-                    <div key={token} className="flex items-center">
+                    <div key={token} className="contents">
                       <span
-                        className="chain-token rounded-full border border-[oklch(0.79_0.004_220)] bg-white px-5 py-2.5 font-mono text-xs uppercase tracking-[0.08em] text-neutral-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-brand hover:text-brand-ink lg:px-6 lg:py-3 lg:text-[13px]"
+                        className="chain-token rounded-full border border-[oklch(0.79_0.004_220)] bg-white px-6 py-3 font-mono text-[13px] uppercase tracking-[0.08em] text-neutral-600 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-brand hover:text-brand-ink lg:px-7 lg:py-3.5 lg:text-sm"
                         style={{ '--chain-i': i } as React.CSSProperties}
                       >
                         {token}
@@ -527,7 +562,7 @@ export default function HomePage() {
                       {i < arr.length - 1 && (
                         <span
                           aria-hidden
-                          className="chain-link h-px w-6 bg-neutral-300 sm:w-12 lg:w-24"
+                          className="chain-link h-px min-w-8 bg-neutral-300"
                           style={{ '--chain-i': i } as React.CSSProperties}
                         />
                       )}
@@ -540,7 +575,7 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  BRAND WORKSPACE â€” feature list + stacked app frames              */}
+        {/*  BRAND WORKSPACE — feature list + stacked app frames              */}
         {/* ---------------------------------------------------------------- */}
         <section id="for-brands" className="scroll-mt-28 py-16 sm:py-20">
           <div className="w-full px-5 sm:px-9">
@@ -562,58 +597,16 @@ export default function HomePage() {
                   teal, and the flight stretched to run the mock's full
                   height so the two rails read as one system. */}
               <Reveal className="lg:h-full">
-                <ol className="lg:flex lg:h-full lg:flex-col">
-                  {WORKSPACE_FEATURES.map((f, i) => (
-                    <li
-                      key={f.title}
-                      className="group relative flex gap-5 pb-9 last:pb-0 sm:gap-6 lg:flex-1 lg:pb-0 lg:last:flex-none"
-                    >
-                      <div className="flex flex-col items-center">
-                        <span
-                          aria-hidden
-                          className={cn(
-                            'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border font-mono text-[11px] font-medium tabular-nums transition-all duration-300 ease-out',
-                            f.active
-                              ? 'node-breathe border-brand bg-brand text-neutral-50 shadow-[0_0_0_4px_oklch(0.51_0.11_185/0.15)]'
-                              : 'border-[oklch(0.79_0.004_220)] bg-white text-neutral-600 group-hover:border-brand group-hover:text-brand group-hover:shadow-[0_0_0_4px_oklch(0.51_0.11_185/0.1)]'
-                          )}
-                        >
-                          {String(i + 1).padStart(2, '0')}
-                        </span>
-                        {i < WORKSPACE_FEATURES.length - 1 && (
-                          <span
-                            aria-hidden
-                            className="mt-2 w-px flex-1 bg-neutral-200 transition-colors duration-300 ease-out group-hover:bg-brand/40"
-                          />
-                        )}
-                      </div>
-                      <div className="pt-1.5 transition-transform duration-300 ease-out group-hover:translate-x-0.5">
-                        <h3
-                          className={cn(
-                            'font-display text-lg font-medium leading-snug transition-colors duration-300 ease-out sm:text-xl',
-                            f.active
-                              ? 'text-brand'
-                              : 'text-neutral-900 group-hover:text-brand-ink'
-                          )}
-                        >
-                          {f.title}
-                        </h3>
-                        <p className="mt-2 max-w-[44ch] text-sm leading-relaxed text-neutral-600">
-                          {f.desc}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
+                <BrandWorkspaceScrollRail steps={WORKSPACE_FEATURES} />
               </Reveal>
 
               {/* The real review screen: identity, progress rail, the
-                  submitted video, and the approve control â€” captured from
+                  submitted video, and the approve control — captured from
                   the populated demo workspace, not rebuilt in CSS. */}
               <Reveal delay={80} className="mt-12 lg:mt-0">
                 <AppFrame>
                   <Image
-                    src="/marketing/deal-review.png"
+                    src="/marketing/deal-review.webp"
                     alt=""
                     width={1666}
                     height={1472}
@@ -627,40 +620,86 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  CREATORS â€” stats band + creator app frame                        */}
+        {/*  CREATORS — stats band + creator app frame                        */}
         {/* ---------------------------------------------------------------- */}
         <section id="for-creators" className="scroll-mt-28 py-16 sm:py-20">
           <div className="w-full px-5 sm:px-9">
-            <SectionIntro
-              label="For creators"
-              title={
-                <>
+            <Reveal>
+              <div className="flex items-center gap-4">
+                <SectionLabel as="p" className={FLAT_LABEL}>
+                  For creators
+                </SectionLabel>
+                <span aria-hidden className="h-px flex-1 bg-neutral-200" />
+              </div>
+            </Reveal>
+
+            <div className="mt-10 flex flex-col gap-6">
+              <Reveal>
+                <h2 className="font-display text-3xl font-medium leading-[1.12] tracking-tight text-neutral-900 text-balance sm:text-4xl lg:text-5xl">
                   Get paid for what you
                   <br />
                   <em className="not-italic text-brand">already do.</em>
-                </>
-              }
-            />
+                </h2>
+              </Reveal>
+              <Reveal delay={80}>
+                <p className="max-w-md text-base leading-relaxed text-neutral-600">
+                  Every video you deliver builds your showreel, every approved
+                  one is a step up the earnings staircase. The money waits in
+                  escrow, not in someone&rsquo;s promise.
+                </p>
+              </Reveal>
+            </div>
 
-            <Reveal delay={120} className="mt-16">
-              {/* The creator workspace itself: payouts, escrow, profile, and
-                  rate â€” the populated demo account, captured not rebuilt. */}
-              <AppFrame className="mx-auto max-w-5xl">
-                <Image
-                  src="/marketing/creator-home.png"
-                  alt=""
-                  width={2880}
-                  height={2160}
-                  unoptimized
-                  className="h-auto w-full bg-white"
-                />
-              </AppFrame>
-            </Reveal>
+            {/* The creator workspace, captured not rebuilt
+                (scripts/capture-creator-home.mjs / capture-creator-deal.mjs):
+                the dashboard and a live deal side by side, tilted a degree
+                off the grid in opposite directions, straightening on hover. */}
+            <div className="mx-auto mt-14 grid max-w-6xl items-start gap-10 lg:grid-cols-2 lg:gap-8">
+              <Reveal delay={120}>
+                <div className="group">
+                  <div className="rotate-[-1.2deg] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-0 motion-reduce:rotate-0 motion-reduce:transition-none">
+                    <AppFrame>
+                      <Image
+                        src="/marketing/creator-home.webp"
+                        alt=""
+                        width={2928}
+                        height={3116}
+                        unoptimized
+                        className="h-auto w-full bg-white"
+                      />
+                    </AppFrame>
+                  </div>
+                  <p className="mt-4 text-center font-mono text-[11px] tracking-[0.08em] text-neutral-500">
+                    your workspace: showreel, earnings, queue
+                  </p>
+                </div>
+              </Reveal>
+
+              <Reveal delay={200}>
+                <div className="group lg:mt-10">
+                  <div className="rotate-[1.2deg] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-0 motion-reduce:rotate-0 motion-reduce:transition-none">
+                    <AppFrame>
+                      <Image
+                        src="/marketing/creator-deal.webp"
+                        alt=""
+                        width={2912}
+                        height={2312}
+                        unoptimized
+                        className="h-auto w-full bg-white"
+                      />
+                    </AppFrame>
+                  </div>
+                  <p className="mt-4 text-center font-mono text-[11px] tracking-[0.08em] text-neutral-500">
+                    a funded deal: escrow held, ready to deliver
+                  </p>
+                </div>
+              </Reveal>
+            </div>
           </div>
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  PRICING â€” commission model as bordered cards                     */}
+        {/*  PRICING — commission model as bordered cards                     */}
         {/* ---------------------------------------------------------------- */}
         <section id="pricing" className="scroll-mt-28 py-16 sm:py-20">
           <div className="w-full px-5 sm:px-9">
@@ -678,7 +717,7 @@ export default function HomePage() {
             />
 
             {/* Two banded chapter panels: teal-washed header band over a
-                hairline ledger of inclusions â€” the deals-inbox grammar. */}
+                hairline ledger of inclusions — the deals-inbox grammar. */}
             <div className="mt-16 grid gap-6 md:grid-cols-2 md:gap-8">
               {[
                 {
@@ -846,7 +885,7 @@ export default function HomePage() {
       </main>
 
       {/* ------------------------------------------------------------------ */}
-      {/*  FOOTER â€” multi-column, hairline-divided                           */}
+      {/*  FOOTER — multi-column, hairline-divided                           */}
       {/* ------------------------------------------------------------------ */}
       <footer className="border-t border-neutral-200 bg-white">
         <div className="grid w-full gap-12 px-5 sm:px-9 py-16 lg:grid-cols-[1.4fr_2fr]">

@@ -33,7 +33,7 @@ export default function AuthLayout({
         <header className="relative flex justify-center px-4 pt-4 sm:px-8 sm:pt-6">
           <Link
             href="/"
-            className="flex items-center gap-3 rounded-full transition-transform duration-300 ease-out hover:-translate-y-0.5 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+            className="auth-reveal-mark flex items-center gap-3 rounded-full transition-transform duration-300 ease-out hover:-translate-y-0.5 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
           >
             <Mark tone="dark" />
             <span className="text-[13px] font-semibold tracking-tight text-neutral-900">
@@ -42,7 +42,7 @@ export default function AuthLayout({
           </Link>
         </header>
 
-        <main className="relative flex min-h-0 flex-1 items-center justify-center px-4 py-8 sm:px-6 sm:py-10 lg:py-6">
+        <main className="auth-reveal-card relative flex min-h-0 flex-1 items-center justify-center px-4 py-8 sm:px-6 sm:py-10 lg:py-6">
           {children}
         </main>
       </div>
