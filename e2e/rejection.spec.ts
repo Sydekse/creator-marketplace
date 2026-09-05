@@ -4,6 +4,7 @@ import {
   expectMutationOk,
   openCampaign,
   openCreatorDeal,
+  pickOption,
   settledMain,
   signIn,
   submitVideo,
@@ -42,10 +43,7 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   await brand.getByRole('link', { name: '@demo_creator' }).click();
   await brand.waitForURL(/\/deals\/[0-9a-f-]+/);
   await settledMain(brand);
-  await brand.getByLabel('Revision category').click();
-  await brand
-    .getByRole('option', { name: 'Message accuracy', exact: true })
-    .click();
+  await pickOption(brand, 'Revision category', 'Message accuracy');
   // The reject form asks for a reason (AC-024) — fill it and confirm.
   const reasonField = brand.locator('textarea, input[type="text"]').last();
   await reasonField.fill('Please include the actual engagement numbers.');
@@ -70,10 +68,7 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   ).toBeVisible();
   await brand.reload();
   await settledMain(brand);
-  await brand.getByLabel('Revision category').click();
-  await brand
-    .getByRole('option', { name: 'Audio / visual quality', exact: true })
-    .click();
+  await pickOption(brand, 'Revision category', 'Audio / visual quality');
   await brand.locator('textarea').fill('Please improve the audio.');
   await expectMutationOk(brand, '/reject', () =>
     brand.getByRole('button', { name: 'Request changes', exact: true }).click()

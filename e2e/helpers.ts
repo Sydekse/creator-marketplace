@@ -101,6 +101,32 @@ export async function openConfirmDialog(
 }
 
 /**
+ * Open a Radix select by its labelled trigger and pick an option.
+ *
+ * The trigger is a client component: a click that lands before hydration
+ * attaches the handler does nothing, and the option locator then waits out
+ * the whole test timeout (flow 4's second rejection lost exactly this way on
+ * webkit-desktop — the first select, further from the `reload()`, always
+ * worked). Same family as `openConfirmDialog`'s not-yet-hydrated click:
+ * unobservable from outside, so click, give the listbox a beat to appear,
+ * click again if it didn't.
+ */
+export async function pickOption(
+  page: Page,
+  triggerLabel: string,
+  optionName: string
+): Promise<void> {
+  const option = page.getByRole('option', { name: optionName, exact: true });
+  await expect(async () => {
+    if (!(await option.isVisible())) {
+      await page.getByLabel(triggerLabel).click();
+    }
+    await expect(option).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await option.click();
+}
+
+/**
  * Run `act` (a click that fires a client-side mutation) and require the
  * matching response to arrive ok before the caller moves on.
  *
