@@ -37,6 +37,35 @@ export async function signIn(page: Page, email: string): Promise<void> {
   await page.waitForURL(/\/(brand|creator|admin)(\/|$)/);
 }
 
+/**
+ * Wait for a just-navigated page's content to actually stream in, reloading
+ * once if it never does.
+ *
+ * Clicking a link at automation speed — milliseconds after load, while
+ * hydration and the router's prefetches are still in flight — can land on a
+ * page whose banner renders but whose `main` stays empty: the RSC response
+ * arrives (200 in the trace) and is never painted. Seen on the audit-log
+ * step of flow 6 in CI and on a creator deal page locally, both only in
+ * production mode and never on a reload of the same URL. Same family as
+ * `openConfirmDialog`'s not-yet-hydrated click: unobservable from outside,
+ * so check, reload, check again.
+ */
+export async function settledMain(page: Page): Promise<void> {
+  await expect(async () => {
+    const children = await page.evaluate(
+      () => document.querySelector('main')?.childElementCount ?? 0
+    );
+    if (children === 0) {
+      await page.reload();
+    }
+    expect(
+      await page.evaluate(
+        () => document.querySelector('main')?.childElementCount ?? 0
+      )
+    ).toBeGreaterThan(0);
+  }).toPass({ timeout: 30_000 });
+}
+
 /** Open the creator's deal detail page by campaign name. */
 export async function openCreatorDeal(page: Page, campaignName: string) {
   await page.goto('/creator/deals');
@@ -44,6 +73,8 @@ export async function openCreatorDeal(page: Page, campaignName: string) {
     .getByRole('link', { name: new RegExp(campaignName) })
     .first()
     .click();
+  await page.waitForURL(/\/creator\/deals\/[0-9a-f-]+/);
+  await settledMain(page);
 }
 
 /**
@@ -173,11 +204,13 @@ export async function openCampaign(page: Page, campaignName: string) {
   const open = page.getByRole('link', { name: `Open ${campaignName}` });
   if ((await open.count()) > 0) {
     await open.first().click();
-    return;
+  } else {
+    await page
+      .locator('.bd-caprow')
+      .filter({ hasText: campaignName })
+      .getByRole('link', { name: /Edit brief/i })
+      .click();
   }
-  await page
-    .locator('.bd-caprow')
-    .filter({ hasText: campaignName })
-    .getByRole('link', { name: /Edit brief/i })
-    .click();
+  await page.waitForURL(/\/campaigns\/[0-9a-f-]+/);
+  await settledMain(page);
 }
