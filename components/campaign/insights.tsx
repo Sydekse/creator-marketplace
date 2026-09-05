@@ -29,7 +29,7 @@ import {
   type CollaborationSummary,
 } from '@/lib/campaigns/insight-history';
 import { formatEtb } from '@/lib/money';
-import { InsightChart } from './insight-chart';
+import { InsightChart } from './insight-chart-lazy';
 
 const count = (n: number | null) =>
   n === null ? 'Pending' : n.toLocaleString('en-US');

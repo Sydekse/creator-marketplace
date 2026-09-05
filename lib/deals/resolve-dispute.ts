@@ -364,13 +364,17 @@ async function resolveRevision(
 
           // AC-030: both parties are told, in the same transaction as the
           // state change; the emails go out only after it commits (AC-3/4).
+          // The two rows are independent — settled together, and a failed
+          // insert of a courtesy row never rolls back the resolution.
           const payload = {
             dealId: row.id,
             campaignTitle: row.campaignName,
             resolution: NOTIFICATION_RESOLUTION.revision,
           } as const;
-          await notify(row.brandUserId, 'dispute_resolved', payload);
-          await notify(row.creatorUserId, 'dispute_resolved', payload);
+          await Promise.allSettled([
+            notify(row.brandUserId, 'dispute_resolved', payload),
+            notify(row.creatorUserId, 'dispute_resolved', payload),
+          ]);
 
           return success;
         },
@@ -500,8 +504,10 @@ async function resolveWithLedger(
         campaignTitle: row.campaignName,
         resolution: NOTIFICATION_RESOLUTION[input.resolution],
       } as const;
-      await notify(row.brandUserId, 'dispute_resolved', payload);
-      await notify(row.creatorUserId, 'dispute_resolved', payload);
+      await Promise.allSettled([
+        notify(row.brandUserId, 'dispute_resolved', payload),
+        notify(row.creatorUserId, 'dispute_resolved', payload),
+      ]);
       return success;
     }, deps?.notifyDeps);
   } catch (error) {

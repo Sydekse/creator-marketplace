@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
@@ -34,54 +34,50 @@ export function RemoveFromCartButton({
   creatorHandle,
 }: RemoveFromCartButtonProps) {
   const router = useRouter();
-  const [removing, setRemoving] = useState(false);
+  const [removing, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  async function handleRemove() {
+  function handleRemove() {
     if (removing) return;
 
-    setRemoving(true);
-
-    let response: Response;
-    try {
-      response = await fetch(
-        `/api/campaigns/${encodeURIComponent(campaignId)}/items/${encodeURIComponent(creatorId)}`,
-        { method: 'DELETE' }
-      );
-    } catch {
-      toast.error('Could not reach the server. Check your connection.');
-      setRemoving(false);
-      return;
-    }
-
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      const code = body?.error?.code;
-      if (code === 'NOT_FOUND') {
-        // Already gone. Refresh anyway — this view is the stale one.
-        toast.warning(REMOVE_FROM_CART_MISSING);
-        setRemoving(false);
-        router.refresh();
+    startTransition(async () => {
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/campaigns/${encodeURIComponent(campaignId)}/items/${encodeURIComponent(creatorId)}`,
+          { method: 'DELETE' }
+        );
+      } catch {
+        toast.error('Could not reach the server. Check your connection.');
         return;
       }
-      toast.error(
-        code === 'CAMPAIGN_NOT_DRAFT'
-          ? CAMPAIGN_NOT_DRAFT_MESSAGE
-          : REMOVE_FROM_CART_FAILED
-      );
-      setRemoving(false);
-      return;
-    }
 
-    toast.success(REMOVE_FROM_CART_SUCCESS);
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const code = body?.error?.code;
+        if (code === 'NOT_FOUND') {
+          // Already gone. Refresh anyway — this view is the stale one.
+          toast.warning(REMOVE_FROM_CART_MISSING);
+          router.refresh();
+          return;
+        }
+        toast.error(
+          code === 'CAMPAIGN_NOT_DRAFT'
+            ? CAMPAIGN_NOT_DRAFT_MESSAGE
+            : REMOVE_FROM_CART_FAILED
+        );
+        return;
+      }
 
-    // AC-015's "the running total and remaining budget update accordingly".
-    // The response carries both, but the summary is rendered on the server
-    // from `sumCartTotal`, so refreshing re-reads the source of truth rather
-    // than patching two numbers into the DOM from a client copy that can
-    // disagree with it.
-    setRemoving(false);
-    router.refresh();
+      toast.success(REMOVE_FROM_CART_SUCCESS);
+
+      // AC-015's "the running total and remaining budget update accordingly".
+      // The response carries both, but the summary is rendered on the server
+      // from `sumCartTotal`, so refreshing re-reads the source of truth rather
+      // than patching two numbers into the DOM from a client copy that can
+      // disagree with it.
+      router.refresh();
+    });
   }
 
   return (
