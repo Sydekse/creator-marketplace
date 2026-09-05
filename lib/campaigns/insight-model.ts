@@ -175,16 +175,15 @@ function cohort(deals: InsightDeal[], key: 'cpv' | 'cpe'): EfficiencyCohort {
   };
 }
 
-export function calculateCampaignInsights(
-  inputs: readonly InsightDealInput[],
-  settlement: { paidOut: number; commission: number; refunded: number }
-): CampaignInsightModel {
+export function prepareInsightDeals(
+  inputs: readonly InsightDealInput[]
+): InsightDeal[] {
   const identities = new Map<string, number>();
   for (const video of inputs.flatMap((d) => d.videos)) {
     const key = identity(video);
     if (key) identities.set(key, (identities.get(key) ?? 0) + 1);
   }
-  const deals: InsightDeal[] = inputs.map((input) => {
+  return inputs.map((input) => {
     checkedSum([input.unitPrice, input.totalPrice, input.videoCount]);
     const videos = [...input.videos]
       .sort((a, b) => a.ordinal - b.ordinal)
@@ -226,11 +225,21 @@ export function calculateCampaignInsights(
       cpe: !duplicate ? costRatio(input.totalPrice, engagement) : null,
     };
   });
+}
+
+/** Group already classified deals without forgetting repeats outside the group. */
+export function summarizeInsightDeals(
+  deals: InsightDeal[],
+  settlement: { paidOut: number; commission: number; refunded: number }
+): CampaignInsightModel {
   const cpv = cohort(deals, 'cpv');
   const cpe = cohort(deals, 'cpe');
   const byCreator = new Map<string, InsightDeal[]>();
-  for (const d of deals)
-    byCreator.set(d.creatorId, [...(byCreator.get(d.creatorId) ?? []), d]);
+  for (const d of deals) {
+    const bucket = byCreator.get(d.creatorId);
+    if (bucket) bucket.push(d);
+    else byCreator.set(d.creatorId, [d]);
+  }
   const share = (part: number | null, total: number | null) =>
     part !== null && total !== null && total > 0 ? part / total : null;
   const creators: CreatorInsight[] = [...byCreator.entries()]
@@ -285,4 +294,11 @@ export function calculateCampaignInsights(
     duplicateVideos: videos.filter((v) => v.duplicate).length,
     staleVideos: videos.filter((v) => v.stale).length,
   };
+}
+
+export function calculateCampaignInsights(
+  inputs: readonly InsightDealInput[],
+  settlement: { paidOut: number; commission: number; refunded: number }
+): CampaignInsightModel {
+  return summarizeInsightDeals(prepareInsightDeals(inputs), settlement);
 }

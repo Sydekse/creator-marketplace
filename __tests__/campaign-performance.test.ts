@@ -186,6 +186,9 @@ const okDeps = (
 
 describe('the settlement sums read the ledger', () => {
   const moduleSource = src(ESCROW_MODULE);
+  const settlementBody = moduleSource
+    .slice(moduleSource.indexOf('export async function sumSettledByCampaign('))
+    .split('\nexport ')[0];
 
   it('filters each figure to its own entry type', () => {
     expect(moduleSource).toContain("= 'release_payout'");
@@ -197,9 +200,7 @@ describe('the settlement sums read the ledger', () => {
     // `release_payout`, `commission` and `refund` are each written negative
     // (positive is into escrow, negative is out). A raw SUM would render as
     // −12,750.00 ETB paid out.
-    const body = moduleSource.slice(
-      moduleSource.indexOf('sumSettledByCampaign')
-    );
+    const body = settlementBody;
     expect(body).toMatch(/then\s*-\$\{ledgerEntry\.amount\}/);
     expect(body.match(/then -\$\{ledgerEntry\.amount\}/g)).toHaveLength(3);
   });
@@ -207,16 +208,12 @@ describe('the settlement sums read the ledger', () => {
   it('casts all three aggregates, because SUM() returns bigint as a string', () => {
     // Without the cast the figure is a string that concatenates instead of adding
     // — the trap `sumBalance` and `earningsQuery` both document.
-    const body = moduleSource.slice(
-      moduleSource.indexOf('sumSettledByCampaign')
-    );
+    const body = settlementBody;
     expect(body.match(/::int/g)).toHaveLength(3);
   });
 
   it('keys on the campaign, not by walking to a deal', () => {
-    const body = moduleSource.slice(
-      moduleSource.indexOf('sumSettledByCampaign')
-    );
+    const body = settlementBody;
     expect(body).toContain('eq(ledgerEntry.campaignId, campaignId)');
     // `ledger_entry.deal_id` is nullable for campaign-level rows; filtering on the
     // campaign keeps them, which is right for a campaign-wide figure.

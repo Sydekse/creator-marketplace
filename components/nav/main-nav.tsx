@@ -10,6 +10,7 @@ import {
   Binoculars,
   Briefcase,
   ChartDonut,
+  ChartBar,
   ClipboardText,
   CurrencyCircleDollar,
   Megaphone,
@@ -44,7 +45,7 @@ export function MainNav({ user, cart }: MainNavProps) {
     <nav
       ref={navRef}
       aria-label="Primary navigation"
-      className="relative ml-1 hidden min-w-0 items-center gap-0.5 overflow-hidden rounded-full md:flex lg:ml-4"
+      className="relative ml-4 hidden min-w-0 items-center gap-0.5 overflow-hidden rounded-full min-[1100px]:flex"
     >
       <NavActivePill
         containerRef={navRef}
@@ -100,6 +101,7 @@ const NAV_ICONS = {
   dashboard: ChartDonut,
   discover: Binoculars,
   campaigns: Megaphone,
+  insights: ChartBar,
   deals: Briefcase,
   cart: ShoppingCart,
   tiers: Stack,

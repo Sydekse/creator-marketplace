@@ -11,6 +11,7 @@ import { readBrandDashboard } from '@/lib/brands/dashboard';
 import { displayTiktokHandle } from '@/lib/creators/handle';
 import { formatEtb } from '@/lib/money';
 import { cn } from '@/lib/utils';
+import { OverallInsightSummary } from '@/components/insights/dashboard-summary';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -522,6 +523,13 @@ export default async function BrandDashboardPage() {
             </>
           )}
         </aside>
+      </div>
+
+      {/* KAN-161: cross-campaign results — recorded reach and comparable
+          efficiency across everything this brand has run. A shadcn Card
+          underneath, so the .bd data-slot reskin dresses it in the layer. */}
+      <div className="bd-rise" style={{ '--i': 5 } as React.CSSProperties}>
+        <OverallInsightSummary />
       </div>
 
       {/* ---------- work split ---------- */}

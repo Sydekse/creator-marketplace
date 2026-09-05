@@ -3,7 +3,12 @@
 import { useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { NavActivePill } from '@/components/nav/nav-active-pill';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import type { CurrentUser } from '@/lib/auth';
 import { getNavLinks, isNavLinkActive } from '@/lib/navigation';
@@ -12,6 +17,7 @@ import {
   Binoculars,
   Briefcase,
   ChartDonut,
+  ChartBar,
   ClipboardText,
   CurrencyCircleDollar,
   List,
@@ -42,14 +48,14 @@ export function MobileNav({ user, cart }: MobileNavProps) {
         it — the pattern SheetClose already uses in `components/ui/sheet.tsx`.
         Passing <Button> as a child instead puts a <button> inside a <button>,
         which browsers reparent, so the server and client trees disagree and
-        hydration fails. `md:hidden` rides on the Button for the same reason.
+        hydration fails. The responsive visibility rides on the Button too.
       */}
       <SheetTrigger
         render={
           <Button
             variant="ghost"
             size="icon"
-            className="relative -ml-1 text-neutral-50 hover:bg-neutral-800 hover:text-neutral-50 md:hidden"
+            className="relative -ml-1 text-neutral-50 hover:bg-neutral-800 hover:text-neutral-50 min-[1100px]:hidden"
           />
         }
       >
@@ -76,6 +82,7 @@ export function MobileNav({ user, cart }: MobileNavProps) {
         side="left"
         className="w-[min(88vw,320px)] gap-0 border-neutral-200 bg-neutral-50 p-0 shadow-[12px_0_40px_-24px_rgba(23,23,23,0.3)]"
       >
+        <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
         <div className="border-b border-neutral-200 px-5 py-5">
           <Link
             href="/"
@@ -149,6 +156,7 @@ const NAV_ICONS = {
   dashboard: ChartDonut,
   discover: Binoculars,
   campaigns: Megaphone,
+  insights: ChartBar,
   deals: Briefcase,
   cart: ShoppingCart,
   tiers: Stack,

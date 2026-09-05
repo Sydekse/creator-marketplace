@@ -35,7 +35,7 @@ const count = (n: number | null) =>
   n === null ? 'Pending' : n.toLocaleString('en-US');
 const rate = (n: number, d: number) => `${n} / ${d}`;
 
-function Stat({
+export function Stat({
   label,
   value,
   note,
@@ -55,7 +55,7 @@ function Stat({
   );
 }
 
-function CohortNote({
+export function CohortNote({
   cohort,
   metric,
 }: {
@@ -225,7 +225,7 @@ function Comparison({
   );
 }
 
-function HistoryValues({ value }: { value: CollaborationSummary }) {
+export function HistoryValues({ value }: { value: CollaborationSummary }) {
   return (
     <dl className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
       <PunctualityStat value={value.punctuality} />
@@ -264,7 +264,7 @@ function HistoryValues({ value }: { value: CollaborationSummary }) {
   );
 }
 
-function PunctualityStat({
+export function PunctualityStat({
   value,
 }: {
   value: CollaborationSummary['punctuality'];
@@ -601,7 +601,8 @@ export function CampaignInsightsPanel({
             {new Date(insights.asOf).toLocaleString('en-US', {
               timeZone: 'UTC',
             })}{' '}
-            UTC. Agreed deadlines and punctuality are not yet measured.
+            UTC. Initial-delivery punctuality uses recorded agreements. Revision
+            and final-approval deadlines are not measured.
           </p>
         </CardContent>
       </Card>
