@@ -1,6 +1,6 @@
-import { eq, sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { ledgerEntry } from '@/db/schema';
+import { campaign, ledgerEntry } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
 
 /**
@@ -103,7 +103,8 @@ export async function sumEscrowedByCampaign(
  */
 export async function sumSettledByCampaign(
   campaignId: string,
-  client: typeof db | Tx = db
+  client: typeof db | Tx = db,
+  brandId?: string
 ): Promise<{ paidOut: number; commission: number; refunded: number }> {
   const [row] = await client
     .select({
@@ -112,7 +113,17 @@ export async function sumSettledByCampaign(
       refunded: sql<number>`coalesce(sum(case when ${ledgerEntry.entryType} = 'refund' then -${ledgerEntry.amount} else 0 end), 0)::int`,
     })
     .from(ledgerEntry)
-    .where(eq(ledgerEntry.campaignId, campaignId));
+    .where(
+      and(
+        eq(ledgerEntry.campaignId, campaignId),
+        brandId === undefined
+          ? undefined
+          : sql`exists (
+        select 1 from ${campaign}
+        where ${campaign.id} = ${ledgerEntry.campaignId} and ${campaign.brandId} = ${brandId}
+      )`
+      )
+    );
 
   return {
     paidOut: Number(row?.paidOut ?? 0),
