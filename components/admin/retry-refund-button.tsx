@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -26,43 +26,40 @@ export function RetryRefundButton({
   campaignName,
 }: RetryRefundButtonProps) {
   const router = useRouter();
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, startTransition] = useTransition();
 
-  async function handleRetry() {
+  function handleRetry() {
     if (submitting) return;
 
-    setSubmitting(true);
-
-    let response: Response;
-    try {
-      response = await fetch(
-        `/api/admin/refunds/${encodeURIComponent(refundId)}/retry`,
-        { method: 'POST' }
-      );
-    } catch {
-      toast.error('Could not reach the server. Check your connection.');
-      setSubmitting(false);
-      return;
-    }
-
-    if (response.ok) {
-      toast.success(`Refund for ${campaignName} re-submitted to Chapa.`);
-      router.refresh();
-    } else {
-      let message = 'Refund retry failed. Please try again.';
+    startTransition(async () => {
+      let response: Response;
       try {
-        const body = (await response.json()) as {
-          error?: { code?: string; message?: string };
-        };
-        if (body.error?.message) message = body.error.message;
+        response = await fetch(
+          `/api/admin/refunds/${encodeURIComponent(refundId)}/retry`,
+          { method: 'POST' }
+        );
       } catch {
-        // Non-JSON failure body — keep the generic message.
+        toast.error('Could not reach the server. Check your connection.');
+        return;
       }
-      toast.error(message);
-      router.refresh();
-    }
 
-    setSubmitting(false);
+      if (response.ok) {
+        toast.success(`Refund for ${campaignName} re-submitted to Chapa.`);
+        router.refresh();
+      } else {
+        let message = 'Refund retry failed. Please try again.';
+        try {
+          const body = (await response.json()) as {
+            error?: { code?: string; message?: string };
+          };
+          if (body.error?.message) message = body.error.message;
+        } catch {
+          // Non-JSON failure body — keep the generic message.
+        }
+        toast.error(message);
+        router.refresh();
+      }
+    });
   }
 
   return (

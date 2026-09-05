@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowsClockwise } from '@phosphor-icons/react';
@@ -31,49 +31,51 @@ export function RefreshStatsButton({
   lastRefreshedLabel: string | null;
 }) {
   const router = useRouter();
-  const [pending, setPending] = useState(false);
+  const [pending, startTransition] = useTransition();
 
-  async function refresh() {
-    setPending(true);
-    try {
-      const response = await fetch('/api/creators/stats/refresh', {
-        method: 'POST',
-      });
+  function refresh() {
+    startTransition(async () => {
+      try {
+        const response = await fetch('/api/creators/stats/refresh', {
+          method: 'POST',
+        });
 
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as {
-          error?: { message?: string };
-        } | null;
-        const message =
-          body?.error?.message ?? 'Something went wrong. Try again later.';
-        if (response.status === 429) {
-          const seconds = Number(response.headers.get('Retry-After'));
-          const wait = Number.isFinite(seconds)
-            ? ` You can refresh again in about ${Math.max(1, Math.ceil(seconds / 3600))}h.`
-            : '';
-          toast.error(message + wait);
-        } else {
-          toast.error(message);
+        if (!response.ok) {
+          const body = (await response.json().catch(() => null)) as {
+            error?: { message?: string };
+          } | null;
+          const message =
+            body?.error?.message ?? 'Something went wrong. Try again later.';
+          if (response.status === 429) {
+            const seconds = Number(response.headers.get('Retry-After'));
+            const wait = Number.isFinite(seconds)
+              ? ` You can refresh again in about ${Math.max(1, Math.ceil(seconds / 3600))}h.`
+              : '';
+            toast.error(message + wait);
+          } else {
+            toast.error(message);
+          }
+          return;
         }
-        return;
-      }
 
-      const body = (await response.json()) as {
-        tier_change: { kind: 'upgraded'; tier_name: string } | { kind: string };
-      };
-      toast.success(
-        body.tier_change.kind === 'upgraded' && 'tier_name' in body.tier_change
-          ? `Stats updated — you moved up to the ${body.tier_change.tier_name} tier!`
-          : 'Stats updated from TikTok.'
-      );
-      router.refresh();
-    } catch {
-      toast.error(
-        'Could not reach the server. Check your connection and try again.'
-      );
-    } finally {
-      setPending(false);
-    }
+        const body = (await response.json()) as {
+          tier_change:
+            | { kind: 'upgraded'; tier_name: string }
+            | { kind: string };
+        };
+        toast.success(
+          body.tier_change.kind === 'upgraded' &&
+            'tier_name' in body.tier_change
+            ? `Stats updated — you moved up to the ${body.tier_change.tier_name} tier!`
+            : 'Stats updated from TikTok.'
+        );
+        router.refresh();
+      } catch {
+        toast.error(
+          'Could not reach the server. Check your connection and try again.'
+        );
+      }
+    });
   }
 
   return (

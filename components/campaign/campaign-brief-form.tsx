@@ -15,16 +15,16 @@ import {
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
+import { zodIssuesToDetails } from '@/lib/validation/errors';
+import { fieldErrorsAt } from '@/lib/validation/field-errors';
+import type { FieldErrorMap } from '@/lib/validation/field-errors';
 import {
   MAX_CAMPAIGN_GOAL_LENGTH,
   MAX_CAMPAIGN_NAME_LENGTH,
   MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH,
   createCampaignSchema,
-  fieldErrorsAt,
   updateCampaignSchema,
-  zodIssuesToDetails,
-} from '@/lib/validation';
-import type { FieldErrorMap } from '@/lib/validation';
+} from '@/lib/validation/schemas';
 
 export interface CampaignBriefFormProps {
   mode: 'create' | 'edit';

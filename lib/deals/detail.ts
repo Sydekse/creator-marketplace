@@ -372,11 +372,11 @@ const defaultDeps: CreatorDealDeps = {
  * every non-creator caller, including unauthenticated ones — `guard` fails
  * closed.
  *
- * The gate runs first, before the id is even looked at, so a denied caller
- * learns nothing about which ids are well-formed or which deals exist. The
- * shape check comes second and short-circuits the query entirely: Postgres
- * answers a non-uuid compared against a `uuid` column with `22P02`, which turns
- * a mistyped link into a 500 rather than a 404.
+ * The id's shape is checked first — a pure format test that touches no data,
+ * so a malformed link resolves to not-found without a DB round trip and
+ * without revealing anything. The gate then runs before any query: Postgres
+ * answers a non-uuid compared against a `uuid` column with `22P02`, which
+ * would turn a mistyped link into a 500 rather than a 404.
  *
  * A still-open offer comes back carrying the terms **currently** in effect
  * rather than the version stamped on it — see `rightsTerms` on the result type
@@ -386,10 +386,12 @@ export async function readCreatorDeal(
   dealId: string,
   deps: CreatorDealDeps = defaultDeps
 ): Promise<CreatorDealDetail | null> {
+  // Pure format check — rejects malformed ids without a DB round trip and
+  // leaks nothing about which deals exist.
+  if (!UUID_REGEX.test(dealId)) return null;
+
   const { creatorProfileId } = await deps.requireCreator();
   if (!creatorProfileId) return null;
-
-  if (!UUID_REGEX.test(dealId)) return null;
 
   const row = await deps.select(
     buildCreatorDealWhere(dealId, creatorProfileId)

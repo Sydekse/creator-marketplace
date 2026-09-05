@@ -21,7 +21,7 @@ import type {
   ExpectedVersion,
   RevisionCategory,
 } from '@/lib/deliverables/evidence';
-import { resolveDisputeSchema } from '@/lib/validation';
+import { resolveDisputeSchema } from '@/lib/validation/schemas';
 
 /** The 200 body of `POST /api/admin/deals/{id}/resolve`. */
 interface ResolveResponse {

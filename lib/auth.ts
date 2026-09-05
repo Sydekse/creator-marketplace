@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -224,7 +225,11 @@ export interface CurrentUser {
   tiktokHandle?: string | null;
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+// `cache()` dedupes the session read per request — layouts and pages both
+// call this, and without it every render pays for two session lookups. In
+// route handlers (outside a React render) the cache is a no-op and the call
+// falls through harmlessly.
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const { headers } = await import('next/headers');
   const requestHeaders = await headers();
 
@@ -258,7 +263,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     role: isUserRole(role) ? role : 'creator',
     tiktokHandle: typeof handle === 'string' && handle !== '' ? handle : null,
   };
-}
+});
 
 /**
  * Whether this session still owes the credentials step (phase 1).
