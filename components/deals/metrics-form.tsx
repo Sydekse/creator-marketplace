@@ -75,7 +75,13 @@ const METRIC_FIELDS = [
 
 type MetricKey = (typeof METRIC_FIELDS)[number]['key'];
 
-export function MetricsForm({ deliverableId }: { deliverableId: string }) {
+export function MetricsForm({
+  deliverableId,
+  expectedVersion,
+}: {
+  deliverableId: string;
+  expectedVersion: number;
+}) {
   const router = useRouter();
 
   const [values, setValues] = useState<Record<MetricKey, string>>({
@@ -108,7 +114,10 @@ export function MetricsForm({ deliverableId }: { deliverableId: string }) {
       converted[field.key] = number;
     }
 
-    const parsed = updateMetricsSchema.safeParse(converted);
+    const parsed = updateMetricsSchema.safeParse({
+      ...converted,
+      expectedVersion,
+    });
     if (!parsed.success) {
       setErrors(zodIssuesToDetails(parsed.error));
       return;
@@ -160,6 +169,7 @@ export function MetricsForm({ deliverableId }: { deliverableId: string }) {
       toast.error(error?.message ?? SUBMIT_METRICS_FAILED_MESSAGE);
     }
     setSubmitting(false);
+    if (response.status === 409) router.refresh();
   }
 
   return (

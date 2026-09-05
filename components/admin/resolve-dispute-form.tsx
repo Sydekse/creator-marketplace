@@ -7,6 +7,21 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Textarea } from '@/components/ui/textarea';
+import { Field, FieldGroup, FieldLabel } from '@/components/ui/field';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { RevisionCategoryField } from '@/components/deals/revision-category-field';
+import type {
+  ExpectedVersion,
+  RevisionCategory,
+} from '@/lib/deliverables/evidence';
+import { resolveDisputeSchema } from '@/lib/validation';
 
 /** The 200 body of `POST /api/admin/deals/{id}/resolve`. */
 interface ResolveResponse {
@@ -29,10 +44,16 @@ interface ResolveResponse {
  * an action that writes an audit row should never be anonymous.
  */
 
+type ResolutionVideo = ExpectedVersion & {
+  videoOrdinal: number;
+  tiktokUrl: string;
+};
+
 interface ResolveDisputeFormProps {
   dealId: string;
   status: string;
   campaignName: string;
+  displayedVideos?: ResolutionVideo[];
 }
 
 const RESOLUTION_OPTIONS = [
@@ -45,6 +66,7 @@ export function ResolveDisputeForm({
   dealId,
   status,
   campaignName,
+  displayedVideos,
 }: ResolveDisputeFormProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -52,6 +74,35 @@ export function ResolveDisputeForm({
     useState<(typeof RESOLUTION_OPTIONS)[number]['value']>('refund');
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [videos, setVideos] = useState<ResolutionVideo[]>([]);
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const [category, setCategory] = useState<RevisionCategory | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function openForm() {
+    if (displayedVideos) {
+      setVideos(displayedVideos);
+      setOpen(true);
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `/api/admin/deals/${encodeURIComponent(dealId)}/videos`
+      );
+      if (!response.ok)
+        throw new Error('Could not load current videos. Reload the page.');
+      const evidence = (await response.json()) as {
+        videos: ResolutionVideo[];
+      };
+      setVideos(evidence.videos);
+      setOpen(true);
+    } catch {
+      toast.error('Could not load current videos. Reload the page.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleResolve() {
     if (submitting) return;
@@ -59,6 +110,30 @@ export function ResolveDisputeForm({
     const trimmedNote = note.trim();
     if (!trimmedNote) {
       toast.error('A resolution note is required.');
+      return;
+    }
+    const target = videos.find((video) => video.id === targetId);
+    const parsed = resolveDisputeSchema.safeParse({
+      resolution,
+      note: trimmedNote,
+      ...(resolution === 'revision'
+        ? {
+            deliverableId: target?.id,
+            expectedVersion: target?.submissionVersion,
+            category: category ?? undefined,
+          }
+        : {}),
+      ...(resolution === 'release'
+        ? {
+            expectedVersions: videos.map(({ id, submissionVersion }) => ({
+              id,
+              submissionVersion,
+            })),
+          }
+        : {}),
+    });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0].message);
       return;
     }
 
@@ -71,7 +146,7 @@ export function ResolveDisputeForm({
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ resolution, note: trimmedNote }),
+          body: JSON.stringify(parsed.data),
         }
       );
     } catch {
@@ -102,6 +177,10 @@ export function ResolveDisputeForm({
         // Non-JSON failure body — keep the generic message.
       }
       toast.error(message);
+      if (response.status === 409) {
+        setOpen(false);
+        router.refresh();
+      }
     }
     setSubmitting(false);
   }
@@ -112,7 +191,8 @@ export function ResolveDisputeForm({
         type="button"
         variant="outline"
         size="sm"
-        onClick={() => setOpen(true)}
+        onClick={openForm}
+        disabled={loading}
       >
         Resolve dispute
       </Button>
@@ -121,6 +201,25 @@ export function ResolveDisputeForm({
 
   return (
     <div className="flex w-full max-w-sm flex-col gap-4 rounded-xl border border-neutral-200 bg-neutral-50 p-4 shadow-[0_16px_32px_-28px_rgba(23,23,23,0.4)]">
+      {videos.length > 0 && (
+        <div className="flex flex-col gap-2 text-sm">
+          <p className="font-medium">Videos in this resolution</p>
+          <p className="text-xs text-muted-foreground">
+            Review these versions before releasing funds or requesting changes.
+          </p>
+          {videos.map((video) => (
+            <a
+              key={video.id}
+              href={video.tiktokUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              Video {video.videoOrdinal} · Version {video.submissionVersion}
+            </a>
+          ))}
+        </div>
+      )}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={`resolution-${dealId}`}>Resolution</Label>
         <select
@@ -138,6 +237,43 @@ export function ResolveDisputeForm({
           ))}
         </select>
       </div>
+      {resolution === 'revision' && (
+        <FieldGroup>
+          <Field>
+            <FieldLabel htmlFor={`revision-video-${dealId}`}>
+              Video to revise
+            </FieldLabel>
+            <Select
+              value={targetId}
+              onValueChange={setTargetId}
+              items={videos.map((video) => ({
+                value: video.id,
+                label: `Video ${video.videoOrdinal} · Version ${video.submissionVersion}`,
+              }))}
+            >
+              <SelectTrigger id={`revision-video-${dealId}`}>
+                <SelectValue placeholder="Select a video" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {videos.map((video) => (
+                    <SelectItem key={video.id} value={video.id}>
+                      Video {video.videoOrdinal} · Version{' '}
+                      {video.submissionVersion}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </Field>
+          <RevisionCategoryField
+            id={`revision-category-${dealId}`}
+            value={category}
+            onChange={setCategory}
+            disabled={submitting}
+          />
+        </FieldGroup>
+      )}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={`note-${dealId}`}>Resolution note</Label>
         <Textarea

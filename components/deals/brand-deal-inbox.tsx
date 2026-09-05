@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DeadlineSummary } from './deadline-summary';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { labelForStatus } from '@/lib/deals/groups';
 import type { DealStatus } from '@/db/schema';
@@ -72,6 +73,9 @@ function DealCard({ deal }: { deal: BrandInboxDeal }) {
             {labelForStatus(deal.status)}
           </span>
         </div>
+        {/* KAN-160 punctuality: the deadline verdict rides the card as a
+            quiet line between identity and money. */}
+        <DeadlineSummary deal={deal} />
         <div className="bd-dicardfoot">
           <span className="bd-dicardmoney bd-mono">
             {formatEtb(deal.totalPrice)}

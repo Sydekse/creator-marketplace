@@ -1,6 +1,6 @@
 {
-  "id": "4cfaea21-7f61-4169-84c4-7bdd5a982d49",
-  "prevId": "9fe93108-4575-4717-91d0-db334e586c14",
+  "id": "28811fac-6279-4d75-bd07-bdf9c23a9c02",
+  "prevId": "84846e79-40c6-4512-9115-d7ed77c26f6d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -432,94 +432,6 @@
           "value": "\"campaign_item\".\"total_price\" = \"campaign_item\".\"unit_price\" * \"campaign_item\".\"video_count\""
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.creator_metric_snapshot": {
-      "name": "creator_metric_snapshot",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "creator_id": {
-          "name": "creator_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "follower_count": {
-          "name": "follower_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "engagement_rate": {
-          "name": "engagement_rate",
-          "type": "numeric(5, 2)",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "captured_at": {
-          "name": "captured_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'tiktok'"
-        }
-      },
-      "indexes": {
-        "creator_metric_snapshot_creator_captured_idx": {
-          "name": "creator_metric_snapshot_creator_captured_idx",
-          "columns": [
-            {
-              "expression": "creator_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "captured_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "creator_metric_snapshot_creator_id_creator_profile_id_fk": {
-          "name": "creator_metric_snapshot_creator_id_creator_profile_id_fk",
-          "tableFrom": "creator_metric_snapshot",
-          "tableTo": "creator_profile",
-          "columnsFrom": [
-            "creator_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.creator_profile": {
@@ -1014,6 +926,38 @@
           "primaryKey": false,
           "notNull": true
         },
+        "video_ordinal": {
+          "name": "video_ordinal",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submission_version": {
+          "name": "submission_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "history_completeness": {
+          "name": "history_completeness",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'complete'"
+        },
+        "revision_category": {
+          "name": "revision_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_cycle_id": {
+          "name": "review_cycle_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "submitted_at": {
           "name": "submitted_at",
           "type": "timestamp with time zone",
@@ -1086,9 +1030,328 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "deliverable_deal_ordinal_unique": {
+          "name": "deliverable_deal_ordinal_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "deal_id",
+            "video_ordinal"
+          ]
+        },
+        "deliverable_id_deal_unique": {
+          "name": "deliverable_id_deal_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "deal_id"
+          ]
+        }
+      },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "deliverable_ordinal_positive": {
+          "name": "deliverable_ordinal_positive",
+          "value": "\"deliverable\".\"video_ordinal\" > 0"
+        },
+        "deliverable_version_nonnegative": {
+          "name": "deliverable_version_nonnegative",
+          "value": "\"deliverable\".\"submission_version\" >= 0"
+        },
+        "deliverable_history_completeness": {
+          "name": "deliverable_history_completeness",
+          "value": "\"deliverable\".\"history_completeness\" in ('complete', 'legacy_baseline')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.deliverable_event": {
+      "name": "deliverable_event",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "seq": {
+          "name": "seq",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deal_id": {
+          "name": "deal_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "deliverable_id": {
+          "name": "deliverable_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submission_version": {
+          "name": "submission_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_role": {
+          "name": "actor_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tiktok_url": {
+          "name": "tiktok_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision_category": {
+          "name": "revision_category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_cycle_id": {
+          "name": "review_cycle_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "request_id": {
+          "name": "request_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        }
+      },
+      "indexes": {
+        "deliverable_event_deal_seq_idx": {
+          "name": "deliverable_event_deal_seq_idx",
+          "columns": [
+            {
+              "expression": "deal_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "seq",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deliverable_event_video_seq_idx": {
+          "name": "deliverable_event_video_seq_idx",
+          "columns": [
+            {
+              "expression": "deliverable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "seq",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deliverable_event_kind_time_idx": {
+          "name": "deliverable_event_kind_time_idx",
+          "columns": [
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deliverable_event_request_unique": {
+          "name": "deliverable_event_request_unique",
+          "columns": [
+            {
+              "expression": "deal_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "request_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"deliverable_event\".\"request_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deliverable_event_version_kind_unique": {
+          "name": "deliverable_event_version_kind_unique",
+          "columns": [
+            {
+              "expression": "deliverable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "submission_version",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"deliverable_event\".\"kind\" not in ('review_ready', 'review_interrupted')",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "deliverable_event_cycle_unique": {
+          "name": "deliverable_event_cycle_unique",
+          "columns": [
+            {
+              "expression": "deliverable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "review_cycle_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"deliverable_event\".\"review_cycle_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "deliverable_event_actor_id_user_id_fk": {
+          "name": "deliverable_event_actor_id_user_id_fk",
+          "tableFrom": "deliverable_event",
+          "tableTo": "user",
+          "columnsFrom": [
+            "actor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "deliverable_event_deliverable_id_deal_id_deliverable_id_deal_id_fk": {
+          "name": "deliverable_event_deliverable_id_deal_id_deliverable_id_deal_id_fk",
+          "tableFrom": "deliverable_event",
+          "tableTo": "deliverable",
+          "columnsFrom": [
+            "deliverable_id",
+            "deal_id"
+          ],
+          "columnsTo": [
+            "id",
+            "deal_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "deliverable_event_seq_unique": {
+          "name": "deliverable_event_seq_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "seq"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "deliverable_event_version_nonnegative": {
+          "name": "deliverable_event_version_nonnegative",
+          "value": "\"deliverable_event\".\"submission_version\" >= 0"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.funding_session": {
@@ -1487,89 +1750,6 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.notification_pref": {
-      "name": "notification_pref",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "email_deals": {
-          "name": "email_deals",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "email_money": {
-          "name": "email_money",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "email_account": {
-          "name": "email_account",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "email_reminders": {
-          "name": "email_reminders",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "notification_pref_user_id_user_id_fk": {
-          "name": "notification_pref_user_id_user_id_fk",
-          "tableFrom": "notification_pref",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "notification_pref_user_id_unique": {
-          "name": "notification_pref_user_id_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "user_id"
-          ]
-        }
-      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -2064,6 +2244,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "submission_version": {
+          "name": "submission_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
         "likes": {
           "name": "likes",
           "type": "integer",
@@ -2129,99 +2316,6 @@
           ]
         }
       },
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.video_metric_snapshot": {
-      "name": "video_metric_snapshot",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "deliverable_id": {
-          "name": "deliverable_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "views": {
-          "name": "views",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "likes": {
-          "name": "likes",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "shares": {
-          "name": "shares",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "comments": {
-          "name": "comments",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "captured_at": {
-          "name": "captured_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "video_metric_snapshot_deliverable_captured_idx": {
-          "name": "video_metric_snapshot_deliverable_captured_idx",
-          "columns": [
-            {
-              "expression": "deliverable_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "captured_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "video_metric_snapshot_deliverable_id_deliverable_id_fk": {
-          "name": "video_metric_snapshot_deliverable_id_deliverable_id_fk",
-          "tableFrom": "video_metric_snapshot",
-          "tableTo": "deliverable",
-          "columnsFrom": [
-            "deliverable_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

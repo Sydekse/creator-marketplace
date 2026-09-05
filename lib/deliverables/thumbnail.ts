@@ -1,5 +1,5 @@
 import { del, put } from '@vercel/blob';
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { db } from '@/db';
 import { deliverable } from '@/db/schema';
 import { isBlobUrl } from '@/lib/avatars/store-avatar';
@@ -71,13 +71,17 @@ export interface StoreThumbnailDeps {
   fetchFn: typeof fetch;
   putBlob: typeof put;
   deleteBlob: typeof del;
-  loadCurrent: (
-    deliverableId: string
-  ) => Promise<{ thumbnailUrl: string | null } | null>;
+  isReferenced: (url: string) => Promise<boolean>;
+  loadCurrent: (deliverableId: string) => Promise<{
+    thumbnailUrl: string | null;
+    submissionVersion?: number;
+  } | null>;
   save: (
     deliverableId: string,
-    fields: { thumbnailUrl?: string | null; tiktokVideoId?: string | null }
-  ) => Promise<void>;
+    fields: { thumbnailUrl?: string | null; tiktokVideoId?: string | null },
+    expectedVersion?: number,
+    previous?: string | null
+  ) => Promise<boolean | void>;
   /** Presence gate — without a blob token the image copy is skipped. */
   hasToken: () => boolean;
 }
@@ -86,19 +90,41 @@ const defaultDeps: StoreThumbnailDeps = {
   fetchFn: fetch,
   putBlob: put,
   deleteBlob: del,
+  isReferenced: async (url) => {
+    const rows = await db
+      .select({ id: deliverable.id })
+      .from(deliverable)
+      .where(eq(deliverable.thumbnailUrl, url))
+      .limit(1);
+    return rows.length > 0;
+  },
   loadCurrent: async (deliverableId) => {
     const rows = await db
-      .select({ thumbnailUrl: deliverable.thumbnailUrl })
+      .select({
+        thumbnailUrl: deliverable.thumbnailUrl,
+        submissionVersion: deliverable.submissionVersion,
+      })
       .from(deliverable)
       .where(eq(deliverable.id, deliverableId))
       .limit(1);
     return rows[0] ?? null;
   },
-  save: async (deliverableId, fields) => {
-    await db
+  save: async (deliverableId, fields, expectedVersion, previous) => {
+    if (expectedVersion === undefined) return false;
+    const saved = await db
       .update(deliverable)
       .set(fields)
-      .where(eq(deliverable.id, deliverableId));
+      .where(
+        and(
+          eq(deliverable.id, deliverableId),
+          eq(deliverable.submissionVersion, expectedVersion),
+          previous
+            ? eq(deliverable.thumbnailUrl, previous)
+            : isNull(deliverable.thumbnailUrl)
+        )
+      )
+      .returning({ id: deliverable.id });
+    return saved.length === 1;
   },
   hasToken: () => Boolean(process.env.BLOB_READ_WRITE_TOKEN),
 };
@@ -207,47 +233,74 @@ export interface StoreThumbnailResult {
  * dead image URL still stores the id, so in-app playback works even when the
  * thumbnail fell through.
  *
- * On resubmission (revision flow reuses the row), the previous blob is
- * deleted only *after* the row points at the new one — a crash between the
- * two writes leaves a working thumbnail plus one orphan, never a dangling
- * reference. A rejected-then-replaced video therefore shows the new cover.
+ * Replacement clears old media in the submission transaction. This function
+ * can only attach results to the expected version and prior thumbnail state.
+ * Unreferenced blobs are reclaimed after the current pointer has changed;
+ * history retains URLs and text, not deleted thumbnail references.
  */
 export async function storeDeliverableThumbnail(
   deliverableId: string,
   tiktokUrl: string,
-  deps?: Partial<StoreThumbnailDeps>
+  deps?: Partial<StoreThumbnailDeps>,
+  expectedVersion?: number,
+  supersededThumbnail?: string | null
 ): Promise<StoreThumbnailResult> {
   const d = { ...defaultDeps, ...deps };
   const result: StoreThumbnailResult = {
     thumbnailUrl: null,
     tiktokVideoId: null,
   };
+  let ownedBlob: string | null = null;
+  let attached = false;
+  const cleanup = async (url: string | null | undefined) => {
+    if (url && isBlobUrl(url)) {
+      try {
+        if (!(await d.isReferenced(url))) await d.deleteBlob(url);
+      } catch {
+        /* Never delete when reference ownership is uncertain. */
+      }
+    }
+  };
 
   try {
+    await cleanup(supersededThumbnail);
+    const current = await d.loadCurrent(deliverableId);
+    if (!current || current.submissionVersion !== expectedVersion)
+      return result;
     const facts = await fetchOembedFacts(tiktokUrl, d.fetchFn);
     // The long-form URL is authoritative when it carries the id; oEmbed fills
     // in for vm. share links, which carry none.
     result.tiktokVideoId = parseTiktokVideoId(tiktokUrl) ?? facts.videoId;
 
-    let previous: string | null = null;
+    const previous = current.thumbnailUrl;
     if (facts.thumbnailUrl && d.hasToken()) {
-      previous = (await d.loadCurrent(deliverableId))?.thumbnailUrl ?? null;
       result.thumbnailUrl = await copyImageToBlob(
         deliverableId,
         facts.thumbnailUrl,
         d
       );
+      ownedBlob = result.thumbnailUrl;
     }
 
     const fields = {
-      // Never null out a thumbnail a previous attempt stored: a resubmission
-      // whose oEmbed fetch failed keeps the old cover rather than losing it.
+      // Only preserve fields from this same submission version.
       ...(result.thumbnailUrl ? { thumbnailUrl: result.thumbnailUrl } : {}),
       ...(result.tiktokVideoId ? { tiktokVideoId: result.tiktokVideoId } : {}),
     };
     // Drizzle refuses an empty `.set({})`, and there is nothing to write.
     if (Object.keys(fields).length > 0) {
-      await d.save(deliverableId, fields);
+      const saved = await d.save(
+        deliverableId,
+        fields,
+        expectedVersion,
+        previous
+      );
+      if (saved === false) {
+        await cleanup(ownedBlob);
+        ownedBlob = null;
+        return { thumbnailUrl: null, tiktokVideoId: null };
+      }
+      attached = true;
     }
 
     // Cleanup of the blob a resubmission replaces, only *after* the row points
@@ -260,14 +313,12 @@ export async function storeDeliverableThumbnail(
       isBlobUrl(previous) &&
       previous !== result.thumbnailUrl
     ) {
-      try {
-        await d.deleteBlob(previous);
-      } catch {
-        // ignore — the next successful store retries the cleanup.
-      }
+      await cleanup(previous);
     }
   } catch {
     // Best-effort by contract: a thumbnail must never fail a submission.
+    if (!attached) await cleanup(ownedBlob);
+    return { thumbnailUrl: null, tiktokVideoId: null };
   }
 
   return result;

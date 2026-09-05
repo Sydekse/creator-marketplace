@@ -42,6 +42,8 @@ import { FundCheckoutButton } from '@/components/campaign/fund-checkout-button';
 import { PendingPaymentBanner } from '@/components/campaign/pending-payment-banner';
 import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-button';
 import { VideoPerformance } from '@/components/campaign/video-performance';
+import { CampaignInsightsPanel } from '@/components/campaign/insights';
+import { readCampaignInsights } from '@/lib/campaigns/insights';
 import { TruncatedText } from '@/components/ui/truncated-text';
 import type { CampaignStatus } from '@/db/schema';
 import { cn, textLinkFeedback } from '@/lib/utils';
@@ -119,6 +121,7 @@ export default async function CampaignCartPage({
     escrowed,
     acceptedCount,
     performance,
+    insights,
     openSession,
     contractedVideos,
   ] = await Promise.all([
@@ -129,6 +132,9 @@ export default async function CampaignCartPage({
     settled
       ? readCampaignPerformance(campaign.id)
       : Promise.resolve(EMPTY_PERFORMANCE),
+    // KAN-158 insights: measured engagement across the campaign's deals,
+    // null until the campaign is live and something has been measured.
+    settled ? readCampaignInsights(campaign.id) : Promise.resolve(null),
     chapaMode ? getOpenFundingSession(campaign.id) : Promise.resolve(null),
     // Drafts have no deals by definition — skip the query, not just the label.
     campaign.status === 'draft'
@@ -212,10 +218,13 @@ export default async function CampaignCartPage({
           </header>
 
           {settled ? (
-            <VideoPerformance
-              deals={performance.deals}
-              totals={performance.totals}
-            />
+            <>
+              {insights ? <CampaignInsightsPanel insights={insights} /> : null}
+              <VideoPerformance
+                deals={performance.deals}
+                totals={performance.totals}
+              />
+            </>
           ) : (
             <>
               <div className="bd-capruler">

@@ -220,6 +220,8 @@ export async function createMoneyFixture(opts: {
   flagged?: boolean;
   /** Human tag embedded in the campaign name, for greppable fixtures. */
   label: string;
+  videoCount?: number;
+  deliveryWindowDays?: number;
 }): Promise<{ dealId: string; campaignId: string }> {
   const { kind, flagged = false, label } = opts;
 
@@ -252,7 +254,7 @@ export async function createMoneyFixture(opts: {
     throw new Error('[integration] no rights terms seeded');
   }
 
-  const videoCount = 2;
+  const videoCount = opts.videoCount ?? 2;
   const totalPrice = creator.pricePerVideo * videoCount;
   const tag = crypto.randomUUID().slice(0, 8);
 
@@ -264,6 +266,7 @@ export async function createMoneyFixture(opts: {
       goal: `KAN-59 fixture: ${label}`,
       budget: totalPrice,
       desiredVideos: videoCount,
+      deliveryWindowDays: opts.deliveryWindowDays,
       status: 'confirmed',
     })
     .returning({ id: campaign.id });
@@ -272,6 +275,7 @@ export async function createMoneyFixture(opts: {
     .insert(deal)
     .values({
       campaignId: campaignRow.id,
+      deliveryWindowDays: opts.deliveryWindowDays,
       creatorId,
       videoCount,
       unitPrice: creator.pricePerVideo,

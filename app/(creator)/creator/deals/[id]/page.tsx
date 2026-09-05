@@ -1,5 +1,9 @@
 import Link from 'next/link';
+import { DeadlineSection } from '@/components/deals/deadline-section';
 import { notFound } from 'next/navigation';
+import { VideoHistory } from '@/components/deals/video-history';
+import { selectVideoHistory } from '@/lib/deliverables/read-history';
+import { REVISION_CATEGORY_LABELS } from '@/lib/deliverables/evidence';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { BdShell } from '@/components/brand/v4-shell';
 import { DealHistory, DealProgressRail } from '@/components/deals/deal-history';
@@ -35,8 +39,6 @@ import {
   standingVideoCount,
   SUBMITTED_AT_LABEL,
   TOTAL_PRICE_LABEL,
-  UNIT_PRICE_LABEL,
-  VIDEO_COUNT_LABEL,
   videoHeading,
   readCreatorDeal,
 } from '@/lib/deals/detail';
@@ -71,26 +73,6 @@ export const runtime = 'nodejs';
  * history, and form components keep their behavior contracts.
  */
 
-function Fact({
-  label,
-  value,
-  hint,
-  accent = false,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className={cn('bd-cdfact', accent && 'bd-cr-termfact--accent')}>
-      <dt className="bd-cdfactlab">{label}</dt>
-      <dd className="bd-cdfactval bd-mono">{value}</dd>
-      {hint ? <p className="bd-cdfacthint">{hint}</p> : null}
-    </div>
-  );
-}
-
 const DEAL_STATUS_CAP: Record<string, string> = {
   pending: 'bd-capstatus--wait',
   accepted: 'bd-capstatus--live',
@@ -120,6 +102,7 @@ export default async function CreatorDealDetailPage({
   if (!deal) notFound();
 
   const history = await getDealHistory(id);
+  const videoHistory = await selectVideoHistory(id);
 
   const isPending = canAct(deal.status);
 
@@ -176,35 +159,47 @@ export default async function CreatorDealDetailPage({
         Back to your deals
       </Link>
 
-      {/* Header: name + state, then the rail that shows where it stands. */}
+      {/* Header as the offer sheet's masthead: identity left, the money and
+          clock as a right-aligned status column — the mock's asymmetric
+          pagehead, with the showreel sprocket strip running above. */}
       <header
-        className="bd-cdhead bd-cr-dealhead bd-rise"
+        className="bd-cr-dealhead2 bd-rise"
         style={{ '--i': 1 } as React.CSSProperties}
       >
-        <InitialsAvatar
-          name={deal.companyName}
-          size="lg"
-          className="bd-cdavatar size-16 sm:size-20"
-        />
-        <div className="bd-cdid">
-          <p className="bd-eyebrow">Creator workspace</p>
-          <h1 className="bd-h1">{deal.campaignName}</h1>
-          <p className="bd-idfacts bd-cdmeta">
-            <span
-              className={cn(
-                'bd-capstatus',
-                DEAL_STATUS_CAP[deal.status] ?? 'bd-capstatus--draft'
-              )}
-            >
-              {labelForStatus(deal.status)}
-            </span>
-            <span>{deal.companyName}</span>
-            <span className="bd-factdim">·</span>
-            <span>
-              {OFFER_EXPIRY_LABEL}: {deadline}
-            </span>
-          </p>
+        <div className="bd-cr-dealhead2-id">
+          <InitialsAvatar
+            name={deal.companyName}
+            size="lg"
+            className="bd-cdavatar size-16 sm:size-20"
+          />
+          <div className="bd-cdid">
+            <p className="bd-eyebrow">Creator workspace</p>
+            <h1 className="bd-h1">{deal.campaignName}</h1>
+            <p className="bd-idfacts bd-cdmeta">
+              <span
+                className={cn(
+                  'bd-capstatus',
+                  DEAL_STATUS_CAP[deal.status] ?? 'bd-capstatus--draft'
+                )}
+              >
+                {labelForStatus(deal.status)}
+              </span>
+              <span>{deal.companyName}</span>
+            </p>
+          </div>
         </div>
+        <p className="bd-cr-dealhead2-status">
+          {deal.status !== 'declined' && deal.status !== 'expired' ? (
+            <span className="bd-cr-sline">
+              You {deal.status === 'completed' ? 'earned' : 'earn'}{' '}
+              <b className="bd-mono">{formatEtb(deal.expectedPayout)}</b>
+              {deal.status === 'completed' ? '' : ' on approval'}
+            </span>
+          ) : null}
+          <span className="bd-cr-sline">
+            {OFFER_EXPIRY_LABEL}: <b className="bd-mono">{deadline}</b>
+          </span>
+        </p>
       </header>
 
       {/* The rail is the deal's state made visible — always rendered, even
@@ -222,81 +217,125 @@ export default async function CreatorDealDetailPage({
         style={{ '--i': 3 } as React.CSSProperties}
       >
         <div className="bd-cr-detail-main">
-          {/* The money — the page's reason to exist, in the v4 big-numeral
-              fact ledger rather than a promotional slab. */}
-          <section className="bd-cr-chapter">
-            <div className="bd-capruler">
-              <span className="bd-caprulertitle">{DEAL_TERMS_TITLE}</span>
-              <span className="bd-caprulerline" aria-hidden="true" />
-              <span className="bd-caprulernote">
-                {OFFER_EXPIRY_LABEL}: {deadline}
+          {/* The vault — the deal's money as one composed statement. While
+              the offer is open it reads as the equation (total − commission
+              = payout); the moment funds are held it recomposes around the
+              payout as the hero numeral, on the mock's escrow cell: ink-teal
+              surface, radial sheen, the supporting figures as a quiet ledger
+              beside it. */}
+          {isMoneyHeld(deal.status) ? (
+            <section className="bd-dv bd-dv--held">
+              <div className="bd-dv-head">
+                <span className="bd-dv-k">{DEAL_TERMS_TITLE}</span>
+                <span className="bd-dv-note bd-mono">{FUNDS_HELD_LABEL}</span>
+              </div>
+              <div className="bd-dv-heldgrid">
+                <div className="bd-dv-hero">
+                  <span className="bd-dv-lab">{EXPECTED_PAYOUT_LABEL}</span>
+                  <span className="bd-dv-heronum bd-mono">
+                    {formatEtb(deal.expectedPayout)}
+                  </span>
+                  <span className="bd-dv-sub">
+                    released when the brand approves your{' '}
+                    {deal.videoCount === 1 ? 'video' : 'videos'}
+                  </span>
+                </div>
+                <dl className="bd-dv-ledger">
+                  <div>
+                    <dt>{TOTAL_PRICE_LABEL}</dt>
+                    <dd className="bd-mono">{formatEtb(deal.totalPrice)}</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      {deal.videoCount}{' '}
+                      {deal.videoCount === 1 ? 'video' : 'videos'} ×
+                    </dt>
+                    <dd className="bd-mono">{formatEtb(deal.unitPrice)}</dd>
+                  </div>
+                  <div>
+                    <dt>{COMMISSION_LABEL}</dt>
+                    <dd className="bd-mono">
+                      −{formatEtb(deal.commission)}
+                    </dd>
+                  </div>
+                </dl>
+              </div>
+              <p className="bd-dv-heldnote">{FUNDS_HELD_MESSAGE}</p>
+            </section>
+          ) : (
+            <section className="bd-dv">
+              <div className="bd-dv-head">
+                <span className="bd-dv-k">{DEAL_TERMS_TITLE}</span>
+                <span className="bd-dv-note bd-mono">
+                  {OFFER_EXPIRY_LABEL}: {deadline}
+                </span>
+              </div>
+              <div className="bd-dv-flow">
+              <div className="bd-dv-cell">
+                <span className="bd-dv-lab">{TOTAL_PRICE_LABEL}</span>
+                <span className="bd-dv-num bd-mono">
+                  {formatEtb(deal.totalPrice)}
+                </span>
+                <span className="bd-dv-sub">
+                  {deal.videoCount} {deal.videoCount === 1 ? 'video' : 'videos'}{' '}
+                  × {formatEtb(deal.unitPrice)}
+                </span>
+              </div>
+              <span className="bd-dv-arrow" aria-hidden="true">
+                −
               </span>
+              <div className="bd-dv-cell">
+                <span className="bd-dv-lab">{COMMISSION_LABEL}</span>
+                <span className="bd-dv-num bd-mono">
+                  {formatEtb(deal.commission)}
+                </span>
+                <span className="bd-dv-sub">withheld at approval</span>
+              </div>
+              <span className="bd-dv-arrow" aria-hidden="true">
+                =
+              </span>
+              <div className="bd-dv-cell bd-dv-cell--payout">
+                <span className="bd-dv-lab">{EXPECTED_PAYOUT_LABEL}</span>
+                <span className="bd-dv-num bd-mono">
+                  {formatEtb(deal.expectedPayout)}
+                </span>
+                <span className="bd-dv-sub">{PAYOUT_ESTIMATE_NOTE}</span>
+              </div>
             </div>
-            <dl className="bd-cdfacts bd-cr-termsfacts">
-              <Fact
-                label={EXPECTED_PAYOUT_LABEL}
-                value={formatEtb(deal.expectedPayout)}
-                hint={PAYOUT_ESTIMATE_NOTE}
-                accent
-              />
-              <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
-              <Fact
-                label={UNIT_PRICE_LABEL}
-                value={formatEtb(deal.unitPrice)}
-              />
-              <Fact
-                label={TOTAL_PRICE_LABEL}
-                value={formatEtb(deal.totalPrice)}
-              />
-              <Fact
-                label={COMMISSION_LABEL}
-                value={formatEtb(deal.commission)}
-              />
-            </dl>
-          </section>
+            </section>
+          )}
 
-          {/* The decision — always on the page. Pending deals get the
-              accept/decline controls; answered deals keep the same white
-              card so the hierarchy does not collapse after accept. */}
-          <section className="bd-briefcard bd-cr-decisioncard">
-            <div className="bd-capruler">
-              <span className="bd-caprulertitle">Your decision</span>
-              <span className="bd-caprulerline" aria-hidden="true" />
-              <span className="bd-caprulernote">
-                Accept or decline while the offer is open
-              </span>
-            </div>
-            {isPending ? (
-              <OfferActions dealId={deal.id} terms={deal.rightsTerms} />
-            ) : (
-              <p className="bd-cr-copy">
-                {deal.status === 'declined' || deal.status === 'expired'
-                  ? labelForStatus(deal.status)
-                  : 'You accepted this offer and agreed to the usage-rights terms.'}
-              </p>
-            )}
-          </section>
+          {/* The decision. While the offer is open this is the page's action;
+              once answered it collapses to a one-line receipt instead of
+              holding a whole chapter for a past-tense sentence. */}
+          {isPending ? (
+            <section className="bd-briefcard bd-cr-decisioncard">
+              <div className="bd-capruler">
+                <span className="bd-caprulertitle">Your decision</span>
+                <span className="bd-caprulerline" aria-hidden="true" />
+                <span className="bd-caprulernote">
+                  Accept or decline while the offer is open
+                </span>
+              </div>
+              <OfferActions
+                dealId={deal.id}
+                terms={deal.rightsTerms}
+                deliveryWindowDays={deal.deliveryWindowDays}
+              />
+            </section>
+          ) : (
+            <p className="bd-cr-decisionline">
+              {deal.status === 'declined' || deal.status === 'expired'
+                ? labelForStatus(deal.status)
+                : 'You accepted this offer and agreed to the usage-rights terms.'}
+            </p>
+          )}
 
           {/* The terms, under the decision they govern. */}
           {isPending ? rights : null}
 
-          {/* KAN-43, AC-019 item 6 — the creator's half of "both parties can see
-          that money is held". Above the deliver button on purpose: the money
-          being held is why the creator is willing to start work. */}
-          {isMoneyHeld(deal.status) ? (
-            <section className="bd-caprail bd-cr-heldrail">
-              <div className="bd-railcell">
-                <span className="bd-railk">{FUNDS_HELD_LABEL}</span>
-                <span className="bd-railv bd-mono">
-                  {formatEtb(deal.totalPrice)}
-                </span>
-                <span className="bd-railn">{FUNDS_HELD_MESSAGE}</span>
-              </div>
-            </section>
-          ) : null}
-
-          {/* What the creator submitted — one card per video, with the
-              thumbnail frame the landing mockup established. */}
+          {/* What the creator submitted — the deal's own showreel: sprocket
+              strip above, one film card per video with its mono frame index. */}
           {deal.deliverables.length > 0 ? (
             <section className="bd-cr-deliverables">
               <div className="bd-capruler">
@@ -307,7 +346,7 @@ export default async function CreatorDealDetailPage({
                 </span>
               </div>
 
-              {deal.deliverables.map((video, index) => (
+              {deal.deliverables.map((video) => (
                 <div
                   key={video.id}
                   className={`bd-cr-video ${REVIEW_ACCENT[video.reviewStatus] ?? ''}`}
@@ -321,10 +360,16 @@ export default async function CreatorDealDetailPage({
                     tiktokVideoId={
                       video.tiktokVideoId ?? parseTiktokVideoId(video.tiktokUrl)
                     }
-                    videoLabel={videoHeading(index)}
+                    videoLabel={videoHeading(video.videoOrdinal - 1)}
                   />
                   <div className="bd-cr-video-copy">
-                    <h3>{videoHeading(index)}</h3>
+                    <h3>
+                      <span className="bd-cr-frameidx bd-mono" aria-hidden="true">
+                        {String(video.videoOrdinal).padStart(2, '0')}
+                      </span>
+                      {videoHeading(video.videoOrdinal - 1)} · Version{' '}
+                      {video.submissionVersion}
+                    </h3>
                     <p className="bd-cr-video-meta">
                       {SUBMITTED_AT_LABEL}:{' '}
                       {formatDeadlineUtc(video.submittedAt)}
@@ -342,9 +387,24 @@ export default async function CreatorDealDetailPage({
                         <p>{video.rejectionReason}</p>
                       </div>
                     ) : null}
+                    {video.revisionCategory && (
+                      <p className="bd-cr-video-meta">
+                        {REVISION_CATEGORY_LABELS[video.revisionCategory]}
+                      </p>
+                    )}
+                    <VideoHistory
+                      events={videoHistory.filter(
+                        (event) => event.deliverableId === video.id
+                      )}
+                      limited={video.historyCompleteness === 'legacy_baseline'}
+                    />
                     {canReportMetrics(deal.status) ? (
                       <div className="bd-cr-metrics">
-                        <MetricsForm deliverableId={video.id} />
+                        <MetricsForm
+                          key={`${video.id}-${video.submissionVersion}`}
+                          deliverableId={video.id}
+                          expectedVersion={video.submissionVersion}
+                        />
                       </div>
                     ) : null}
                   </div>
@@ -352,6 +412,11 @@ export default async function CreatorDealDetailPage({
               ))}
             </section>
           ) : null}
+
+          {/* KAN-160: the delivery agreement sits directly above the submit
+              form — the deadline is the submission's clock, so the two read
+              as one unit: here is when, here is where. */}
+          <DeadlineSection dealId={id} />
 
           {/* The submission form, when the deal is in a state that takes one. */}
           {canDeliver(deal.status) ? (
@@ -371,8 +436,30 @@ export default async function CreatorDealDetailPage({
                 ) : remaining > 0 && standing > 0 ? (
                   <p className="bd-cr-copy">{REMAINING_VIDEOS_MESSAGE}</p>
                 ) : null}
-                <DeliverableForm dealId={deal.id} />
+                <DeliverableForm
+                  key={`${deal.deliverables.length}-${deal.deliverables[rejectedIndex]?.submissionVersion ?? 0}`}
+                  dealId={deal.id}
+                  deliverableId={deal.deliverables[rejectedIndex]?.id ?? null}
+                  expectedVersion={
+                    deal.deliverables[rejectedIndex]?.submissionVersion ?? 0
+                  }
+                  expectedSubmitted={deal.deliverables.length}
+                />
               </div>
+              {/* Orientation, not decoration: the three things that happen
+                  after the button, so the submit reads as a step in the money
+                  flow the vault promised. */}
+              <ol className="bd-cr-nextsteps" aria-label="What happens next">
+                <li>
+                  <b>01</b> Link recorded for the brand
+                </li>
+                <li>
+                  <b>02</b> Brand reviews the video
+                </li>
+                <li>
+                  <b>03</b> Approval releases your payout
+                </li>
+              </ol>
             </div>
           ) : null}
         </div>

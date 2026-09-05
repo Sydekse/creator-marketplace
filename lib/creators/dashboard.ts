@@ -48,7 +48,10 @@ export interface CreatorEarnings {
   inEscrow: number;
 }
 
-export interface CreatorDealRow {
+import type { DeadlineEvidence } from '@/lib/deals/deadline';
+import { deadlineColumns } from '@/lib/deals/deadline-columns';
+
+export interface CreatorDealRow extends DeadlineEvidence {
   id: string;
   status: DealStatus;
   campaignName: string;
@@ -220,6 +223,7 @@ export function dealsQuery(creatorProfileId: string) {
       videoCount: deal.videoCount,
       totalPrice: deal.totalPrice,
       offerExpiresAt: deal.offerExpiresAt,
+      ...deadlineColumns,
     })
     .from(deal)
     .innerJoin(campaign, eq(deal.campaignId, campaign.id))
@@ -238,7 +242,13 @@ export function unmeasuredDealsQuery(creatorProfileId: string) {
     .select({ dealId: deal.id })
     .from(deliverable)
     .innerJoin(deal, eq(deliverable.dealId, deal.id))
-    .leftJoin(videoMetric, eq(videoMetric.deliverableId, deliverable.id))
+    .leftJoin(
+      videoMetric,
+      and(
+        eq(videoMetric.deliverableId, deliverable.id),
+        eq(videoMetric.submissionVersion, deliverable.submissionVersion)
+      )
+    )
     .where(
       and(
         eq(deal.creatorId, creatorProfileId),
@@ -277,7 +287,13 @@ export function creatorMetricsQuery(creatorProfileId: string) {
     })
     .from(deliverable)
     .innerJoin(deal, eq(deliverable.dealId, deal.id))
-    .leftJoin(videoMetric, eq(videoMetric.deliverableId, deliverable.id))
+    .leftJoin(
+      videoMetric,
+      and(
+        eq(videoMetric.deliverableId, deliverable.id),
+        eq(videoMetric.submissionVersion, deliverable.submissionVersion)
+      )
+    )
     .where(eq(deal.creatorId, creatorProfileId));
 }
 

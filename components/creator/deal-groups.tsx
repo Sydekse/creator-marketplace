@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DeadlineSummary } from '@/components/deals/deadline-summary';
 import { CaretRight } from '@phosphor-icons/react/dist/ssr';
 import type {
   CreatorDealGroup,
@@ -59,6 +60,7 @@ function DealRow({ deal }: { deal: CreatorDealRow }) {
           <span className="text-xs text-muted-foreground">
             {deal.videoCount} {deal.videoCount === 1 ? 'video' : 'videos'}
           </span>
+          <DeadlineSummary deal={deal} />
         </div>
         <div className="flex flex-col items-end gap-1">
           <span className="font-mono text-sm font-medium tabular-nums">

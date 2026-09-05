@@ -40,6 +40,122 @@ append-only ledger inside the same database transaction as the deal state change
 - A shortlist that enforces the budget ceiling as a server-side invariant, re-checked on confirm
   and again on fund
 - Versioned usage-rights terms, snapshotted onto each deal at acceptance
+- Campaign Insights: recorded costs/results, separate CPV/CPE cohorts, creator
+  contributions, and your brand's collaboration evidence (see below).
+
+### Campaign Insights: interpreting the evidence
+
+Non-draft campaign pages keep funding and the authoritative settlement panel
+above insights; the draft cart is unchanged. Recharts v3 renders small client
+islands beside server-rendered exact values. All comparisons and sorting use
+the same pure model, with unavailable ratios last. Native disclosures, contained
+table scrolling, fixed chart dimensions and non-animated bars support keyboard,
+touch and reduced motion. Campaign routes deliberately do not use streaming
+`loading.tsx` fallbacks: an authenticated, JavaScript-disabled browser receives
+the exact values rather than a loading screen that needs a script to resolve.
+
+- **Cost:** prices remain integer santim. Settled spend is ledger payout plus
+  commission (never commission added twice); refunds are separate. Committed
+  cost uses the existing status-aware budget policy, not the settlement total.
+- **Efficiency:** video CPV uses unit price; deal CPV needs views for every
+  ordered current video. CPE needs likes, comments **and** shares for every
+  included video. Headline and creator figures divide summed completed,
+  fully measured deal cost by summed results, never average individual ratios.
+  CPV and CPE can include different deals. Measured zero-result deals retain
+  their cost in a cohort; a zero total denominator is unavailable. Each chart
+  states its included deals/videos/cost and exclusions.
+- **Contributions:** cost share and result share always use the same eligible
+  cohort. Known repeated TikTok identities exclude affected deals from
+  comparisons; raw totals remain labeled as potentially double-counted.
+  Opaque short-link identities are not guessed.
+- **Coverage:** each count has its own measured-video denominator. Null means
+  unknown, not zero. Only current-submission-version metrics are read. Raw
+  totals cover all issued-deal statuses, unlike completed-deal comparisons.
+  Counts are creator/admin reported; the row-wide timestamp is a last record
+  update, not the measurement time of every field. Stale values stay qualified.
+  Small ETB ratios use four decimal places, or `<0.0001 ETB`.
+- **Your collaboration history:** includes only the viewing brand's campaigns
+  involving displayed creators. Acceptance means ever accepted/all issued;
+  completion means completed/ever funded, with ongoing/refunded separated.
+  Deal revision incidence separates open/closed and brand/admin evidence.
+  Video incidence and revision-free batch approvals require fully captured
+  history; revision rounds are separate counts. Admin payment release is not
+  brand approval. Reported reason categories remain feedback, including unknown.
+- **Elapsed timing:** medians and sample counts cover funding to first full
+  delivery, complete review-ready cycles to recorded decisions, and rejection
+  to its next-version replacement. Open waiting and interrupted intervals are
+  separate, not completed samples. Missing legacy evidence never becomes an
+  instant delivery or a revision-free approval. This is not active review
+  effort or a judgment about responsibility.
+
+`lib/campaigns/insights.ts` guards ownership, rechecks the owner and reads all
+related rows in one read-only repeatable-read transaction. Every read is
+brand-scoped; creators, videos and evidence are fetched in batches, not per card.
+Pure `insight-model.ts`, `insight-history.ts` and `insight-display.ts` own
+calculation and presentation projections. Read failures propagate to the route's
+error handling rather than being replaced with fabricated empty data.
+
+**Supported:** current recorded efficiency, cohort contributions, brand-only
+acceptance/completion/revision evidence and recorded elapsed workflow timing.
+**Limited:** legacy history, incomplete or stale manual counts, unresolved video
+identities and differently aged observations. **Deferred:** fault attribution, independent video approval, automatic
+deliverable metrics, growth/time-series, unique reach, conversions/ROI,
+cross-brand rankings and global reliability scores.
+
+Validation uses the existing Vitest unit/coverage and PostgreSQL integration
+runners plus `e2e/campaign-insights.spec.ts` for desktop/mobile Chromium/WebKit.
+Browser fixtures require an isolated local test database and include separate
+CPV/CPE cohorts, measured zeros, partial coverage, stale/old-version records,
+duplicates, refunds, legacy evidence, admin release and JavaScript-disabled
+exact-value views. Never point fixture/migration commands at a live database.
+
+### Delivery agreements and punctuality
+
+Draft campaigns can record an explicit delivery window of 1–90 days, with no
+default. Sending offers requires a chosen window and snapshots it onto each deal.
+Creators accept the displayed window and interpretation version alongside usage
+rights; stale delivery terms return 409. Already-sent legacy contracts remain
+without a recorded delivery deadline. Editing a draft never changes sent offers.
+
+`EscrowLedgerService.holdForCampaign()` initializes `fundedAt`, original and current
+due dates in the successful transaction shared by mock funding and verified Chapa
+settlement. A day is 24 elapsed hours; all displayed deadlines are explicitly UTC.
+Retries and return/webhook replays never restart the clock. Offer expiry is a
+separate acceptance deadline.
+
+Either party can request a later delivery date on funded work before its first
+complete submission. `POST /api/deals/{id}/deadline` requires `expectedDueAt`,
+`proposedDueAt` and a note. `PATCH` requires the immutable `requestId`,
+`expectedDueAt` and `decision` (`accepted`, `rejected`, `withdrawn`). Only the
+counterparty decides; only the proposer withdraws. The service locks the deal
+before requests, rechecks ownership/state/clock, and serializes submission and
+refund races. One pending request per deal is enforced by a partial unique index.
+Identical decisions are idempotent; conflicts return 409 with refresh guidance.
+Requests are immutable proposals with one decision, not an append-only table.
+In-app notifications commit with the action; email is sent afterward.
+
+The first full delivery freezes its timestamp and effective due date; revisions,
+approval and refunds cannot reset them. First delivery and refunds close pending
+requests through the authoritative deal transition. Acceptance **after** the
+previous due time permanently records that a commitment was missed; acceptance
+at that time is still prospective. Delivery at the effective deadline is on time
+only if no earlier deadline was missed. “Within extended deadline; earlier
+deadline missed” remains a distinct result.
+
+Shared deal cards, inbox summaries, Campaign Insights and owned collaboration
+history use the same classifier. Rates include only initial deliveries with
+trustworthy agreements; due/overdue open work, unknown legacy evidence and closed
+work are separate. Admins can inspect deadline history but cannot override mutual
+agreement. Timing never changes escrow, legal deal status or payment eligibility.
+
+Migration `0019_moaning_dreadnoughts.sql` is additive and deliberately backfills no
+agreement or delivery timestamps. Do not drop the history table to roll back UI.
+An old-writer deployment can leave incomplete evidence; those records stay
+unknown, not automatically on-time. Validate real database constraints, funding
+replay, races and rollback with `tests/integration/delivery-deadlines.test.ts`;
+`e2e/delivery-agreements.spec.ts` covers both parties, admin read-only visibility,
+notifications, initial delivery and campaign reporting. Run these only in an
+isolated CI/test database, never against preview or production data.
 
 **Money**
 
@@ -53,12 +169,14 @@ append-only ledger inside the same database transaction as the deal state change
 
 - Guarded deal state machine; an illegal transition changes nothing and returns a specific error
 - Deliverable submission with TikTok URL validation
+- Stable video slots and permanent submission/revision history, with structured reported revision categories
 - Brand review — approve to pay, or reject with a reason while funds stay held for a revision
 - Engagement metrics per video, with totals on the campaign dashboard
 
 **Notifications**
 
-- 11 transactional email types rendered with React Email and delivered via Resend
+- Transactional email types rendered with React Email and delivered via Resend,
+  including delivery extension requests, decisions and withdrawals
 - An in-app notification feed, written inside the same transaction as the event it describes
 - Emails flush only after that transaction commits, so a mail failure can never roll back money
 
@@ -232,16 +350,57 @@ components/                UI primitives and feature components
 
 ### Data model
 
-18 tables. The domain ones:
+23 tables. The core domain ones:
 
 `creator_profile` · `brand_profile` · `pricing_tier` · `campaign` · `campaign_item` ·
-`rights_terms` · `deal` · `deal_event` · `deliverable` · `video_metric` · `ledger_entry` ·
+`rights_terms` · `deal` · `deal_event` · `deliverable` · `deliverable_event` · `video_metric` · `ledger_entry` ·
 `audit_log` · `notification` · `provider_hold`
 
 Plus `user`, `session`, `account`, and `verification`, managed by Better Auth.
 
-`deal_event`, `ledger_entry`, and `audit_log` are append-only — inserts only, never updates — so the
+`deal_event`, `deliverable_event`, `ledger_entry`, and `audit_log` are append-only — inserts only, never updates — so the
 history of a deal and of every money movement is permanent.
+
+### Deliverable evidence and version consistency
+
+`deliverable.video_ordinal` is assigned under the deal lock and never changes on replacement.
+New videos begin at submission version 1. Migration `0018_kind_hemingway.sql` adopts surviving
+legacy rows as version 0 in deterministic submitted-time/ID order, preserving the currently
+recorded URL, review note/status, timestamps and latest metrics in a `legacy_baseline` event.
+This is not a reconstructed first submission: prior revisions and actor identities remain unknown.
+The completeness marker stays limited even after a legacy video is replaced.
+
+Submission, supersession, revision, review-ready/interrupted cycles and final dispositions are
+written inside the authoritative domain transaction. Partial submissions create video events
+without changing deal status. Approval remains one deal-level payout; all final versions receive
+batch approval together. Admin release/refund are distinct outcomes, and admin revision names
+one current video that the creator can replace. Event sequence orders tied timestamps.
+
+Submission bodies require `requestId` (UUID), `deliverableId` (null for a new slot),
+`expectedVersion` (0 for a new slot) and `expectedSubmitted`, alongside `tiktokUrl`.
+Retry the same request ID/payload after a lost response; changing its payload is a conflict.
+Rejection requires `deliverableId`, `expectedVersion`, `category` and `reason`.
+Approval takes `expectedVersions: [{ id, submissionVersion }]`, never payment amounts.
+Metrics require `expectedVersion` plus one or more counts; version 0 remains writable.
+`DELIVERABLE_VERSION_STALE` is a 409 instructing the user to reload.
+
+Replacing even the same URL archives the prior latest metric row as supersession evidence,
+then clears current metrics and media atomically. Metrics lock the deal before checking the
+current version. Post-commit thumbnail saves compare version and prior thumbnail atomically;
+losing results are discarded and only unreferenced application blobs are cleaned up.
+Historical evidence retains URLs/text, not a thumbnail/video-file archive.
+
+Supported now: recorded revision reasons, submission versions, deal review-cycle evidence and
+current-version metric isolation. Partial: historical coverage (explicitly limited for legacy
+records), best-effort current thumbnails, and manually reported latest metrics. Deferred:
+Campaign Insights/ratios/charts, agreed deadlines/punctuality, independent video approval,
+automatic metrics, time series and historical media storage.
+
+Deploy the additive migration together with the version-aware application; older forms must
+reload. Do not drop evidence tables for an application rollback. An older writer can leave
+coverage gaps: use a forward fix or explicitly mark affected history limited, never claim
+gap-free evidence across an old-writer deployment. Database migration/integration tests must
+use an isolated disposable database, not preview or production.
 
 ### API errors
 

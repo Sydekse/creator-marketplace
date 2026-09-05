@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { DeadlineSummary } from './deadline-summary';
 import {
   CaretRight,
   CheckCircle,
@@ -143,6 +144,7 @@ function DealRow({
           {deal.status === 'pending' ? (
             <ExpiryLine offerExpiresAt={deal.offerExpiresAt} now={now} />
           ) : null}
+          <DeadlineSummary deal={deal} now={now} />
         </div>
       </div>
       <div className="bd-cr-dealvalue">

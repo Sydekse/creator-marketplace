@@ -35,6 +35,11 @@ import {
   zodIssuesToDetails,
 } from '@/lib/validation';
 import type { FieldErrorMap } from '@/lib/validation';
+import type {
+  ExpectedVersion,
+  RevisionCategory,
+} from '@/lib/deliverables/evidence';
+import { RevisionCategoryField } from './revision-category-field';
 
 /**
  * Approve a delivered deal, or send one of its videos back (KAN-68, US-008,
@@ -56,12 +61,9 @@ import type { FieldErrorMap } from '@/lib/validation';
  * These are the smallest things that have to be — the page above renders them only
  * where `canReview(status)` is true and keeps everything else server-rendered.
  *
- * **Neither endpoint trusts these.** `POST /approve` takes no body at all (the
- * amounts are derived under the ledger's lock, so there is nothing for a client to
- * vary except which deal, and that is in the path) and `POST /reject` re-checks
- * that the deliverable belongs to the deal. Both re-check the role, the ownership
- * and the status server-side; these controls are a courtesy, and disabling one
- * stops an accident rather than an attacker (NFR-005).
+ * Both endpoints re-check ownership, status and expected versions server-side.
+ * Approval echoes the reviewed version set, not payment amounts. Disabling
+ * these controls prevents accidents; it never supplies authorization.
  *
  * **The reason is validated twice, on purpose.** `rejectDeliverableSchema` parses
  * here first and the endpoint answers 422 `REASON_REQUIRED` regardless — one copy
@@ -79,9 +81,11 @@ import type { FieldErrorMap } from '@/lib/validation';
 export function ApproveDealButton({
   dealId,
   videoCount,
+  expectedVersions,
 }: {
   dealId: string;
   videoCount: number;
+  expectedVersions: ExpectedVersion[];
 }) {
   const router = useRouter();
   const [approving, setApproving] = useState(false);
@@ -101,7 +105,11 @@ export function ApproveDealButton({
     try {
       response = await fetch(
         `/api/deals/${encodeURIComponent(dealId)}/approve`,
-        { method: 'POST' }
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ expectedVersions }),
+        }
       );
     } catch {
       // Transport, not approval-specific — one sentence serves both controls
@@ -176,14 +184,17 @@ export function RejectVideoForm({
   dealId,
   deliverableId,
   videoLabel,
+  expectedVersion,
 }: {
   dealId: string;
   deliverableId: string;
   videoLabel: string;
+  expectedVersion: number;
 }) {
   const router = useRouter();
 
   const [reason, setReason] = useState('');
+  const [category, setCategory] = useState<RevisionCategory | null>(null);
   const [errors, setErrors] = useState<FieldErrorMap>({});
   const [rejecting, setRejecting] = useState(false);
 
@@ -201,6 +212,8 @@ export function RejectVideoForm({
     const parsed = rejectDeliverableSchema.safeParse({
       deliverableId,
       reason,
+      expectedVersion,
+      category,
     });
     if (!parsed.success) {
       setErrors(zodIssuesToDetails(parsed.error));
@@ -255,6 +268,13 @@ export function RejectVideoForm({
   return (
     <form onSubmit={handleReject} noValidate>
       <FieldGroup className="gap-4">
+        <RevisionCategoryField
+          id={`category-${deliverableId}`}
+          value={category}
+          onChange={setCategory}
+          disabled={rejecting}
+        />
+        <FieldError errors={fieldErrorsAt(errors, 'category')} />
         <Field data-invalid={reasonErrors !== undefined || undefined}>
           <FieldLabel htmlFor={fieldId}>
             {REJECT_REASON_LABEL} <span className="sr-only">{videoLabel}</span>

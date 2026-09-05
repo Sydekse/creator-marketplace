@@ -117,6 +117,7 @@ interface Recorded {
 }
 
 interface Overrides {
+  deliveryWindowDays?: number | null;
   status?: string;
   budget?: number;
   items?: ConfirmCampaignItem[];
@@ -153,6 +154,10 @@ function makeDeps(overrides: Overrides = {}): {
       if (overrides.campaignMissing) return null;
       return {
         id: CAMPAIGN_ID,
+        deliveryWindowDays:
+          overrides.deliveryWindowDays === undefined
+            ? 7
+            : overrides.deliveryWindowDays,
         name: 'Ramadan launch',
         budget: overrides.budget ?? CART_TOTAL,
         status: (overrides.status ??
@@ -245,6 +250,33 @@ beforeEach(() => {
     },
     brandProfileId: BRAND_PROFILE_ID,
     creatorProfileId: null,
+  });
+});
+
+describe('explicit snapshotted delivery agreement', () => {
+  it.each([null, 0, -1, 91, 1.5])(
+    'refuses a draft with window %s without any offers',
+    async (deliveryWindowDays) => {
+      const { deps, recorded } = makeDeps({ deliveryWindowDays });
+      expect(
+        await confirmCampaign(
+          CAMPAIGN_ID,
+          BRAND_PROFILE_ID,
+          BRAND_USER_ID,
+          deps
+        )
+      ).toEqual({ ok: false, reason: 'missing_delivery_window' });
+      expect(recorded.deals).toEqual([]);
+      expect(recorded.notifications).toEqual([]);
+    }
+  );
+  it('snapshots the explicit rule on every offer and its notification', async () => {
+    const { deps, recorded } = makeDeps({ deliveryWindowDays: 12 });
+    await confirmCampaign(CAMPAIGN_ID, BRAND_PROFILE_ID, BRAND_USER_ID, deps);
+    expect(recorded.deals.length).toBeGreaterThan(0);
+    for (const row of recorded.deals) expect(row.deliveryWindowDays).toBe(12);
+    for (const row of recorded.notifications)
+      expect(row.payload).toMatchObject({ deliveryWindowDays: 12 });
   });
 });
 
@@ -998,7 +1030,12 @@ describe('confirm button and campaign pages', () => {
   it('passes the cart size so an empty cart disables the button', () => {
     expect(CAMPAIGN_PAGE).toContain('itemCount={items.length}');
     expect(CONFIRM_BUTTON).toContain('itemCount === 0');
-    expect(CONFIRM_BUTTON).toContain('disabled={sending || empty}');
+    expect(CONFIRM_BUTTON).toContain(
+      'disabled={sending || empty || deliveryWindowDays == null}'
+    );
+    expect(CAMPAIGN_PAGE).toContain(
+      'deliveryWindowDays={campaign.deliveryWindowDays}'
+    );
   });
 
   it('explains the disabled state in a sentence, not a tooltip', () => {
@@ -1018,7 +1055,9 @@ describe('confirm button and campaign pages', () => {
 
   it('confirms before sending, because offers cannot be recalled', () => {
     expect(CONFIRM_BUTTON).toContain('ConfirmDialog');
-    expect(CONFIRM_BUTTON).toContain('description={CONFIRM_CAMPAIGN_PROMPT}');
+    expect(CONFIRM_BUTTON).toContain(
+      '${CONFIRM_CAMPAIGN_PROMPT} Delivery agreement: ${deliveryTerm(deliveryWindowDays)}'
+    );
     expect(CONFIRM_BUTTON).not.toContain('window.confirm');
   });
 

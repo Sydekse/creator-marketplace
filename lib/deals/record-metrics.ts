@@ -1,6 +1,12 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { deliverable, videoMetric, videoMetricSnapshot } from '@/db/schema';
+import {
+  deal,
+  deliverable,
+  videoMetric,
+  videoMetricSnapshot,
+} from '@/db/schema';
+import { VersionConflict } from '@/lib/deliverables/history';
 import type { MetricSource } from '@/db/schema';
 import { withAdminAudit } from '@/lib/authz';
 import type { AuditEntry, AuthzContext, Tx } from '@/lib/authz';
@@ -10,11 +16,11 @@ import { AUDIT_ACTIONS, AUDIT_TARGET_TYPES } from '@/lib/audit/actions';
  * Creator or admin records engagement metrics for a delivered video (KAN-48,
  * US-009, AC-028, Tech Spec §4.5, §5 Metrics Service).
  *
- * **Everything before the write is someone else's job, and only the write is
- * this module's.** `updateMetricsSchema` has already refused negatives,
+ * `updateMetricsSchema` has already refused negatives,
  * non-integers, out-of-range counts and unknown keys; the route's guard has
  * already refused everyone but the deliverable's own creator or an admin
- * (§4.5). This module stores what survived: a merge-style upsert on the one
+ * (§4.5). This module checks the expected version under the deal lock and
+ * stores what survived: a merge-style upsert on the one
  * `video_metric` row per deliverable, with the `deliverable_id` unique
  * constraint as the backstop.
  *
@@ -30,10 +36,10 @@ import { AUDIT_ACTIONS, AUDIT_TARGET_TYPES } from '@/lib/audit/actions';
  * vocabulary's own rule is that an admin capability nobody thought to log is
  * exactly the gap FR-008 exists to close. So the admin path runs the upsert
  * inside `withAdminAudit`, sharing one transaction: the audit row and the
- * change commit or roll back together (invariant 9). The creator path is a
- * plain single-row upsert — no audit and no transaction, since there is
- * nothing else to keep atomic with it. The role came from the route's guard,
- * never from the body.
+ * change commit or roll back together (invariant 9). The creator path uses
+ * its own transaction without an audit. Both lock the deal first, then check
+ * the submission version before merging counts, so a replacement cannot
+ * inherit old-video measurements. The role comes from the route's guard.
  *
  * **`stale` is cleared on every manual write.** The column exists to flag
  * cached values from a future feed that went down (NFR-011, KAN-50). A manual
@@ -59,6 +65,7 @@ export interface StoredMetrics {
 }
 
 export interface RecordMetricsOk {
+  submissionVersion?: number;
   ok: true;
   metricId: string;
   views: number | null;
@@ -70,9 +77,10 @@ export interface RecordMetricsOk {
 }
 
 export type RecordMetricsResult =
-  RecordMetricsOk | { ok: false; reason: 'not_found' };
+  RecordMetricsOk | { ok: false; reason: 'not_found' | 'conflict' };
 
 export interface RecordMetricsDeps {
+  runCreator?: <T>(fn: (tx: Tx) => Promise<T>) => Promise<T>;
   /**
    * Existence check, layer two for the admin path. The route's guard proved
    * ownership for creators, but `allowAdmin` skips layer 2 by design — so the
@@ -97,6 +105,7 @@ export interface RecordMetricsDeps {
       values: MetricValues;
       source: MetricSource;
       lastUpdatedAt: Date;
+      expectedVersion?: number;
     }
   ) => Promise<StoredMetrics>;
   /**
@@ -110,7 +119,8 @@ export interface RecordMetricsDeps {
   ) => Promise<T>;
 }
 
-const defaultDeps: RecordMetricsDeps = {
+export const defaultDeps: RecordMetricsDeps = {
+  runCreator: (fn) => db.transaction(fn),
   loadDeliverable: async (id) => {
     const [row] = await db
       .select({ id: deliverable.id })
@@ -121,14 +131,31 @@ const defaultDeps: RecordMetricsDeps = {
   },
   upsertMetrics: async (
     runner,
-    { deliverableId, values, source, lastUpdatedAt }
+    { deliverableId, values, source, lastUpdatedAt, expectedVersion }
   ) => {
+    const [owner] = await runner
+      .select({ dealId: deliverable.dealId })
+      .from(deliverable)
+      .where(eq(deliverable.id, deliverableId));
+    if (!owner) throw new VersionConflict();
+    await runner
+      .select({ id: deal.id })
+      .from(deal)
+      .where(eq(deal.id, owner.dealId))
+      .for('update');
+    const [current] = await runner
+      .select({ version: deliverable.submissionVersion })
+      .from(deliverable)
+      .where(eq(deliverable.id, deliverableId));
+    if (!current || current.version !== expectedVersion)
+      throw new VersionConflict();
     // Only the submitted columns reach the SET clause; `views`-only updates
     // leave the other counts alone (AC-6). The meta columns always change.
     const set: Partial<typeof videoMetric.$inferInsert> = {
       source,
       lastUpdatedAt,
       stale: false,
+      submissionVersion: expectedVersion,
     };
     for (const key of ['views', 'likes', 'shares', 'comments'] as const) {
       if (values[key] !== undefined) set[key] = values[key];
@@ -179,63 +206,75 @@ const defaultDeps: RecordMetricsDeps = {
  */
 export async function recordMetrics(
   deliverableId: string,
-  input: { values: MetricValues; source: MetricSource },
+  input: {
+    values: MetricValues;
+    source: MetricSource;
+    expectedVersion?: number;
+  },
   deps: RecordMetricsDeps = defaultDeps
 ): Promise<RecordMetricsResult> {
-  const existing = await deps.loadDeliverable(deliverableId);
-  if (!existing) {
-    return { ok: false, reason: 'not_found' };
-  }
+  try {
+    const existing = await deps.loadDeliverable(deliverableId);
+    if (!existing) {
+      return { ok: false, reason: 'not_found' };
+    }
 
-  const lastUpdatedAt = new Date();
+    const lastUpdatedAt = new Date();
 
-  const write = async (runner: Tx | typeof db): Promise<RecordMetricsOk> => {
-    const row = await deps.upsertMetrics(runner, {
-      deliverableId,
-      values: input.values,
-      source: input.source,
-      lastUpdatedAt,
-    });
-    return {
-      ok: true,
-      metricId: row.id,
-      views: row.views,
-      likes: row.likes,
-      shares: row.shares,
-      comments: row.comments,
-      source: input.source,
-      lastUpdatedAt,
+    const write = async (runner: Tx | typeof db): Promise<RecordMetricsOk> => {
+      const row = await deps.upsertMetrics(runner, {
+        deliverableId,
+        values: input.values,
+        source: input.source,
+        lastUpdatedAt,
+        expectedVersion: input.expectedVersion,
+      });
+      return {
+        ok: true,
+        metricId: row.id,
+        views: row.views,
+        likes: row.likes,
+        shares: row.shares,
+        comments: row.comments,
+        source: input.source,
+        lastUpdatedAt,
+        submissionVersion: input.expectedVersion,
+      };
     };
-  };
 
-  if (input.source === 'admin') {
-    // AC-031/FR-008. `targetId` is a function of the result because the
-    // `video_metric` row may be brand-new — its id does not exist when this
-    // entry is constructed, and the audit row must name the very row the
-    // transaction just made. `detail` carries what changed, so the log
-    // answers "what did the admin edit" without opening the row.
-    // The type argument is pinned because both arguments share `T`: the
-    // entry's arrows are contextually typed by it, and this branch can only
-    // produce a success — existence was already checked above, so the union's
-    // `not_found` member cannot occur here.
-    return deps.runAdminAudit<RecordMetricsOk>(
-      {
-        action: AUDIT_ACTIONS.METRIC_EDIT,
-        targetType: AUDIT_TARGET_TYPES.VIDEO_METRIC,
-        targetId: (result) => result.metricId,
-        detail: (result) => ({
-          deliverable_id: deliverableId,
-          source: result.source,
-          last_updated_at: result.lastUpdatedAt.toISOString(),
-          views: result.views,
-          likes: result.likes,
-          shares: result.shares,
-          comments: result.comments,
-        }),
-      },
-      (tx) => write(tx)
-    );
+    if (input.source === 'admin') {
+      // AC-031/FR-008. `targetId` is a function of the result because the
+      // `video_metric` row may be brand-new — its id does not exist when this
+      // entry is constructed, and the audit row must name the very row the
+      // transaction just made. `detail` carries what changed, so the log
+      // answers "what did the admin edit" without opening the row.
+      // The type argument is pinned because both arguments share `T`: the
+      // entry's arrows are contextually typed by it, and this branch can only
+      // produce a success — existence was already checked above, so the union's
+      // `not_found` member cannot occur here.
+      return await deps.runAdminAudit<RecordMetricsOk>(
+        {
+          action: AUDIT_ACTIONS.METRIC_EDIT,
+          targetType: AUDIT_TARGET_TYPES.VIDEO_METRIC,
+          targetId: (result) => result.metricId,
+          detail: (result) => ({
+            deliverable_id: deliverableId,
+            source: result.source,
+            last_updated_at: result.lastUpdatedAt.toISOString(),
+            views: result.views,
+            likes: result.likes,
+            shares: result.shares,
+            comments: result.comments,
+          }),
+        },
+        (tx) => write(tx)
+      );
+    }
+
+    return await (deps.runCreator ? deps.runCreator(write) : write(db));
+  } catch (error) {
+    if (error instanceof VersionConflict)
+      return { ok: false, reason: 'conflict' };
+    throw error;
   }
-
-  return write(db);
 }

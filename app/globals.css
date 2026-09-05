@@ -2140,6 +2140,393 @@ body {
   padding-right: 12px;
 }
 
+/* shadcn cards, alerts, fields, and disclosure controls inside the v4 scope
+   read as bd panels: paper surface, hairline frame, uppercase kicker titles,
+   mono values. New feature components built on these primitives (delivery
+   agreements, campaign insights, version history) inherit the layer without
+   forking their markup. */
+.bd [data-slot='card'] {
+  gap: 16px;
+  border: 1px solid var(--bd-line);
+  border-radius: 18px;
+  background: var(--bd-white);
+  box-shadow: none;
+  padding: 18px;
+}
+.bd [data-slot='card-header'],
+.bd [data-slot='card-content'],
+.bd [data-slot='card-footer'] {
+  padding: 0;
+}
+.bd [data-slot='card-header'] {
+  gap: 6px;
+  border-bottom: 1px solid var(--bd-line);
+  padding-bottom: 12px;
+}
+.bd [data-slot='card-title'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--bd-faint);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.bd [data-slot='card-description'] {
+  color: var(--bd-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.bd [data-slot='alert'] {
+  border: 1px solid var(--bd-line);
+  border-left: 3px solid var(--bd-pend-fg);
+  border-radius: 14px;
+  background: var(--bd-white);
+}
+.bd [data-slot='alert-title'] {
+  color: var(--bd-ink);
+  font-weight: 600;
+}
+.bd [data-slot='alert-description'] {
+  color: var(--bd-muted);
+}
+.bd [data-slot='input'],
+.bd [data-slot='textarea'] {
+  border-color: var(--bd-line);
+  border-radius: 12px;
+  background: var(--bd-white);
+}
+.bd [data-slot='input']:focus-visible,
+.bd [data-slot='textarea']:focus-visible {
+  border-color: var(--bd-brand);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--bd-brand) 20%, transparent);
+}
+.bd [data-slot='field-label'] {
+  color: var(--bd-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.bd [data-slot='field-description'] {
+  color: var(--bd-faint);
+  font-size: 12px;
+}
+/* Disclosure controls carry the ghost-button grammar instead of bare text. */
+.bd details > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  border: 1px solid var(--bd-line);
+  border-radius: 999px;
+  padding: 6px 14px;
+  color: var(--bd-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+  transition:
+    border-color 140ms var(--bd-ease),
+    background 140ms var(--bd-ease);
+}
+.bd details > summary::-webkit-details-marker {
+  display: none;
+}
+.bd details > summary::after {
+  content: '+';
+  color: var(--bd-faint);
+  font-weight: 500;
+}
+.bd details[open] > summary::after {
+  content: '−';
+}
+.bd details > summary:hover {
+  border-color: var(--bd-faint);
+}
+.bd details > summary:focus-visible {
+  outline: 2px solid var(--bd-brand);
+  outline-offset: 2px;
+}
+.bd details[open] > summary {
+  border-color: var(--bd-brand);
+  background: color-mix(in oklch, var(--bd-brand-tint) 40%, transparent);
+}
+/* Timeline lists inside the new panels: hairline spines, mono timestamps. */
+.bd details time,
+.bd [data-slot='card'] time {
+  font-family: var(--font-bd-mono), monospace;
+  font-size: 11.5px;
+  color: var(--bd-faint);
+}
+.bd details ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.bd details ol[class*='border-l'],
+.bd details li[class*='border-l'] {
+  border-color: var(--bd-line);
+}
+
+/* ---------- delivery agreement (KAN-160, v4 surface) ---------- */
+.bd .bd-agree {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid var(--bd-line);
+  border-left: 2px solid color-mix(in oklch, var(--bd-brand) 40%, var(--bd-line));
+  border-radius: 18px;
+  background: var(--bd-white);
+  padding: 20px;
+}
+.bd .bd-agreehead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.bd .bd-agreekicker {
+  color: var(--bd-faint);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.bd .bd-agreeverdict {
+  border-radius: 999px;
+  background: var(--bd-ok);
+  color: var(--bd-ok-fg);
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.bd .bd-agreeverdict--late {
+  background: var(--bd-pend);
+  color: var(--bd-pend-fg);
+}
+.bd .bd-agreeterm {
+  margin: 0;
+  color: var(--bd-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+/* The card's hero figure: the effective deadline as the big numeral. */
+.bd .bd-agreehero {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--bd-line);
+  padding-top: 12px;
+}
+.bd .bd-agreehero-lab {
+  color: var(--bd-faint);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.bd .bd-agreehero-num {
+  color: var(--bd-ink);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+.bd .bd-agreehero-sub {
+  color: var(--bd-faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-width: 64ch;
+}
+/* No-deadline state: a single quiet sentence, not an empty card. */
+.bd .bd-agreeline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  border-top: 1px solid var(--bd-line);
+  border-bottom: 1px solid var(--bd-line);
+  padding: 12px 0;
+  color: var(--bd-muted);
+  font-size: 12.5px;
+}
+.bd .bd-agreemiss {
+  margin: 0;
+  color: var(--bd-pend-fg);
+  font-size: 12.5px;
+}
+.bd .bd-agreepending {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--bd-line);
+  border-left: 3px solid var(--bd-pend-fg);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.bd .bd-agreepending-title {
+  margin: 0;
+  color: var(--bd-pend-fg);
+  font-size: 13px;
+  font-weight: 650;
+}
+.bd .bd-agreepending-ask {
+  margin: 0;
+  color: var(--bd-ink);
+  font-size: 13px;
+}
+.bd .bd-agreepending-ask b {
+  font-weight: 600;
+}
+.bd .bd-agreepending-note {
+  margin: 0;
+  color: var(--bd-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.bd .bd-agreeacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.bd .bd-agreefold {
+  min-width: 0;
+}
+.bd .bd-agreeform {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+  max-width: 420px;
+}
+.bd .bd-agreefield {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.bd .bd-agreefield > span {
+  color: var(--bd-ink);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.bd .bd-agreefield > small {
+  color: var(--bd-faint);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.bd .bd-agreefield input,
+.bd .bd-agreefield textarea {
+  border: 1px solid var(--bd-line);
+  border-radius: 12px;
+  background: var(--bd-white);
+  padding: 8px 12px;
+  color: var(--bd-ink);
+  font-size: 13px;
+  font-family: inherit;
+}
+.bd .bd-agreefield input:focus-visible,
+.bd .bd-agreefield textarea:focus-visible {
+  outline: none;
+  border-color: var(--bd-brand);
+  box-shadow: 0 0 0 3px color-mix(in oklch, var(--bd-brand) 20%, transparent);
+}
+.bd .bd-agreeerror {
+  margin: 0;
+  color: oklch(0.5 0.19 27);
+  font-size: 12.5px;
+}
+.bd .bd-agreelog {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0 0;
+  padding: 0;
+}
+.bd .bd-agreelog > li {
+  border-left: 2px solid var(--bd-line);
+  padding-left: 16px;
+}
+.bd .bd-agreelog-line {
+  margin: 0;
+  color: var(--bd-ink);
+  font-size: 12.5px;
+}
+.bd .bd-agreelog-line b {
+  font-weight: 650;
+  text-transform: capitalize;
+}
+.bd .bd-agreelog-move {
+  margin: 2px 0 0;
+  color: var(--bd-brand-ink);
+  font-size: 12px;
+}
+.bd .bd-agreelog-note {
+  margin: 4px 0 0;
+  color: var(--bd-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.bd .bd-agreelog-meta {
+  margin: 4px 0 0;
+  color: var(--bd-faint);
+  font-size: 11.5px;
+}
+.bd .bd-agreefoot {
+  margin: 0;
+  color: var(--bd-faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+/* version history (KAN-157) shares the agreement-ledger grammar */
+.bd .bd-vhist {
+  min-width: 0;
+}
+.bd .bd-vhist-note {
+  margin: 10px 0 0;
+  color: var(--bd-faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+  max-width: 62ch;
+}
+.bd .bd-vhist-versions {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 14px 0 0;
+  padding: 0;
+}
+.bd .bd-vhist-vtitle {
+  margin: 0 0 8px;
+  color: var(--bd-faint);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.bd .bd-vhist-time {
+  display: block;
+  margin-top: 2px;
+  color: var(--bd-faint);
+  font-size: 11.5px;
+}
+.bd .bd-vhist-link {
+  color: var(--bd-brand-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.bd .bd-vhist-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* ---------- brand deals inbox ---------- */
 .bd .bd-dealswrap {
   margin-top: 24px;
@@ -6358,7 +6745,10 @@ body {
 .bd .bd-cr-dashboard p.inline-flex.rounded-full,
 .bd.bd-crx h2.inline-flex.rounded-full,
 .bd.bd-crx h3.inline-flex.rounded-full,
-.bd.bd-crx p.inline-flex.rounded-full {
+.bd.bd-crx p.inline-flex.rounded-full,
+.bd.bd-cr-dealdetail h2.inline-flex.rounded-full,
+.bd.bd-cr-dealdetail h3.inline-flex.rounded-full,
+.bd.bd-cr-dealdetail p.inline-flex.rounded-full {
   border-radius: 0 !important;
   background: transparent !important;
   box-shadow: none !important;
@@ -7396,6 +7786,350 @@ body {
 }
 
 /* ---------- creator deal detail deep v4 ---------- */
+/* The offer-sheet masthead: identity left, money/clock as a right-aligned
+   status column (the v4 mock's asymmetric pagehead), sitting on a card band
+   with the showreel sprocket strip running above — the creator identity's
+   film language opening the page. */
+.bd .bd-cr-dealhead2 {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  gap: 24px;
+  align-items: end;
+  border: 1px solid color-mix(in oklch, var(--bd-ink) 10%, var(--bd-line));
+  border-bottom-width: 2px;
+  border-radius: 20px;
+  background: var(--bd-white);
+  padding: 24px;
+}
+.bd .bd-cr-dealhead2-id {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.bd .bd-cr-dealhead2-status {
+  margin: 0;
+  color: var(--bd-muted);
+  font-size: 13.5px;
+  line-height: 1.7;
+  text-align: right;
+}
+.bd .bd-cr-sline {
+  display: block;
+}
+.bd .bd-cr-dealhead2-status b {
+  color: var(--bd-ink);
+  font-weight: 600;
+}
+.bd .bd-cr-sline:first-child b {
+  color: var(--bd-brand-ink);
+}
+@media (max-width: 860px) {
+  .bd .bd-cr-dealhead2 {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+  }
+  .bd .bd-cr-dealhead2-status {
+    text-align: left;
+    border-top: 1px solid var(--bd-line);
+    padding-top: 10px;
+  }
+}
+/* Working cards carry the mock's firm frame: ink-tinted border, 2px lip. */
+.bd.bd-cr-dealdetail .bd-dv,
+.bd.bd-cr-dealdetail .bd-agree,
+.bd.bd-cr-dealdetail .bd-cr-submitcard,
+.bd.bd-cr-dealdetail .bd-cr-progress {
+  border-color: color-mix(in oklch, var(--bd-ink) 10%, var(--bd-line));
+  border-bottom-width: 2px;
+}
+/* The rail's chapters (history, rights) wear the brand inbox's section
+   chrome: firm ink-tinted frame, teal-washed header band, crisp 2px lip. */
+.bd.bd-cr-dealdetail .bd-cr-sidecard {
+  overflow: hidden;
+  border-color: color-mix(in oklch, var(--bd-ink) 10%, var(--bd-line));
+  border-bottom-width: 2px;
+  padding: 0;
+  gap: 0;
+}
+.bd.bd-cr-dealdetail .bd-cr-sidecard > * {
+  padding: 16px 20px 20px;
+}
+.bd.bd-cr-dealdetail .bd-cr-sidecard .bd-capruler {
+  margin: 0 -20px 16px;
+  padding: 12px 20px;
+  background: color-mix(in oklch, var(--bd-brand-tint) 36%, var(--bd-white));
+  border-bottom: 1px solid var(--bd-line);
+}
+/* The sidecard is the frame; the history list inside sheds its own border
+   so the rail reads as one panel, not a card in a card. */
+.bd.bd-cr-dealdetail .bd-cr-sidecard .bd-dealhist-list {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.bd.bd-cr-dealdetail .bd-cr-sidecard .bd-dealhist-row {
+  padding: 12px 0 12px 14px;
+}
+/* frame index chip on each submitted video, the brand rows' mono-index. */
+.bd .bd-cr-frameidx {
+  display: inline-grid;
+  place-items: center;
+  margin-right: 8px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid color-mix(in oklch, var(--bd-brand) 34%, var(--bd-line));
+  border-radius: 8px;
+  background: color-mix(in oklch, var(--bd-brand-tint) 40%, transparent);
+  color: var(--bd-brand-ink);
+  font-size: 11px;
+  font-weight: 650;
+  vertical-align: -6px;
+}
+/* teal-washed chapter band for the deliverables ruler, the disection way. */
+.bd.bd-cr-dealdetail .bd-cr-deliverables > .bd-capruler {
+  border: 1px solid var(--bd-line);
+  border-radius: 12px;
+  background: color-mix(in oklch, var(--bd-brand-tint) 36%, var(--bd-white));
+  padding: 10px 16px;
+}
+/* The vault: the deal's money as a left-to-right flow. Paper while the offer
+   is open; ink-teal (the dashboard queue card's surface) once funds are held. */
+.bd .bd-dv {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 1px solid var(--bd-line);
+  border-radius: 18px;
+  background: var(--bd-white);
+  padding: 20px;
+}
+.bd .bd-dv-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.bd .bd-dv-k {
+  color: var(--bd-faint);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.bd .bd-dv-note {
+  color: var(--bd-faint);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.bd .bd-dv-flow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1.15fr);
+  gap: 16px;
+  align-items: center;
+  border-top: 1px solid var(--bd-line);
+  padding-top: 16px;
+}
+.bd .bd-dv-cell {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.bd .bd-dv-lab {
+  color: var(--bd-faint);
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.bd .bd-dv-num {
+  color: var(--bd-ink);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+.bd .bd-dv-sub {
+  color: var(--bd-faint);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.bd .bd-dv-arrow {
+  color: var(--bd-faint);
+  font-size: 18px;
+  font-weight: 500;
+}
+.bd .bd-dv-cell--payout {
+  border-left: 2px solid var(--bd-brand);
+  padding-left: 16px;
+}
+.bd .bd-dv-cell--payout .bd-dv-num {
+  color: var(--bd-brand-ink);
+}
+.bd .bd-dv-heldnote {
+  margin: 0;
+  color: var(--bd-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+/* Held: the vault turns to the dashboard's ink-teal, recomposed around the
+   payout as the hero numeral — the mock's escrow cell, radial sheen and all. */
+.bd .bd-dv--held {
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in oklch, var(--bd-brand-deep) 45%, var(--bd-line));
+  background: var(--bd-brand-deep);
+}
+.bd .bd-dv--held::after {
+  content: '';
+  position: absolute;
+  inset: -40% -60% auto auto;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in oklch, white 20%, transparent),
+    transparent
+  );
+  pointer-events: none;
+}
+.bd .bd-dv-heldgrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+  border-top: 1px solid color-mix(in oklch, white 14%, transparent);
+  padding-top: 16px;
+}
+.bd .bd-dv-hero {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 5px;
+}
+.bd .bd-dv-heronum {
+  color: oklch(0.9 0.085 185);
+  font-size: 34px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+.bd .bd-dv-ledger {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  margin: 0;
+  border-left: 1px solid color-mix(in oklch, white 14%, transparent);
+  padding-left: 20px;
+}
+.bd .bd-dv-ledger > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+}
+.bd .bd-dv-ledger > div + div {
+  border-top: 1px solid color-mix(in oklch, white 9%, transparent);
+}
+.bd .bd-dv-ledger dt {
+  color: oklch(0.78 0.025 185);
+  font-size: 12px;
+}
+.bd .bd-dv-ledger dd {
+  margin: 0;
+  color: oklch(0.94 0.015 185);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.bd .bd-dv--held .bd-dv-k {
+  color: oklch(0.76 0.035 185);
+}
+.bd .bd-dv--held .bd-dv-note {
+  color: oklch(0.86 0.09 185);
+}
+.bd .bd-dv--held .bd-dv-lab {
+  color: oklch(0.72 0.03 185);
+}
+.bd .bd-dv--held .bd-dv-sub {
+  color: oklch(0.76 0.025 185);
+}
+.bd .bd-dv--held .bd-dv-heldnote {
+  color: oklch(0.8 0.025 185);
+}
+@media (max-width: 760px) {
+  .bd .bd-dv-flow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bd .bd-dv-arrow {
+    display: none;
+  }
+  .bd .bd-dv-cell--payout {
+    border-left: 0;
+    border-top: 1px solid var(--bd-line);
+    padding-left: 0;
+    padding-top: 12px;
+  }
+  .bd .bd-dv-heldgrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bd .bd-dv-ledger {
+    border-left: 0;
+    border-top: 1px solid color-mix(in oklch, white 14%, transparent);
+    padding-left: 0;
+    padding-top: 8px;
+  }
+  .bd .bd-dv-heronum {
+    font-size: 28px;
+  }
+}
+/* One-line receipt where the decision chapter used to be, post-answer. */
+.bd .bd-cr-decisionline {
+  margin: 0;
+  color: var(--bd-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.bd .bd-cr-decisionline::before {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 9px;
+  border-radius: 2px;
+  background: var(--bd-brand);
+  vertical-align: 1px;
+}
+/* The submit card is THE action once funded — a teal action rail marks it. */
+.bd .bd-cr-submitcard {
+  border-left: 2px solid var(--bd-brand);
+}
+/* What happens after the button: three mono-indexed steps on one line. */
+.bd .bd-cr-nextsteps {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin: 16px 0 0;
+  border-top: 1px solid var(--bd-line);
+  padding: 12px 0 0;
+}
+.bd .bd-cr-nextsteps li {
+  color: var(--bd-faint);
+  font-size: 12px;
+}
+.bd .bd-cr-nextsteps b {
+  margin-right: 7px;
+  color: var(--bd-brand-ink);
+  font-family: var(--font-bd-mono), monospace;
+  font-size: 11px;
+  font-weight: 650;
+}
 .bd .bd-cr-dealhead {
   margin-top: 4px;
 }
@@ -7520,6 +8254,21 @@ body {
 .bd .bd-dealhist-time {
   text-align: right;
   white-space: nowrap;
+}
+
+/* In the detail rail the history reads as a slim timeline, not stacked
+   cards: single column, time under the copy, tighter rhythm. */
+.bd .bd-cr-detail-rail .bd-dealhist-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 4px;
+  padding: 12px 14px;
+}
+.bd .bd-cr-detail-rail .bd-dealhist-time {
+  text-align: left;
+  font-size: 11px;
+}
+.bd .bd-cr-detail-rail .bd-dealhist-title {
+  font-size: 13px;
 }
 
 /* ---------- admin ledger lists ---------- */

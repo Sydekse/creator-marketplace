@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
 import { BdShell } from '@/components/brand/v4-shell';
+import { DeadlineSection } from '@/components/deals/deadline-section';
 import { DealHistory, DealProgressRail } from '@/components/deals/deal-history';
+import { VideoHistory } from '@/components/deals/video-history';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import {
   ApproveDealButton,
@@ -33,6 +35,8 @@ import {
   readBrandDeal,
 } from '@/lib/deals/brand-detail';
 import { getDealHistory } from '@/lib/deals/queries';
+import { REVISION_CATEGORY_LABELS } from '@/lib/deliverables/evidence';
+import { selectVideoHistory } from '@/lib/deliverables/read-history';
 import { parseTiktokVideoId } from '@/lib/deliverables/thumbnail';
 import { formatEtb } from '@/lib/money';
 import { cn } from '@/lib/utils';
@@ -106,6 +110,7 @@ export default async function BrandDealReviewPage({
   if (!deal) notFound();
 
   const history = await getDealHistory(id);
+  const videoHistory = await selectVideoHistory(id);
 
   const reviewable = canReview(deal.status);
 
@@ -175,6 +180,11 @@ export default async function BrandDealReviewPage({
             <DealProgressRail status={deal.status} events={history} />
           </div>
 
+          {/* KAN-160: the delivery agreement sits between the journey rail
+              and the videos — the deadline is what the submissions below are
+              measured against. */}
+          <DeadlineSection dealId={id} />
+
           {/* The submitted videos, one section each (F38). Shown as text rather
             than an embed or a preview: nothing on this page fetches the URL, so
             a hostile link cannot make the brand's browser talk to an arbitrary
@@ -195,7 +205,7 @@ export default async function BrandDealReviewPage({
                 </span>
               </div>
 
-              {deal.deliverables.map((video, index) => (
+              {deal.deliverables.map((video) => (
                 <div key={video.id} className="bd-dlvid">
                   {/* The shared submitted-video frame: our stored thumbnail when
                       present, TikTok's embed only after the brand asks for
@@ -206,11 +216,14 @@ export default async function BrandDealReviewPage({
                     tiktokVideoId={
                       video.tiktokVideoId ?? parseTiktokVideoId(video.tiktokUrl)
                     }
-                    videoLabel={videoHeading(index)}
+                    videoLabel={videoHeading(video.videoOrdinal - 1)}
                   />
                   <div className="bd-dlvidbody">
                     <div className="bd-dlvidhead">
-                      <h3>{videoHeading(index)}</h3>
+                      <h3>
+                        {videoHeading(video.videoOrdinal - 1)} · Version{' '}
+                        {video.submissionVersion}
+                      </h3>
                       {/* The chip replaces a "Review status:" prose line — the
                         status is mapped, never the raw column, and reads at a
                         glance in the deal-chip vocabulary. */}
@@ -240,6 +253,21 @@ export default async function BrandDealReviewPage({
                         <p>{video.rejectionReason}</p>
                       </div>
                     ) : null}
+                    {/* KAN-157: the structured category the brand picked when
+                        sending it back, beside the free-text reason. */}
+                    {video.revisionCategory ? (
+                      <p className="bd-dlmeta">
+                        {REVISION_CATEGORY_LABELS[video.revisionCategory]}
+                      </p>
+                    ) : null}
+                    {/* KAN-157: every submitted version of this video, so a
+                        resubmission reads against what came before. */}
+                    <VideoHistory
+                      events={videoHistory.filter(
+                        (event) => event.deliverableId === video.id
+                      )}
+                      limited={video.historyCompleteness === 'legacy_baseline'}
+                    />
                     {/* AC-024, per video. Gated on the same `canReview` as the
                       deal-level approve: a deal the brand has already sent back is
                       with the creator, so there is nothing to send back a second
@@ -249,7 +277,8 @@ export default async function BrandDealReviewPage({
                         <RejectVideoForm
                           dealId={deal.id}
                           deliverableId={video.id}
-                          videoLabel={videoHeading(index)}
+                          expectedVersion={video.submissionVersion}
+                          videoLabel={videoHeading(video.videoOrdinal - 1)}
                         />
                       </div>
                     ) : null}
@@ -288,7 +317,14 @@ export default async function BrandDealReviewPage({
             chain here: the case order matters and the page is the wrong place
             to keep a rule worth testing. */}
           {reviewable ? (
-            <ApproveDealButton dealId={deal.id} videoCount={deal.videoCount} />
+            <ApproveDealButton
+              dealId={deal.id}
+              videoCount={deal.videoCount}
+              expectedVersions={deal.deliverables.map((video) => ({
+                id: video.id,
+                submissionVersion: video.submissionVersion,
+              }))}
+            />
           ) : null}
           {absence ? <p className="bd-dlabsence">{absence}</p> : null}
 

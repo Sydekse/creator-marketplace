@@ -59,8 +59,21 @@ vi.mock('../lib/authz', async (importOriginal) => {
   return { ...actual, guard: guardMock };
 });
 
-const { handleApproveDeliverable } =
+const { handleApproveDeliverable: handleApproveRoute } =
   await import('../app/api/deals/[id]/approve/route');
+const handleApproveDeliverable = (
+  id: string,
+  deps?: Parameters<typeof handleApproveRoute>[1]
+) =>
+  handleApproveRoute(
+    id,
+    deps,
+    new Request(`http://localhost/api/deals/${id}/approve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expectedVersions: [] }),
+    })
+  );
 
 const BRAND_USER_ID = '55555555-5555-4555-8555-555555555555';
 const BRAND_PROFILE_ID = '66666666-6666-4666-8666-666666666666';

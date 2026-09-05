@@ -82,6 +82,7 @@ export interface CreatorDealDetail {
    */
   expectedPayout: number;
   offerExpiresAt: Date | null;
+  deliveryWindowDays?: number | null;
   /**
    * The terms the creator is being asked to agree to, or is governed by.
    *
@@ -135,6 +136,11 @@ export interface CreatorDealDetail {
 
 /** One submitted video, as the creator is allowed to see it. */
 export interface DeliverableView {
+  videoOrdinal: number;
+  submissionVersion: number;
+  historyCompleteness: 'complete' | 'legacy_baseline';
+  revisionCategory:
+    import('@/lib/deliverables/evidence').RevisionCategory | null;
   /**
    * The row's own id — the target of `PUT /api/deliverables/{id}/metrics`
    * (KAN-48), which the metrics-entry form on this page needs. The URL is not
@@ -202,6 +208,7 @@ export interface CreatorDealJoinRow {
   totalPrice: number;
   commissionRate: string;
   offerExpiresAt: Date | null;
+  deliveryWindowDays?: number | null;
   rightsTerms: DealRightsTerms | null;
 }
 
@@ -235,6 +242,7 @@ export function creatorDealQuery(where: SQL) {
       totalPrice: deal.totalPrice,
       commissionRate: deal.commissionRate,
       offerExpiresAt: deal.offerExpiresAt,
+      deliveryWindowDays: deal.deliveryWindowDays,
       rightsTerms: rightsTerms,
     })
     .from(deal)
@@ -258,6 +266,10 @@ export function creatorDealDeliverablesQuery(dealId: string) {
   return db
     .select({
       id: deliverable.id,
+      videoOrdinal: deliverable.videoOrdinal,
+      submissionVersion: deliverable.submissionVersion,
+      historyCompleteness: deliverable.historyCompleteness,
+      revisionCategory: deliverable.revisionCategory,
       tiktokUrl: deliverable.tiktokUrl,
       submittedAt: deliverable.submittedAt,
       reviewStatus: deliverable.reviewStatus,
@@ -268,7 +280,7 @@ export function creatorDealDeliverablesQuery(dealId: string) {
     })
     .from(deliverable)
     .where(eq(deliverable.dealId, dealId))
-    .orderBy(asc(deliverable.submittedAt));
+    .orderBy(asc(deliverable.videoOrdinal));
 }
 
 /**

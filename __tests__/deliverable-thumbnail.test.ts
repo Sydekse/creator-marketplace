@@ -62,6 +62,7 @@ function okDeps(over: Partial<StoreThumbnailDeps> = {}): {
   const deleted: string[] = [];
 
   const deps: StoreThumbnailDeps = {
+    isReferenced: async () => false,
     fetchFn: vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       fetched.push(url);
@@ -110,6 +111,72 @@ describe('parseTiktokVideoId', () => {
 });
 
 describe('storeDeliverableThumbnail', () => {
+  it('does not fetch or save a request for a superseded version', async () => {
+    const { deps, fetched, saved } = okDeps({
+      loadCurrent: async () => ({ thumbnailUrl: null, submissionVersion: 2 }),
+    });
+    expect(
+      await storeDeliverableThumbnail(DELIVERABLE_ID, LONG_URL, deps, 1)
+    ).toEqual({ thumbnailUrl: null, tiktokVideoId: null });
+    expect(fetched).toEqual([]);
+    expect(saved).toEqual([]);
+  });
+
+  it('discards delayed enrichment after a replacement wins the save CAS', async () => {
+    const save = vi.fn(async () => false);
+    const { deps, deleted } = okDeps({
+      loadCurrent: async () => ({ thumbnailUrl: null, submissionVersion: 1 }),
+      save,
+    });
+    expect(
+      await storeDeliverableThumbnail(DELIVERABLE_ID, LONG_URL, deps, 1)
+    ).toEqual({ thumbnailUrl: null, tiktokVideoId: null });
+    expect(save).toHaveBeenCalledWith(
+      DELIVERABLE_ID,
+      { thumbnailUrl: BLOB_URL, tiktokVideoId: '7301234567890123456' },
+      1,
+      null
+    );
+    expect(deleted).toEqual([BLOB_URL]);
+  });
+
+  it('cleans only unreferenced blobs and keeps an uncertain successful save safe', async () => {
+    const { deps, deleted } = okDeps({
+      loadCurrent: async () => ({ thumbnailUrl: null, submissionVersion: 2 }),
+      save: async () => {
+        throw new Error('response lost after write');
+      },
+      isReferenced: async () => true,
+    });
+    await storeDeliverableThumbnail(
+      DELIVERABLE_ID,
+      LONG_URL,
+      deps,
+      2,
+      OLD_BLOB_URL
+    );
+    expect(deleted).toEqual([]);
+  });
+
+  it('leaves a placeholder on replacement enrichment failure, never the old cover', async () => {
+    const { deps, deleted, saved } = okDeps({
+      loadCurrent: async () => ({ thumbnailUrl: null, submissionVersion: 2 }),
+      fetchFn: vi.fn(async () => {
+        throw new Error('offline');
+      }) as typeof fetch,
+    });
+    const result = await storeDeliverableThumbnail(
+      DELIVERABLE_ID,
+      SHORT_URL,
+      deps,
+      2,
+      OLD_BLOB_URL
+    );
+    expect(result).toEqual({ thumbnailUrl: null, tiktokVideoId: null });
+    expect(deleted).toEqual([OLD_BLOB_URL]);
+    expect(saved).toEqual([]);
+  });
+
   it('stores the blob URL and the video id when everything works', async () => {
     const { deps, fetched, saved, put } = okDeps();
 
@@ -358,7 +425,7 @@ describe('storeDeliverableThumbnail', () => {
     // The submission has already committed; nothing here may throw at it.
     await expect(
       storeDeliverableThumbnail(DELIVERABLE_ID, LONG_URL, deps)
-    ).resolves.toBeDefined();
+    ).resolves.toEqual({ thumbnailUrl: null, tiktokVideoId: null });
   });
 
   it.each([
