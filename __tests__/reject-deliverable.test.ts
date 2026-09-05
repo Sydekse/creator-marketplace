@@ -284,9 +284,11 @@ describe('AC-024 — rejecting moves the deal and records the reason', () => {
     const recorder = REJECT_MODULE.slice(
       REJECT_MODULE.indexOf('recordRejection:')
     );
-    expect(recorder).toMatch(/reviewStatus: 'rejected'/);
+    expect(recorder).toContain('rejectCurrent(');
+    const history = readFileSync('lib/deliverables/history.ts', 'utf8');
+    expect(history).toMatch(/reviewStatus: 'rejected'/);
     expect(recorder).toContain('reviewedAt');
-    expect(recorder).toContain('rejectionReason: reason');
+    expect(history).toContain('rejectionReason: note');
   });
 });
 
@@ -494,7 +496,7 @@ describe('FR-007 — the transition appends a deal_event with the brand as actor
     // event would make the history unbounded and duplicate the note. The
     // transition is handed the fixed description, never the client's reason.
     expect(REJECT_MODULE).toMatch(
-      /await deps\.transition\(\s*tx,\s*dealId,\s*input\.actorUserId,\s*REJECT_DELIVERABLE_EVENT_REASON\s*\)/
+      /await deps\.transition\(\s*tx,\s*dealId,\s*input\.actorUserId,\s*REJECT_DELIVERABLE_EVENT_REASON,\s*reviewedAt\s*\)/
     );
     expect(REJECT_MODULE).not.toMatch(/transition\([^)]*input\.reason/);
   });
@@ -629,7 +631,7 @@ describe('AC-1/AC-3 — the creator is notified with the reason', () => {
 describe('the rejection is one transaction', () => {
   it('runs everything inside one transaction', () => {
     expect(REJECT_MODULE).toContain('run: (fn) => withNotifications(fn)');
-    expect(REJECT_MODULE).toContain('return deps.run(async (tx, notify)');
+    expect(REJECT_MODULE).toContain('return await deps.run(async (tx, notify)');
   });
 
   it('lets a real failure out rather than reporting it as a refusal', async () => {
@@ -664,9 +666,11 @@ describe('the rejection is one transaction', () => {
     const recorder = REJECT_MODULE.slice(
       REJECT_MODULE.indexOf('recordRejection:')
     );
-    expect(recorder).toContain('eq(deliverable.id, deliverableId)');
-    expect(recorder).toContain('eq(deliverable.dealId, dealId)');
-    expect(recorder).toMatch(/\.returning\(/);
+    expect(recorder).toMatch(/rejectCurrent\(\s*tx,\s*dealId,\s*deliverableId/);
+    const history = readFileSync('lib/deliverables/history.ts', 'utf8');
+    expect(history).toContain('eq(deliverable.id, id)');
+    expect(history).toContain('eq(deliverable.dealId, dealId)');
+    expect(history).toContain('target.submissionVersion !== expectedVersion');
   });
 
   it('treats a video that matches nothing as a miss, not a no-op', async () => {
@@ -848,6 +852,8 @@ describe('POST /api/deals/[id]/reject', () => {
 });
 
 function post(body: unknown, id = DEAL_ID): Request {
+  if (typeof body === 'object' && body !== null)
+    body = { expectedVersion: 1, category: 'brief_requirement', ...body };
   return new Request(`http://localhost/api/deals/${id}/reject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

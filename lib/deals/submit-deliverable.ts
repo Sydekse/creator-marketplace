@@ -1,6 +1,19 @@
-import { and, asc, eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { brandProfile, campaign, deal, deliverable } from '@/db/schema';
+import {
+  brandProfile,
+  campaign,
+  deal,
+  deliverable,
+  deliverableEvent,
+} from '@/db/schema';
+import {
+  appendEvidence,
+  currentVideos,
+  preserveSuperseded,
+  reviewReady,
+  VersionConflict,
+} from '@/lib/deliverables/history';
 import type { DealStatus } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
 import {
@@ -101,6 +114,9 @@ export interface SubmitDeliverableRow {
 
 /** What one submission did to the deal's set of videos. */
 export interface SubmissionProgress {
+  submissionVersion?: number;
+  videoOrdinal?: number;
+  previousThumbnailUrl?: string | null;
   /** The row written — inserted, or the rejected one replaced. */
   id: string;
   submittedAt: Date;
@@ -127,11 +143,21 @@ export type SubmitDeliverableResult =
       /** Videos submitted so far, and how many the deal was priced for. */
       submitted: number;
       videoCount: number;
+      submissionVersion?: number;
+      videoOrdinal?: number;
+      previousThumbnailUrl?: string | null;
     }
   | { ok: false; reason: 'not_found' }
   | { ok: false; reason: 'illegal'; code: ErrorCode };
 
 export interface SubmitDeliverableDeps {
+  replay?: (
+    tx: Tx,
+    dealId: string,
+    input: SubmissionInput,
+    videoCount: number
+  ) => Promise<Extract<SubmitDeliverableResult, { ok: true }> | null>;
+  ready?: typeof reviewReady;
   /**
    * Loads the deal under a `FOR UPDATE` lock, scoped to the submitting creator.
    *
@@ -155,7 +181,8 @@ export interface SubmitDeliverableDeps {
     tx: Tx,
     dealId: string,
     actorId: string,
-    reason: string
+    reason: string,
+    occurredAt?: Date
   ) => Promise<unknown>;
   /**
    * Writes one video and reports where the deal now stands (F38).
@@ -176,7 +203,8 @@ export interface SubmitDeliverableDeps {
     dealId: string,
     videoCount: number,
     tiktokUrl: string,
-    submittedAt: Date
+    submittedAt: Date,
+    input: SubmissionInput
   ) => Promise<SubmissionProgress>;
   run: <T>(fn: (tx: Tx, notify: Notify) => Promise<T>) => Promise<T>;
 }
@@ -200,7 +228,40 @@ export function buildSubmitDeliverableWhere(
   return and(eq(deal.id, dealId), eq(deal.creatorId, creatorProfileId)) as SQL;
 }
 
-const defaultDeps: SubmitDeliverableDeps = {
+export const defaultDeps: SubmitDeliverableDeps = {
+  ready: reviewReady,
+  replay: async (tx, dealId, input, videoCount) => {
+    if (!input.requestId) throw new VersionConflict();
+    const [event] = await tx
+      .select()
+      .from(deliverableEvent)
+      .where(
+        and(
+          eq(deliverableEvent.dealId, dealId),
+          eq(deliverableEvent.requestId, input.requestId)
+        )
+      );
+    if (!event) return null;
+    if (
+      event.tiktokUrl !== input.tiktokUrl ||
+      event.actorId !== input.actorUserId ||
+      event.metadata.requestExpectedVersion !== input.expectedVersion ||
+      event.metadata.requestExpectedSubmitted !== input.expectedSubmitted ||
+      event.metadata.requestTargetId !== (input.deliverableId ?? null)
+    )
+      throw new VersionConflict();
+    return {
+      ok: true,
+      dealId,
+      deliverableId: event.deliverableId,
+      submissionVersion: event.submissionVersion,
+      submittedAt: event.occurredAt,
+      submitted: event.metadata.submitted!,
+      status: event.metadata.status!,
+      videoCount,
+      videoOrdinal: event.metadata.videoOrdinal,
+    };
+  },
   loadDeal: async (tx, dealId, creatorProfileId) => {
     const [row] = await tx
       .select({
@@ -225,26 +286,64 @@ const defaultDeps: SubmitDeliverableDeps = {
   },
   // Delegated to the state machine, which owns every `deal_event` write and
   // re-reads the row under its own lock before judging legality (invariant 6).
-  transition: (tx, dealId, actorId, reason) =>
-    transitionDeal(tx, dealId, 'delivered', actorId, { reason }),
-  recordSubmission: async (tx, dealId, videoCount, tiktokUrl, submittedAt) => {
+  transition: (tx, dealId, actorId, reason, occurredAt) =>
+    transitionDeal(tx, dealId, 'delivered', actorId, { reason, occurredAt }),
+  recordSubmission: async (
+    tx,
+    dealId,
+    videoCount,
+    tiktokUrl,
+    submittedAt,
+    input
+  ) => {
     // Every row for the deal, not a count and a separate lookup: the decision
     // needs both how many there are and whether one was sent back, and two
     // queries could disagree with each other even under the lock.
-    const rows = await tx
-      .select({ id: deliverable.id, reviewStatus: deliverable.reviewStatus })
-      .from(deliverable)
-      .where(eq(deliverable.dealId, dealId))
-      .orderBy(asc(deliverable.submittedAt));
+    const rows = await currentVideos(tx, dealId);
 
     const rejected = rows.find((row) => row.reviewStatus === 'rejected');
+    if (
+      rejected
+        ? input.deliverableId !== rejected.id ||
+          input.expectedVersion !== rejected.submissionVersion
+        : input.deliverableId != null ||
+          input.expectedVersion !== 0 ||
+          input.expectedSubmitted !== rows.length
+    ) {
+      throw new VersionConflict();
+    }
+
+    const recordEvent = async (
+      video: typeof deliverable.$inferSelect,
+      submitted: number
+    ) => {
+      await appendEvidence(
+        tx,
+        video,
+        'submitted',
+        { actorId: input.actorUserId, actorRole: 'creator' },
+        submittedAt,
+        {
+          requestId: input.requestId,
+          metadata: {
+            requestExpectedVersion: input.expectedVersion,
+            requestTargetId: input.deliverableId ?? null,
+            requestExpectedSubmitted: input.expectedSubmitted,
+            videoOrdinal: video.videoOrdinal,
+            submitted,
+            status: submitted === videoCount ? 'delivered' : 'funded',
+          },
+        }
+      );
+    };
 
     if (rejected) {
+      await preserveSuperseded(tx, rejected, input.actorUserId, submittedAt);
       // The revision path (AC-5). The review state is reset so the fresh
       // submission reads as `pending` again — a stale rejection note must not
       // follow a new video around — and the count is unchanged, because a
       // replacement is not an addition.
-      await tx
+      const [updated] = await tx
         .update(deliverable)
         .set({
           tiktokUrl,
@@ -252,10 +351,20 @@ const defaultDeps: SubmitDeliverableDeps = {
           reviewStatus: 'pending',
           reviewedAt: null,
           rejectionReason: null,
+          revisionCategory: null,
+          submissionVersion: rejected.submissionVersion + 1,
+          thumbnailUrl: null,
+          tiktokVideoId: null,
+          reviewCycleId: null,
         })
-        .where(eq(deliverable.id, rejected.id));
+        .where(eq(deliverable.id, rejected.id))
+        .returning();
+      await recordEvent(updated, rows.length);
 
       return {
+        submissionVersion: updated.submissionVersion,
+        videoOrdinal: updated.videoOrdinal,
+        previousThumbnailUrl: rejected.thumbnailUrl,
         id: rejected.id,
         submittedAt,
         submitted: rows.length,
@@ -275,11 +384,19 @@ const defaultDeps: SubmitDeliverableDeps = {
 
     const [created] = await tx
       .insert(deliverable)
-      .values({ dealId, tiktokUrl, submittedAt })
-      .returning({ id: deliverable.id, submittedAt: deliverable.submittedAt });
+      .values({
+        dealId,
+        tiktokUrl,
+        submittedAt,
+        videoOrdinal: Math.max(0, ...rows.map((v) => v.videoOrdinal)) + 1,
+      })
+      .returning();
 
     const submitted = rows.length + 1;
+    await recordEvent(created, submitted);
     return {
+      submissionVersion: created.submissionVersion,
+      videoOrdinal: created.videoOrdinal,
       id: created.id,
       submittedAt: created.submittedAt,
       submitted,
@@ -294,9 +411,9 @@ const defaultDeps: SubmitDeliverableDeps = {
  * to (AC-022).
  *
  * `creatorProfileId` and `actorUserId` come from `guard()`, never from the
- * request body. `tiktokUrl` is the only value the client supplies, and it has
- * already survived `submitDeliverableSchema`'s allowlist before this function
- * is called — this module stores it and does not second-guess it.
+ * request body. The client supplies the URL, request identity and expected
+ * slot/version state. The route validates their shape; this module checks the
+ * current state under the deal lock.
  *
  * **The status guard runs before the write**, and answers with the state
  * machine's own code (see the module header for why it is no longer the
@@ -309,54 +426,70 @@ const defaultDeps: SubmitDeliverableDeps = {
  * delivery is not a lifecycle event, and inventing one would put a row in an
  * append-only table for something that did not change (invariant 6).
  */
+export interface SubmissionInput {
+  creatorProfileId: string;
+  actorUserId: string;
+  tiktokUrl: string;
+  requestId?: string;
+  deliverableId?: string | null;
+  expectedVersion?: number;
+  expectedSubmitted?: number;
+}
+
 export async function submitDeliverable(
   dealId: string,
-  input: { creatorProfileId: string; actorUserId: string; tiktokUrl: string },
+  input: SubmissionInput,
   deps: SubmitDeliverableDeps = defaultDeps
 ): Promise<SubmitDeliverableResult> {
-  return deps.run(async (tx, notify) => {
-    const row = await deps.loadDeal(tx, dealId, input.creatorProfileId);
-    if (!row) {
-      return { ok: false, reason: 'not_found' };
-    }
+  try {
+    return await deps.run(async (tx, notify) => {
+      const row = await deps.loadDeal(tx, dealId, input.creatorProfileId);
+      if (!row) {
+        return { ok: false, reason: 'not_found' };
+      }
+      const replay = await deps.replay?.(tx, dealId, input, row.videoCount);
+      if (replay) return replay;
 
-    // AC-022 and AC-4. `canDeliver` is `{funded, revision_requested}` read off
-    // `LEGAL_TRANSITIONS`, so this gate cannot outlive the edge that permits it,
-    // and the refusal carries the code the machine itself would have produced for
-    // the `→ delivered` attempt rather than one this module chose.
-    if (!canDeliver(row.status)) {
-      return {
-        ok: false,
-        reason: 'illegal',
-        code: getErrorCodeForInvalidTransition(row.status, 'delivered'),
-      };
-    }
+      // AC-022 and AC-4. `canDeliver` is `{funded, revision_requested}` read off
+      // `LEGAL_TRANSITIONS`, so this gate cannot outlive the edge that permits it,
+      // and the refusal carries the code the machine itself would have produced for
+      // the `→ delivered` attempt rather than one this module chose.
+      if (!canDeliver(row.status)) {
+        return {
+          ok: false,
+          reason: 'illegal',
+          code: getErrorCodeForInvalidTransition(row.status, 'delivered'),
+        };
+      }
 
-    const submittedAt = new Date();
-    const progress = await deps.recordSubmission(
-      tx,
-      dealId,
-      row.videoCount,
-      input.tiktokUrl,
-      submittedAt
-    );
-
-    // One video short: the deal keeps its status, the brand is not told, and
-    // nothing is appended to the history. The creator's own screen reports the
-    // progress, which is where a partial delivery belongs.
-    if (progress.remaining > 0) {
-      return {
-        ok: true,
+      const submittedAt = new Date();
+      const progress = await deps.recordSubmission(
+        tx,
         dealId,
-        deliverableId: progress.id,
-        submittedAt: progress.submittedAt,
-        status: row.status as 'funded' | 'revision_requested',
-        submitted: progress.submitted,
-        videoCount: row.videoCount,
-      };
-    }
+        row.videoCount,
+        input.tiktokUrl,
+        submittedAt,
+        input
+      );
 
-    try {
+      // One video short: the deal keeps its status, the brand is not told, and
+      // its video evidence is already recorded, but no deal transition is
+      // appended. The creator's screen reports partial progress.
+      if (progress.remaining > 0) {
+        return {
+          ok: true,
+          dealId,
+          deliverableId: progress.id,
+          submittedAt: progress.submittedAt,
+          status: row.status as 'funded' | 'revision_requested',
+          submitted: progress.submitted,
+          videoCount: row.videoCount,
+          submissionVersion: progress.submissionVersion,
+          videoOrdinal: progress.videoOrdinal,
+          previousThumbnailUrl: progress.previousThumbnailUrl,
+        };
+      }
+
       // The last video completes the delivery, so now there is a transition to
       // make. Still inside the same transaction as every row written above: a
       // refused transition takes the submissions with it rather than leaving a
@@ -365,32 +498,36 @@ export async function submitDeliverable(
         tx,
         dealId,
         input.actorUserId,
-        SUBMIT_DELIVERABLE_EVENT_REASON
+        SUBMIT_DELIVERABLE_EVENT_REASON,
+        submittedAt
       );
-    } catch (error) {
-      if (error instanceof TransitionError) {
-        return { ok: false, reason: 'illegal', code: error.code };
-      }
-      throw error;
-    }
+      await deps.ready?.(tx, dealId, input.actorUserId, submittedAt);
 
-    // AC-6, and once per deal rather than once per video. The brand's `user.id`,
-    // resolved through `brand_profile` in the load above. Inside the transaction,
-    // so a rollback takes the row with it and the email is never queued.
-    await notify(row.brandUserId, 'deliverable_submitted', {
-      dealId,
-      deliverableId: progress.id,
-      campaignTitle: row.campaignName,
+      // AC-6, and once per deal rather than once per video. The brand's `user.id`,
+      // resolved through `brand_profile` in the load above. Inside the transaction,
+      // so a rollback takes the row with it and the email is never queued.
+      await notify(row.brandUserId, 'deliverable_submitted', {
+        dealId,
+        deliverableId: progress.id,
+        campaignTitle: row.campaignName,
+      });
+
+      return {
+        ok: true,
+        dealId,
+        deliverableId: progress.id,
+        submittedAt: progress.submittedAt,
+        submissionVersion: progress.submissionVersion,
+        videoOrdinal: progress.videoOrdinal,
+        previousThumbnailUrl: progress.previousThumbnailUrl,
+        status: 'delivered',
+        submitted: progress.submitted,
+        videoCount: row.videoCount,
+      };
     });
-
-    return {
-      ok: true,
-      dealId,
-      deliverableId: progress.id,
-      submittedAt: progress.submittedAt,
-      status: 'delivered',
-      submitted: progress.submitted,
-      videoCount: row.videoCount,
-    };
-  });
+  } catch (error) {
+    if (error instanceof TransitionError || error instanceof VersionConflict)
+      return { ok: false, reason: 'illegal', code: error.code };
+    throw error;
+  }
 }

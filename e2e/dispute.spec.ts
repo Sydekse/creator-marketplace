@@ -94,11 +94,68 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   });
   await expect(admin.getByText(/Campaign: Summer Dispute/i)).toBeVisible();
   await expect(admin.getByText('Video submitted').first()).toBeVisible();
+  await expect(
+    admin.getByRole('heading', { name: 'Video 1 · Version 1', exact: true })
+  ).toBeVisible();
+  await admin.getByText('Version history', { exact: true }).click();
+  await expect(
+    admin.getByText('Submitted · creator', { exact: true })
+  ).toBeVisible();
+
+  // Opening resolution must not silently refresh tokens behind the displayed video.
+  let fetchedNewerEvidence = false;
+  await admin.route('**/api/admin/deals/*/videos', async (route) => {
+    fetchedNewerEvidence = true;
+    const response = await route.fetch();
+    const evidence = await response.json();
+    await route.fulfill({
+      json: {
+        ...evidence,
+        videos: evidence.videos.map((video: { submissionVersion: number }) => ({
+          ...video,
+          submissionVersion: video.submissionVersion + 1,
+        })),
+      },
+    });
+  });
+  await admin.route('**/api/admin/deals/*/resolve', async (route) => {
+    expect(route.request().postDataJSON().expectedVersions).toMatchObject([
+      { submissionVersion: 1 },
+    ]);
+    await route.fulfill({
+      status: 409,
+      json: {
+        error: {
+          code: 'DELIVERABLE_VERSION_STALE',
+          message: 'This video changed. Reload the page and try again.',
+        },
+      },
+    });
+  });
+  await admin.getByRole('button', { name: 'Resolve dispute' }).click();
+  await expect(
+    admin.getByRole('link', { name: 'Video 1 · Version 1', exact: true })
+  ).toBeVisible();
+  await admin.getByLabel('Resolution', { exact: true }).selectOption('release');
+  await admin.getByLabel('Resolution note').fill('Review displayed version.');
+  await admin.getByRole('button', { name: 'Confirm resolution' }).click();
+  await expect(
+    admin.getByText('This video changed.', { exact: false })
+  ).toBeVisible();
+  expect(fetchedNewerEvidence).toBe(false);
+  await admin.unroute('**/api/admin/deals/*/videos');
+  await admin.unroute('**/api/admin/deals/*/resolve');
   await admin.goBack();
   await expect(row).toBeVisible();
 
   // Resolve: refund the brand, with the required audit note.
   await row.getByRole('button', { name: 'Resolve dispute' }).click();
+  await expect(
+    row.getByRole('link', { name: 'Video 1 · Version 1', exact: true })
+  ).toHaveAttribute(
+    'href',
+    'https://www.tiktok.com/@creator.demo/video/9876543210987654321'
+  );
   await row.getByLabel('Resolution', { exact: true }).selectOption('refund');
   await row
     .getByLabel('Resolution note')

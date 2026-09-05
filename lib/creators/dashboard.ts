@@ -196,7 +196,13 @@ export function unmeasuredDealsQuery(creatorProfileId: string) {
     .select({ dealId: deal.id })
     .from(deliverable)
     .innerJoin(deal, eq(deliverable.dealId, deal.id))
-    .leftJoin(videoMetric, eq(videoMetric.deliverableId, deliverable.id))
+    .leftJoin(
+      videoMetric,
+      and(
+        eq(videoMetric.deliverableId, deliverable.id),
+        eq(videoMetric.submissionVersion, deliverable.submissionVersion)
+      )
+    )
     .where(
       and(
         eq(deal.creatorId, creatorProfileId),
@@ -235,7 +241,13 @@ export function creatorMetricsQuery(creatorProfileId: string) {
     })
     .from(deliverable)
     .innerJoin(deal, eq(deliverable.dealId, deal.id))
-    .leftJoin(videoMetric, eq(videoMetric.deliverableId, deliverable.id))
+    .leftJoin(
+      videoMetric,
+      and(
+        eq(videoMetric.deliverableId, deliverable.id),
+        eq(videoMetric.submissionVersion, deliverable.submissionVersion)
+      )
+    )
     .where(eq(deal.creatorId, creatorProfileId));
 }
 

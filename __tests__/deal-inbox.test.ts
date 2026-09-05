@@ -366,6 +366,10 @@ describe('the detail read returns every field AC-2 names', () => {
     const videos = [
       {
         id: 'dl-9',
+        videoOrdinal: 1,
+        submissionVersion: 1,
+        historyCompleteness: 'complete' as const,
+        revisionCategory: null,
         tiktokUrl: 'https://www.tiktok.com/@selam/video/1',
         submittedAt: new Date('2026-08-01T00:00:00.000Z'),
         reviewStatus: 'approved' as const,
@@ -376,6 +380,10 @@ describe('the detail read returns every field AC-2 names', () => {
       },
       {
         id: 'dl-10',
+        videoOrdinal: 2,
+        submissionVersion: 1,
+        historyCompleteness: 'complete' as const,
+        revisionCategory: null,
         tiktokUrl: 'https://www.tiktok.com/@selam/video/2',
         submittedAt: new Date('2026-08-02T00:00:00.000Z'),
         reviewStatus: 'pending' as const,
@@ -423,8 +431,10 @@ describe('the detail query', () => {
 
     // Unprefixed column names: this query selects from `deliverable` alone, with
     // no join to disambiguate against.
-    expect(videos.sql).toMatch(/select "id", "tiktok_url", "submitted_at"/);
-    expect(videos.sql).toMatch(/order by[^;]*"submitted_at"/i);
+    expect(videos.sql).toMatch(
+      /select "id", "video_ordinal", "submission_version"/
+    );
+    expect(videos.sql).toMatch(/order by[^;]*"video_ordinal"/i);
     expect(videos.params).toContain(DEAL_ID);
   });
 
@@ -695,13 +705,17 @@ describe('the deliverable path renders under canDeliver and nowhere else', () =>
 
   it('is conditioned on the predicate', () => {
     expect(source).toMatch(/canDeliver\(deal\.status\) \?/);
-    expect(source).toContain('<DeliverableForm dealId={deal.id} />');
+    expect(source).toMatch(
+      /<DeliverableForm[\s\S]*?dealId=\{deal.id\}[\s\S]*?expectedVersion=/
+    );
   });
 
   it('mounts the working form rather than a disabled placeholder (KAN-46)', () => {
     // AC-022's submission path: the form posts to the deliverable route and
     // the label lives beside it in the pure copy module.
-    expect(source).toContain('<DeliverableForm dealId={deal.id} />');
+    expect(source).toMatch(
+      /<DeliverableForm[\s\S]*?dealId=\{deal.id\}[\s\S]*?expectedSubmitted=/
+    );
     expect(form).toContain('SUBMIT_DELIVERABLE_LABEL');
     expect(form).toMatch(
       /fetch\(\s*`\/api\/deals\/\$\{encodeURIComponent\(dealId\)\}\/deliverable`/

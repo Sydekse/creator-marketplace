@@ -136,12 +136,15 @@ export interface PayoutResult {
  * `approve-deliverable.ts` documents.
  */
 export interface PayoutForDealOptions {
+  expectedVersions?: import('@/lib/deliverables/evidence').ExpectedVersion[];
+  actorRole?: 'brand' | 'admin' | 'system';
   reason?: string;
   onCommit?: (tx: Tx, result: PayoutResult) => Promise<void>;
 }
 
 /** The refund twin of `PayoutForDealOptions` — no result to hand back. */
 export interface RefundDealOptions {
+  actorRole?: 'admin' | 'system';
   reason?: string;
   onCommit?: (tx: Tx) => Promise<void>;
 }
@@ -378,6 +381,11 @@ export class EscrowLedgerService {
           ErrorCode.DEAL_NOT_DELIVERED
         );
       }
+      const { assertVersions, currentVideos, recordDisposition } =
+        await import('@/lib/deliverables/history');
+      if (opts?.expectedVersions)
+        assertVersions(await currentVideos(tx, deal.id), opts.expectedVersions);
+      const operationAt = new Date();
 
       await this.lockCampaign(tx, deal.campaignId);
 
@@ -443,6 +451,7 @@ export class EscrowLedgerService {
           campaignId: deal.campaignId,
           dealId: deal.id,
           entryType: 'release_payout',
+          createdAt: operationAt,
           amount: -payout,
           balanceAfter: afterPayout,
           providerRef: holdRef,
@@ -451,6 +460,7 @@ export class EscrowLedgerService {
           campaignId: deal.campaignId,
           dealId: deal.id,
           entryType: 'commission',
+          createdAt: operationAt,
           amount: -commission,
           balanceAfter: afterCommission,
           providerRef: holdRef,
@@ -459,6 +469,7 @@ export class EscrowLedgerService {
 
       await transitionDeal(tx, deal.id, 'completed', actorId, {
         reason: opts?.reason ?? 'Deliverable approved',
+        occurredAt: operationAt,
       });
 
       // The deliverable is now judged, and says so.
@@ -482,7 +493,22 @@ export class EscrowLedgerService {
       // nothing inconsistent anyway.
       await tx
         .update(schema.deliverable)
-        .set({ reviewStatus: 'approved', reviewedAt: new Date() })
+        .set({ reviewStatus: 'approved', reviewedAt: operationAt })
+        .where(eq(schema.deliverable.dealId, deal.id));
+      await recordDisposition(
+        tx,
+        deal.id,
+        opts?.actorRole === 'admin' ? 'admin_release' : 'batch_approved',
+        {
+          actorId: actorId ?? null,
+          actorRole: opts?.actorRole ?? (actorId ? 'brand' : 'system'),
+        },
+        operationAt,
+        opts?.reason
+      );
+      await tx
+        .update(schema.deliverable)
+        .set({ reviewCycleId: null })
         .where(eq(schema.deliverable.dealId, deal.id));
 
       // F39: the caller's bookkeeping (the audit row) runs under the same lock
@@ -521,6 +547,7 @@ export class EscrowLedgerService {
 
     await this.inSerializableTx(async (tx) => {
       const deal = await this.lockDeal(tx, dealId);
+      const operationAt = new Date();
 
       if (!REFUNDABLE_FROM.includes(deal.status)) {
         throw new LedgerError(
@@ -549,6 +576,7 @@ export class EscrowLedgerService {
         campaignId: deal.campaignId,
         dealId: deal.id,
         entryType: 'refund',
+        createdAt: operationAt,
         amount: -deal.totalPrice,
         balanceAfter: afterRefund,
         providerRef: holdRef,
@@ -556,7 +584,17 @@ export class EscrowLedgerService {
 
       await transitionDeal(tx, deal.id, 'refunded', actorId, {
         reason: opts?.reason ?? 'Deal refunded',
+        occurredAt: operationAt,
       });
+      const { recordDisposition } = await import('@/lib/deliverables/history');
+      await recordDisposition(
+        tx,
+        deal.id,
+        'refunded',
+        { actorId: actorId ?? null, actorRole: opts?.actorRole ?? 'system' },
+        operationAt,
+        opts?.reason
+      );
 
       // F39: same as `payoutForDeal` — the audit row commits with the refund.
       await opts?.onCommit?.(tx);

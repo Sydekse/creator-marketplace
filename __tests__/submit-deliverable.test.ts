@@ -536,7 +536,7 @@ describe('one row per video, bounded by video_count', () => {
     const record = SUBMIT_MODULE.slice(
       SUBMIT_MODULE.indexOf('recordSubmission:')
     );
-    expect(record).toContain('.from(deliverable)');
+    expect(record).toContain('currentVideos(tx, dealId)');
     expect(record).toMatch(/reviewStatus === 'rejected'/);
     expect(record).toMatch(/if \(rejected\)/);
     expect(record).toMatch(/\.update\(deliverable\)/);
@@ -579,7 +579,10 @@ describe('one row per video, bounded by video_count', () => {
     const record = SUBMIT_MODULE.slice(
       SUBMIT_MODULE.indexOf('recordSubmission:')
     );
-    expect(record).toContain('asc(deliverable.submittedAt)');
+    expect(record).toContain('currentVideos(tx, dealId)');
+    expect(read('lib/deliverables/history.ts')).toContain(
+      'asc(deliverable.videoOrdinal)'
+    );
   });
 
   it('writes through a seam, so the write is observable', async () => {
@@ -659,7 +662,7 @@ describe('AC-6 — the brand is notified that a video awaits review', () => {
 describe('the submission is one transaction', () => {
   it('runs everything inside one transaction', () => {
     expect(SUBMIT_MODULE).toContain('run: (fn) => withNotifications(fn)');
-    expect(SUBMIT_MODULE).toContain('return deps.run(async (tx, notify)');
+    expect(SUBMIT_MODULE).toContain('return await deps.run(async (tx, notify)');
   });
 
   it('lets a real failure out rather than reporting it as a refusal', async () => {
@@ -816,6 +819,14 @@ describe('POST /api/deals/[id]/deliverable', () => {
   });
 
   function post(body: unknown, id = DEAL_ID): Request {
+    if (typeof body === 'object' && body !== null)
+      body = {
+        requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        deliverableId: null,
+        expectedVersion: 0,
+        expectedSubmitted: 0,
+        ...body,
+      };
     return new Request(`http://localhost/api/deals/${id}/deliverable`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -859,6 +870,8 @@ describe('POST /api/deals/[id]/deliverable', () => {
     expect(storeThumbnailMock).toHaveBeenCalledWith(
       DELIVERABLE_ID,
       TIKTOK_URL,
+      undefined,
+      undefined,
       undefined
     );
     expect(SUBMIT_ROUTE.indexOf('await submitDeliverable')).toBeLessThan(
@@ -1168,7 +1181,9 @@ describe('the deliverable form', () => {
 describe('the deal detail page mounts the submission surface', () => {
   it('renders the form under canDeliver and nowhere else', () => {
     expect(DETAIL_PAGE).toMatch(/canDeliver\(deal\.status\) \?/);
-    expect(DETAIL_PAGE).toContain('<DeliverableForm dealId={deal.id} />');
+    expect(DETAIL_PAGE).toMatch(
+      /<DeliverableForm[\s\S]*?dealId=\{deal.id\}[\s\S]*?expectedVersion=/
+    );
   });
 
   it('lists every submitted video, not just one', () => {
@@ -1203,13 +1218,15 @@ describe('the deal detail page mounts the submission surface', () => {
   it('numbers the videos the same way the brand’s screen does', () => {
     // "Video 2" has to mean the same video on both sides of a rejection, so the
     // heading comes from one shared helper rather than two format strings.
-    expect(DETAIL_PAGE).toContain('videoHeading(index)');
+    expect(DETAIL_PAGE).toContain('videoHeading(video.videoOrdinal - 1)');
   });
 
   it('renders one metrics form per video', () => {
     // The metrics API keys its upsert by deliverable, so a deal covering three
     // videos owes three sets of counts (AC-026).
-    expect(DETAIL_PAGE).toContain('<MetricsForm deliverableId={video.id} />');
+    expect(DETAIL_PAGE).toMatch(
+      /<MetricsForm[^>]*deliverableId=\{video.id\}[^>]*expectedVersion=\{video.submissionVersion\}/
+    );
     expect(DETAIL_PAGE).toContain('canReportMetrics(deal.status)');
   });
 
