@@ -309,6 +309,22 @@ describe('refreshCreatorStats', () => {
     ]);
   });
 
+  it('skips the history point when TikTok withholds the follower count', async () => {
+    // The snapshot column is non-null and the growth chart plots followers —
+    // a row without the number would be a fake zero, so none is written.
+    const { deps, recorded } = refreshDeps({
+      fetchStats: async () => ({
+        followerCount: null,
+        engagementRate: null,
+        avatarUrl: null,
+      }),
+    });
+    const result = await refreshCreatorStats('u1', deps);
+
+    expect(result).toMatchObject({ ok: true });
+    expect(recorded.snapshots).toEqual([]);
+  });
+
   it('flags a downgrade for admin review and keeps the tier', async () => {
     const { deps, recorded } = refreshDeps({
       loadProfile: async () => ({
