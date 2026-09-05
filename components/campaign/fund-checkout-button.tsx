@@ -43,12 +43,13 @@ export function FundCheckoutButton({
   size = 'sm',
 }: FundCheckoutButtonProps) {
   const router = useRouter();
-  const [leaving, startTransition] = useTransition();
+  const [isPending, startTransition] = useTransition();
+  const [leaving, setLeaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const nothingAccepted = acceptedCount === 0;
 
   function handleCheckout() {
-    if (leaving || nothingAccepted) return;
+    if (isPending || leaving || nothingAccepted) return;
 
     startTransition(async () => {
       let response: Response;
@@ -91,11 +92,10 @@ export function FundCheckoutButton({
 
       // `assign`, not `router.push`: the checkout is another origin entirely,
       // and the browser's back button should return to this campaign page.
-      // The never-settling await keeps the transition (and the disabled
-      // button) pending until the browser actually leaves — the button has
-      // done its job.
       window.location.assign(checkoutUrl);
-      await new Promise(() => {});
+      // External navigation is not a React transition. Keep only this button
+      // disabled until unload without leaving an async action pending forever.
+      setLeaving(true);
     });
   }
 
@@ -104,7 +104,7 @@ export function FundCheckoutButton({
       <button
         type="button"
         onClick={() => setConfirmOpen(true)}
-        disabled={leaving || nothingAccepted}
+        disabled={isPending || leaving || nothingAccepted}
         className={cn(
           buttonVariants({ size }),
           'w-full border-0 bg-brand text-neutral-50 shadow-[0_0_0_1px_rgba(250,250,250,0.12)] hover:bg-brand-soft hover:text-neutral-50 active:bg-brand-deep',
@@ -113,7 +113,9 @@ export function FundCheckoutButton({
             : 'ring-2 ring-brand-tint/80 ring-offset-2 ring-offset-neutral-900'
         )}
       >
-        {leaving ? FUND_CHECKOUT_PENDING_LABEL : FUND_CHECKOUT_LABEL}
+        {isPending || leaving
+          ? FUND_CHECKOUT_PENDING_LABEL
+          : FUND_CHECKOUT_LABEL}
       </button>
       <ConfirmDialog
         open={confirmOpen}
