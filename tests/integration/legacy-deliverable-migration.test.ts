@@ -36,7 +36,7 @@ describe('legacy deliverable migration adoption', () => {
         `)
         );
         const migration = readFileSync(
-          'drizzle/0018_kind_hemingway.sql',
+          'drizzle/0020_kind_hemingway.sql',
           'utf8'
         ).replaceAll('"public".', `"${namespace}".`);
         await tx.execute(sql.raw(migration));

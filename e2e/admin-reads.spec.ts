@@ -27,7 +27,11 @@ test('KAN-78: the campaign list shows every campaign with its ledger position', 
     admin.getByRole('link', { name: 'Ramadan Beauty Push' })
   ).toBeVisible();
   // A funded campaign shows money held; the completed one shows paid out.
-  await expect(admin.getByText('Paid out')).toBeVisible();
+  // The position lives in the ledger column header, which the v4 list hides
+  // below 860px — assert attachment so the check holds on mobile projects too.
+  await expect(
+    admin.locator('.bd-ad-ledgercols').getByText('Paid out')
+  ).toBeAttached();
   await admin.close();
 });
 

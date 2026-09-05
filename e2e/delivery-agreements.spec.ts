@@ -145,11 +145,9 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
     await creator.reload();
     await brand.reload();
     const currentDeadline = (page: Page) =>
-      agreement(page)
-        .locator('dt')
-        .filter({ hasText: 'Current delivery deadline' })
-        .locator('..')
-        .locator('dd');
+      // The v4 card shows the operative deadline as the hero numeral rather
+      // than a dt/dd ledger row.
+      agreement(page).locator('.bd-agreehero-num');
     const finalDue = await currentDeadline(brand).innerText();
     await expect(currentDeadline(creator)).toHaveText(finalDue);
     await agreement(creator)

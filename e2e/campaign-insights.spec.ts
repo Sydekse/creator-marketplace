@@ -244,7 +244,8 @@ test('draft retains its cart and confirmed missing metrics keeps funding useful'
 }, info) => {
   await page.goto(`/campaigns/${fixtures.draft}`);
   await expect(panel(page)).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Cart (0)' })).toBeVisible();
+  // The v4 cart is a ruled band with a mono count, not a "Cart (N)" heading.
+  await expect(page.locator('.bd-caprulercount')).toHaveText('0 creators');
   await expect(page.getByRole('link', { name: 'Edit brief' })).toBeVisible();
   await expect(
     page.getByText('Your cart is empty', { exact: true })

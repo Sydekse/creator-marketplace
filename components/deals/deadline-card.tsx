@@ -281,7 +281,12 @@ export function DeadlineCard({
                 <p className="bd-agreelog-meta">
                   Proposed {formatDeadlineUtc(request.proposedAt)}
                   {request.decidedAt &&
-                    ` · ${request.status} ${formatDeadlineUtc(request.decidedAt)}`}
+                    ` · ${request.status}${
+                      request.status === 'accepted' ||
+                      request.status === 'rejected'
+                        ? ` by ${request.proposerRole === 'brand' ? 'creator' : 'brand'}`
+                        : ''
+                    } ${formatDeadlineUtc(request.decidedAt)}`}
                   {request.closureReason &&
                     ` · ${request.closureReason === 'first_delivery' ? 'Initial delivery occurred' : 'Deal refunded'}`}
                 </p>
