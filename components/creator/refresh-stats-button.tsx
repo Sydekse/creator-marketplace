@@ -60,8 +60,7 @@ export function RefreshStatsButton({
 
         const body = (await response.json()) as {
           tier_change:
-            | { kind: 'upgraded'; tier_name: string }
-            | { kind: string };
+            { kind: 'upgraded'; tier_name: string } | { kind: string };
         };
         toast.success(
           body.tier_change.kind === 'upgraded' &&
