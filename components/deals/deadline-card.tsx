@@ -3,23 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { CalendarBlank } from '@phosphor-icons/react';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from '@/components/ui/card';
-import {
-  Field,
-  FieldGroup,
-  FieldLabel,
-  FieldDescription,
-} from '@/components/ui/field';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Button } from '@/components/ui/button';
 import { formatDeadlineUtc } from '@/lib/dates';
 import {
   classifyPunctuality,
@@ -29,6 +12,16 @@ import {
 import type { getDeadlineDetail } from '@/lib/deals/deadline-requests';
 
 type Data = NonNullable<Awaited<ReturnType<typeof getDeadlineDetail>>>;
+
+/**
+ * The delivery agreement, in the v4 grammar (KAN-160): an uppercase kicker
+ * with the punctuality verdict as a chip beside it, the deadlines as a
+ * hairline-ruled mono fact ledger, the pending extension as an amber-railed
+ * panel with its accept/reject/withdraw controls inline, and the request
+ * form and history folded behind ghost-pill disclosures. All the decision
+ * logic — who can change, what a decision PATCHes, the 409 refresh — is the
+ * KAN-160 behavior unchanged; only the surface moved into the `.bd` layer.
+ */
 export function DeadlineCard({
   data,
   role,
@@ -56,6 +49,7 @@ export function DeadlineCard({
       ? data.requests.find((r) => r.status === 'pending')
       : undefined;
   const outcome = classifyPunctuality(data, now);
+
   async function send(decision?: 'accepted' | 'rejected' | 'withdrawn') {
     if (!current) return;
     setError(null);
@@ -108,189 +102,211 @@ export function DeadlineCard({
       setBusy(false);
     }
   }
+
+  const onTime = outcome === 'on_time' || outcome === 'awaiting_funding';
+  const effective = data.dueAtFirstDelivery ?? current;
+  const moved =
+    data.originalDeliveryDueAt &&
+    effective &&
+    data.originalDeliveryDueAt.getTime() !== effective.getTime();
+
+  // Nothing recorded and nothing to do: one quiet line, not an empty card.
+  if (!current && !data.originalDeliveryDueAt && data.requests.length === 0) {
+    return (
+      <p className="bd-agreeline" id="delivery-agreement">
+        <span className="bd-agreekicker">Delivery agreement</span>
+        {deliveryTerm(data.deliveryWindowDays)}. The deadline is set when the
+        campaign is funded.
+      </p>
+    );
+  }
+
   return (
-    <Card id="delivery-agreement">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CalendarBlank aria-hidden />
-          Delivery agreement
-        </CardTitle>
-        <CardDescription>
-          {deliveryTerm(data.deliveryWindowDays)}. All ordered videos; each day
-          is 24 elapsed hours. Offer expiry is separate.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-5">
-        <p className="font-medium" role="status">
+    <section id="delivery-agreement" className="bd-agree">
+      <div className="bd-agreehead">
+        <span className="bd-agreekicker">Delivery agreement</span>
+        <span
+          className={
+            onTime ? 'bd-agreeverdict' : 'bd-agreeverdict bd-agreeverdict--late'
+          }
+          role="status"
+        >
           {PUNCTUALITY_LABELS[outcome]}
+        </span>
+      </div>
+
+      {/* The one number this card exists for. */}
+      {effective && (
+        <div className="bd-agreehero">
+          <span className="bd-agreehero-lab">
+            {data.firstDeliveredAt
+              ? 'Final agreed deadline'
+              : 'Deliver everything by'}
+          </span>
+          <span className="bd-agreehero-num bd-mono">
+            {formatDeadlineUtc(effective)}
+          </span>
+          <span className="bd-agreehero-sub">
+            {deliveryTerm(data.deliveryWindowDays)} · each day is 24 elapsed
+            hours · offer expiry is separate
+            {moved &&
+              ` · originally ${formatDeadlineUtc(data.originalDeliveryDueAt!)}`}
+            {data.firstDeliveredAt &&
+              ` · first delivered ${formatDeadlineUtc(data.firstDeliveredAt)}`}
+          </span>
+        </div>
+      )}
+
+      {data.missedDeliveryCommitment && (
+        <p className="bd-agreemiss">
+          An earlier deadline was missed before an extension was accepted. That
+          commitment remains recorded.
         </p>
-        <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          {data.originalDeliveryDueAt && (
-            <div>
-              <dt className="text-muted-foreground">
-                Original delivery deadline
-              </dt>
-              <dd>{formatDeadlineUtc(data.originalDeliveryDueAt)}</dd>
-            </div>
-          )}
-          {current && (
-            <div>
-              <dt className="text-muted-foreground">
-                {data.firstDeliveredAt
-                  ? 'Final agreed delivery deadline'
-                  : 'Current delivery deadline'}
-              </dt>
-              <dd>{formatDeadlineUtc(data.dueAtFirstDelivery ?? current)}</dd>
-            </div>
-          )}
-          {data.firstDeliveredAt && (
-            <div>
-              <dt className="text-muted-foreground">Initial delivery</dt>
-              <dd>{formatDeadlineUtc(data.firstDeliveredAt)}</dd>
-            </div>
-          )}
-        </dl>
-        {data.missedDeliveryCommitment && (
-          <p className="text-sm">
-            An earlier deadline was missed before an extension was accepted.
-            That commitment remains recorded.
+      )}
+
+      {pending && (
+        <div className="bd-agreepending" aria-label="Pending extension">
+          <p className="bd-agreepending-title">
+            Extension pending — not yet agreed
           </p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Delivery timing is informational. It does not change payment, refund
-          eligibility, revisions or final approval.
-        </p>
-        {pending && (
-          <section
-            className="flex flex-col gap-3 rounded-lg border p-4"
-            aria-label="Pending extension"
-          >
-            <h3 className="font-medium">Extension pending — not yet agreed</h3>
-            <p className="text-sm">
-              Requested by {pending.proposerRole}:{' '}
+          <p className="bd-agreepending-ask">
+            {pending.proposedBy === userId
+              ? 'You propose'
+              : `The ${pending.proposerRole} proposes`}{' '}
+            <b className="bd-mono">
               {formatDeadlineUtc(pending.proposedDueAt)}
-            </p>
-            <p className="text-sm whitespace-pre-wrap">{pending.note}</p>
-            {canChange && (
-              <div className="flex flex-wrap gap-2">
-                {pending.proposedBy === userId ? (
-                  <Button
-                    variant="outline"
-                    disabled={busy}
-                    onClick={() => send('withdrawn')}
-                  >
-                    Withdraw extension
-                  </Button>
-                ) : (
-                  <>
-                    <Button disabled={busy} onClick={() => send('accepted')}>
-                      Accept extension
-                    </Button>
-                    <Button
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => send('rejected')}
-                    >
-                      Reject extension
-                    </Button>
-                  </>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-        {canChange && !pending && (
-          <details>
-            <summary className="cursor-pointer text-sm font-medium">
-              Request a delivery extension
-            </summary>
-            <form
-              className="mt-4"
-              onSubmit={(event) => {
-                event.preventDefault();
-                void send();
-              }}
-            >
-              <FieldGroup>
-                <Field>
-                  <FieldLabel htmlFor={`due-${data.id}`}>
-                    Proposed delivery deadline (UTC)
-                  </FieldLabel>
-                  <Input
-                    id={`due-${data.id}`}
-                    type="datetime-local"
-                    required
-                    value={date}
-                    onChange={(event) => setDate(event.target.value)}
-                  />
-                  <FieldDescription>
-                    Later than the current deadline and in the future. The other
-                    party must agree.
-                  </FieldDescription>
-                </Field>
-                <Field>
-                  <FieldLabel htmlFor={`note-${data.id}`}>
-                    Extension note
-                  </FieldLabel>
-                  <Textarea
-                    id={`note-${data.id}`}
-                    required
-                    maxLength={2000}
-                    value={note}
-                    onChange={(event) => setNote(event.target.value)}
-                  />
-                </Field>
-                <Button type="submit" disabled={busy}>
-                  Request extension
-                </Button>
-              </FieldGroup>
-            </form>
-          </details>
-        )}
-        {error && (
-          <p role="alert" className="text-sm text-destructive">
-            {error}
+            </b>
           </p>
-        )}
-        {data.requests.length > 0 && (
-          <details>
-            <summary className="cursor-pointer text-sm font-medium">
-              Extension history ({data.requests.length})
-            </summary>
-            <ol className="mt-4 flex flex-col gap-4">
-              {data.requests.map((request) => (
-                <li
-                  key={request.id}
-                  className="flex flex-col gap-1 border-l pl-4 text-sm"
+          <p className="bd-agreepending-note">{pending.note}</p>
+          {canChange && (
+            <div className="bd-agreeacts">
+              {pending.proposedBy === userId ? (
+                <button
+                  type="button"
+                  className="bd-btn bd-btn--ghost"
+                  disabled={busy}
+                  onClick={() => send('withdrawn')}
                 >
-                  <p className="font-medium">
-                    {request.status} · proposed by {request.proposerRole}
-                    {request.decidedBy &&
-                      ` · ${request.status} by ${request.status === 'withdrawn' ? request.proposerRole : request.proposerRole === 'brand' ? 'creator' : 'brand'}`}
-                  </p>
-                  <p>
-                    {formatDeadlineUtc(request.previousDueAt)} →{' '}
-                    {formatDeadlineUtc(request.proposedDueAt)}
-                  </p>
-                  <p className="whitespace-pre-wrap">{request.note}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Proposed {formatDeadlineUtc(request.proposedAt)}
-                    {request.decidedAt &&
-                      ` · ${request.status} ${formatDeadlineUtc(request.decidedAt)}`}
-                    {request.closureReason &&
-                      ` · ${request.closureReason === 'first_delivery' ? 'Initial delivery occurred' : 'Deal refunded'}`}
-                  </p>
-                  {request.status === 'accepted' &&
-                    request.decidedAt &&
-                    request.decidedAt > request.previousDueAt && (
-                      <p>Earlier deadline missed before acceptance.</p>
-                    )}
-                </li>
-              ))}
-            </ol>
-          </details>
-        )}
-      </CardContent>
-    </Card>
+                  Withdraw extension
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="bd-btn bd-btn--primary"
+                    disabled={busy}
+                    onClick={() => send('accepted')}
+                  >
+                    Accept extension
+                  </button>
+                  <button
+                    type="button"
+                    className="bd-btn bd-btn--ghost"
+                    disabled={busy}
+                    onClick={() => send('rejected')}
+                  >
+                    Reject extension
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {canChange && !pending && (
+        <details className="bd-agreefold">
+          <summary>Request a delivery extension</summary>
+          <form
+            className="bd-agreeform"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void send();
+            }}
+          >
+            <label className="bd-agreefield">
+              <span>Proposed delivery deadline (UTC)</span>
+              <input
+                type="datetime-local"
+                required
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+              />
+              <small>
+                Later than the current deadline and in the future. The other
+                party must agree.
+              </small>
+            </label>
+            <label className="bd-agreefield">
+              <span>Extension note</span>
+              <textarea
+                required
+                maxLength={2000}
+                rows={3}
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+              />
+            </label>
+            <button
+              type="submit"
+              className="bd-btn bd-btn--primary"
+              disabled={busy}
+            >
+              Request extension
+            </button>
+          </form>
+        </details>
+      )}
+
+      {error && (
+        <p role="alert" className="bd-agreeerror">
+          {error}
+        </p>
+      )}
+
+      {data.requests.length > 0 && (
+        <details className="bd-agreefold">
+          <summary>Extension history ({data.requests.length})</summary>
+          <ol className="bd-agreelog">
+            {data.requests.map((request) => (
+              <li key={request.id}>
+                <p className="bd-agreelog-line">
+                  <b>{request.status}</b> · proposed by {request.proposerRole}
+                </p>
+                <p className="bd-agreelog-move bd-mono">
+                  {formatDeadlineUtc(request.previousDueAt)} →{' '}
+                  {formatDeadlineUtc(request.proposedDueAt)}
+                </p>
+                <p className="bd-agreelog-note">{request.note}</p>
+                <p className="bd-agreelog-meta">
+                  Proposed {formatDeadlineUtc(request.proposedAt)}
+                  {request.decidedAt &&
+                    ` · ${request.status}${
+                      request.status === 'accepted' ||
+                      request.status === 'rejected'
+                        ? ` by ${request.proposerRole === 'brand' ? 'creator' : 'brand'}`
+                        : ''
+                    } ${formatDeadlineUtc(request.decidedAt)}`}
+                  {request.closureReason &&
+                    ` · ${request.closureReason === 'first_delivery' ? 'Initial delivery occurred' : 'Deal refunded'}`}
+                </p>
+                {request.status === 'accepted' &&
+                  request.decidedAt &&
+                  request.decidedAt > request.previousDueAt && (
+                    <p className="bd-agreelog-meta">
+                      Earlier deadline missed before acceptance.
+                    </p>
+                  )}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
+
+      <p className="bd-agreefoot">
+        Delivery timing is informational. It does not change payment, refund
+        eligibility, revisions or final approval.
+      </p>
+    </section>
   );
 }

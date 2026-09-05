@@ -1,8 +1,6 @@
 import Link from 'next/link';
-import { buttonVariants } from '@/components/ui/button';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { Chip } from '@/components/ui/chip';
-import { PageHeader } from '@/components/layout/page-header';
-import { EmptyState } from '@/components/feedback/empty-state';
 import {
   AUDIT_ACTION_VALUES,
   AUDIT_ACTIONS,
@@ -41,6 +39,9 @@ export const runtime = 'nodejs';
  * Rendered newest first, one page at a time, with `?page=` paging that retains
  * the active filters — otherwise page 2 would silently widen the view back to
  * the whole log.
+ *
+ * v4 conversion: filters, empty states, rows, and pager now sit inside the
+ * admin console `.bd` shell without changing URL/query semantics.
  */
 const ACTION_LABELS: Record<string, string> = {
   [AUDIT_ACTIONS.CREATOR_VERIFY]: 'Creator verified',
@@ -81,25 +82,27 @@ function toDateInputValue(date: Date | undefined): string {
   return date ? date.toISOString().slice(0, 10) : '';
 }
 
-const inputClass =
-  'h-11 rounded-lg border border-neutral-300 bg-neutral-50 px-3 text-sm text-neutral-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] transition-colors hover:border-neutral-400 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20';
+const inputClass = 'bd-ad-input';
 
 /** Rendered when the URL's filters cannot be parsed — the discovery precedent. */
 function UnreadableFilters() {
   return (
-    <EmptyState
-      align="start"
-      title="Those filters could not be read."
-      description="The link may be mistyped or out of date. Clear the filters and try again."
-      action={
-        <Link
-          href="/admin/audit-log"
-          className={buttonVariants({ variant: 'outline', size: 'sm' })}
-        >
-          Clear filters
-        </Link>
-      }
-    />
+    <div className="bd-emptyfeed">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 5h14v14H5z" />
+        <path d="M8 9h8" />
+        <path d="M8 13h5" />
+        <path d="M16 16l3 3" />
+      </svg>
+      <h3>Those filters could not be read.</h3>
+      <p>
+        The link may be mistyped or out of date. Clear the filters and try
+        again.
+      </p>
+      <Link href="/admin/audit-log" className="bd-btn bd-btn--ghost">
+        Clear filters
+      </Link>
+    </div>
   );
 }
 
@@ -124,10 +127,10 @@ export default async function AdminAuditLogPage({
   // Saying the filters were unreadable is the honest version of the same 422.
   if (conflicts.length > 0 || !parsed.success) {
     return (
-      <div className="flex flex-col gap-10">
+      <BdShell className="bd-ad bd-ad-audit">
         <Masthead />
         <UnreadableFilters />
-      </div>
+      </BdShell>
     );
   }
 
@@ -156,17 +159,18 @@ export default async function AdminAuditLogPage({
     `/admin/audit-log?${filterQuery ? `${filterQuery}&` : ''}page=${n}`;
 
   return (
-    <div className="flex flex-col gap-10">
+    <BdShell className="bd-ad bd-ad-audit">
       <Masthead />
 
       <form
         method="GET"
         action="/admin/audit-log"
-        className="flex flex-col gap-5 rounded-[24px] border border-neutral-200 bg-neutral-100/45 p-5 sm:p-6"
+        className="bd-ad-filter bd-rise"
+        style={{ '--i': 2 } as React.CSSProperties}
       >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Action</span>
+        <div className="bd-ad-filtergrid">
+          <label className="bd-ad-field">
+            <span>Action</span>
             <select
               name="action"
               defaultValue={filters.action ?? ''}
@@ -181,8 +185,8 @@ export default async function AdminAuditLogPage({
             </select>
           </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Target type</span>
+          <label className="bd-ad-field">
+            <span>Target type</span>
             <select
               name="target_type"
               defaultValue={filters.targetType ?? ''}
@@ -201,32 +205,32 @@ export default async function AdminAuditLogPage({
               copies out of a row above — "everything this actor did" starts from
               an actor id already on the screen. Validated as a uuid by the schema,
               so a mistyped one is an unreadable-filters state, not a 500. */}
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Actor ID</span>
+          <label className="bd-ad-field">
+            <span>Actor ID</span>
             <input
               type="text"
               name="actor_id"
               inputMode="text"
               placeholder="Any actor"
               defaultValue={filters.actorId ?? ''}
-              className={`${inputClass} font-mono`}
+              className={`${inputClass} bd-mono`}
             />
           </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">Target ID</span>
+          <label className="bd-ad-field">
+            <span>Target ID</span>
             <input
               type="text"
               name="target_id"
               inputMode="text"
               placeholder="Any target"
               defaultValue={filters.targetId ?? ''}
-              className={`${inputClass} font-mono`}
+              className={`${inputClass} bd-mono`}
             />
           </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">From</span>
+          <label className="bd-ad-field">
+            <span>From</span>
             <input
               type="date"
               name="from"
@@ -235,8 +239,8 @@ export default async function AdminAuditLogPage({
             />
           </label>
 
-          <label className="flex flex-col gap-1.5 text-sm">
-            <span className="font-medium">To</span>
+          <label className="bd-ad-field">
+            <span>To</span>
             <input
               type="date"
               name="to"
@@ -246,108 +250,121 @@ export default async function AdminAuditLogPage({
           </label>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            type="submit"
-            className={buttonVariants({ variant: 'default', size: 'sm' })}
-          >
+        <div className="bd-ad-filteractions">
+          <button type="submit" className="bd-btn bd-btn--primary">
             Apply filters
           </button>
           {/* A link, not a reset button: clearing means navigating to the
               unfiltered URL, and `type="reset"` would only restore the inputs
               while leaving the query string — and the results — untouched. */}
-          <Link
-            href="/admin/audit-log"
-            className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-          >
+          <Link href="/admin/audit-log" className="bd-btn bd-btn--ghost">
             Clear
           </Link>
         </div>
       </form>
 
-      {result.rows.length === 0 ? (
-        hasActiveFilters ? (
-          <EmptyState
-            align="start"
-            title="No entries match these filters"
-            description="Try widening the date range, or clear the filters to see the whole trail."
-            action={
-              <Link
-                href="/admin/audit-log"
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
-              >
+      <section
+        className="bd-ad-section bd-rise"
+        style={{ '--i': 3 } as React.CSSProperties}
+      >
+        <div className="bd-capruler">
+          <span className="bd-caprulertitle">Trail</span>
+          <span className="bd-caprulerline" aria-hidden="true" />
+          <span className="bd-caprulercount bd-mono">
+            {result.rows.length}{' '}
+            {result.rows.length === 1 ? 'entry' : 'entries'}
+          </span>
+        </div>
+
+        {result.rows.length === 0 ? (
+          hasActiveFilters ? (
+            <div className="bd-emptyfeed">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 5h14v14H5z" />
+                <path d="M8 9h8" />
+                <path d="M8 13h5" />
+                <path d="M15 15l4 4" />
+              </svg>
+              <h3>No entries match these filters</h3>
+              <p>
+                Try widening the date range, or clear the filters to see the
+                whole trail.
+              </p>
+              <Link href="/admin/audit-log" className="bd-btn bd-btn--ghost">
                 Clear filters
               </Link>
-            }
-          />
-        ) : (
-          <EmptyState
-            align="start"
-            title="No audit entries yet"
-            description="Admin actions will appear here as they happen."
-            action={
-              <Link
-                href="/admin"
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
-              >
+            </div>
+          ) : (
+            <div className="bd-emptyfeed">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M6 4.5h12v15H6z" />
+                <path d="M9 8h6" />
+                <path d="M9 11.5h6" />
+                <path d="M9 15h3" />
+              </svg>
+              <h3>No audit entries yet</h3>
+              <p>Admin actions will appear here as they happen.</p>
+              <Link href="/admin" className="bd-btn bd-btn--ghost">
                 Back to the console
               </Link>
-            }
-          />
-        )
-      ) : (
-        <ul className="border-y border-neutral-200">
-          {result.rows.map((row) => (
-            <AuditRow key={row.id} row={row} />
-          ))}
-        </ul>
-      )}
+            </div>
+          )
+        ) : (
+          <ul className="bd-ad-list">
+            {result.rows.map((row) => (
+              <AuditRow key={row.id} row={row} />
+            ))}
+          </ul>
+        )}
+      </section>
 
       {(page > 1 || result.hasMore) && (
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">
+        <div className="bd-ad-pager">
+          <p>
             {result.rows.length > 0
               ? `Showing ${offsetForPage(page) + 1}–${offsetForPage(page) + result.rows.length}`
               : `Nothing on page ${page}`}
           </p>
-          <div className="flex gap-2">
+          <div>
             {page > 1 && (
-              <Link
-                href={pageHref(page - 1)}
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
-              >
+              <Link href={pageHref(page - 1)} className="bd-btn bd-btn--ghost">
                 Previous
               </Link>
             )}
             {result.hasMore && (
-              <Link
-                href={pageHref(page + 1)}
-                className={buttonVariants({ variant: 'outline', size: 'sm' })}
-              >
+              <Link href={pageHref(page + 1)} className="bd-btn bd-btn--ghost">
                 Next
               </Link>
             )}
           </div>
         </div>
       )}
-    </div>
+    </BdShell>
   );
 }
 
 /** The back link and page opener, shared by the normal and unreadable states. */
-function Masthead() {
+function Masthead({ count }: { count?: number } = {}) {
   return (
-    <div className="flex flex-col gap-3">
-      <Link
-        href="/admin"
-        className={cn('text-sm text-muted-foreground', textLinkFeedback)}
-      >
+    <div className="bd-ad-mast">
+      <Link href="/admin" className={cn('bd-cdback', textLinkFeedback)}>
         ← Admin console
       </Link>
-      <PageHeader
-        label="Admin"
+      <BdPageHead
+        eyebrow="Admin console"
         title="Audit log"
-        description="Review who acted, what changed, and when. Filter by action, actor, target, or date range."
+        facts={
+          count === undefined ? (
+            'Review who acted, what changed, and when.'
+          ) : (
+            <>
+              <span className="bd-mono">{count}</span> entries on this page ·
+              filter by action, actor, target, or date.
+            </>
+          )
+        }
+        ruled
+        rise={1}
       />
     </div>
   );
@@ -359,28 +376,22 @@ function AuditRow({ row }: { row: AuditLogRow }) {
   const detail = formatDetail(row.detail);
 
   return (
-    <li className="border-b border-neutral-200 px-1 py-5 transition-colors duration-300 last:border-b-0 hover:bg-neutral-100/60 sm:px-4">
-      <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
-        <div className="flex flex-col gap-1">
-          <div className="flex flex-wrap items-center gap-2">
+    <li className="bd-ad-auditrow">
+      <div className="bd-ad-auditgrid">
+        <div className="bd-ad-auditmain">
+          <div className="bd-ad-auditlabels">
             <Chip tone="gray">{label}</Chip>
-            <span className="font-mono text-xs text-muted-foreground">
-              {row.action}
-            </span>
+            <span className="bd-mono">{row.action}</span>
           </div>
-          <p className="text-sm text-muted-foreground">
+          <p>
             {actor} · {row.targetType}
-            <span className="font-mono">:{row.targetId}</span>
+            <span className="bd-mono">:{row.targetId}</span>
           </p>
         </div>
-        <time className="font-mono text-xs text-muted-foreground sm:text-right">
-          {formatTimestamp(row.createdAt)}
-        </time>
+        <time className="bd-mono">{formatTimestamp(row.createdAt)}</time>
       </div>
       {detail !== '' && (
-        <pre className="mt-3 overflow-x-auto rounded-lg border border-neutral-200 bg-neutral-100/65 p-3 font-mono text-xs text-neutral-600">
-          {detail}
-        </pre>
+        <pre className="bd-ad-auditdetail bd-mono">{detail}</pre>
       )}
     </li>
   );

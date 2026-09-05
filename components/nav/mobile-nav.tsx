@@ -55,12 +55,28 @@ export function MobileNav({ user, cart }: MobileNavProps) {
           <Button
             variant="ghost"
             size="icon"
-            className="-ml-1 text-neutral-50 hover:bg-neutral-800 hover:text-neutral-50 min-[1100px]:hidden"
+            className="relative -ml-1 text-neutral-50 hover:bg-neutral-800 hover:text-neutral-50 min-[1100px]:hidden"
           />
         }
       >
         <List size={21} weight="regular" aria-hidden />
-        <span className="sr-only">Toggle navigation menu</span>
+        {/* The draft cart's count rides the trigger, so the number is visible
+            before the sheet is opened — same source as the cart entry's badge
+            inside. */}
+        {cart && cart.itemCount > 0 ? (
+          <span
+            aria-hidden="true"
+            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-tint px-1 text-[10px] leading-none font-semibold text-brand-ink"
+          >
+            {cart.itemCount > 99 ? '99+' : cart.itemCount}
+          </span>
+        ) : null}
+        <span className="sr-only">
+          Toggle navigation menu
+          {cart && cart.itemCount > 0
+            ? `, ${cart.itemCount} ${cart.itemCount === 1 ? 'item' : 'items'} in cart`
+            : ''}
+        </span>
       </SheetTrigger>
       <SheetContent
         side="left"
@@ -99,8 +115,9 @@ export function MobileNav({ user, cart }: MobileNavProps) {
           {links.map((link) => {
             const Icon = NAV_ICONS[link.icon];
             // Same resolution as MainNav: the cart entry points at the active
-            // draft's cart and is active only when standing in it.
+            // draft's cart and hides entirely when there is no draft cart.
             const isCart = link.icon === 'cart';
+            if (isCart && !cart) return null;
             const href = isCart ? (cart?.href ?? link.href) : link.href;
             const isActive = isNavLinkActive(link, pathname, cart?.href, links);
             const badge =

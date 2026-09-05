@@ -5,8 +5,7 @@ import {
   MagnifyingGlass,
   PencilSimple,
 } from '@phosphor-icons/react/dist/ssr';
-import { buttonVariants } from '@/components/ui/button';
-import { Chip } from '@/components/ui/chip';
+import { BdShell } from '@/components/brand/v4-shell';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
@@ -26,10 +25,7 @@ import {
   SETTLEMENT_NOTE,
   readCampaignPerformance,
 } from '@/lib/campaigns/performance';
-import {
-  campaignStatusLabel,
-  campaignStatusTone,
-} from '@/lib/campaigns/status';
+import { campaignStatusLabel } from '@/lib/campaigns/status';
 import {
   countAcceptedDeals,
   getCampaignForBrand,
@@ -48,23 +44,31 @@ import { RemoveFromCartButton } from '@/components/campaign/remove-from-cart-but
 import { VideoPerformance } from '@/components/campaign/video-performance';
 import { CampaignInsightsPanel } from '@/components/campaign/insights';
 import { readCampaignInsights } from '@/lib/campaigns/insights';
-import { EmptyState } from '@/components/feedback/empty-state';
-import { MagneticLink } from '@/components/motion/magnetic-link';
-import { StatusPulse } from '@/components/motion/status-pulse';
-import { StaggerIn } from '@/components/motion/stagger-in';
 import { TruncatedText } from '@/components/ui/truncated-text';
+import type { CampaignStatus } from '@/db/schema';
 import { cn, textLinkFeedback } from '@/lib/utils';
 
 export const runtime = 'nodejs';
 
 /**
  * Campaign detail: the cart while it is a draft, the live deals and their
- * performance once it is not (KAN-30, KAN-68, KAN-49).
+ * performance once it is not (KAN-30, KAN-68, KAN-49) — rendered in the v4
+ * visual language: the money summary rides the rail-card grammar and cart
+ * rows carry the status left-accent.
  *
  * **No money is computed here.** Every figure arrives summed from the ledger or
  * from `readCampaignBudget`, and `formatEtb` is the only arithmetic-shaped call in
  * the file (AC-026, invariant 4).
  */
+
+const STATUS_TONE: Record<CampaignStatus, string> = {
+  draft: 'bd-capstatus--draft',
+  confirmed: 'bd-capstatus--wait',
+  funded: 'bd-capstatus--live',
+  in_progress: 'bd-capstatus--live',
+  completed: 'bd-capstatus--done',
+  cancelled: 'bd-capstatus--dead',
+};
 
 function LedgerRow({
   label,
@@ -78,27 +82,12 @@ function LedgerRow({
   strong?: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-1">
-      <div className="flex items-baseline justify-between gap-4 text-sm">
-        <span
-          className={
-            strong ? 'font-semibold text-neutral-50' : 'text-neutral-400'
-          }
-        >
-          {label}
-        </span>
-        <span
-          className={cn(
-            'font-mono tabular-nums',
-            strong ? 'font-semibold text-neutral-50' : 'text-neutral-50'
-          )}
-        >
-          {value}
-        </span>
+    <div className={cn('bd-ctled', strong && 'bd-ctled--strong')}>
+      <div>
+        <span>{label}</span>
+        <span className="bd-mono">{value}</span>
       </div>
-      {note ? (
-        <p className="text-xs leading-relaxed text-neutral-500">{note}</p>
-      ) : null}
+      {note ? <p>{note}</p> : null}
     </div>
   );
 }
@@ -117,8 +106,6 @@ export default async function CampaignCartPage({
   if (!campaign) notFound();
 
   const settled = campaign.status !== 'draft';
-  const PageFrame = settled ? 'div' : StaggerIn;
-  const BackLink = settled ? Link : MagneticLink;
   // Which money rails the fund control drives (KAN-70): `mock` funds in one
   // POST; anything else leaves for Chapa's hosted checkout, and a campaign
   // with an open checkout shows the resume/cancel banner instead of a button.
@@ -134,9 +121,9 @@ export default async function CampaignCartPage({
     escrowed,
     acceptedCount,
     performance,
+    insights,
     openSession,
     contractedVideos,
-    insights,
   ] = await Promise.all([
     listCartItems(campaign.id),
     readCampaignBudget(campaign.id),
@@ -145,12 +132,14 @@ export default async function CampaignCartPage({
     settled
       ? readCampaignPerformance(campaign.id)
       : Promise.resolve(EMPTY_PERFORMANCE),
+    // KAN-158 insights: measured engagement across the campaign's deals,
+    // null until the campaign is live and something has been measured.
+    settled ? readCampaignInsights(campaign.id) : Promise.resolve(null),
     chapaMode ? getOpenFundingSession(campaign.id) : Promise.resolve(null),
     // Drafts have no deals by definition — skip the query, not just the label.
     campaign.status === 'draft'
       ? Promise.resolve(0)
       : sumContractedVideos(campaign.id),
-    settled ? readCampaignInsights(campaign.id) : Promise.resolve(null),
   ]);
 
   const { committed, available } = budget ?? {
@@ -165,73 +154,54 @@ export default async function CampaignCartPage({
   });
 
   return (
-    <PageFrame className="mx-auto flex max-w-6xl flex-col gap-10 py-4">
-      <BackLink
-        href="/campaigns"
-        className="group inline-flex w-fit items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1.5 text-sm text-neutral-700 transition-[border-color,background-color,color,transform] duration-200 ease-[var(--ease-smooth)] hover:border-neutral-300 hover:bg-white hover:text-neutral-900 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-      >
-        <ArrowLeft
-          size={14}
-          weight="regular"
-          aria-hidden
-          className="transition-transform duration-200 ease-[var(--ease-smooth)] group-hover:-translate-x-0.5"
-        />
-        Back to campaigns
-      </BackLink>
+    <BdShell>
+      <div className="bd-rise" style={{ '--i': 0 } as React.CSSProperties}>
+        <Link href="/campaigns" className="bd-cdback">
+          <ArrowLeft size={16} weight="regular" aria-hidden />
+          Back to campaigns
+        </Link>
+      </div>
 
-      <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-[minmax(0,1.7fr)_minmax(300px,0.9fr)] lg:gap-16">
-        <div className="flex min-w-0 flex-col gap-10">
-          <header className="flex flex-col gap-5">
-            <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Campaign
-            </p>
-            <h1 className="page-title max-w-[18ch]">{campaign.name}</h1>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-neutral-500">
-              <Chip
-                tone={campaignStatusTone[campaign.status] ?? 'gray'}
-                className="capitalize"
+      <div
+        className="bd-ctsplit bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
+        <div className="bd-ctmain">
+          <header className="bd-cthead">
+            <p className="bd-eyebrow">Campaign</p>
+            <h1 className="bd-h1">{campaign.name}</h1>
+            <p className="bd-idfacts">
+              <span
+                className={cn('bd-capstatus', STATUS_TONE[campaign.status])}
               >
-                {settled ? (
-                  <span
-                    className="mr-1.5 inline-flex size-1.5 rounded-full bg-current"
-                    aria-hidden
-                  />
-                ) : (
-                  <StatusPulse className="mr-1.5" />
-                )}
                 {campaignStatusLabel(campaign.status)}
-              </Chip>
+              </span>
+              <span className="bd-idfactsep" aria-hidden="true">
+                ·
+              </span>
               <span>Opened {created}</span>
-              <span className="font-mono tabular-nums text-neutral-700">
+              <span className="bd-idfactsep" aria-hidden="true">
+                ·
+              </span>
+              <b className="bd-mono">
                 {contractedVideos > 0
                   ? `${contractedVideos} of ${campaign.desiredVideos} videos contracted`
                   : `${campaign.desiredVideos} videos planned`}
-              </span>
-            </div>
+              </b>
+            </p>
             {campaign.goal ? (
-              <p className="max-w-[62ch] text-base leading-relaxed text-neutral-600">
-                {campaign.goal}
-              </p>
+              <p className="bd-ctgoal">{campaign.goal}</p>
             ) : null}
             {campaign.status === 'draft' && (
-              <div className="flex flex-wrap items-center gap-2">
+              <div className="bd-ctacts">
                 <Link
                   href={`/campaigns/${campaign.id}/edit`}
-                  className={cn(
-                    buttonVariants({ variant: 'outline', size: 'sm' }),
-                    'gap-1.5'
-                  )}
+                  className="bd-btn bd-btn--ghost"
                 >
                   <PencilSimple size={14} weight="regular" aria-hidden />
                   Edit brief
                 </Link>
-                <Link
-                  href="/discover"
-                  className={cn(
-                    buttonVariants({ variant: 'outline', size: 'sm' }),
-                    'gap-1.5'
-                  )}
-                >
+                <Link href="/discover" className="bd-btn bd-btn--ghost">
                   <MagnifyingGlass size={14} weight="regular" aria-hidden />
                   Find creators
                 </Link>
@@ -246,196 +216,176 @@ export default async function CampaignCartPage({
                 />
               </div>
             )}
-            <div className="border-b border-neutral-200" aria-hidden="true" />
           </header>
 
-          {settled ? null : (
+          {settled ? (
             <>
-              <h2 className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-                Cart ({items.length})
-              </h2>
+              {insights ? <CampaignInsightsPanel insights={insights} /> : null}
+              <VideoPerformance
+                deals={performance.deals}
+                totals={performance.totals}
+              />
+            </>
+          ) : (
+            <>
+              <div className="bd-capruler">
+                <span className="bd-caprulertitle">Cart</span>
+                <span className="bd-caprulerline" aria-hidden="true" />
+                <span className="bd-caprulernote">
+                  Creators lined up for this campaign
+                </span>
+                <span className="bd-caprulercount bd-mono">
+                  {items.length} {items.length === 1 ? 'creator' : 'creators'}
+                </span>
+              </div>
 
               {items.length === 0 ? (
-                <EmptyState
-                  align="start"
-                  title="Your cart is empty"
-                  description="Browse the marketplace to find creators and add them to this campaign."
-                  action={
-                    <Link
-                      href="/discover"
-                      className={buttonVariants({
-                        variant: 'default',
-                        size: 'sm',
-                      })}
-                    >
-                      Browse creators
-                    </Link>
-                  }
-                />
-              ) : (
-                <div className="overflow-x-auto">
-                  <div className="min-w-[42rem]">
-                    <div className="grid grid-cols-[2rem_1.75rem_minmax(8rem,1fr)_7rem_3.5rem_7.5rem_auto] items-center gap-x-3 border-b border-neutral-200 px-1 py-2 text-[11px] font-semibold tracking-[0.14em] text-neutral-500 uppercase">
-                      <span aria-hidden className="block min-h-px" />
-                      <span aria-hidden className="block min-h-px" />
-                      <span className="whitespace-nowrap">Creator</span>
-                      <span className="whitespace-nowrap text-right">Rate</span>
-                      <span className="whitespace-nowrap text-right">
-                        Videos
-                      </span>
-                      <span className="whitespace-nowrap text-right">
-                        Total
-                      </span>
-                      <span aria-hidden className="block min-h-px" />
-                    </div>
-                    <ul className="divide-y divide-neutral-200 border-b border-neutral-200">
-                      {items.map((item, index) => (
-                        <li
-                          key={item.id}
-                          className="grid grid-cols-[2rem_1.75rem_minmax(8rem,1fr)_7rem_3.5rem_7.5rem_auto] items-center gap-x-3 px-1 py-3 transition-colors duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-100/70"
-                        >
-                          <span className="font-mono text-[11px] tabular-nums text-neutral-400">
-                            {String(index + 1).padStart(2, '0')}
-                          </span>
-                          <InitialsAvatar
-                            name={item.creator.tiktokHandle}
-                            image={item.creator.image}
-                            size="sm"
-                          />
-                          <div className="min-w-0">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <Link
-                                href={`/discover/${item.creatorId}`}
-                                className={cn('min-w-0', textLinkFeedback)}
-                              >
-                                <TruncatedText
-                                  text={item.creator.tiktokHandle}
-                                  className="text-sm font-semibold text-neutral-900"
-                                />
-                              </Link>
-                              {item.tier?.id ? (
-                                <Chip
-                                  tone="line"
-                                  className="shrink-0 whitespace-nowrap"
-                                >
-                                  {item.tier.name}
-                                </Chip>
-                              ) : null}
-                            </div>
-                            <TruncatedText
-                              text={item.creator.niche}
-                              className="text-xs capitalize text-neutral-500"
-                            />
-                          </div>
-                          <span className="text-right font-mono text-sm whitespace-nowrap tabular-nums text-neutral-900">
-                            {formatEtb(item.unitPrice)}
-                          </span>
-                          <span className="text-right font-mono text-sm whitespace-nowrap tabular-nums text-neutral-900">
-                            ×{item.videoCount}
-                          </span>
-                          <span className="text-right font-mono text-sm font-medium whitespace-nowrap tabular-nums text-neutral-900">
-                            {formatEtb(item.totalPrice)}
-                          </span>
-                          <RemoveFromCartButton
-                            campaignId={campaign.id}
-                            creatorId={item.creatorId}
-                            creatorHandle={item.creator.tiktokHandle}
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                <div className="bd-emptyfeed">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <circle cx="9" cy="19" r="1.6" />
+                    <circle cx="17" cy="19" r="1.6" />
+                    <path d="M3 4.5h2.4l2.2 10.2A1.5 1.5 0 0 0 9.07 16h8.1a1.5 1.5 0 0 0 1.46-1.16L20.5 8H6" />
+                  </svg>
+                  <h3>Your cart is empty</h3>
+                  <p>
+                    Browse the marketplace to find creators and add them to this
+                    campaign.
+                  </p>
+                  <Link className="bd-btn bd-btn--primary" href="/discover">
+                    Browse creators
+                  </Link>
                 </div>
+              ) : (
+                <ul className="bd-cartgrid">
+                  {items.map((item, index) => (
+                    <li key={item.id} className="bd-cartcard">
+                      <div className="bd-cartcardhead">
+                        <span className="bd-capidx bd-mono">
+                          {String(index + 1).padStart(2, '0')}
+                        </span>
+                        <InitialsAvatar
+                          name={item.creator.tiktokHandle}
+                          image={item.creator.image}
+                          size="sm"
+                        />
+                        <div className="bd-cartwho">
+                          <div>
+                            <Link
+                              href={`/discover/${item.creatorId}`}
+                              className={cn('min-w-0', textLinkFeedback)}
+                            >
+                              <TruncatedText
+                                text={item.creator.tiktokHandle}
+                                className="bd-cthandle"
+                              />
+                            </Link>
+                            {item.tier?.id ? (
+                              <span className="bd-disctier">
+                                {item.tier.name}
+                              </span>
+                            ) : null}
+                          </div>
+                          <TruncatedText
+                            text={item.creator.niche}
+                            className="bd-ctniche"
+                          />
+                        </div>
+                        <RemoveFromCartButton
+                          campaignId={campaign.id}
+                          creatorId={item.creatorId}
+                          creatorHandle={item.creator.tiktokHandle}
+                        />
+                      </div>
+                      <div className="bd-cartcardfoot">
+                        <span className="bd-cartmath bd-mono">
+                          {formatEtb(item.unitPrice)} × {item.videoCount}
+                        </span>
+                        <span className="bd-carttotal bd-mono">
+                          {formatEtb(item.totalPrice)}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               )}
             </>
           )}
         </div>
 
-        <aside className="lg:sticky lg:top-24">
-          <section className="flex flex-col gap-6 rounded-[24px] bg-neutral-900 p-6 text-neutral-50 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.45)] sm:p-8">
-            <div className="flex flex-col gap-2">
-              <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
-                Remaining
-              </p>
-              <p className="font-mono text-3xl font-medium tracking-tight text-neutral-50 tabular-nums sm:text-4xl">
-                {formatEtb(available)}
-              </p>
-            </div>
+        <aside className="bd-caprail bd-ctrail bd-dlrail">
+          <div className="bd-railcell bd-railcell--hero">
+            <span className="bd-railk">Remaining</span>
+            <span className="bd-railv bd-mono">{formatEtb(available)}</span>
+            <span className="bd-railn">of the campaign budget</span>
+          </div>
 
-            <div className="flex flex-col gap-4 border-t border-neutral-700 pt-5">
+          <div className="bd-railcell bd-ctledger">
+            <span className="bd-railk">Budget</span>
+            <LedgerRow
+              label="Total budget"
+              value={formatEtb(campaign.budget)}
+            />
+            <LedgerRow
+              label={
+                campaign.status === 'draft' ? 'Running total' : 'Committed'
+              }
+              value={formatEtb(committed)}
+            />
+            {escrowed > 0 ? (
               <LedgerRow
-                label="Total budget"
-                value={formatEtb(campaign.budget)}
+                label={HELD_IN_ESCROW_LABEL}
+                value={formatEtb(escrowed)}
+                note={HELD_IN_ESCROW_NOTE}
               />
-              <LedgerRow
-                label={
-                  campaign.status === 'draft' ? 'Running total' : 'Committed'
-                }
-                value={formatEtb(committed)}
-              />
-              {escrowed > 0 ? (
-                <LedgerRow
-                  label={HELD_IN_ESCROW_LABEL}
-                  value={formatEtb(escrowed)}
-                  note={HELD_IN_ESCROW_NOTE}
-                />
-              ) : null}
-              {performance.settlement.paidOut > 0 ? (
-                <>
-                  <LedgerRow
-                    label={PAID_OUT_LABEL}
-                    value={formatEtb(performance.settlement.paidOut)}
-                  />
-                  <LedgerRow
-                    label={COMMISSION_LABEL}
-                    value={formatEtb(performance.settlement.commission)}
-                    note={SETTLEMENT_NOTE}
-                  />
-                </>
-              ) : null}
-              {performance.settlement.refunded > 0 ? (
-                <LedgerRow
-                  label={REFUNDED_LABEL}
-                  value={formatEtb(performance.settlement.refunded)}
-                  note={REFUNDED_NOTE}
-                />
-              ) : null}
-            </div>
-
-            {campaign.status === 'confirmed' ? (
-              <div className="border-t border-neutral-700 pt-5">
-                {!chapaMode ? (
-                  <FundCampaignButton
-                    campaignId={campaign.id}
-                    acceptedCount={acceptedCount}
-                    size="lg"
-                  />
-                ) : openSession ? (
-                  <PendingPaymentBanner
-                    campaignId={campaign.id}
-                    checkoutUrl={openSession.checkoutUrl}
-                  />
-                ) : (
-                  <FundCheckoutButton
-                    campaignId={campaign.id}
-                    acceptedCount={acceptedCount}
-                    formattedTotal={formatEtb(committed)}
-                    testMode={uxMode === 'chapa-test'}
-                    size="lg"
-                  />
-                )}
-              </div>
             ) : null}
-          </section>
+            {performance.settlement.paidOut > 0 ? (
+              <>
+                <LedgerRow
+                  label={PAID_OUT_LABEL}
+                  value={formatEtb(performance.settlement.paidOut)}
+                />
+                <LedgerRow
+                  label={COMMISSION_LABEL}
+                  value={formatEtb(performance.settlement.commission)}
+                  note={SETTLEMENT_NOTE}
+                />
+              </>
+            ) : null}
+            {performance.settlement.refunded > 0 ? (
+              <LedgerRow
+                label={REFUNDED_LABEL}
+                value={formatEtb(performance.settlement.refunded)}
+                note={REFUNDED_NOTE}
+              />
+            ) : null}
+          </div>
+
+          {campaign.status === 'confirmed' ? (
+            <div className="bd-railcell">
+              {!chapaMode ? (
+                <FundCampaignButton
+                  campaignId={campaign.id}
+                  acceptedCount={acceptedCount}
+                  size="lg"
+                />
+              ) : openSession ? (
+                <PendingPaymentBanner
+                  campaignId={campaign.id}
+                  checkoutUrl={openSession.checkoutUrl}
+                />
+              ) : (
+                <FundCheckoutButton
+                  campaignId={campaign.id}
+                  acceptedCount={acceptedCount}
+                  formattedTotal={formatEtb(committed)}
+                  testMode={uxMode === 'chapa-test'}
+                  size="lg"
+                />
+              )}
+            </div>
+          ) : null}
         </aside>
       </div>
-      {settled && insights && <CampaignInsightsPanel insights={insights} />}
-      {settled ? (
-        <VideoPerformance
-          deals={performance.deals}
-          totals={performance.totals}
-        />
-      ) : null}
-    </PageFrame>
+    </BdShell>
   );
 }

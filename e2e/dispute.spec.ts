@@ -1,5 +1,12 @@
 import { expect, test } from '@playwright/test';
-import { DEMO, openCampaign, openCreatorDeal, signIn } from './helpers';
+import {
+  DEMO,
+  openCampaign,
+  openConfirmDialog,
+  openCreatorDeal,
+  settledMain,
+  signIn,
+} from './helpers';
 
 /**
  * KAN-60 flow 6 — admin dispute resolution (AC-030, AC-031). The refund path
@@ -36,9 +43,11 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Summer Dispute');
-  // Funding asks first through the shared ConfirmDialog — click Fund, then
-  // the dialog's confirm button.
-  await brand.getByRole('button', { name: 'Fund campaign' }).click();
+  // Funding asks first through the shared ConfirmDialog — open it
+  // (hydration-safe: the first click can land before React attaches the
+  // handler and burn the whole test timeout waiting on a dialog that never
+  // opens), then confirm.
+  await openConfirmDialog(brand, 'Fund campaign');
   await brand
     .getByRole('dialog')
     .getByRole('button', { name: 'Fund campaign' })
@@ -176,6 +185,8 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   // The admin console has both a nav link and a card link to Audit log.
   // Use the card link (the larger one) by scoping to the card grid.
   await admin.locator('a[href="/admin/audit-log"]').last().click();
+  await admin.waitForURL(/\/admin\/audit-log/);
+  await settledMain(admin);
   await expect(admin.getByRole('heading', { name: 'Audit log' })).toBeVisible({
     timeout: 15_000,
   });

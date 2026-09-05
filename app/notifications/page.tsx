@@ -1,9 +1,7 @@
 import Link from 'next/link';
-import { Chip } from '@/components/ui/chip';
+import { BdShell, BdPageHead } from '@/components/brand/v4-shell';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
-import { PageHeader } from '@/components/layout/page-header';
-import { EmptyState } from '@/components/feedback/empty-state';
-import { buttonVariants } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { inAppNotificationDetail } from '@/lib/notifications/copy';
 import { deepLink } from '@/lib/notifications/deep-link';
 import { listNotifications, unreadCount } from '@/lib/notifications/queries';
@@ -38,6 +36,27 @@ const NOTIFICATION_LABELS: Record<string, string> = {
   metric_reminder: 'Metrics reminder',
   tier_upgraded: 'Tier upgraded',
   tier_assigned: 'Tier updated',
+};
+
+/**
+ * Notification type → v4 chip tone, the campaigns pages' status vocabulary:
+ * green for settled good news, amber for something waiting on the reader,
+ * red for a closed door, teal for neutral movement.
+ */
+const TYPE_TONE: Record<string, string> = {
+  offer_received: 'bd-capstatus--wait',
+  verification_result: 'bd-capstatus--live',
+  campaign_funded: 'bd-capstatus--live',
+  deliverable_submitted: 'bd-capstatus--wait',
+  deliverable_approved: 'bd-capstatus--done',
+  revision_requested: 'bd-capstatus--wait',
+  dispute_resolved: 'bd-capstatus--done',
+  offer_expired: 'bd-capstatus--dead',
+  offer_accepted: 'bd-capstatus--done',
+  offer_declined: 'bd-capstatus--dead',
+  metric_reminder: 'bd-capstatus--wait',
+  tier_upgraded: 'bd-capstatus--done',
+  tier_assigned: 'bd-capstatus--live',
 };
 
 function formatTimestamp(date: Date): string {
@@ -81,32 +100,31 @@ function NotificationItem({
     label;
 
   return (
-    <li
-      className={`border-b border-neutral-200 px-1 py-5 transition-colors duration-300 hover:bg-neutral-100/60 sm:px-4 ${
-        isUnread ? 'border-l-2 border-l-brand bg-brand-tint/25' : ''
-      }`}
-    >
-      <div className="flex flex-wrap items-center gap-2">
-        <InitialsAvatar name={avatarName} size="sm" />
-        <Chip tone={isUnread ? 'teal' : 'gray'}>{label}</Chip>
-        {isUnread && (
-          <span className="text-xs font-medium text-brand-ink">New</span>
-        )}
-        <span className="text-xs text-muted-foreground">
-          {formatTimestamp(row.createdAt)}
-        </span>
-      </div>
-      {detail ? (
-        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-neutral-700">
-          {detail}
-        </p>
-      ) : null}
-      <div className="mt-2 flex items-center gap-3">
-        {/* Opening a notification is reading it, so following this link clears
-            the unread state on its own (KAN-200). `MarkReadButton` stays for a
-            row the user wants to clear without opening it. */}
-        <ViewDetailsLink notificationId={row.id} href={href} />
-        {isUnread && <MarkReadButton notificationId={row.id} />}
+    <li className={cn('bd-ntrow', isUnread && 'bd-ntrow--new')}>
+      <InitialsAvatar name={avatarName} size="sm" />
+      <div className="bd-ntbody">
+        <div className="bd-nthead">
+          <span
+            className={cn(
+              'bd-capstatus',
+              TYPE_TONE[row.type] ?? 'bd-capstatus--live'
+            )}
+          >
+            {label}
+          </span>
+          {isUnread ? <span className="bd-ntnew">New</span> : null}
+          <time className="bd-nttime bd-mono">
+            {formatTimestamp(row.createdAt)}
+          </time>
+        </div>
+        {detail ? <p className="bd-ntdetail">{detail}</p> : null}
+        <div className="bd-ntacts">
+          {/* Opening a notification is reading it, so following this link clears
+              the unread state on its own (KAN-200). `MarkReadButton` stays for a
+              row the user wants to clear without opening it. */}
+          <ViewDetailsLink notificationId={row.id} href={href} />
+          {isUnread && <MarkReadButton notificationId={row.id} />}
+        </div>
       </div>
     </li>
   );
@@ -119,44 +137,93 @@ export default async function NotificationsPage() {
     unreadCount(user.id),
   ]);
 
+  // Two chapters: what still needs the reader's eye, then everything they
+  // have already seen — the same ruler grammar every workspace page speaks.
+  const fresh = result.rows.filter((row) => row.readAt === null);
+  const earlier = result.rows.filter((row) => row.readAt !== null);
+
   return (
-    <div className="flex flex-col gap-8">
-      <PageHeader
-        label="Activity"
+    <BdShell>
+      <BdPageHead
+        eyebrow="Activity"
         title="Notifications"
-        description={
-          unread > 0
-            ? `${unread} unread notification${unread === 1 ? '' : 's'}`
-            : "You're all caught up."
+        facts={
+          unread > 0 ? (
+            <>
+              <b className="bd-mono">{unread}</b> unread{' '}
+              {unread === 1 ? 'notification' : 'notifications'}
+            </>
+          ) : (
+            "You're all caught up."
+          )
         }
+        ruled
       />
 
       {result.rows.length === 0 ? (
-        <EmptyState
-          title="No notifications yet"
-          description="Activity on your deals, campaigns, and account will appear here."
-          action={
-            <Link
-              href="/dashboard"
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            >
+        <div className="bd-rise" style={{ '--i': 1 } as React.CSSProperties}>
+          <div className="bd-emptyfeed bd-emptyfeed--center">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 10a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 14 6 10Z" />
+              <path d="M10.3 19a2 2 0 0 0 3.4 0" />
+            </svg>
+            <h3>No notifications yet</h3>
+            <p>
+              Activity on your deals, campaigns, and account will appear here.
+            </p>
+            <Link href="/dashboard" className="bd-btn bd-btn--primary">
               Go to dashboard
             </Link>
-          }
-        />
+          </div>
+        </div>
       ) : (
-        <ul className="border-t border-neutral-200">
-          {result.rows.map((row) => (
-            <NotificationItem key={row.id} row={row} role={user.role} />
-          ))}
-        </ul>
-      )}
+        <div
+          className="bd-ntwrap bd-rise"
+          style={{ '--i': 1 } as React.CSSProperties}
+        >
+          {fresh.length > 0 ? (
+            <section className="bd-ntsection bd-ntsection--new">
+              <div className="bd-capruler">
+                <span className="bd-ntdot" aria-hidden="true" />
+                <span className="bd-caprulertitle">New</span>
+                <span className="bd-caprulerline" aria-hidden="true" />
+                <span className="bd-caprulercount bd-mono">
+                  {fresh.length} {fresh.length === 1 ? 'entry' : 'entries'}
+                </span>
+              </div>
+              <ul className="bd-ntlist">
+                {fresh.map((row) => (
+                  <NotificationItem key={row.id} row={row} role={user.role} />
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
-      {result.hasMore && (
-        <p className="text-sm text-muted-foreground">
-          Older notifications are on subsequent pages. Paging is coming soon.
-        </p>
+          {earlier.length > 0 ? (
+            <section className="bd-ntsection bd-ntsection--earlier">
+              <div className="bd-capruler">
+                <span className="bd-caprulertitle">Earlier</span>
+                <span className="bd-caprulerline" aria-hidden="true" />
+                <span className="bd-caprulercount bd-mono">
+                  {earlier.length} {earlier.length === 1 ? 'entry' : 'entries'}
+                </span>
+              </div>
+              <ul className="bd-ntlist">
+                {earlier.map((row) => (
+                  <NotificationItem key={row.id} row={row} role={user.role} />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {result.hasMore && (
+            <p className="bd-ntmore">
+              Older notifications are on subsequent pages. Paging is coming
+              soon.
+            </p>
+          )}
+        </div>
       )}
-    </div>
+    </BdShell>
   );
 }

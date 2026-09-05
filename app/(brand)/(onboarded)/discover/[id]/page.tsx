@@ -5,11 +5,10 @@ import {
   ArrowSquareOut,
   TiktokLogo,
 } from '@phosphor-icons/react/dist/ssr';
+import { BdShell } from '@/components/brand/v4-shell';
 import { AddToCartForm } from '@/components/campaign/add-to-cart-form';
 import { AudienceSection } from '@/components/creator/audience-section';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
-import { MagneticAnchor } from '@/components/motion/magnetic-anchor';
-import { StaggerIn } from '@/components/motion/stagger-in';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import { listDraftCampaignsByBrand } from '@/lib/campaigns/queries';
@@ -19,7 +18,6 @@ import {
 } from '@/lib/config/creator-profile';
 import type { Niche } from '@/lib/config/creator-profile';
 import { readCreatorDetail } from '@/lib/creators/detail';
-import { cn, textLinkFeedback } from '@/lib/utils';
 import { tiktokProfileUrl } from '@/lib/creators/handle';
 import {
   VIEW_ON_TIKTOK_LABEL,
@@ -32,7 +30,9 @@ export const runtime = 'nodejs';
 
 /**
  * One creator's profile, for a brand deciding whether to shortlist them
- * (KAN-29, US-004, AC-012).
+ * (KAN-29, US-004, AC-012) — the v4 visual language: the discovery card's
+ * identity grammar scaled up, the fact ledger in big mono numerals, and the
+ * add-to-campaign card riding the sticky rail column.
  */
 
 function Fact({
@@ -45,18 +45,25 @@ function Fact({
   hint?: string;
 }) {
   return (
-    <div className="flex flex-col gap-2 px-0 py-5 sm:px-5 sm:first:pl-0 sm:last:pr-0">
-      <dt className="text-[11px] font-semibold tracking-[0.14em] text-neutral-500 uppercase">
+    <div className="bd-cdfact">
+      <dt className="bd-cdfactlab">
         {label}
+        {hint ? (
+          /* The definition rides an (i) beside the label — hover or focus
+             reveals it, and the sentence stays in the DOM for readers. */
+          <span className="bd-cdinfo" tabIndex={0} aria-label={hint}>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 11v5.5" />
+              <circle cx="12" cy="7.6" r="0.6" fill="currentColor" />
+            </svg>
+            <span role="tooltip" className="bd-cdtip">
+              {hint}
+            </span>
+          </span>
+        ) : null}
       </dt>
-      <dd className="font-mono text-2xl font-medium tracking-tight text-neutral-900 tabular-nums">
-        {value}
-      </dd>
-      {hint ? (
-        <p className="max-w-[36ch] text-xs leading-relaxed text-neutral-500">
-          {hint}
-        </p>
-      ) : null}
+      <dd className="bd-cdfactval bd-mono">{value}</dd>
     </div>
   );
 }
@@ -78,51 +85,57 @@ export default async function CreatorDetailPage({
   const handle = `@${creator.tiktokHandle.replace(/^@+/, '')}`;
 
   return (
-    <StaggerIn className="mx-auto flex max-w-6xl flex-col gap-10 py-4">
-      <Link
-        href="/discover"
-        className={cn(
-          'inline-flex w-fit items-center gap-2 text-sm text-neutral-500',
-          textLinkFeedback
-        )}
-      >
-        <ArrowLeft size={16} weight="regular" aria-hidden />
-        Back to results
-      </Link>
+    <BdShell>
+      <div className="bd-rise" style={{ '--i': 0 } as React.CSSProperties}>
+        <Link href="/discover" className="bd-cdback">
+          <ArrowLeft size={16} weight="regular" aria-hidden />
+          Back to results
+        </Link>
+      </div>
 
-      <div className="grid grid-cols-1 items-start gap-10 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] lg:gap-16">
-        <div className="flex min-w-0 flex-col gap-10">
-          <header className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
+      <div
+        className="bd-cdsplit bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
+        <div className="bd-cdmain">
+          <header className="bd-cdhead">
             <InitialsAvatar
               name={creator.tiktokHandle}
               image={creator.image}
               size="lg"
-              className="size-16 border-neutral-200 bg-neutral-50 text-lg sm:size-20"
+              className="bd-cdavatar size-16 sm:size-20"
             />
-            <div className="flex min-w-0 flex-col gap-3">
-              <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-                Creator
-              </p>
-              <h1 className="page-title">{handle}</h1>
-              <p className="text-sm text-neutral-600">
+            <div className="bd-cdid">
+              <p className="bd-eyebrow">Creator</p>
+              <h1 className="bd-h1">{handle}</h1>
+              <p className="bd-idfacts bd-cdmeta">
                 {NICHE_LABELS[creator.niche as Niche] ?? creator.niche}
-                <span className="text-neutral-400"> · </span>
-                {creator.tierName}
+                <span className="bd-disctier">{creator.tierName}</span>
+                {profileUrl ? (
+                  <a
+                    href={profileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="bd-cdtiktok"
+                  >
+                    <TiktokLogo size={14} weight="regular" aria-hidden />
+                    {VIEW_ON_TIKTOK_LABEL}
+                    <ArrowSquareOut size={12} weight="regular" aria-hidden />
+                  </a>
+                ) : null}
               </p>
-              {profileUrl ? (
-                <MagneticAnchor
-                  href={profileUrl}
-                  className="btn-shine mt-1 inline-flex w-fit items-center gap-2 rounded-full border border-neutral-300 bg-neutral-50 px-4 py-2 text-[13px] font-medium text-neutral-900 transition-[transform,border-color,background-color] duration-300 ease-out hover:-translate-y-0.5 hover:border-neutral-500 hover:bg-neutral-100 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
-                >
-                  <TiktokLogo size={16} weight="regular" aria-hidden />
-                  {VIEW_ON_TIKTOK_LABEL}
-                  <ArrowSquareOut size={14} weight="regular" aria-hidden />
-                </MagneticAnchor>
-              ) : null}
             </div>
           </header>
 
-          <dl className="grid grid-cols-1 divide-y divide-neutral-200 border-y border-neutral-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+          <div className="bd-capruler">
+            <span className="bd-caprulertitle">Track record</span>
+            <span className="bd-caprulerline" aria-hidden="true" />
+            <span className="bd-caprulernote">
+              Published figures from the creator&apos;s profile
+            </span>
+          </div>
+
+          <dl className="bd-cdfacts">
             <Fact
               label="Followers"
               value={formatFollowerCount(creator.followerCount)}
@@ -135,16 +148,24 @@ export default async function CreatorDetailPage({
             <Fact label="Per video" value={formatEtb(creator.pricePerVideo)} />
           </dl>
 
-          <AudienceSection audience={creator.audience} title="Audience" />
+          <div className="bd-capruler">
+            <span className="bd-caprulertitle">Audience</span>
+            <span className="bd-caprulerline" aria-hidden="true" />
+            <span className="bd-caprulernote">Who this creator reaches</span>
+          </div>
+
+          <div className="bd-cdaudience">
+            <AudienceSection audience={creator.audience} title="Audience" />
+          </div>
         </div>
 
-        <div className="lg:sticky lg:top-24">
+        <aside className="bd-cdrail">
           <AddToCartForm
             creatorId={creator.id}
             campaigns={campaigns.map((c) => ({ id: c.id, name: c.name }))}
           />
-        </div>
+        </aside>
       </div>
-    </StaggerIn>
+    </BdShell>
   );
 }

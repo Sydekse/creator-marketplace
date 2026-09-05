@@ -17,19 +17,9 @@ import {
 } from '@/lib/deals/inbox';
 import { GROUP_LABELS } from '@/lib/deals/groups';
 import type { DealGroup } from '@/lib/deals/groups';
-import { Chip, type ChipTone } from '@/components/ui/chip';
-import { buttonVariants } from '@/components/ui/button';
 import { TruncatedText } from '@/components/ui/truncated-text';
 import { formatEtb } from '@/lib/money';
 import { cn } from '@/lib/utils';
-
-const GROUP_PILL: Record<DealGroup, ChipTone> = {
-  pending: 'amber',
-  in_progress: 'teal',
-  awaiting_approval: 'amber',
-  completed: 'success',
-  closed: 'gray',
-};
 
 const GROUP_MARK = {
   pending: EnvelopeSimple,
@@ -53,29 +43,20 @@ const GROUP_MARK_CLASS: Record<DealGroup, string> = {
  * Status is said once, by the chip above the group; the ring only hints it.
  */
 const GROUP_ROW: Record<DealGroup, string> = {
-  pending:
-    'border-neutral-200 bg-background border-l-[3px] border-l-[color-mix(in_oklch,var(--status-pending-foreground)_85%,var(--border))] hover:border-[color-mix(in_oklch,var(--status-pending-foreground)_50%,var(--border))] hover:border-l-[color-mix(in_oklch,var(--status-pending-foreground)_85%,var(--border))]',
-  in_progress:
-    'border-neutral-200 bg-background border-l-[3px] border-l-brand/85 hover:border-brand/50 hover:border-l-brand/85',
-  awaiting_approval:
-    'border-neutral-200 bg-background border-l-[3px] border-l-[color-mix(in_oklch,var(--status-pending-foreground)_85%,var(--border))] hover:border-[color-mix(in_oklch,var(--status-pending-foreground)_50%,var(--border))] hover:border-l-[color-mix(in_oklch,var(--status-pending-foreground)_85%,var(--border))]',
-  completed:
-    'border-neutral-200 bg-background border-l-[3px] border-l-[color-mix(in_oklch,var(--status-verified-foreground)_80%,var(--border))] hover:border-[color-mix(in_oklch,var(--status-verified-foreground)_50%,var(--border))] hover:border-l-[color-mix(in_oklch,var(--status-verified-foreground)_80%,var(--border))]',
-  closed:
-    'border-neutral-200 bg-background border-l-[3px] border-l-neutral-300 hover:border-neutral-300 hover:border-l-neutral-300',
+  pending: 'bd-cr-dealrow--wait',
+  in_progress: 'bd-cr-dealrow--live',
+  awaiting_approval: 'bd-cr-dealrow--wait',
+  completed: 'bd-cr-dealrow--done',
+  closed: 'bd-cr-dealrow--dead',
 };
 
 /** A 2px status ring on the row's avatar — the group's colour, on the row. */
 const GROUP_GHOST: Record<DealGroup, string> = {
-  pending:
-    'border-[color-mix(in_oklch,var(--status-pending-foreground)_22%,var(--border))] bg-[color-mix(in_oklch,var(--status-pending)_42%,white)]',
-  in_progress:
-    'border-[color-mix(in_oklch,var(--brand)_22%,var(--border))] bg-[color-mix(in_oklch,var(--brand-tint)_45%,white)]',
-  awaiting_approval:
-    'border-[color-mix(in_oklch,var(--status-pending-foreground)_22%,var(--border))] bg-[color-mix(in_oklch,var(--status-pending)_42%,white)]',
-  completed:
-    'border-[color-mix(in_oklch,var(--status-verified-foreground)_22%,var(--border))] bg-[color-mix(in_oklch,var(--status-verified)_45%,white)]',
-  closed: 'border-neutral-200 bg-neutral-50',
+  pending: 'bd-cr-dealempty--wait',
+  in_progress: 'bd-cr-dealempty--live',
+  awaiting_approval: 'bd-cr-dealempty--wait',
+  completed: 'bd-cr-dealempty--done',
+  closed: 'bd-cr-dealempty--dead',
 };
 
 /**
@@ -106,9 +87,7 @@ function ExpiryLine({
   now: Date;
 }) {
   return (
-    <span className="text-xs text-muted-foreground">
-      {expiryLabel(offerExpiresAt, now)}
-    </span>
+    <span className="bd-cr-dealmeta">{expiryLabel(offerExpiresAt, now)}</span>
   );
 }
 
@@ -143,25 +122,22 @@ function DealRow({
   return (
     <li
       className={cn(
-        'group relative flex min-h-20 flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-2xl border px-4 py-3 transition-[transform,box-shadow,border-color] duration-200 ease-[var(--ease-smooth)] hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-20px_rgba(23,23,23,0.4)]',
+        'bd-cr-dealrow',
         // The accent is the row's own left border: a 3px status strip that
         // runs the full height and follows the corner radius. No pseudo-element.
         wash
       )}
     >
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="bd-cr-dealidentity">
         {/* Larger than the default avatar (38px) now that it is the row's
             only identity mark — the status ring moved to the row border. */}
         <InitialsAvatar
           name={deal.companyName}
           className="size-[38px] text-sm"
         />
-        <div className="flex min-w-0 flex-col gap-1">
-          <TruncatedText
-            text={deal.campaignName}
-            className="text-sm font-semibold text-neutral-900"
-          />
-          <span className="text-xs text-muted-foreground">
+        <div className="bd-cr-dealcopy">
+          <TruncatedText text={deal.campaignName} className="bd-cr-dealtitle" />
+          <span className="bd-cr-dealmeta">
             {deal.companyName} · {deal.videoCount}{' '}
             {deal.videoCount === 1 ? 'video' : 'videos'}
           </span>
@@ -171,16 +147,13 @@ function DealRow({
           <DeadlineSummary deal={deal} now={now} />
         </div>
       </div>
-      <div className="flex flex-col items-end gap-1">
-        <span className="font-mono text-sm font-medium text-neutral-900 tabular-nums">
+      <div className="bd-cr-dealvalue">
+        <span className="bd-cr-dealamount bd-mono">
           {formatEtb(deal.totalPrice)}
         </span>
         <Link
           href={`/creator/deals/${deal.id}`}
-          className={cn(
-            buttonVariants({ size: 'sm' }),
-            'bg-brand-deep text-neutral-50 group-hover:bg-brand-strong'
-          )}
+          className="bd-btn bd-btn--primary bd-cr-dealbtn"
         >
           {VIEW_DEAL_LABEL}
           {/* Distinguishes the row's link for a screen reader (and for tests
@@ -204,26 +177,19 @@ function Group({ group, now }: { group: InboxGroup; now: Date }) {
   const Mark = GROUP_MARK[group.group];
 
   return (
-    <section className="flex flex-col gap-3">
-      <div className="flex items-center justify-between gap-4">
-        <h2>
-          <Chip
-            tone={GROUP_PILL[group.group]}
-            size="md"
-            className="font-semibold tracking-[0.06em]"
-          >
-            {title}
-          </Chip>
-        </h2>
+    <section className="bd-cr-group" id={group.group}>
+      <div className="bd-capruler bd-cr-groupruler">
+        <h2 className="bd-caprulertitle">{title}</h2>
+        <span className="bd-caprulerline" aria-hidden="true" />
         {group.count > 0 ? (
-          <span className="font-mono text-xs text-muted-foreground tabular-nums">
+          <span className="bd-caprulercount bd-mono bd-cr-groupcount">
             {group.count}
           </span>
         ) : null}
       </div>
 
       {group.deals.length > 0 ? (
-        <ul className="flex flex-col gap-2">
+        <ul className="bd-cr-deallist">
           {group.deals.map((deal) => (
             <DealRow
               key={deal.id}
@@ -234,21 +200,14 @@ function Group({ group, now }: { group: InboxGroup; now: Date }) {
           ))}
         </ul>
       ) : (
-        <div
-          className={cn(
-            'flex min-h-20 items-center gap-3 rounded-2xl border border-dashed px-4 py-3',
-            GROUP_GHOST[group.group]
-          )}
-        >
+        <div className={cn('bd-cr-dealempty', GROUP_GHOST[group.group])}>
           <Mark
             size={12}
             weight="regular"
             aria-hidden
             className={cn('opacity-40', GROUP_MARK_CLASS[group.group])}
           />
-          <p className="text-sm text-muted-foreground italic">
-            {empty.replace(/\.$/, '')}
-          </p>
+          <p>{empty.replace(/\.$/, '')}</p>
         </div>
       )}
     </section>
@@ -263,7 +222,7 @@ export function DealInbox({
   now: Date;
 }) {
   return (
-    <div className="grid gap-8 lg:grid-cols-2 lg:gap-x-8 lg:gap-y-10">
+    <div className="bd-cr-inbox">
       {groups.map((group) => (
         <Group key={group.group} group={group} now={now} />
       ))}

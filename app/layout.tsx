@@ -1,21 +1,8 @@
 import type { Metadata } from 'next';
 import localFont from 'next/font/local';
+import { bdMono, bdSans } from '@/lib/fonts';
+import 'slot-text/style.css';
 import './globals.css';
-
-const dmSans = localFont({
-  src: [{ path: '../public/fonts/dm-sans-latin.woff2', weight: '100 900' }],
-  variable: '--font-dm-sans',
-  display: 'swap',
-});
-
-const dmMono = localFont({
-  src: [
-    { path: '../public/fonts/dm-mono-400-latin.woff2', weight: '400' },
-    { path: '../public/fonts/dm-mono-500-latin.woff2', weight: '500' },
-  ],
-  variable: '--font-dm-mono',
-  display: 'swap',
-});
 
 /** Editorial serif reserved for landing-page display headlines. */
 const notoSerif = localFont({
@@ -66,7 +53,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${dmMono.variable} ${notoSerif.variable} ${bungee.variable} h-full antialiased`}
+      className={`${bdSans.variable} ${bdMono.variable} ${notoSerif.variable} ${bungee.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background font-sans text-foreground">
         {children}

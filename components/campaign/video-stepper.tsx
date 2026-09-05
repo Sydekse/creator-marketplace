@@ -5,7 +5,8 @@ import { cn } from '@/lib/utils';
 
 /**
  * Compact video-count stepper. Phosphor carets, same control on the creator
- * shortlist and the discover bulk bar.
+ * shortlist and the discover bulk bar. `tone` matches the surface it sits
+ * on: `dark` for the neutral-900 batch bar, `light` for v4 paper cards.
  */
 export function VideoStepper({
   value,
@@ -13,14 +14,17 @@ export function VideoStepper({
   name,
   id,
   size = 'md',
+  tone = 'dark',
 }: {
   value: number;
   onChange: (next: number) => void;
   name?: string;
   id?: string;
   size?: 'sm' | 'md';
+  tone?: 'dark' | 'light';
 }) {
   const compact = size === 'sm';
+  const light = tone === 'light';
 
   function clamp(next: number) {
     if (!Number.isInteger(next) || next < 1) return 1;
@@ -31,7 +35,10 @@ export function VideoStepper({
   return (
     <div
       className={cn(
-        'flex items-stretch overflow-hidden rounded-xl border border-neutral-700 bg-neutral-800',
+        'flex items-stretch overflow-hidden rounded-xl border',
+        light
+          ? 'border-neutral-200 bg-white'
+          : 'border-neutral-700 bg-neutral-800',
         compact ? 'h-9 rounded-lg' : 'h-11'
       )}
     >
@@ -41,7 +48,10 @@ export function VideoStepper({
         disabled={value <= 1}
         onClick={() => onChange(clamp(value - 1))}
         className={cn(
-          'grid place-items-center text-neutral-300 transition-colors duration-150 hover:bg-neutral-700 hover:text-neutral-50 active:scale-[0.98] disabled:opacity-40',
+          'grid place-items-center transition-colors duration-150 active:scale-[0.98] disabled:opacity-40',
+          light
+            ? 'text-neutral-600 hover:bg-brand-tint hover:text-brand-ink'
+            : 'text-neutral-300 hover:bg-neutral-700 hover:text-neutral-50',
           compact ? 'w-8' : 'w-10'
         )}
       >
@@ -57,7 +67,10 @@ export function VideoStepper({
         aria-label="Videos"
         onChange={(event) => onChange(clamp(Number(event.target.value)))}
         className={cn(
-          '[appearance:textfield] border-x border-neutral-700 bg-transparent text-center font-medium text-neutral-50 tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+          '[appearance:textfield] border-x bg-transparent text-center font-medium tabular-nums outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+          light
+            ? 'border-neutral-200 text-neutral-900'
+            : 'border-neutral-700 text-neutral-50',
           compact ? 'w-10 text-sm' : 'w-12 text-sm'
         )}
       />
@@ -67,7 +80,10 @@ export function VideoStepper({
         disabled={value >= 100}
         onClick={() => onChange(clamp(value + 1))}
         className={cn(
-          'grid place-items-center text-neutral-300 transition-colors duration-150 hover:bg-neutral-700 hover:text-neutral-50 active:scale-[0.98] disabled:opacity-40',
+          'grid place-items-center transition-colors duration-150 active:scale-[0.98] disabled:opacity-40',
+          light
+            ? 'text-neutral-600 hover:bg-brand-tint hover:text-brand-ink'
+            : 'text-neutral-300 hover:bg-neutral-700 hover:text-neutral-50',
           compact ? 'w-8' : 'w-10'
         )}
       >

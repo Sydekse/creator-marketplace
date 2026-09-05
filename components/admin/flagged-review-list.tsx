@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Spinner } from '@/components/ui/spinner';
-import { EmptyState } from '@/components/feedback/empty-state';
 import type { FlaggedReviewCreator } from '@/lib/creators/flagged-review';
 import type { TierOutcome } from '@/lib/creators/tier-assignment';
 
@@ -118,7 +117,7 @@ function RowActions({ row }: { row: FlaggedReviewRow }) {
   }
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="bd-ad-tieractions">
       {/* Applying a no-match "suggestion" would keep the tier anyway (the
           assign route never clears one), so the button only appears when there
           is a band to move to — otherwise Dismiss is the whole decision. */}
@@ -150,79 +149,81 @@ function RowActions({ row }: { row: FlaggedReviewRow }) {
 export function FlaggedReviewList({ rows }: { rows: FlaggedReviewRow[] }) {
   if (rows.length === 0) {
     return (
-      <EmptyState
-        align="start"
-        title="No downgrades waiting on review"
-        description="Stats refreshes that suggest a lower tier land here for a decision. Nothing is flagged right now."
-      />
+      <div className="bd-emptyfeed">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5.5 6.5h13v11h-13z" />
+          <path d="M8 10h8" />
+          <path d="M8 13.5h5" />
+          <path d="M16 13.5l2 2 3-4" />
+        </svg>
+        <h3>No downgrades waiting on review</h3>
+        <p>
+          Stats refreshes that suggest a lower tier land here for a decision.
+          Nothing is flagged right now.
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto border-b border-neutral-200">
-      <table className="w-full">
-        <thead className="bg-neutral-100/70">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              TikTok Handle
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Current tier
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Followers
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Engagement
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Suggested
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Flagged
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-neutral-200 bg-neutral-50">
-          {rows.map((row) => (
-            <tr
-              key={row.creator.id}
-              className="transition-colors hover:bg-neutral-100/60"
-            >
-              <td className="px-4 py-3">
-                <span className="text-sm font-semibold text-neutral-900">
+    <div className="bd-ad-ledgerframe bd-ad-tierframe">
+      <div className="bd-ad-tiercols" aria-hidden="true">
+        <span>Creator</span>
+        <span>Current tier</span>
+        <span>Followers</span>
+        <span>Engagement</span>
+        <span>Suggested</span>
+        <span>Flagged</span>
+        <span>Actions</span>
+      </div>
+      <ul className="bd-ad-ledgerlist">
+        {rows.map((row) => (
+          <li
+            key={row.creator.id}
+            className="bd-ad-tierrow bd-ad-workrow--wait"
+          >
+            <div className="bd-ad-tierrow-grid">
+              <div className="bd-ad-tiercell">
+                <span className="bd-ad-tierlabel">Creator</span>
+                <span className="bd-ad-tiertitle">
                   @{row.creator.tiktokHandle.replace(/^@+/, '')}
                 </span>
-              </td>
-              <td className="px-4 py-3 text-sm">
-                {row.creator.currentTier ? (
-                  row.creator.currentTier.name
-                ) : (
-                  <span className="text-muted-foreground">No tier</span>
-                )}
-              </td>
-              <td className="px-4 py-3 font-mono text-xs tabular-nums">
-                {formatFollowerCount(row.creator.followerCount)}
-              </td>
-              <td className="px-4 py-3 font-mono text-xs tabular-nums">
-                {formatEngagementRate(row.creator.engagementRate)}
-              </td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">
-                {suggestedLabel(row.suggested)}
-              </td>
-              <td className="px-4 py-3 text-sm text-muted-foreground">
-                {formatDate(row.creator.tierReviewAt)}
-              </td>
-              <td className="px-4 py-3">
-                <RowActions row={row} />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+              </div>
+              <div className="bd-ad-tiercell">
+                <span className="bd-ad-tierlabel">Current tier</span>
+                <span>
+                  {row.creator.currentTier ? (
+                    row.creator.currentTier.name
+                  ) : (
+                    <span className="bd-ad-muted">No tier</span>
+                  )}
+                </span>
+              </div>
+              <div className="bd-ad-tiercell">
+                <span className="bd-ad-tierlabel">Followers</span>
+                <span className="bd-mono">
+                  {formatFollowerCount(row.creator.followerCount)}
+                </span>
+              </div>
+              <div className="bd-ad-tiercell">
+                <span className="bd-ad-tierlabel">Engagement</span>
+                <span className="bd-mono">
+                  {formatEngagementRate(row.creator.engagementRate)}
+                </span>
+              </div>
+              <div className="bd-ad-tiercell bd-ad-tiercell--wide">
+                <span className="bd-ad-tierlabel">Suggested</span>
+                <span>{suggestedLabel(row.suggested)}</span>
+              </div>
+              <div className="bd-ad-tiercell">
+                <span className="bd-ad-tierlabel">Flagged</span>
+                <span>{formatDate(row.creator.tierReviewAt)}</span>
+              </div>
+              <RowActions row={row} />
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

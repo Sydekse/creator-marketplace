@@ -1049,11 +1049,13 @@ describe('remove-from-cart button (AC-015 — the brand-facing half)', () => {
     // stays inside the draft-only arm; browser tests also exercise both states.
     expect(PAGE).toContain("const settled = campaign.status !== 'draft'");
 
-    const ternary = PAGE.search(/settled \? null : \(/);
-    const cartBranch = PAGE.indexOf('Cart ({items.length})');
+    const ternary = PAGE.search(/settled \? \(/);
+    const settledBranch = PAGE.indexOf('<VideoPerformance');
+    const cartBranch = PAGE.indexOf('bd-cartgrid');
     const button = PAGE.indexOf('<RemoveFromCartButton');
 
     expect(ternary).toBeGreaterThan(-1);
+    expect(settledBranch).toBeGreaterThan(ternary);
     expect(cartBranch).toBeGreaterThan(ternary);
     expect(button).toBeGreaterThan(cartBranch);
   });

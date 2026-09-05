@@ -8,6 +8,7 @@ import {
   fillHydrated,
   openConfirmDialog,
   expectMutationOk,
+  settledMain,
   submitVideo,
 } from './helpers';
 
@@ -56,6 +57,7 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
     );
     expect(cart.ok()).toBe(true);
     await brand.goto(`/campaigns/${campaignId}`);
+    await settledMain(brand);
     await openConfirmDialog(brand, 'Send offers');
     await expect(brand.getByRole('dialog')).toContainText(
       'Within 7 days after funding'
@@ -71,6 +73,7 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
       .from(deal)
       .where(eq(deal.campaignId, campaignId));
     await creator.goto(`/creator/deals/${offer.id}`);
+    await settledMain(creator);
     await expect(agreement(creator)).toContainText(
       'Within 7 days after funding'
     );
@@ -89,6 +92,7 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
       creator.getByRole('button', { name: 'Accept offer' }).click()
     );
     await brand.goto(`/campaigns/${campaignId}`);
+    await settledMain(brand);
     await openConfirmDialog(brand, 'Fund campaign');
     await expectMutationOk(brand, '/fund', () =>
       brand
@@ -101,6 +105,7 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
       .toISOString()
       .slice(0, 16);
     await creator.goto(`/creator/deals/${offer.id}`);
+    await settledMain(creator);
     await agreement(creator)
       .locator('summary')
       .filter({ hasText: 'Request a delivery extension' })
@@ -117,6 +122,7 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
         .click()
     );
     await brand.goto(`/deals/${offer.id}`);
+    await settledMain(brand);
     await expect(agreement(brand)).toContainText(
       'Extension pending — not yet agreed'
     );
@@ -124,6 +130,7 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
       agreement(brand).getByRole('button', { name: 'Accept extension' })
     ).toBeVisible();
     await creator.reload();
+    await settledMain(creator);
     await expect(
       agreement(creator).getByRole('button', { name: 'Accept extension' })
     ).toHaveCount(0);
@@ -131,6 +138,7 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
       agreement(creator).getByRole('button', { name: 'Withdraw extension' })
     ).toBeVisible();
     await admin.goto(`/admin/deals/${offer.id}`);
+    await settledMain(admin);
     await expect(agreement(admin)).toContainText(
       'Extension pending — not yet agreed'
     );
@@ -143,13 +151,13 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
       .click();
     expect((await accepted).status()).toBe(200);
     await creator.reload();
+    await settledMain(creator);
     await brand.reload();
+    await settledMain(brand);
     const currentDeadline = (page: Page) =>
-      agreement(page)
-        .locator('dt')
-        .filter({ hasText: 'Current delivery deadline' })
-        .locator('..')
-        .locator('dd');
+      // The v4 card shows the operative deadline as the hero numeral rather
+      // than a dt/dd ledger row.
+      agreement(page).locator('.bd-agreehero-num');
     const finalDue = await currentDeadline(brand).innerText();
     await expect(currentDeadline(creator)).toHaveText(finalDue);
     await agreement(creator)
@@ -169,6 +177,7 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
         .filter({ hasText: 'Request a delivery extension' })
     ).toHaveCount(0);
     await brand.goto(`/campaigns/${campaignId}`);
+    await settledMain(brand);
     const timing = brand.getByRole('region', {
       name: 'Campaign delivery timing',
     });
@@ -178,10 +187,12 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
       brand.getByText('Your collaboration history', { exact: true })
     ).toBeVisible();
     await creator.goto('/notifications');
+    await settledMain(creator);
     await expect(
       creator.getByText('Delivery extension accepted', { exact: true }).first()
     ).toBeVisible();
     await brand.goto(`/deals/${offer.id}`);
+    await settledMain(brand);
     await agreement(brand).scrollIntoViewIfNeeded();
     await brand.screenshot({
       path: info.outputPath('delivery-agreement.png'),

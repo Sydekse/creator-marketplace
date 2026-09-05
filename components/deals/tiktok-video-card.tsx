@@ -48,7 +48,7 @@ export function TiktokVideoCard({
   const [playing, setPlaying] = useState(false);
 
   const playBadge = (
-    <span className="grid h-8 w-8 place-items-center rounded-full bg-brand-deep transition-transform group-hover:scale-110">
+    <span className="bd-dlplay">
       <Play size={12} weight="fill" className="text-neutral-50" aria-hidden />
     </span>
   );
@@ -78,8 +78,8 @@ export function TiktokVideoCard({
   );
 
   const frameClass = cn(
-    'group relative block aspect-[9/16] shrink-0 overflow-hidden rounded-xl border border-neutral-200',
-    playing ? PLAYER_WIDTH_CLASS : 'w-24 sm:w-28'
+    'bd-dlthumb group',
+    playing ? `bd-tiktokframe--playing ${PLAYER_WIDTH_CLASS}` : 'w-24 sm:w-28'
   );
 
   return (
@@ -123,7 +123,7 @@ export function TiktokVideoCard({
         target="_blank"
         rel="noopener noreferrer nofollow"
         className={cn(
-          'inline-flex items-center gap-1 text-xs',
+          'bd-vplink inline-flex items-center gap-1 text-xs',
           textLinkFeedback
         )}
       >

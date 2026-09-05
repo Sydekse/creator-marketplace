@@ -56,8 +56,10 @@ export function MainNav({ user, cart }: MainNavProps) {
         const Icon = NAV_ICONS[link.icon];
         // The cart entry's href is a placeholder — it resolves to the active
         // draft's cart, and it is active exactly when the brand is standing in
-        // that cart, not whenever any /campaigns page is open.
+        // that cart. With no draft cart there is nowhere for it to go, so it
+        // does not render at all.
         const isCart = link.icon === 'cart';
+        if (isCart && !cart) return null;
         const href = isCart ? (cart?.href ?? link.href) : link.href;
         const isActive = isNavLinkActive(link, pathname, cart?.href, links);
         const badge = isCart && cart && cart.itemCount > 0 ? cart.itemCount : 0;

@@ -5,12 +5,12 @@ import { VideoHistory } from '@/components/deals/video-history';
 import { selectVideoHistory } from '@/lib/deliverables/read-history';
 import { REVISION_CATEGORY_LABELS } from '@/lib/deliverables/evidence';
 import { ArrowLeft } from '@phosphor-icons/react/dist/ssr';
+import { BdShell } from '@/components/brand/v4-shell';
 import { DealHistory, DealProgressRail } from '@/components/deals/deal-history';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { MetricsForm } from '@/components/deals/metrics-form';
 import { DeliverableForm } from '@/components/deals/deliverable-form';
 import { TiktokVideoCard } from '@/components/deals/tiktok-video-card';
-import { parseTiktokVideoId } from '@/lib/deliverables/thumbnail';
 import { OfferActions } from '@/components/deals/offer-actions';
 import { UsageRightsCard } from '@/components/deals/usage-rights';
 import { NO_EXPIRY_LABEL, expiryLabel, formatDeadlineUtc } from '@/lib/dates';
@@ -21,9 +21,6 @@ import {
   labelForReviewStatus,
   labelForStatus,
 } from '@/lib/deals';
-import { Chip } from '@/components/ui/chip';
-import { SectionLabel } from '@/components/layout/section-label';
-import { dealStatusTone } from '@/lib/deals/status-tone';
 import {
   COMMISSION_LABEL,
   DEAL_TERMS_TITLE,
@@ -42,14 +39,14 @@ import {
   standingVideoCount,
   SUBMITTED_AT_LABEL,
   TOTAL_PRICE_LABEL,
-  UNIT_PRICE_LABEL,
-  VIDEO_COUNT_LABEL,
   videoHeading,
   readCreatorDeal,
 } from '@/lib/deals/detail';
 import { getDealHistory } from '@/lib/deals/queries';
+import { parseTiktokVideoId } from '@/lib/deliverables/thumbnail';
 import { formatEtb } from '@/lib/money';
 import { isMoneyHeld } from '@/lib/payment/ledger';
+import { cn } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -71,34 +68,28 @@ export const runtime = 'nodejs';
  * Nothing on this page computes money. `readCreatorDeal` already applied the
  * split using the deal's own snapshotted `commission_rate` (invariant 8), so the
  * only arithmetic-shaped call below is `formatEtb`.
+ *
+ * v4 conversion: shared creator shell and ruled detail layout; imported action,
+ * history, and form components keep their behavior contracts.
  */
 
-function Fact({
-  label,
-  value,
-  accent = false,
-}: {
-  label: string;
-  value: string;
-  accent?: boolean;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-        {label}
-      </dt>
-      <dd
-        className={
-          accent
-            ? 'font-sans text-base font-bold tracking-[-0.02em] text-brand-ink tabular-nums'
-            : 'font-mono text-sm font-medium text-neutral-900 tabular-nums'
-        }
-      >
-        {value}
-      </dd>
-    </div>
-  );
-}
+const DEAL_STATUS_CAP: Record<string, string> = {
+  pending: 'bd-capstatus--wait',
+  accepted: 'bd-capstatus--live',
+  funded: 'bd-capstatus--live',
+  delivered: 'bd-capstatus--wait',
+  revision_requested: 'bd-capstatus--wait',
+  completed: 'bd-capstatus--done',
+  declined: 'bd-capstatus--dead',
+  expired: 'bd-capstatus--dead',
+  refunded: 'bd-capstatus--dead',
+};
+
+const REVIEW_ACCENT: Record<string, string> = {
+  pending: 'bd-cr-video--wait',
+  approved: 'bd-cr-video--done',
+  rejected: 'bd-cr-video--wait',
+};
 
 export default async function CreatorDealDetailPage({
   params,
@@ -162,170 +153,232 @@ export default async function CreatorDealDetailPage({
   );
 
   return (
-    <div className="flex flex-col gap-8 py-4">
-      <Link
-        href="/creator/deals"
-        className="group inline-flex w-fit items-center gap-1.5 text-sm font-medium text-neutral-600 transition-colors duration-200 ease-out hover:text-neutral-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
-      >
-        <ArrowLeft
-          size={14}
-          weight="regular"
-          aria-hidden
-          className="transition-transform duration-200 ease-out group-hover:-translate-x-0.5"
-        />
+    <BdShell className="bd-cr bd-cr-dealdetail">
+      <Link href="/creator/deals" className="bd-cdback bd-cr-back">
+        <ArrowLeft size={14} weight="regular" aria-hidden />
         Back to your deals
       </Link>
 
-      {/* Header: name + state, then the rail that shows where it stands. */}
-      <header className="flex flex-col gap-5">
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <InitialsAvatar name={deal.companyName} size="sm" />
-            <span className="text-sm font-medium text-neutral-800">
-              {deal.companyName}
-            </span>
-            <Chip
-              tone={dealStatusTone[deal.status]}
-              size="md"
-              className="px-3.5 py-1.5 text-[13px] font-semibold tracking-[0.06em]"
-            >
-              {labelForStatus(deal.status)}
-            </Chip>
+      {/* Header as the offer sheet's masthead: identity left, the money and
+          clock as a right-aligned status column — the mock's asymmetric
+          pagehead, with the showreel sprocket strip running above. */}
+      <header
+        className="bd-cr-dealhead2 bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
+        <div className="bd-cr-dealhead2-id">
+          <InitialsAvatar
+            name={deal.companyName}
+            size="lg"
+            className="bd-cdavatar size-16 sm:size-20"
+          />
+          <div className="bd-cdid">
+            <p className="bd-eyebrow">Creator workspace</p>
+            <h1 className="bd-h1">{deal.campaignName}</h1>
+            <p className="bd-idfacts bd-cdmeta">
+              <span
+                className={cn(
+                  'bd-capstatus',
+                  DEAL_STATUS_CAP[deal.status] ?? 'bd-capstatus--draft'
+                )}
+              >
+                {labelForStatus(deal.status)}
+              </span>
+              <span>{deal.companyName}</span>
+            </p>
           </div>
-          <h1 className="page-title tracking-tight">{deal.campaignName}</h1>
         </div>
-
-        {/* The rail is the deal's state made visible — always rendered, even
-            with no events, so a pending deal shows step 1 highlighted instead
-            of a blank aside. */}
-        <div className="animate-rise-in rounded-[24px] border border-neutral-200 bg-background px-4 py-5 sm:px-6">
-          <DealProgressRail status={deal.status} events={history} />
-        </div>
-
-        <div className="border-b border-neutral-200" aria-hidden="true" />
+        <p className="bd-cr-dealhead2-status">
+          {deal.status !== 'declined' && deal.status !== 'expired' ? (
+            <span className="bd-cr-sline">
+              You {deal.status === 'completed' ? 'earned' : 'earn'}{' '}
+              <b className="bd-mono">{formatEtb(deal.expectedPayout)}</b>
+              {deal.status === 'completed' ? '' : ' on approval'}
+            </span>
+          ) : null}
+          <span className="bd-cr-sline">
+            {OFFER_EXPIRY_LABEL}: <b className="bd-mono">{deadline}</b>
+          </span>
+        </p>
       </header>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(280px,0.75fr)] lg:items-start lg:gap-8">
-        <div className="flex flex-col gap-6">
-          <DeadlineSection dealId={id} />
-          {/* The money — the page's reason to exist, wearing the dashboard's
-              payout-card surface: full teal wash, brand border, and the
-              expected payout in a white inset panel inside it. */}
-          <section className="surface-pop animate-rise-in-1 rounded-[24px] border border-brand/40 p-5 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.25)] sm:p-6">
-            <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-              <SectionLabel>{DEAL_TERMS_TITLE}</SectionLabel>
-              <p className="font-mono text-xs text-muted-foreground">
-                {OFFER_EXPIRY_LABEL}: {deadline}
-              </p>
-            </div>
+      {/* The rail is the deal's state made visible — always rendered, even
+          with no events, so a pending deal shows step 1 highlighted instead
+          of a blank aside. */}
+      <div
+        className="bd-cr-progress bd-rise"
+        style={{ '--i': 2 } as React.CSSProperties}
+      >
+        <DealProgressRail status={deal.status} events={history} />
+      </div>
 
-            <div className="mt-5 flex flex-col gap-1 rounded-2xl border border-neutral-200 bg-background px-4 py-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                {EXPECTED_PAYOUT_LABEL}
-              </p>
-              <p className="font-sans text-3xl font-bold tracking-[-0.04em] text-brand-ink tabular-nums">
-                {formatEtb(deal.expectedPayout)}
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {PAYOUT_ESTIMATE_NOTE}
-              </p>
-            </div>
+      <div
+        className="bd-cr-detail-split bd-rise"
+        style={{ '--i': 3 } as React.CSSProperties}
+      >
+        <div className="bd-cr-detail-main">
+          {/* The vault — the deal's money as one composed statement. While
+              the offer is open it reads as the equation (total − commission
+              = payout); the moment funds are held it recomposes around the
+              payout as the hero numeral, on the mock's escrow cell: ink-teal
+              surface, radial sheen, the supporting figures as a quiet ledger
+              beside it. */}
+          {isMoneyHeld(deal.status) ? (
+            <section className="bd-dv bd-dv--held">
+              <div className="bd-dv-head">
+                <span className="bd-dv-k">{DEAL_TERMS_TITLE}</span>
+                <span className="bd-dv-note bd-mono">{FUNDS_HELD_LABEL}</span>
+              </div>
+              <div className="bd-dv-heldgrid">
+                <div className="bd-dv-hero">
+                  <span className="bd-dv-lab">{EXPECTED_PAYOUT_LABEL}</span>
+                  <span className="bd-dv-heronum bd-mono">
+                    {formatEtb(deal.expectedPayout)}
+                  </span>
+                  <span className="bd-dv-sub">
+                    released when the brand approves your{' '}
+                    {deal.videoCount === 1 ? 'video' : 'videos'}
+                  </span>
+                </div>
+                <dl className="bd-dv-ledger">
+                  <div>
+                    <dt>{TOTAL_PRICE_LABEL}</dt>
+                    <dd className="bd-mono">{formatEtb(deal.totalPrice)}</dd>
+                  </div>
+                  <div>
+                    <dt>
+                      {deal.videoCount}{' '}
+                      {deal.videoCount === 1 ? 'video' : 'videos'} ×
+                    </dt>
+                    <dd className="bd-mono">{formatEtb(deal.unitPrice)}</dd>
+                  </div>
+                  <div>
+                    <dt>{COMMISSION_LABEL}</dt>
+                    <dd className="bd-mono">−{formatEtb(deal.commission)}</dd>
+                  </div>
+                </dl>
+              </div>
+              <p className="bd-dv-heldnote">{FUNDS_HELD_MESSAGE}</p>
+            </section>
+          ) : (
+            <section className="bd-dv">
+              <div className="bd-dv-head">
+                <span className="bd-dv-k">{DEAL_TERMS_TITLE}</span>
+                <span className="bd-dv-note bd-mono">
+                  {OFFER_EXPIRY_LABEL}: {deadline}
+                </span>
+              </div>
+              <div className="bd-dv-flow">
+                <div className="bd-dv-cell">
+                  <span className="bd-dv-lab">{TOTAL_PRICE_LABEL}</span>
+                  <span className="bd-dv-num bd-mono">
+                    {formatEtb(deal.totalPrice)}
+                  </span>
+                  <span className="bd-dv-sub">
+                    {deal.videoCount}{' '}
+                    {deal.videoCount === 1 ? 'video' : 'videos'} ×{' '}
+                    {formatEtb(deal.unitPrice)}
+                  </span>
+                </div>
+                <span className="bd-dv-arrow" aria-hidden="true">
+                  −
+                </span>
+                <div className="bd-dv-cell">
+                  <span className="bd-dv-lab">{COMMISSION_LABEL}</span>
+                  <span className="bd-dv-num bd-mono">
+                    {formatEtb(deal.commission)}
+                  </span>
+                  <span className="bd-dv-sub">withheld at approval</span>
+                </div>
+                <span className="bd-dv-arrow" aria-hidden="true">
+                  =
+                </span>
+                <div className="bd-dv-cell bd-dv-cell--payout">
+                  <span className="bd-dv-lab">{EXPECTED_PAYOUT_LABEL}</span>
+                  <span className="bd-dv-num bd-mono">
+                    {formatEtb(deal.expectedPayout)}
+                  </span>
+                  <span className="bd-dv-sub">{PAYOUT_ESTIMATE_NOTE}</span>
+                </div>
+              </div>
+            </section>
+          )}
 
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-5 pt-5 sm:grid-cols-4">
-              <Fact label={VIDEO_COUNT_LABEL} value={String(deal.videoCount)} />
-              <Fact
-                label={UNIT_PRICE_LABEL}
-                value={formatEtb(deal.unitPrice)}
-              />
-              <Fact
-                label={TOTAL_PRICE_LABEL}
-                value={formatEtb(deal.totalPrice)}
-              />
-              <Fact
-                label={COMMISSION_LABEL}
-                value={formatEtb(deal.commission)}
-              />
-            </dl>
-          </section>
-
-          {/* The decision — always on the page. Pending deals get the
-              accept/decline controls; answered deals keep the same white
-              card so the hierarchy does not collapse after accept. */}
-          <section className="animate-rise-in-2 flex flex-col gap-4 rounded-[24px] border border-neutral-200 bg-background p-5 shadow-[0_16px_40px_-24px_rgba(23,23,23,0.2)] sm:p-6">
-            <SectionLabel>Your decision</SectionLabel>
-            {isPending ? (
+          {/* The decision. While the offer is open this is the page's action;
+              once answered it collapses to a one-line receipt instead of
+              holding a whole chapter for a past-tense sentence. */}
+          {isPending ? (
+            <section className="bd-briefcard bd-cr-decisioncard">
+              <div className="bd-capruler">
+                <span className="bd-caprulertitle">Your decision</span>
+                <span className="bd-caprulerline" aria-hidden="true" />
+                <span className="bd-caprulernote">
+                  Accept or decline while the offer is open
+                </span>
+              </div>
               <OfferActions
                 dealId={deal.id}
                 terms={deal.rightsTerms}
                 deliveryWindowDays={deal.deliveryWindowDays}
               />
-            ) : (
-              <p className="text-sm leading-relaxed text-neutral-700">
-                {deal.status === 'declined' || deal.status === 'expired'
-                  ? labelForStatus(deal.status)
-                  : 'You accepted this offer and agreed to the usage-rights terms.'}
-              </p>
-            )}
-          </section>
+            </section>
+          ) : (
+            <p className="bd-cr-decisionline">
+              {deal.status === 'declined' || deal.status === 'expired'
+                ? labelForStatus(deal.status)
+                : 'You accepted this offer and agreed to the usage-rights terms.'}
+            </p>
+          )}
 
           {/* The terms, under the decision they govern. */}
           {isPending ? rights : null}
 
-          {/* KAN-43, AC-019 item 6 — the creator's half of "both parties can see
-          that money is held". Above the deliver button on purpose: the money
-          being held is why the creator is willing to start work. */}
-          {isMoneyHeld(deal.status) ? (
-            <section className="surface-pop rounded-[24px] border border-brand/40 p-5 sm:p-6">
-              <SectionLabel>{FUNDS_HELD_LABEL}</SectionLabel>
-              <p className="mt-4 font-display text-4xl font-medium tracking-tight text-neutral-900 sm:text-5xl">
-                {formatEtb(deal.totalPrice)}
-              </p>
-              <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-                {FUNDS_HELD_MESSAGE}
-              </p>
-            </section>
-          ) : null}
-
-          {/* What the creator submitted — one card per video, with the
-              thumbnail frame the landing mockup established. */}
+          {/* What the creator submitted — the deal's own showreel: sprocket
+              strip above, one film card per video with its mono frame index. */}
           {deal.deliverables.length > 0 ? (
-            <section className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <SectionLabel>{DELIVERABLES_TITLE}</SectionLabel>
-                <p className="text-sm text-muted-foreground">
+            <section className="bd-cr-deliverables">
+              <div className="bd-capruler">
+                <span className="bd-caprulertitle">{DELIVERABLES_TITLE}</span>
+                <span className="bd-caprulerline" aria-hidden="true" />
+                {/* The progress is data, not garnish — the --data modifier
+                    keeps it visible when mobile sheds ordinary notes. */}
+                <span className="bd-caprulernote bd-caprulernote--data">
                   {deliveryProgress(standing, deal.videoCount)}
-                </p>
+                </span>
               </div>
 
               {deal.deliverables.map((video) => (
                 <div
                   key={video.id}
-                  className="flex flex-col gap-5 rounded-[20px] border border-neutral-200 bg-background p-5 sm:flex-row"
+                  className={`bd-cr-video ${REVIEW_ACCENT[video.reviewStatus] ?? ''}`}
                 >
-                  {/* The 9:16 frame the landing page's deliverable mockup
-                      established — now the real cover, with in-app playback
-                      and the deliberate TikTok open beneath it. The raw URL is
-                      the card's business, not the page's. */}
+                  {/* Same submitted-video frame the brand sees: stored
+                      thumbnail first, in-app playback on demand, deliberate
+                      TikTok open as fallback. */}
                   <TiktokVideoCard
                     tiktokUrl={video.tiktokUrl}
                     thumbnailUrl={video.thumbnailUrl}
                     tiktokVideoId={
-                      // Rows submitted before the id column existed still play:
-                      // long-form URLs carry the id in the path.
                       video.tiktokVideoId ?? parseTiktokVideoId(video.tiktokUrl)
                     }
                     videoLabel={videoHeading(video.videoOrdinal - 1)}
                   />
-                  <div className="flex min-w-0 flex-col gap-2">
-                    <h3 className="text-sm font-medium">
+                  <div className="bd-cr-video-copy">
+                    <h3>
+                      <span
+                        className="bd-cr-frameidx bd-mono"
+                        aria-hidden="true"
+                      >
+                        {String(video.videoOrdinal).padStart(2, '0')}
+                      </span>
                       {videoHeading(video.videoOrdinal - 1)} · Version{' '}
                       {video.submissionVersion}
                     </h3>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="bd-cr-video-meta">
                       {SUBMITTED_AT_LABEL}:{' '}
                       {formatDeadlineUtc(video.submittedAt)}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="bd-cr-video-meta">
                       {REVIEW_STATUS_LABEL}:{' '}
                       {labelForReviewStatus(video.reviewStatus)}
                       {video.reviewedAt
@@ -333,17 +386,13 @@ export default async function CreatorDealDetailPage({
                         : ''}
                     </p>
                     {video.rejectionReason ? (
-                      <div className="flex flex-col gap-1 border-t border-neutral-200 pt-2">
-                        <h4 className="text-xs font-semibold uppercase tracking-[0.12em] text-destructive">
-                          {REJECTION_REASON_LABEL}
-                        </h4>
-                        <p className="text-sm text-muted-foreground">
-                          {video.rejectionReason}
-                        </p>
+                      <div className="bd-cr-rejection">
+                        <h4>{REJECTION_REASON_LABEL}</h4>
+                        <p>{video.rejectionReason}</p>
                       </div>
                     ) : null}
                     {video.revisionCategory && (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="bd-cr-video-meta">
                         {REVISION_CATEGORY_LABELS[video.revisionCategory]}
                       </p>
                     )}
@@ -354,7 +403,7 @@ export default async function CreatorDealDetailPage({
                       limited={video.historyCompleteness === 'legacy_baseline'}
                     />
                     {canReportMetrics(deal.status) ? (
-                      <div className="pt-2">
+                      <div className="bd-cr-metrics">
                         <MetricsForm
                           key={`${video.id}-${video.submissionVersion}`}
                           deliverableId={video.id}
@@ -368,18 +417,28 @@ export default async function CreatorDealDetailPage({
             </section>
           ) : null}
 
+          {/* KAN-160: the delivery agreement sits directly above the submit
+              form — the deadline is the submission's clock, so the two read
+              as one unit: here is when, here is where. */}
+          <DeadlineSection dealId={id} />
+
           {/* The submission form, when the deal is in a state that takes one. */}
           {canDeliver(deal.status) ? (
-            <div className="rounded-[24px] border border-neutral-200 bg-background p-5 sm:p-6">
-              <div className="flex flex-col gap-3">
+            <div className="bd-briefcard bd-cr-submitcard">
+              <div className="bd-capruler">
+                <span className="bd-caprulertitle">Submit deliverable</span>
+                <span className="bd-caprulerline" aria-hidden="true" />
+                <span className="bd-caprulernote">
+                  TikTok URL for brand review
+                </span>
+              </div>
+              <div className="bd-cr-deliverform">
                 {rejectedIndex >= 0 ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="bd-cr-copy">
                     {revisionRequestedMessage(videoHeading(rejectedIndex))}
                   </p>
                 ) : remaining > 0 && standing > 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {REMAINING_VIDEOS_MESSAGE}
-                  </p>
+                  <p className="bd-cr-copy">{REMAINING_VIDEOS_MESSAGE}</p>
                 ) : null}
                 <DeliverableForm
                   key={`${deal.deliverables.length}-${deal.deliverables[rejectedIndex]?.submissionVersion ?? 0}`}
@@ -391,17 +450,33 @@ export default async function CreatorDealDetailPage({
                   expectedSubmitted={deal.deliverables.length}
                 />
               </div>
+              {/* Orientation, not decoration: the three things that happen
+                  after the button, so the submit reads as a step in the money
+                  flow the vault promised. */}
+              <ol className="bd-cr-nextsteps" aria-label="What happens next">
+                <li>
+                  <b>01</b> Link recorded for the brand
+                </li>
+                <li>
+                  <b>02</b> Brand reviews the video
+                </li>
+                <li>
+                  <b>03</b> Approval releases your payout
+                </li>
+              </ol>
             </div>
           ) : null}
         </div>
 
         {/* Reference column: the audit trail, and the terms once they're
             settled reference rather than the decision. */}
-        <aside className="flex flex-col gap-6 lg:sticky lg:top-28">
-          <DealHistory events={history} />
-          {isPending ? null : rights}
+        <aside className="bd-cr-detail-rail">
+          <div className="bd-cr-sidecard">
+            <DealHistory events={history} />
+          </div>
+          {isPending ? null : <div className="bd-cr-sidecard">{rights}</div>}
         </aside>
       </div>
-    </div>
+    </BdShell>
   );
 }

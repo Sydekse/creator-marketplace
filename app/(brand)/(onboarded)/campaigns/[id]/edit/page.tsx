@@ -1,17 +1,19 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { CampaignBriefForm } from '@/components/campaign/campaign-brief-form';
-import { PageHeader } from '@/components/layout/page-header';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { buttonVariants } from '@/components/ui/button';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import { getCampaignForBrand } from '@/lib/campaigns/queries';
+import { campaignStatusLabel } from '@/lib/campaigns/status';
 
 export const runtime = 'nodejs';
 
 /**
- * Campaign edit page for brands (KAN-26).
+ * Campaign edit page for brands (KAN-26) — the v4 visual language, sharing
+ * the create page's `.bd-briefcard` shell so the two brief surfaces read as
+ * one. Locked campaigns get the v4 ghost state instead of an alert box: the
+ * lock is an expected lifecycle fact, not an error.
  */
 export default async function EditCampaignPage({
   params,
@@ -31,33 +33,46 @@ export default async function EditCampaignPage({
   const isEditable = campaign.status === 'draft';
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-10 py-4">
-      <PageHeader
-        label="Campaign brief"
+    <BdShell>
+      <BdPageHead
         title="Edit campaign brief"
-        description="Update the budget, target video count, or brief details for this campaign."
+        facts={
+          <>
+            <b>{campaign.name}</b> · update the budget, target video count, or
+            brief details
+          </>
+        }
+        ruled
       />
 
       {!isEditable ? (
-        <div className="flex flex-col gap-8">
-          <Alert variant="destructive">
-            <AlertTitle>Campaign cannot be edited</AlertTitle>
-            <AlertDescription>
-              This campaign is in &ldquo;{campaign.status}&rdquo; status. Once a
-              campaign is confirmed or funded, its brief parameters are locked.
-            </AlertDescription>
-          </Alert>
-
-          <Link
-            href="/campaigns"
-            className={buttonVariants({ variant: 'outline', size: 'default' })}
-          >
-            Back to campaigns
-          </Link>
+        <div className="bd-rise" style={{ '--i': 1 } as React.CSSProperties}>
+          <div className="bd-emptyfeed">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="5" y="10" width="14" height="10" rx="2.5" />
+              <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+            </svg>
+            <h3>This brief is locked.</h3>
+            <p>
+              {campaign.name} is {campaignStatusLabel(campaign.status)}. Once a
+              campaign is confirmed or funded, its brief parameters cannot
+              change.
+            </p>
+            <Link className="bd-btn bd-btn--ghost" href="/campaigns">
+              Back to campaigns
+            </Link>
+          </div>
         </div>
       ) : (
-        <CampaignBriefForm mode="edit" campaign={campaign} />
+        <div
+          className="bd-briefsplit bd-briefsplit--solo bd-rise"
+          style={{ '--i': 1 } as React.CSSProperties}
+        >
+          <section className="bd-briefcard">
+            <CampaignBriefForm mode="edit" campaign={campaign} />
+          </section>
+        </div>
       )}
-    </div>
+    </BdShell>
   );
 }

@@ -1,10 +1,8 @@
 import Link from 'next/link';
 import { DeadlineSummary } from './deadline-summary';
-import { CaretRight } from '@phosphor-icons/react/dist/ssr';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
-import { Chip } from '@/components/ui/chip';
 import { labelForStatus } from '@/lib/deals/groups';
-import { dealStatusTone } from '@/lib/deals/status-tone';
+import type { DealStatus } from '@/db/schema';
 import type {
   BrandInboxCampaign,
   BrandInboxDeal,
@@ -12,56 +10,82 @@ import type {
 import { formatEtb } from '@/lib/money';
 import { TruncatedText } from '@/components/ui/truncated-text';
 import { displayTiktokHandle } from '@/lib/creators/handle';
+import { cn } from '@/lib/utils';
 
 /**
- * The brand's deals, grouped by campaign (§15).
+ * The brand's deals, grouped by campaign (§15) — the v4 visual language:
+ * each campaign is a rulered chapter and its deals are compact status-accented
+ * cards in a responsive grid, so rows never stretch the full bleed.
  *
- * A server component: every row is a link and a handful of strings. The
+ * A server component: every card is a link and a handful of strings. The
  * grouping is by campaign, not by status, because a brand thinks in
  * campaigns — "what's happening with my X campaign?" is the natural question.
  *
- * Follows the `DealInbox` pattern (`components/deals/deal-inbox.tsx`) but with
- * campaign grouping instead of status grouping. The two share the same
- * vocabulary (`labelForStatus`, `dealStatusTone`) and the same design language
- * (links, status chips, `formatEtb`).
+ * Shares the deal vocabulary (`labelForStatus`) with the deal screen so the
+ * two cannot call one state two things.
  */
 
-function DealRow({ deal }: { deal: BrandInboxDeal }) {
+/** Deal status → v4 chip tone + card accent, the campaigns pages' grammar. */
+const DEAL_TONE: Partial<Record<DealStatus, string>> = {
+  pending: 'bd-capstatus--wait',
+  accepted: 'bd-capstatus--wait',
+  funded: 'bd-capstatus--live',
+  delivered: 'bd-capstatus--live',
+  revision_requested: 'bd-capstatus--wait',
+  completed: 'bd-capstatus--done',
+  declined: 'bd-capstatus--dead',
+  expired: 'bd-capstatus--dead',
+  refunded: 'bd-capstatus--dead',
+};
+
+const DEAL_ACCENT: Partial<Record<DealStatus, string>> = {
+  pending: 'bd-dicard--wait',
+  accepted: 'bd-dicard--wait',
+  funded: 'bd-dicard--live',
+  delivered: 'bd-dicard--live',
+  revision_requested: 'bd-dicard--wait',
+  completed: 'bd-dicard--done',
+};
+
+function DealCard({ deal }: { deal: BrandInboxDeal }) {
   return (
     <li>
       <Link
         href={`/deals/${deal.id}`}
-        className="group flex cursor-pointer flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl px-2 py-4 transition-[background-color,box-shadow] duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-50 hover:shadow-[0_16px_32px_-24px_rgba(23,23,23,0.35)] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className={cn('bd-dicard', DEAL_ACCENT[deal.status])}
       >
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="bd-dicardhead">
           <InitialsAvatar
             name={deal.creatorHandle}
             image={deal.creatorImage}
             size="sm"
           />
-          <div className="flex min-w-0 flex-col gap-1">
-            <TruncatedText
-              text={displayTiktokHandle(deal.creatorHandle)}
-              className="text-sm font-medium"
-            />
-            <DeadlineSummary deal={deal} />
-            <div className="flex items-center gap-2">
-              <Chip tone={dealStatusTone[deal.status] ?? 'gray'} size="sm">
-                {labelForStatus(deal.status)}
-              </Chip>
-              <span className="text-xs text-muted-foreground">
-                {deal.videoCount} {deal.videoCount === 1 ? 'video' : 'videos'}
-              </span>
-            </div>
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <span className="font-mono text-sm tabular-nums">
-            {formatEtb(deal.totalPrice)}
+          <TruncatedText
+            text={displayTiktokHandle(deal.creatorHandle)}
+            className="bd-dicardname"
+          />
+          <span
+            className={cn(
+              'bd-capstatus',
+              DEAL_TONE[deal.status] ?? 'bd-capstatus--draft'
+            )}
+          >
+            {labelForStatus(deal.status)}
           </span>
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-neutral-600 transition-colors group-hover:text-neutral-900">
-            Open deal
-            <CaretRight size={12} weight="bold" aria-hidden />
+        </div>
+        {/* KAN-160 punctuality: the deadline verdict rides the card as a
+            quiet line between identity and money. */}
+        <DeadlineSummary deal={deal} />
+        <div className="bd-dicardfoot">
+          <span className="bd-dicardmoney bd-mono">
+            {formatEtb(deal.totalPrice)}
+            <span className="bd-factdim">
+              {' '}
+              · {deal.videoCount} {deal.videoCount === 1 ? 'video' : 'videos'}
+            </span>
+          </span>
+          <span className="bd-dicardgo" aria-hidden="true">
+            Open <span className="bd-dicardarrow">→</span>
           </span>
         </div>
       </Link>
@@ -71,17 +95,18 @@ function DealRow({ deal }: { deal: BrandInboxDeal }) {
 
 function CampaignGroup({ group }: { group: BrandInboxCampaign }) {
   return (
-    <section className="flex flex-col gap-1">
-      <div className="flex items-baseline justify-between gap-4">
-        <h2 className="text-sm font-medium">{group.campaignName}</h2>
-        <span className="font-mono text-xs text-muted-foreground tabular-nums">
-          {group.count}
+    <section className="bd-disection">
+      <div className="bd-capruler">
+        <span className="bd-caprulertitle">{group.campaignName}</span>
+        <span className="bd-caprulerline" aria-hidden="true" />
+        <span className="bd-caprulercount bd-mono">
+          {group.count} {group.count === 1 ? 'deal' : 'deals'}
         </span>
       </div>
 
-      <ul className="divide-y divide-border">
+      <ul className="bd-digrid">
         {group.deals.map((deal) => (
-          <DealRow key={deal.id} deal={deal} />
+          <DealCard key={deal.id} deal={deal} />
         ))}
       </ul>
     </section>
@@ -94,7 +119,7 @@ export function BrandDealInbox({
   campaigns: BrandInboxCampaign[];
 }) {
   return (
-    <div className="flex flex-col gap-8">
+    <div className="bd-diwrap">
       {campaigns.map((group) => (
         <CampaignGroup key={group.campaignId} group={group} />
       ))}

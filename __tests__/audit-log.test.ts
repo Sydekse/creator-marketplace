@@ -874,7 +874,8 @@ describe('the admin audit-log page', () => {
     // claims; collapsing them would tell an admin who over-filtered that the log
     // is empty.
     expect(page).toContain('hasActiveFilters');
-    expect(page).toMatch(/EmptyState/);
+    expect(page).toContain('No entries match these filters');
+    expect(page).toContain('No audit entries yet');
   });
 
   it('renders the date instant in UTC, matching the rest of the app', () => {

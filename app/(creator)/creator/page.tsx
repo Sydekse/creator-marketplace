@@ -5,15 +5,20 @@ import {
   CaretRight,
   TiktokLogo,
 } from '@phosphor-icons/react/dist/ssr';
+import { BdShell } from '@/components/brand/v4-shell';
+import { CountUp } from '@/components/brand/dashboard-bits';
 import { AudienceSection } from '@/components/creator/audience-section';
-import { EarningsSummary } from '@/components/creator/earnings-summary';
-import { PayoutChart } from '@/components/creator/payout-chart';
+import {
+  ApprovalRing,
+  EarningsSteps,
+  QueueFlow,
+  ShowreelChart,
+} from '@/components/creator/creator-viz';
+import type { ReelVideo } from '@/components/creator/creator-viz';
 import { RefreshStatsButton } from '@/components/creator/refresh-stats-button';
 import { TierPricing } from '@/components/creator/tier-pricing';
 import { VerificationStatus } from '@/components/creator/verification-status';
-import { EmptyState } from '@/components/feedback/empty-state';
 import { SectionLabel } from '@/components/layout/section-label';
-import { buttonVariants } from '@/components/ui/button';
 import { Chip } from '@/components/ui/chip';
 import { cn } from '@/lib/utils';
 import { formatEtb } from '@/lib/money';
@@ -48,37 +53,64 @@ import { paymentUxMode } from '@/lib/payment/gateway';
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
 
+const DASH_DEAL_ACCENT: Record<string, string> = {
+  pending: 'bd-cr-dashdeal--wait',
+  accepted: 'bd-cr-dashdeal--live',
+  funded: 'bd-cr-dashdeal--live',
+  delivered: 'bd-cr-dashdeal--wait',
+  revision_requested: 'bd-cr-dashdeal--wait',
+  completed: 'bd-cr-dashdeal--done',
+};
+
+/** One line of "what to do next" so the list earns its heading. */
+function dealCue(
+  deal: { status: string; videoCount: number; offerExpiresAt: Date | null },
+  now: Date
+): string {
+  switch (deal.status) {
+    case 'pending':
+      return deal.offerExpiresAt
+        ? `Reply — closes ${ageLabel(deal.offerExpiresAt, now)}`
+        : 'Reply to the offer';
+    case 'accepted':
+      return 'Accepted — waiting on the brand to fund escrow';
+    case 'funded':
+      return deal.videoCount > 1
+        ? `Post and submit ${deal.videoCount} videos`
+        : 'Post your video and submit the link';
+    case 'delivered':
+      return 'In brand review — payment releases on approval';
+    case 'revision_requested':
+      return 'Fix and re-deliver — funds stay held for you';
+    default:
+      return 'Completed and paid';
+  }
+}
+
+function compactNumber(value: number | null): string {
+  if (value === null) return '—';
+  return Intl.NumberFormat('en-US', {
+    notation: value >= 10_000 ? 'compact' : 'standard',
+    maximumFractionDigits: value >= 10_000 ? 1 : 0,
+  }).format(value);
+}
+
+function signedNumber(value: number | null, suffix = ''): string {
+  if (value === null) return '—';
+  if (value === 0) return `0${suffix}`;
+  return `${value > 0 ? '+' : ''}${compactNumber(value)}${suffix}`;
+}
+
 /**
- * Creator dashboard (KAN-25, US-001; laid out as one on KAN-200).
+ * Creator dashboard (KAN-25, US-001) — the creator's own v4 identity, not a
+ * brand-dashboard clone. Same tokens (paper, teal, mono, hairlines), new
+ * vocabulary: notched ticket stats, a showreel bar chart (one bar per
+ * delivered video), a stepped earnings staircase (every approved video is a
+ * literal step up), an approval ring, and a vertical queue ladder.
  *
- * One place for the three things a creator runs their side of the marketplace
- * from: where their verification stands and what they are priced at (AC-1),
- * what deals they have and what state each is in (AC-2), and what they have
- * been paid (AC-3).
- *
- * A creator with no profile has nothing to see here, so this is also the funnel
- * into onboarding: signing up lands on `/creator`, which sends them straight to
- * the form (US-001).
- *
- * Both reads gate themselves. `requireRole` below is the navigation gate — it
- * redirects rather than throws, which is the right behaviour for someone who
- * followed a link — and `readCreatorDashboard` runs `guard` again inside the
- * module and resolves the creator's own profile id from the session. AC-6 is
- * that second layer's: this page cannot ask for anyone else's deals because the
- * function takes no id to ask with (NFR-005).
- *
- * **Two columns, and which side a thing goes on is the point (KAN-200).** This
- * was seven `border-t` sections stacked in a `max-w-2xl` column, in submission
- * order — profile facts, audience, pricing, earnings, deals — so a creator
- * checking on a deal scrolled past everything they had already told us. It read
- * as a filled-in form. The structure now follows `(brand)/brand/page.tsx`, which
- * is the in-repo precedent: `PageHeader`, teal section labels, and **work on the
- * left, reference on the right** — money and deals are what changes without the
- * creator doing anything, and their own profile is what does not.
- *
- * One column below `lg:`, with the work first (NFR-007). On a phone the
- * right-hand column falls underneath rather than beside, which is the correct
- * order for the same reason it is the correct side.
+ * Both reads gate themselves: `requireRole` redirects, and
+ * `readCreatorDashboard` runs `guard` internally and resolves the caller's
+ * own profile id, so this page cannot ask for anyone else's deals (AC-6).
  */
 export default async function CreatorDashboardPage() {
   const user = await requireRole('creator');
@@ -91,23 +123,28 @@ export default async function CreatorDashboardPage() {
 
   const dashboard = await readCreatorDashboard();
   // Null means no profile row, which the redirect above has already ruled out.
-  // Narrowing rather than asserting keeps that an ordinary branch.
   if (!dashboard) redirect('/creator/onboarding');
 
-  // For an untiered creator, work out the tier they *would* be assigned on their
-  // current numbers, so the pricing block can preview it instead of implying they
-  // failed to qualify (tier assignment has simply not run yet — KAN-23). Reuses
-  // the exact rule assignment uses, so the preview and the eventual assignment
-  // agree. Skipped once tiered: the price then comes from the tier row.
+  // Preview the tier an untiered creator would be assigned (KAN-23) — the
+  // same rule assignment itself runs.
   const provisional =
     tier === null ? selectTier(await listTierCandidates(), profile) : null;
 
   const bookable = isBookable({ ...profile, tierActive: tier?.active ?? null });
   const profileUrl = tiktokProfileUrl(profile.tiktokHandle);
-  // TikTok-linked accounts get the self-serve refresh (phase 3); email
-  // sign-ups have nothing to pull from — their numbers are the admin's to
-  // correct, so the button never renders for them.
   const tiktokLinked = (await sessionTiktokHandle(user.id)) !== null;
+  const now = new Date();
+
+  // Urgency order for the attention list: work that blocks payment first,
+  // then offers by soonest expiry, then deals waiting on the creator, and
+  // review states (nothing to do) last.
+  const ATTENTION_RANK: Record<string, number> = {
+    revision_requested: 0,
+    pending: 1,
+    funded: 2,
+    accepted: 3,
+    delivered: 4,
+  };
   const openDeals = dashboard.groups
     .filter(
       (group) =>
@@ -116,308 +153,637 @@ export default async function CreatorDashboardPage() {
         group.group === 'awaiting_approval'
     )
     .flatMap((group) => group.deals)
+    .sort((left, right) => {
+      const rank =
+        (ATTENTION_RANK[left.status] ?? 9) -
+        (ATTENTION_RANK[right.status] ?? 9);
+      if (rank !== 0) return rank;
+      const leftExpiry = left.offerExpiresAt
+        ? left.offerExpiresAt.getTime()
+        : Number.POSITIVE_INFINITY;
+      const rightExpiry = right.offerExpiresAt
+        ? right.offerExpiresAt.getTime()
+        : Number.POSITIVE_INFINITY;
+      return leftExpiry - rightExpiry;
+    })
     .slice(0, 5);
+  const groupCount = (name: (typeof dashboard.groups)[number]['group']) =>
+    dashboard.groups.find((group) => group.group === name)?.count ?? 0;
+
+  const a = dashboard.actions;
+  const m = dashboard.metrics;
+  const totalViews = m.views ?? 0;
+
+  const reelVideos: ReelVideo[] = dashboard.topVideos.map((video) => ({
+    id: video.deliverableId,
+    name: video.campaignName,
+    views: video.views,
+    likes: video.likes,
+    when: ageLabel(video.submittedAt),
+    url: video.tiktokUrl,
+    thumb: video.thumbnailUrl,
+    inReview: video.reviewStatus === 'pending',
+  }));
+
+  // Engagement mix — proportions of recorded likes/shares/comments.
+  const mixParts = [
+    { label: 'Likes', value: m.likes ?? 0, cls: 'bd-crx-mix--likes' },
+    { label: 'Shares', value: m.shares ?? 0, cls: 'bd-crx-mix--shares' },
+    { label: 'Comments', value: m.comments ?? 0, cls: 'bd-crx-mix--comments' },
+  ];
+  const mixTotal = mixParts.reduce((s, p) => s + p.value, 0);
+
+  const payouts = dashboard.payouts;
+  const paidOut = dashboard.earnings.paidOut;
+  const earnedThisWeek =
+    payouts.length > 1
+      ? payouts[payouts.length - 1].paidOut -
+        payouts[payouts.length - 2].paidOut
+      : (payouts[payouts.length - 1]?.paidOut ?? 0);
+
+  // Engagement gained in the last seven days, for the standing footnote.
+  const liftParts = [
+    { label: 'likes', value: dashboard.weeklyLift.likes },
+    { label: 'shares', value: dashboard.weeklyLift.shares },
+    { label: 'comments', value: dashboard.weeklyLift.comments },
+  ].filter((part) => part.value !== null && part.value !== 0);
+
+  // The queue ladder — one rung per stage, hot on the first rung with work.
+  const rungs = [
+    {
+      num: '01',
+      label: 'Reply to offers',
+      note: 'accept or decline before expiry',
+      count: a.pendingOffers,
+      href: '/creator/deals#pending',
+    },
+    {
+      num: '02',
+      label: 'Post and submit',
+      note:
+        a.needsRevision > 0
+          ? `incl. ${a.needsRevision} with changes requested`
+          : 'funded deals waiting on your video',
+      count: a.readyToDeliver + a.needsRevision,
+      href: '/creator/deals#in_progress',
+    },
+    {
+      num: '03',
+      label: 'In brand review',
+      note: 'payment releases on approval',
+      count: groupCount('awaiting_approval'),
+      href: '/creator/deals#awaiting_approval',
+    },
+    {
+      num: '04',
+      label: 'Record metrics',
+      note: 'keep your showreel honest',
+      count: a.needsMetrics,
+      href:
+        dashboard.unmeasuredDealIds.length > 0
+          ? `/creator/deals/${dashboard.unmeasuredDealIds[0]}`
+          : '/creator/deals#completed',
+    },
+  ];
+  const hotRung = rungs.findIndex((r) => r.count > 0);
+  const alertItems =
+    (dashboard.expiringOffers.length > 0 ? 1 : 0) +
+    (a.needsRevision > 0 ? 1 : 0);
 
   return (
-    <div className="flex flex-col gap-8 py-4">
-      {' '}
-      <VerificationStatus
-        status={profile.status}
-        tiktokHandle={profile.tiktokHandle}
-        hasTier={profile.tierId !== null}
-        name={user.name ?? user.email}
-        image={user.image}
-      />
-      <div className="flex flex-col gap-6">
-        {/* Top pair — payout card and the stacked profile card, equal height. */}
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)] lg:items-stretch">
-          {/* AC-3. Thesis sits beside the profile, not above it.
-              `--payout-scale` is the one knob for the whole money block: zoom
-              scales everything inside proportionally (chart, figures, padding)
-              without touching a single child. 1 is the designed size. */}
-          <section
-            className="surface-card surface-pop flex h-full min-h-0 flex-col rounded-[24px] border border-brand/40 p-5 sm:p-6"
-            style={{ zoom: 'var(--payout-scale, 0.9)' }}
-          >
-            <PayoutChart points={dashboard.payouts} minHeight="13rem" />
-            <div className="mt-4 shrink-0">
-              <EarningsSummary earnings={dashboard.earnings} headed={false} />
-            </div>
-            {/* KAN-70 PR 3: the wallet exists only where a payout rail does —
-                in mock mode there is nothing to withdraw through. */}
-            {paymentUxMode() !== 'mock' ? (
-              <Link
-                href="/creator/wallet"
-                className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand-ink underline-offset-4 hover:underline"
-              >
-                Open your wallet <CaretRight size={14} weight="bold" />
-              </Link>
-            ) : null}
-          </section>
-
-          <section className="flex h-full flex-col justify-between gap-4 rounded-[24px] border border-neutral-200 bg-background p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-3">
-              <SectionLabel>Your profile</SectionLabel>
-              {tiktokLinked ? (
-                <RefreshStatsButton
-                  lastRefreshedLabel={
-                    profile.statsRefreshedAt
-                      ? ageLabel(profile.statsRefreshedAt)
-                      : null
-                  }
-                />
-              ) : null}
-            </div>
-            <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
-              <div className="flex flex-col gap-1">
-                <dt className="text-[11px] font-semibold tracking-[0.12em] text-neutral-600 uppercase">
-                  Niche
-                </dt>
-                <dd className="font-display text-lg font-medium tracking-tight text-neutral-900">
-                  {NICHE_LABELS[profile.niche as Niche] ?? profile.niche}
-                </dd>
-              </div>
-              <div className="flex flex-col gap-1">
-                <dt className="text-[11px] font-semibold tracking-[0.12em] text-neutral-600 uppercase">
-                  Followers
-                </dt>
-                <dd className="font-display text-lg font-medium tracking-tight text-neutral-900 tabular-nums">
-                  {formatFollowerCount(profile.followerCount)}
-                </dd>
-              </div>
-              <div className="col-span-2 flex flex-col gap-1">
-                <dt className="text-[11px] font-semibold tracking-[0.12em] text-neutral-600 uppercase">
-                  Engagement rate
-                </dt>
-                <dd className="font-display text-lg font-medium tracking-tight text-neutral-900 tabular-nums">
-                  {formatEngagementRate(profile.engagementRate)}
-                </dd>
-                <p className="text-xs leading-snug text-muted-foreground">
-                  {ENGAGEMENT_RATE_HINT}
-                </p>
-              </div>
-            </dl>
-            <AudienceSection audience={readAudience(profile.audience)} />
-            {profileUrl ? (
-              <a
-                href={profileUrl}
-                target="_blank"
-                rel="noopener noreferrer nofollow"
-                className={cn(
-                  buttonVariants({ variant: 'outline', size: 'sm' }),
-                  'dash-action w-full gap-2'
-                )}
-              >
-                <TiktokLogo size={16} weight="regular" aria-hidden />
-                {VIEW_ON_TIKTOK_LABEL}
-                <ArrowSquareOut size={14} weight="regular" aria-hidden />
-              </a>
-            ) : null}
-          </section>
+    <BdShell className="bd-cr bd-crx">
+      {/* ---------- hero: identity + ticket stats ---------- */}
+      <div
+        className="bd-crx-hero bd-rise"
+        style={{ '--i': 0 } as React.CSSProperties}
+      >
+        <VerificationStatus
+          status={profile.status}
+          tiktokHandle={profile.tiktokHandle}
+          hasTier={profile.tierId !== null}
+          name={user.name ?? user.email}
+          image={user.image}
+        />
+        <div className="bd-crx-tickets" aria-label="Account pulse">
+          <div className="bd-crx-ticket">
+            <span className="bd-crx-tk">Paid out</span>
+            <span className="bd-crx-tv bd-mono">{formatEtb(paidOut)}</span>
+            <span className="bd-crx-ts">net of commission</span>
+          </div>
+          <div className="bd-crx-ticket bd-crx-ticket--amber">
+            <span className="bd-crx-tk">In escrow</span>
+            <span className="bd-crx-tv bd-mono">
+              {formatEtb(dashboard.earnings.inEscrow)}
+            </span>
+            <span className="bd-crx-ts">releases on approval</span>
+          </div>
+          <div className="bd-crx-ticket">
+            <span className="bd-crx-tk">Followers</span>
+            <span className="bd-crx-tv bd-mono">
+              {formatFollowerCount(profile.followerCount)}
+            </span>
+            <span className="bd-crx-ts">
+              {dashboard.growth.followersDelta !== null
+                ? `${signedNumber(dashboard.growth.followersDelta)} since ${
+                    dashboard.growth.previousAt
+                      ? ageLabel(dashboard.growth.previousAt, now).replace(
+                          /^in /,
+                          ''
+                        )
+                      : 'last refresh'
+                  }`
+                : 'refresh stats to track growth'}
+            </span>
+          </div>
         </div>
+      </div>
 
-        {/* Bottom row — rate and impact, side by side. The impact card shows
-            whenever the creator has submitted videos at all; the empty state
-            inside it fills the card rather than leaving it half-blank. */}
-        <div className="grid gap-8 lg:grid-cols-2">
-          <section className="rounded-[24px] border border-neutral-200 bg-background p-4 sm:p-5">
-            <TierPricing
-              tier={tier}
-              profile={profile}
-              status={profile.status}
-              provisional={provisional}
-            />
-          </section>
-          <section className="flex flex-col gap-4 rounded-[24px] border border-brand/30 bg-[color-mix(in_oklch,var(--brand-tint)_52%,white)] p-4 sm:p-5">
-            <SectionLabel>Your impact</SectionLabel>
-            {dashboard.metrics.totalVideos === 0 ? (
-              <div className="flex flex-1 flex-col items-start justify-center gap-3 py-4">
-                <p className="text-sm font-medium text-neutral-900">
-                  No videos yet.
-                </p>
-                <p className="text-sm leading-relaxed text-neutral-700">
-                  Your views, likes, shares, and comments across every delivered
-                  video will show up here once a deal is completed.
-                </p>
+      {/* ---------- actions ---------- */}
+      <div
+        className="bd-actions bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
+        <Link className="bd-btn bd-btn--primary" href="/creator/deals">
+          Your deals
+        </Link>
+        {paymentUxMode() !== 'mock' ? (
+          <Link className="bd-btn bd-btn--ghost" href="/creator/wallet">
+            Open your wallet
+          </Link>
+        ) : null}
+        {profileUrl ? (
+          <a
+            className="bd-btn bd-btn--ghost"
+            href={profileUrl}
+            target="_blank"
+            rel="noopener noreferrer nofollow"
+          >
+            <TiktokLogo size={16} weight="regular" aria-hidden />
+            {VIEW_ON_TIKTOK_LABEL}
+          </a>
+        ) : null}
+      </div>
+
+      {/* ---------- body: work column left, profile rail right ---------- */}
+      <div className="bd-crx-body">
+        <div className="bd-capruler bd-crx-mainhead">
+          <span className="bd-caprulertitle">Performance overview</span>
+        </div>
+        {/* ---------- showreel ---------- */}
+        <section
+          className="bd-crx-reel bd-rise"
+          style={{ '--i': 2 } as React.CSSProperties}
+        >
+          <div className="bd-crx-reelhead">
+            <div>
+              <span className="bd-crx-k">Showreel</span>
+              <div className="bd-crx-reelviews">
+                <span className="bd-crx-reelnum bd-mono">
+                  <CountUp value={totalViews} />
+                </span>
+                <span className="bd-crx-reelunit">views collected</span>
               </div>
-            ) : dashboard.metrics.measuredVideos > 0 ? (
+            </div>
+            <span className="bd-crx-covertag bd-mono">
+              {m.measuredVideos}/{m.totalVideos} measured
+            </span>
+          </div>
+          {dashboard.topVideos.length === 0 ? (
+            <div className="bd-crx-reelghost">
+              <div className="bd-crx-ghostframes" aria-hidden="true">
+                <i></i>
+                <i></i>
+                <i></i>
+                <i></i>
+              </div>
+              <div className="bd-crx-ghostcopy">
+                <h3>Your showreel starts with one video</h3>
+                <p>
+                  Every video you deliver becomes a frame here, ranked by the
+                  views it collects. Brands read this as your track record.
+                </p>
+                <Link className="bd-btn bd-btn--primary" href="/creator/deals">
+                  {bookable ? 'Check your offers' : 'View your deals'}
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <>
+              <ShowreelChart videos={reelVideos} />
+              {mixTotal > 0 ? (
+                <div className="bd-crx-mixwrap">
+                  <span className="bd-crx-mixlab">Engagement mix</span>
+                  <div className="bd-crx-mixband" aria-hidden="true">
+                    {mixParts.map((part) =>
+                      part.value > 0 ? (
+                        <i
+                          key={part.label}
+                          className={part.cls}
+                          style={{ width: `${(part.value / mixTotal) * 100}%` }}
+                        />
+                      ) : null
+                    )}
+                  </div>
+                  <div className="bd-crx-mixlegend">
+                    {mixParts.map((part) => (
+                      <span key={part.label} className="bd-crx-mixkey">
+                        <i className={part.cls} aria-hidden="true" />
+                        {part.label}{' '}
+                        <b className="bd-mono">{compactNumber(part.value)}</b>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <p className="bd-crx-reelnote">
+                  Engagement splits appear once likes, shares, and comments are
+                  recorded{a.needsMetrics > 0 ? ' — you have some due.' : '.'}
+                </p>
+              )}
+            </>
+          )}
+        </section>
+
+        {/* ---------- triptych: earnings / queue / standing ---------- */}
+        <div className="bd-crx-triptych">
+          <section
+            className="bd-crx-card bd-crx-card--earn bd-rise"
+            style={{ '--i': 3 } as React.CSSProperties}
+          >
+            <div className="bd-crx-cardhead">
+              <span className="bd-crx-k">Earnings staircase</span>
+              {earnedThisWeek > 0 && (
+                <span className="bd-crx-weektag bd-mono">
+                  +{formatEtb(earnedThisWeek)} this week
+                </span>
+              )}
+            </div>
+            {paidOut > 0 && payouts.length > 1 ? (
               <>
-                <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
-                  {(
-                    [
-                      ['Views', dashboard.metrics.views],
-                      ['Likes', dashboard.metrics.likes],
-                      ['Shares', dashboard.metrics.shares],
-                      ['Comments', dashboard.metrics.comments],
-                    ] as const
-                  ).map(([label, value]) => (
-                    <div key={label} className="flex flex-col gap-1">
-                      <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-600">
-                        {label}
-                      </dt>
-                      <dd className="font-display text-xl font-medium tracking-tight text-neutral-900 tabular-nums sm:text-2xl">
-                        {value === null ? '—' : value.toLocaleString('en-US')}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                <p className="text-xs text-muted-foreground">
-                  Recorded across {dashboard.metrics.measuredVideos} of{' '}
-                  {dashboard.metrics.totalVideos}{' '}
-                  {dashboard.metrics.totalVideos === 1 ? 'video' : 'videos'}
-                  {dashboard.unmeasuredDealIds.length > 0
-                    ? ` · ${dashboard.unmeasuredDealIds.length} still pending`
-                    : ''}
-                  .
+                <EarningsSteps points={payouts} />
+                <p className="bd-crx-cardfoot">
+                  Every step is an approved video.{' '}
+                  <b>{formatEtb(dashboard.earnings.inEscrow)}</b> still held in
+                  escrow.
                 </p>
               </>
             ) : (
-              <div className="flex flex-1 flex-col items-start justify-center gap-3 py-4">
-                <p className="text-sm font-medium text-neutral-900">
-                  Nothing recorded yet.
-                </p>
-                <p className="text-sm leading-relaxed text-neutral-700">
-                  You have {dashboard.metrics.totalVideos}{' '}
-                  {dashboard.metrics.totalVideos === 1
-                    ? 'submitted video'
-                    : 'submitted videos'}{' '}
-                  waiting for metrics. Record views, likes, shares, and comments
-                  and they show up here.
+              <div className="bd-crx-stepghost">
+                <svg viewBox="0 0 200 72" aria-hidden="true">
+                  <path d="M8 62 H56 V44 H104 V26 H152 V12 H192" />
+                </svg>
+                <p>
+                  <b>Your first approved video draws the first step.</b> Payouts
+                  stack into a staircase here, week by week.
                 </p>
               </div>
             )}
-            {dashboard.unmeasuredDealIds.length > 0 ? (
-              <Link
-                href={`/creator/deals/${dashboard.unmeasuredDealIds[0]}`}
-                className={cn(
-                  buttonVariants({ variant: 'outline', size: 'sm' }),
-                  'dash-action mt-auto w-fit gap-2'
-                )}
-              >
-                Record metrics
-                <CaretRight size={12} weight="bold" aria-hidden />
-              </Link>
+          </section>
+
+          <section
+            className="bd-crx-card bd-crx-card--queue bd-rise"
+            style={{ '--i': 4 } as React.CSSProperties}
+          >
+            <div className="bd-crx-cardhead">
+              <span className="bd-crx-k">The queue</span>
+              <span className="bd-crx-covertag bd-mono">
+                {groupCount('completed')} paid
+              </span>
+            </div>
+            {rungs.some((r) => r.count > 0) && (
+              <QueueFlow counts={rungs.map((r) => r.count)} hot={hotRung} />
+            )}
+            <ol className="bd-crx-ladder">
+              {rungs.map((rung, i) => (
+                <li
+                  key={rung.num}
+                  className={cn(
+                    'bd-crx-rung',
+                    i === hotRung && 'bd-crx-rung--hot',
+                    rung.count === 0 && 'bd-crx-rung--idle'
+                  )}
+                  style={{ '--i': i } as React.CSSProperties}
+                >
+                  <span className="bd-crx-rungcopy">
+                    <b>{rung.label}</b>
+                    <small>{rung.note}</small>
+                  </span>
+                  <span className="bd-crx-rungcount bd-mono">{rung.count}</span>
+                  <Link
+                    className="bd-crx-runggo"
+                    href={rung.href}
+                    aria-label={rung.label}
+                  >
+                    →
+                  </Link>
+                </li>
+              ))}
+            </ol>
+          </section>
+
+          <section
+            className="bd-crx-card bd-crx-card--standing bd-rise"
+            style={{ '--i': 5 } as React.CSSProperties}
+          >
+            <div className="bd-crx-cardhead">
+              <span className="bd-crx-k">Standing</span>
+            </div>
+            <div className="bd-crx-ringwrap">
+              <ApprovalRing rate={dashboard.reliability.approvalRate} />
+            </div>
+            <dl className="bd-crx-facts">
+              <div>
+                <dt>Brands worked with</dt>
+                <dd className="bd-mono">
+                  {dashboard.relationships.brandsWorkedWith}
+                </dd>
+              </div>
+              <div>
+                <dt>Booked you again</dt>
+                <dd className="bd-mono">
+                  {dashboard.relationships.repeatBrands}
+                </dd>
+              </div>
+              <div>
+                <dt>Avg. turnaround</dt>
+                <dd className="bd-mono">
+                  {dashboard.reliability.avgSubmitDays !== null
+                    ? `${Math.round(dashboard.reliability.avgSubmitDays)}d`
+                    : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt>Revision rate</dt>
+                <dd className="bd-mono">
+                  {dashboard.reliability.revisionRate !== null
+                    ? `${Math.round(dashboard.reliability.revisionRate * 100)}%`
+                    : '—'}
+                </dd>
+              </div>
+              <div>
+                <dt>Reach this week</dt>
+                <dd className="bd-mono">
+                  {signedNumber(dashboard.weeklyLift.views)}
+                </dd>
+              </div>
+            </dl>
+            {liftParts.length > 0 ? (
+              <p className="bd-crx-cardfoot">
+                This week:{' '}
+                {liftParts
+                  .map(
+                    (part) => `${signedNumber(part.value ?? 0)} ${part.label}`
+                  )
+                  .join(' · ')}
+              </p>
             ) : null}
           </section>
         </div>
-      </div>
-      {/* Attention row — expiring offers only, above the work list. */}
-      {dashboard.expiringOffers.length > 0 ? (
-        <section className="flex flex-col gap-2 rounded-[24px] border border-[color-mix(in_oklch,var(--status-pending-foreground)_35%,var(--border))] bg-[color-mix(in_oklch,var(--status-pending)_42%,white)] p-4 sm:p-5">
-          <SectionLabel>Expiring soon</SectionLabel>
-          <ul className="flex flex-col gap-1">
-            {dashboard.expiringOffers.slice(0, 3).map((offer) => (
-              <li key={offer.id}>
-                <Link
-                  href={`/creator/deals/${offer.id}`}
-                  className="group flex items-center justify-between gap-4 rounded-lg px-1 py-1.5 text-sm transition-colors duration-200 ease-[var(--ease-smooth)] hover:bg-white/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
+
+        {/* ---------- profile and rate (right rail on desktop) ---------- */}
+        <section
+          className="bd-cr-chapter bd-crx-aside bd-rise"
+          style={{ '--i': 6 } as React.CSSProperties}
+        >
+          <div className="bd-capruler">
+            <span className="bd-caprulertitle">Account overview</span>
+          </div>
+          {alertItems > 0 && (
+            <section className="bd-crx-card bd-crx-card--act">
+              <div className="bd-crx-cardhead">
+                <span className="bd-crx-k">Action needed</span>
+                <span className="bd-crx-acttag bd-mono">
+                  {dashboard.expiringOffers.length + a.needsRevision}
+                </span>
+              </div>
+              <div className="bd-crx-actlist">
+                {dashboard.expiringOffers.slice(0, 3).map((offer) => (
+                  <Link
+                    key={offer.id}
+                    className="bd-crx-act bd-crx-act--flag"
+                    href={`/creator/deals/${offer.id}`}
+                  >
+                    <span className="bd-crx-actmain">
+                      <b>{offer.campaignName}</b>
+                      <small>{expiryLabel(offer.offerExpiresAt, now)}</small>
+                    </span>
+                    <span className="bd-crx-actgo" aria-hidden="true">
+                      →
+                    </span>
+                  </Link>
+                ))}
+                {dashboard.expiringOffers.length > 3 && (
+                  <Link className="bd-crx-actmore" href="/creator/deals">
+                    +{dashboard.expiringOffers.length - 3} more expiring offers
+                  </Link>
+                )}
+                {a.needsRevision > 0 && (
+                  <Link
+                    className="bd-crx-act bd-crx-act--pay"
+                    href="/creator/deals"
+                  >
+                    <span className="bd-crx-actmain">
+                      <b>
+                        {a.needsRevision === 1
+                          ? 'A brand asked for changes'
+                          : `${a.needsRevision} videos need changes`}
+                      </b>
+                      <small>Funds stay held while you re-deliver.</small>
+                    </span>
+                    <span className="bd-crx-actgo" aria-hidden="true">
+                      →
+                    </span>
+                  </Link>
+                )}
+              </div>
+              <p className="bd-crx-cardfoot">
+                Unanswered offers close on their own.
+              </p>
+            </section>
+          )}
+          {alertItems > 0 && <hr className="bd-crx-rule" />}
+          <div className="bd-cr-dashboardgrid">
+            <section className="bd-cr-dashboardpanel bd-cr-profilepanel">
+              <div className="bd-cr-panelhead">
+                <SectionLabel>Your profile</SectionLabel>
+                {tiktokLinked ? (
+                  <RefreshStatsButton
+                    lastRefreshedLabel={
+                      profile.statsRefreshedAt
+                        ? ageLabel(profile.statsRefreshedAt)
+                        : null
+                    }
+                  />
+                ) : null}
+              </div>
+              <dl className="bd-cr-profilefacts">
+                <div>
+                  <dt className="bd-cdfactlab">Niche</dt>
+                  <dd className="bd-cdfactval">
+                    {NICHE_LABELS[profile.niche as Niche] ?? profile.niche}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="bd-cdfactlab">Followers</dt>
+                  <dd className="bd-cdfactval bd-mono">
+                    {formatFollowerCount(profile.followerCount)}
+                  </dd>
+                </div>
+                <div className="bd-cr-profilefactwide">
+                  <dt className="bd-cdfactlab">Engagement rate</dt>
+                  <dd className="bd-cdfactval bd-mono">
+                    {formatEngagementRate(profile.engagementRate)}
+                    {dashboard.growth.engagementDelta !== null &&
+                    dashboard.growth.engagementDelta !== 0 ? (
+                      <span className="bd-crx-erdelta bd-mono">
+                        {dashboard.growth.engagementDelta > 0 ? '+' : ''}
+                        {dashboard.growth.engagementDelta.toFixed(2)} since last
+                        refresh
+                      </span>
+                    ) : null}
+                  </dd>
+                  <p className="bd-cdfacthint">{ENGAGEMENT_RATE_HINT}</p>
+                </div>
+              </dl>
+              <AudienceSection audience={readAudience(profile.audience)} />
+              {profileUrl ? (
+                <a
+                  href={profileUrl}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="bd-btn bd-btn--ghost bd-cr-widebtn"
                 >
-                  <span className="truncate font-medium text-neutral-900">
-                    {offer.campaignName}
-                  </span>
-                  <span className="shrink-0 text-xs font-medium text-status-pending-foreground">
-                    {expiryLabel(offer.offerExpiresAt, new Date())}
-                  </span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+                  <TiktokLogo size={16} weight="regular" aria-hidden />
+                  {VIEW_ON_TIKTOK_LABEL}
+                  <ArrowSquareOut size={14} weight="regular" aria-hidden />
+                </a>
+              ) : null}
+            </section>
+
+            <section className="bd-cr-dashboardpanel bd-cr-profilepanel">
+              <TierPricing
+                tier={tier}
+                profile={profile}
+                status={profile.status}
+                provisional={provisional}
+              />
+            </section>
+          </div>
         </section>
-      ) : null}
-      {/* AC-2. Work list under the cards — formal heading, no pill, and the
-          list rows announce themselves as rows rather than links pretending to
-          be buttons. */}
-      <section className="flex flex-col gap-4">
-        <div className="flex items-baseline justify-between gap-4 border-b border-neutral-200 pb-3">
-          <h2 className="text-[13px] font-semibold uppercase tracking-[0.14em] text-brand-ink">
-            Requires your attention
-          </h2>
-          {openDeals.length > 0 ? (
-            <span className="font-mono text-xs text-muted-foreground tabular-nums">
-              {openDeals.length} {openDeals.length === 1 ? 'deal' : 'deals'}
-            </span>
-          ) : null}
-        </div>
-        {dashboard.isEmpty ? (
-          <div className="flex min-h-20 flex-col justify-center rounded-2xl border border-dashed border-neutral-300 bg-background px-4 py-4">
-            <EmptyState
-              align="start"
-              title={bookable ? NO_DEALS_TITLE : NOT_BOOKABLE_TITLE}
-              description={
-                bookable
+
+        {/* ---------- open deals ---------- */}
+        <section
+          className="bd-cr-chapter bd-crx-attn bd-rise"
+          style={{ '--i': 7 } as React.CSSProperties}
+        >
+          <div className="bd-capruler">
+            <span className="bd-caprulertitle">Requires your attention</span>
+            <span className="bd-caprulerline" aria-hidden="true" />
+            {openDeals.length > 0 ? (
+              <span className="bd-caprulercount bd-mono">
+                {openDeals.length} {openDeals.length === 1 ? 'deal' : 'deals'}
+              </span>
+            ) : null}
+          </div>
+          {dashboard.isEmpty ? (
+            <div className="bd-emptyfeed">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 7.5h14" />
+                <path d="M6.5 7.5v10h11v-10" />
+                <path d="M9 11h6" />
+                <path d="M9 14h4" />
+              </svg>
+              <h3>{bookable ? NO_DEALS_TITLE : NOT_BOOKABLE_TITLE}</h3>
+              <p>
+                {bookable
                   ? NO_DEALS_DESCRIPTION
                   : tiktokLinked
                     ? NOT_BOOKABLE_TIKTOK_DESCRIPTION
-                    : NOT_BOOKABLE_DESCRIPTION
-              }
-            />
-          </div>
-        ) : openDeals.length === 0 ? (
-          <div className="flex min-h-20 flex-col justify-center rounded-2xl border border-dashed border-neutral-300 bg-background px-4 py-4">
-            <p className="text-sm font-semibold text-neutral-900">
-              Nothing waiting on you
-            </p>
-            <p className="mt-1 text-sm text-neutral-600">
-              Open deals stay on Your deals until a brand needs a reply.
-            </p>
-          </div>
-        ) : (
-          <ul className="divide-y divide-neutral-200 border-y border-neutral-200">
-            {openDeals.map((deal) => (
-              <li key={deal.id}>
-                <Link
-                  href={`/creator/deals/${deal.id}`}
-                  className="group flex items-center justify-between gap-x-6 gap-y-2 px-1 py-3 transition-colors duration-200 ease-[var(--ease-smooth)] hover:bg-neutral-100/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-900"
-                >
-                  <div className="flex min-w-0 items-center gap-3">
-                    <p className="truncate text-sm font-semibold text-neutral-900 group-hover:underline group-hover:underline-offset-4">
-                      {deal.campaignName}
-                    </p>
-                    <Chip
-                      tone={
-                        deal.status === 'pending' ||
-                        deal.status === 'revision_requested' ||
-                        deal.status === 'delivered'
-                          ? 'amber'
-                          : deal.status === 'funded' ||
-                              deal.status === 'accepted'
-                            ? 'teal'
-                            : 'gray'
-                      }
-                      size="sm"
-                    >
-                      {labelForStatus(deal.status)}
-                    </Chip>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <span className="font-mono text-sm font-medium text-neutral-900 tabular-nums">
-                      {formatEtb(deal.totalPrice)}
-                    </span>
-                    <CaretRight
-                      size={14}
-                      weight="bold"
-                      aria-hidden
-                      className="text-neutral-400 transition-all duration-200 ease-[var(--ease-smooth)] group-hover:translate-x-0.5 group-hover:text-neutral-900"
-                    />
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-        {!dashboard.isEmpty ? (
-          <Link
-            href="/creator/deals"
-            className={cn(
-              buttonVariants({ variant: 'outline', size: 'sm' }),
-              'dash-action w-fit gap-2'
-            )}
-          >
-            View deals
-            <CaretRight size={12} weight="bold" aria-hidden />
-          </Link>
-        ) : null}
-      </section>
-    </div>
+                    : NOT_BOOKABLE_DESCRIPTION}
+              </p>
+            </div>
+          ) : openDeals.length === 0 ? (
+            <div className="bd-emptyfeed">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5.5 12h13" />
+                <path d="M7.5 8.5l4 4-4 4" />
+                <path d="M12.5 8.5l4 4-4 4" />
+              </svg>
+              <h3>Nothing waiting on you</h3>
+              <p>Open deals stay on Your deals until a brand needs a reply.</p>
+              <Link href="/creator/deals" className="bd-btn bd-btn--ghost">
+                View deals
+              </Link>
+            </div>
+          ) : (
+            <ul className="bd-cr-dashlist">
+              {openDeals.map((deal) => (
+                <li key={deal.id}>
+                  <Link
+                    href={`/creator/deals/${deal.id}`}
+                    className={cn(
+                      'bd-cr-dashdeal',
+                      DASH_DEAL_ACCENT[deal.status] ?? 'bd-cr-dashdeal--dead'
+                    )}
+                  >
+                    <div className="bd-cr-dashdeal-main">
+                      <div className="bd-cr-dashdeal-copy">
+                        <p className="bd-cr-dashdeal-title">
+                          {deal.campaignName}
+                        </p>
+                        <p className="bd-cr-dashdeal-meta">
+                          {dealCue(deal, now)}
+                        </p>
+                      </div>
+                      <Chip
+                        tone={
+                          deal.status === 'pending' ||
+                          deal.status === 'revision_requested' ||
+                          deal.status === 'delivered'
+                            ? 'amber'
+                            : deal.status === 'funded' ||
+                                deal.status === 'accepted'
+                              ? 'teal'
+                              : 'gray'
+                        }
+                        size="sm"
+                      >
+                        {labelForStatus(deal.status)}
+                      </Chip>
+                    </div>
+                    <div className="bd-cr-dashdeal-end">
+                      <span className="bd-cr-dashdeal-money bd-mono">
+                        {formatEtb(deal.totalPrice)}
+                      </span>
+                      <CaretRight
+                        size={14}
+                        weight="bold"
+                        aria-hidden
+                        className="bd-cr-dashdeal-arrow"
+                      />
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!dashboard.isEmpty ? (
+            <Link
+              href="/creator/deals"
+              className="bd-btn bd-btn--ghost bd-cr-inlinebtn"
+            >
+              View deals
+              <CaretRight size={12} weight="bold" aria-hidden />
+            </Link>
+          ) : null}
+        </section>
+
+        <p className="bd-signoff">
+          {dashboard.isEmpty
+            ? 'Your profile is live — offers land here the moment a brand books you.'
+            : "That's everything for today."}
+        </p>
+      </div>
+    </BdShell>
   );
 }

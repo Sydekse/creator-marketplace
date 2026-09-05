@@ -1,5 +1,5 @@
 {
-  "id": "84846e79-40c6-4512-9115-d7ed77c26f6d",
+  "id": "362705a1-cc36-4f9e-a621-503992a00447",
   "prevId": "55ea6709-598a-40e7-bba8-6c7c1f327420",
   "version": "7",
   "dialect": "postgresql",
@@ -948,18 +948,6 @@
         },
         "rejection_reason": {
           "name": "rejection_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "thumbnail_url": {
-          "name": "thumbnail_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "tiktok_video_id": {
-          "name": "tiktok_video_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -1958,6 +1946,81 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.video_metric_snapshot": {
+      "name": "video_metric_snapshot",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "deliverable_id": {
+          "name": "deliverable_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "views": {
+          "name": "views",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "captured_at": {
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "video_metric_snapshot_deliverable_captured_idx": {
+          "name": "video_metric_snapshot_deliverable_captured_idx",
+          "columns": [
+            {
+              "expression": "deliverable_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "captured_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "video_metric_snapshot_deliverable_id_deliverable_id_fk": {
+          "name": "video_metric_snapshot_deliverable_id_deliverable_id_fk",
+          "tableFrom": "video_metric_snapshot",
+          "tableTo": "deliverable",
+          "columnsFrom": [
+            "deliverable_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

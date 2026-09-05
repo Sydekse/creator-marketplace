@@ -1,6 +1,11 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
-import { deal, deliverable, videoMetric } from '@/db/schema';
+import {
+  deal,
+  deliverable,
+  videoMetric,
+  videoMetricSnapshot,
+} from '@/db/schema';
 import { VersionConflict } from '@/lib/deliverables/history';
 import type { MetricSource } from '@/db/schema';
 import { withAdminAudit } from '@/lib/authz';
@@ -170,6 +175,22 @@ export const defaultDeps: RecordMetricsDeps = {
         shares: videoMetric.shares,
         comments: videoMetric.comments,
       });
+
+    // History for "reach as of a date" (brand dashboard's weekly delta) and
+    // creator-side engagement trend. Snapshot the merged row whenever views are
+    // known, even if this write only touched likes/shares/comments; the row then
+    // records a complete point-in-time engagement state.
+    if (row.views !== null) {
+      await runner.insert(videoMetricSnapshot).values({
+        deliverableId,
+        views: row.views,
+        likes: row.likes,
+        shares: row.shares,
+        comments: row.comments,
+        capturedAt: lastUpdatedAt,
+      });
+    }
+
     return row;
   },
   runAdminAudit: (entry, fn) => withAdminAudit(entry, fn),

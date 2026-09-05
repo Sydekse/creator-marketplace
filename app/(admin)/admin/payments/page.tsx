@@ -1,6 +1,6 @@
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { Chip } from '@/components/ui/chip';
 import type { ChipTone } from '@/components/ui/chip';
-import { PageHeader } from '@/components/layout/page-header';
 import { RetryRefundButton } from '@/components/admin/retry-refund-button';
 import { readPaymentsForAdmin } from '@/lib/admin/payments';
 import type {
@@ -11,6 +11,7 @@ import type {
 import { ageLabel } from '@/lib/dates';
 import { formatEtb } from '@/lib/money';
 import { displayTiktokHandle } from '@/lib/creators/handle';
+import { cn } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -26,6 +27,9 @@ export const runtime = 'nodejs';
  *
  * The read embeds its own admin gate on top of the `(admin)` layout's role
  * gate, the same double-gate `worklist/page.tsx` documents.
+ *
+ * v4 conversion: shared admin shell, rail-card totals, and compact ledger rows
+ * around the same Chapa reconciliation data.
  */
 
 const SESSION_TONES: Record<AdminFundingSessionRow['status'], ChipTone> = {
@@ -50,33 +54,81 @@ const REFUND_TONES: Record<AdminRefundRow['status'], ChipTone> = {
   failed: 'red',
 };
 
+const SESSION_ACCENTS: Record<AdminFundingSessionRow['status'], string> = {
+  initialized: 'bd-ad-payrow--wait',
+  verified: 'bd-ad-payrow--wait',
+  consumed: 'bd-ad-payrow--done',
+  failed: 'bd-ad-payrow--wait',
+  expired: 'bd-ad-payrow--dead',
+};
+
+const WITHDRAWAL_ACCENTS: Record<AdminWithdrawalRow['status'], string> = {
+  pending: 'bd-ad-payrow--wait',
+  processing: 'bd-ad-payrow--live',
+  paid: 'bd-ad-payrow--done',
+  failed: 'bd-ad-payrow--wait',
+};
+
+const REFUND_ACCENTS: Record<AdminRefundRow['status'], string> = {
+  pending: 'bd-ad-payrow--wait',
+  processing: 'bd-ad-payrow--live',
+  refunded: 'bd-ad-payrow--done',
+  failed: 'bd-ad-payrow--wait',
+};
+
 function TotalFigure({ label, amount }: { label: string; amount: number }) {
   return (
-    <div className="flex flex-col gap-1 border-l-2 border-neutral-200 pl-4">
-      <dt className="text-sm text-muted-foreground">{label}</dt>
-      <dd className="font-semibold text-neutral-900 tabular-nums">
-        {formatEtb(amount)}
-      </dd>
+    <div className="bd-railcell">
+      <dt className="bd-railk">{label}</dt>
+      <dd className="bd-railv bd-mono">{formatEtb(amount)}</dd>
     </div>
   );
 }
 
-function SectionEmpty({ children }: { children: string }) {
-  return <p className="px-1 py-4 text-sm text-muted-foreground">{children}</p>;
+function SectionEmpty({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="bd-emptyfeed">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4.5 7.5h15v10h-15z" />
+        <path d="M8 7.5V5.5h8v2" />
+        <path d="M8 12.5h4" />
+        <path d="M15.5 12.5h4" />
+      </svg>
+      <h3>{title}</h3>
+      <p>{children}</p>
+    </div>
+  );
 }
 
 export default async function AdminPaymentsPage() {
   const view = await readPaymentsForAdmin();
 
   return (
-    <div className="flex flex-col gap-10">
-      <PageHeader
-        label="Money operations"
+    <BdShell className="bd-ad bd-ad-payments">
+      <BdPageHead
+        eyebrow="Admin console"
         title="Payments"
-        description="Every Chapa deposit, withdrawal, and refund with its status — the figures to reconcile our ledger against the gateway balance."
+        facts={
+          <>
+            <span className="bd-mono">{view.sessions.length}</span> deposits ·{' '}
+            <span className="bd-mono">{view.withdrawals.length}</span>{' '}
+            withdrawals · <span className="bd-mono">{view.refunds.length}</span>{' '}
+            refunds
+          </>
+        }
+        ruled
       />
 
-      <dl className="grid grid-cols-2 gap-6 sm:grid-cols-3 lg:grid-cols-5">
+      <dl
+        className="bd-caprail bd-ad-paymenttotals bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
         <TotalFigure label="Deposited" amount={view.totals.deposited} />
         <TotalFigure label="Escrow held" amount={view.totals.escrowHeld} />
         <TotalFigure label="Withdrawn" amount={view.totals.withdrawn} />
@@ -84,39 +136,42 @@ export default async function AdminPaymentsPage() {
         <TotalFigure label="Commission" amount={view.totals.commission} />
       </dl>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-semibold text-neutral-900">Deposits</h2>
+      <section
+        className="bd-ad-section bd-rise"
+        style={{ '--i': 2 } as React.CSSProperties}
+      >
+        <div className="bd-capruler">
+          <span className="bd-caprulertitle">Deposits</span>
+          <span className="bd-caprulerline" aria-hidden="true" />
+          <span className="bd-caprulercount bd-mono">
+            {view.sessions.length}{' '}
+            {view.sessions.length === 1 ? 'session' : 'sessions'}
+          </span>
+        </div>
         {view.sessions.length === 0 ? (
-          <SectionEmpty>
+          <SectionEmpty title="No deposits yet">
             No Chapa checkouts yet — mock-funded campaigns do not appear here.
           </SectionEmpty>
         ) : (
-          <ul className="border-y border-neutral-200">
+          <ul className="bd-ad-list">
             {view.sessions.map((row) => (
               <li
                 key={row.id}
-                className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-1 py-4 last:border-b-0 sm:px-4"
+                className={cn('bd-ad-payrow', SESSION_ACCENTS[row.status])}
               >
-                <div className="flex flex-col gap-1">
-                  <p className="font-medium text-neutral-900">
+                <div className="bd-ad-paymain">
+                  <p>
                     {row.campaignName}
-                    <span className="text-muted-foreground">
-                      {' '}
-                      · {row.brandCompanyName}
-                    </span>
+                    <span> · {row.brandCompanyName}</span>
                   </p>
-                  <p className="font-mono text-xs text-muted-foreground">
+                  <p className="bd-mono">
                     {row.txRef}
                     {row.failureReason ? ` · ${row.failureReason}` : ''}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-muted-foreground">
-                    {ageLabel(row.createdAt)}
-                  </span>
-                  <span className="font-semibold text-neutral-900 tabular-nums">
-                    {formatEtb(row.amount)}
-                  </span>
+                <div className="bd-ad-paymeta">
+                  <span>{ageLabel(row.createdAt)}</span>
+                  <span className="bd-mono">{formatEtb(row.amount)}</span>
                   <Chip tone={SESSION_TONES[row.status]}>{row.status}</Chip>
                 </div>
               </li>
@@ -125,37 +180,43 @@ export default async function AdminPaymentsPage() {
         )}
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-semibold text-neutral-900">Withdrawals</h2>
+      <section
+        className="bd-ad-section bd-rise"
+        style={{ '--i': 3 } as React.CSSProperties}
+      >
+        <div className="bd-capruler">
+          <span className="bd-caprulertitle">Withdrawals</span>
+          <span className="bd-caprulerline" aria-hidden="true" />
+          <span className="bd-caprulercount bd-mono">
+            {view.withdrawals.length}{' '}
+            {view.withdrawals.length === 1 ? 'withdrawal' : 'withdrawals'}
+          </span>
+        </div>
         {view.withdrawals.length === 0 ? (
-          <SectionEmpty>No withdrawals yet.</SectionEmpty>
+          <SectionEmpty title="No withdrawals yet">
+            Creator payout requests will appear here after they leave the
+            wallet.
+          </SectionEmpty>
         ) : (
-          <ul className="border-y border-neutral-200">
+          <ul className="bd-ad-list">
             {view.withdrawals.map((row) => (
               <li
                 key={row.id}
-                className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-1 py-4 last:border-b-0 sm:px-4"
+                className={cn('bd-ad-payrow', WITHDRAWAL_ACCENTS[row.status])}
               >
-                <div className="flex flex-col gap-1">
-                  <p className="font-medium text-neutral-900">
+                <div className="bd-ad-paymain">
+                  <p>
                     {displayTiktokHandle(row.creatorHandle)}
-                    <span className="text-muted-foreground">
-                      {' '}
-                      · {row.bankName}
-                    </span>
+                    <span> · {row.bankName}</span>
                   </p>
-                  <p className="font-mono text-xs text-muted-foreground">
+                  <p className="bd-mono">
                     {row.txRef}
                     {row.failureReason ? ` · ${row.failureReason}` : ''}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-muted-foreground">
-                    {ageLabel(row.createdAt)}
-                  </span>
-                  <span className="font-semibold text-neutral-900 tabular-nums">
-                    {formatEtb(row.amount)}
-                  </span>
+                <div className="bd-ad-paymeta">
+                  <span>{ageLabel(row.createdAt)}</span>
+                  <span className="bd-mono">{formatEtb(row.amount)}</span>
                   <Chip tone={WITHDRAWAL_TONES[row.status]}>{row.status}</Chip>
                 </div>
               </li>
@@ -164,40 +225,43 @@ export default async function AdminPaymentsPage() {
         )}
       </section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="font-semibold text-neutral-900">Refunds</h2>
+      <section
+        className="bd-ad-section bd-rise"
+        style={{ '--i': 4 } as React.CSSProperties}
+      >
+        <div className="bd-capruler">
+          <span className="bd-caprulertitle">Refunds</span>
+          <span className="bd-caprulerline" aria-hidden="true" />
+          <span className="bd-caprulercount bd-mono">
+            {view.refunds.length}{' '}
+            {view.refunds.length === 1 ? 'refund' : 'refunds'}
+          </span>
+        </div>
         {view.refunds.length === 0 ? (
-          <SectionEmpty>
+          <SectionEmpty title="No external refunds yet">
             No external refunds yet — rows appear when a dispute resolves as a
             refund in Chapa mode.
           </SectionEmpty>
         ) : (
-          <ul className="border-y border-neutral-200">
+          <ul className="bd-ad-list">
             {view.refunds.map((row) => (
               <li
                 key={row.id}
-                className="flex flex-wrap items-center justify-between gap-3 border-b border-neutral-200 px-1 py-4 last:border-b-0 sm:px-4"
+                className={cn('bd-ad-payrow', REFUND_ACCENTS[row.status])}
               >
-                <div className="flex flex-col gap-1">
-                  <p className="font-medium text-neutral-900">
+                <div className="bd-ad-paymain">
+                  <p>
                     {row.campaignName}
-                    <span className="text-muted-foreground">
-                      {' '}
-                      · {row.brandCompanyName}
-                    </span>
+                    <span> · {row.brandCompanyName}</span>
                   </p>
-                  <p className="font-mono text-xs text-muted-foreground">
+                  <p className="bd-mono">
                     {row.fundingTxRef}
                     {row.failureReason ? ` · ${row.failureReason}` : ''}
                   </p>
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-muted-foreground">
-                    {ageLabel(row.createdAt)}
-                  </span>
-                  <span className="font-semibold text-neutral-900 tabular-nums">
-                    {formatEtb(row.amount)}
-                  </span>
+                <div className="bd-ad-paymeta">
+                  <span>{ageLabel(row.createdAt)}</span>
+                  <span className="bd-mono">{formatEtb(row.amount)}</span>
                   <Chip tone={REFUND_TONES[row.status]}>{row.status}</Chip>
                   {row.status === 'failed' && (
                     <RetryRefundButton
@@ -211,6 +275,6 @@ export default async function AdminPaymentsPage() {
           </ul>
         )}
       </section>
-    </div>
+    </BdShell>
   );
 }
