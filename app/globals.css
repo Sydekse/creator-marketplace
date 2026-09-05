@@ -485,6 +485,33 @@ body {
     animation: chain-sweep 7s ease-in-out infinite;
     animation-delay: calc(var(--chain-i, 0) * 0.9s + 0.45s);
   }
+
+  /* Mobile orbit: the teal arc laps the ring once per cycle, timed so it
+     passes each station as chain-wake lights it. -502.66 is the r=80
+     circumference, so one full offset is exactly one revolution. */
+  @keyframes chain-orbit {
+    0% {
+      stroke-dashoffset: 0;
+      opacity: 0;
+    }
+    4% {
+      opacity: 1;
+    }
+    58% {
+      opacity: 1;
+    }
+    64%,
+    100% {
+      stroke-dashoffset: -502.66;
+      opacity: 0;
+    }
+  }
+
+  .chain-orbitpath {
+    opacity: 0;
+    animation: chain-orbit 7s linear infinite;
+    animation-delay: 0.45s;
+  }
 }
 
 /* Editorial hard shadow: a solid teal plate offset behind the hero frame,
@@ -1839,7 +1866,10 @@ body {
 .bd .bd-cdavatar {
   border-radius: 20px;
   border: 1px solid var(--bd-line);
-  background: var(--bd-white);
+  /* Ink plate, not paper: initials avatars paint light text, and a white
+     surface under them turned "DB" white-on-white on the deal masthead. An
+     image still covers the plate entirely, so photo avatars are unchanged. */
+  background: oklch(0.22 0.005 220);
   font-size: 18px;
   flex: none;
 }

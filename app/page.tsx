@@ -486,64 +486,80 @@ export default function HomePage() {
             {/* The record itself: everything the deal carries, chained on one
                 hairline. A pulse walks the chain, token by token. */}
             <Reveal className="mt-14">
-              {/* Mobile: a curved two-row route. When the chain wraps, the line
-                  bends down and back instead of breaking into a scroll strip. */}
-              <div className="relative overflow-hidden rounded-2xl border border-[oklch(0.79_0.004_220)] bg-white px-4 py-5 shadow-[0_2px_0_rgba(23,23,23,0.07)] sm:hidden">
-                <svg
-                  aria-hidden
-                  viewBox="0 0 340 156"
-                  preserveAspectRatio="none"
-                  className="pointer-events-none absolute inset-x-4 top-5 h-[156px] text-brand/35"
-                >
-                  <path
-                    d="M42 24 H170 H298 Q326 24 326 52 V104 Q326 132 298 132 H170"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1"
-                    strokeLinecap="round"
-                  />
-                  <path
-                    d="M42 24 H170 H298 Q326 24 326 52 V104 Q326 132 298 132 H170"
-                    fill="none"
-                    stroke="oklch(0.51 0.11 185)"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeDasharray="24 420"
-                    className="animate-[chain-route-sweep_7s_ease-in-out_infinite]"
-                  />
-                </svg>
-                <div className="relative grid grid-cols-3 gap-x-2 gap-y-16">
+              {/* Mobile: the chain becomes an orbit. Five stations circle one
+                  hub — everything the deal carries, held around one record.
+                  The teal pulse laps the ring and wakes each station in turn. */}
+              <div className="relative overflow-hidden rounded-2xl border border-[oklch(0.79_0.004_220)] bg-white px-4 py-8 shadow-[0_2px_0_rgba(23,23,23,0.07)] sm:hidden">
+                <div className="relative mx-auto aspect-square w-full max-w-[300px]">
+                  <svg
+                    aria-hidden
+                    viewBox="0 0 200 200"
+                    className="absolute inset-0 h-full w-full"
+                  >
+                    <circle
+                      cx="100"
+                      cy="100"
+                      r="80"
+                      fill="none"
+                      stroke="oklch(0.88 0.004 220)"
+                      strokeWidth="1"
+                    />
+                    <circle
+                      cx="100"
+                      cy="100"
+                      r="60"
+                      fill="none"
+                      stroke="oklch(0.91 0.004 220)"
+                      strokeWidth="1"
+                      strokeDasharray="1 7"
+                      strokeLinecap="round"
+                    />
+                    <circle
+                      cx="100"
+                      cy="100"
+                      r="80"
+                      fill="none"
+                      stroke="oklch(0.51 0.11 185)"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeDasharray="56 446.66"
+                      transform="rotate(-90 100 100)"
+                      className="chain-orbitpath"
+                    />
+                  </svg>
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center">
+                    <p className="font-display text-lg font-medium leading-none text-neutral-900">
+                      One record
+                    </p>
+                    <p className="mt-2 font-mono text-[9px] uppercase tracking-[0.14em] text-neutral-400">
+                      five entries
+                      <br />
+                      one line
+                    </p>
+                  </div>
                   {[
-                    'Brief',
-                    'Creator',
-                    'Deliverable',
-                    'History',
-                    'Payment',
-                  ].map((token, i) => {
-                    const order =
-                      token === 'History' ? 5 : token === 'Payment' ? 4 : i + 1;
-                    return (
+                    ['Brief', '50%', '10%'],
+                    ['Creator', '88%', '37.6%'],
+                    ['Deliverable', '73.5%', '82.4%'],
+                    ['Payment', '26.5%', '82.4%'],
+                    ['History', '12%', '37.6%'],
+                  ].map(([token, left, top], i) => (
+                    <span
+                      key={token}
+                      className="absolute -translate-x-1/2 -translate-y-1/2"
+                      style={{ left, top }}
+                    >
                       <span
-                        key={token}
-                        className={cn(
-                          'chain-token inline-flex items-center justify-between gap-2 rounded-full border border-brand bg-brand px-3 py-2.5 font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-50 shadow-[0_0_0_4px_oklch(0.51_0.11_185/0.12)]',
-                          token === 'History' && 'col-start-1 row-start-2',
-                          token === 'Payment' && 'col-start-2 row-start-2'
-                        )}
-                        style={
-                          { '--chain-i': order - 1 } as React.CSSProperties
-                        }
+                        className="chain-token inline-flex items-center gap-2 whitespace-nowrap rounded-full border border-[oklch(0.79_0.004_220)] bg-white px-3 py-2 font-mono text-[10px] uppercase tracking-[0.08em] text-neutral-600 shadow-[0_2px_0_rgba(23,23,23,0.06)]"
+                        style={{ '--chain-i': i } as React.CSSProperties}
                       >
-                        <span>{token}</span>
-                        <span
-                          aria-hidden
-                          className="text-[9px] text-neutral-50/70"
-                        >
-                          {String(order).padStart(2, '0')}
+                        {token}
+                        <span aria-hidden className="text-[9px] text-brand">
+                          {String(i + 1).padStart(2, '0')}
                         </span>
                       </span>
-                    );
-                  })}
+                    </span>
+                  ))}
                 </div>
               </div>
               {/* From sm up: a full-width rail. The tokens sit on a grid and
@@ -683,7 +699,7 @@ export default function HomePage() {
                         src="/marketing/creator-deal.webp"
                         alt=""
                         width={2912}
-                        height={2312}
+                        height={2910}
                         unoptimized
                         className="h-auto w-full bg-white"
                       />
