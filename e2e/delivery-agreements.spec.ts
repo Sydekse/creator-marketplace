@@ -12,9 +12,10 @@ import {
 } from './helpers';
 
 async function authenticatedPage(browser: Browser, email: string) {
-  const login = await browser.newPage();
+  const context = await browser.newContext();
+  const login = await context.newPage();
   await signIn(login, email);
-  const page = await login.context().newPage();
+  const page = await context.newPage();
   await login.close();
   return page;
 }
