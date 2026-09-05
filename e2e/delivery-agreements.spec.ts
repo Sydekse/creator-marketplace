@@ -144,12 +144,14 @@ test('mutual delivery agreement survives full delivery and appears in owned insi
     expect((await accepted).status()).toBe(200);
     await creator.reload();
     await brand.reload();
-    const finalDue = await agreement(brand)
-      .locator('dt')
-      .filter({ hasText: 'Current delivery deadline' })
-      .locator('..')
-      .innerText();
-    await expect(agreement(creator)).toContainText(finalDue);
+    const currentDeadline = (page: Page) =>
+      agreement(page)
+        .locator('dt')
+        .filter({ hasText: 'Current delivery deadline' })
+        .locator('..')
+        .locator('dd');
+    const finalDue = await currentDeadline(brand).innerText();
+    await expect(currentDeadline(creator)).toHaveText(finalDue);
     await agreement(creator)
       .locator('summary')
       .filter({ hasText: 'Extension history' })
