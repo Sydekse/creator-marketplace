@@ -4541,9 +4541,14 @@ body {
     flex: 1;
     justify-content: center;
   }
-  /* Ruler: the verbose note gives way to the compact count. */
+  /* Ruler: the verbose note gives way to the compact count — except when
+     the note carries data (delivery progress), which must survive every
+     width; specs and users both read it. */
   .bd .bd-caprulernote {
     display: none;
+  }
+  .bd .bd-caprulernote--data {
+    display: inline;
   }
   .bd .bd-caprulercount {
     display: inline;

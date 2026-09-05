@@ -200,7 +200,9 @@ export default async function BrandDealReviewPage({
               <div className="bd-capruler">
                 <span className="bd-caprulertitle">{DELIVERABLES_TITLE}</span>
                 <span className="bd-caprulerline" aria-hidden="true" />
-                <span className="bd-caprulernote">
+                {/* Progress is data, not garnish — the --data modifier keeps
+                    it visible when mobile sheds ordinary notes. */}
+                <span className="bd-caprulernote bd-caprulernote--data">
                   {deliveryProgress(standing, deal.videoCount)}
                 </span>
               </div>
@@ -291,7 +293,7 @@ export default async function BrandDealReviewPage({
               <div className="bd-capruler">
                 <span className="bd-caprulertitle">{DELIVERABLES_TITLE}</span>
                 <span className="bd-caprulerline" aria-hidden="true" />
-                <span className="bd-caprulernote">
+                <span className="bd-caprulernote bd-caprulernote--data">
                   {deliveryProgress(standing, deal.videoCount)}
                 </span>
               </div>
