@@ -74,11 +74,11 @@ export default async function SettingsPage() {
   const user = await requireUser();
 
   // The raw session too — its token is what marks "this device" in the list.
-  const live = await auth.api.getSession({ headers: await headers() });
-  const currentToken = live?.session.token ?? null;
-
-  const [sessions, accounts, prefs, brandProfile, creatorProfile] =
+  const [live, sessions, accounts, prefs, brandProfile, creatorProfile] =
     await Promise.all([
+      headers().then((requestHeaders) =>
+        auth.api.getSession({ headers: requestHeaders })
+      ),
       db
         .select({
           token: session.token,
@@ -118,6 +118,7 @@ export default async function SettingsPage() {
         : Promise.resolve(null),
     ]);
 
+  const currentToken = live?.session.token ?? null;
   const alive = sessions.filter((s) => s.expiresAt > new Date());
   const hasPassword = accounts.some((a) => a.providerId === 'credential');
   const memberSince = live?.user.createdAt

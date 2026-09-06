@@ -1,3 +1,4 @@
+import { after } from 'next/server';
 import { ForbiddenError, guard, toErrorResponse } from '@/lib/authz';
 import type { AuthzContext, GuardOptions } from '@/lib/authz';
 import { submitDeliverable } from '@/lib/deals/submit-deliverable';
@@ -138,19 +139,37 @@ export async function handleSubmitDeliverable(
     }
   }
 
-  // The video-card enrichment (thumbnail snapshot + video id), after the
-  // submission transaction has committed — the row must exist for the update
-  // to land, and a thumbnail must never fail a submission. Awaited rather
-  // than fire-and-forget because a serverless invocation may be frozen the
-  // moment the response is returned; failure-tolerant by the module's own
-  // contract (every failure path inside returns nulls).
-  await storeDeliverableThumbnail(
-    result.deliverableId,
-    parsed.data.tiktokUrl,
-    deps?.storeThumbnailDeps,
-    result.submissionVersion,
-    result.previousThumbnailUrl
-  );
+  // Only optional media runs after the response. Submission, history and the
+  // notification have already committed together; Next owns this task's lifetime.
+  try {
+    after(async () => {
+      try {
+        await storeDeliverableThumbnail(
+          result.deliverableId,
+          parsed.data.tiktokUrl,
+          deps?.storeThumbnailDeps,
+          result.submissionVersion,
+          result.previousThumbnailUrl
+        );
+      } catch (error) {
+        console.error(
+          '[deliverable-thumbnail] Post-response enrichment failed',
+          {
+            deliverableId: result.deliverableId,
+            submissionVersion: result.submissionVersion,
+            error,
+          }
+        );
+      }
+    });
+  } catch (error) {
+    // A scheduling failure must not turn an already committed submission into 500.
+    console.error('[deliverable-thumbnail] Could not schedule enrichment', {
+      deliverableId: result.deliverableId,
+      submissionVersion: result.submissionVersion,
+      error,
+    });
+  }
 
   return Response.json(
     {

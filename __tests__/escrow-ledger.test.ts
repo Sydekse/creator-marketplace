@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import type { SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import * as schema from '../db/schema';
@@ -378,6 +378,8 @@ function loggingProvider(log: string[], inner: MockPaymentProvider) {
       return inner.releaseHold(h, k);
     },
     getStatus: (r: string) => inner.getStatus(r),
+    forgetIdempotencyKeys: (keys: Iterable<string>) =>
+      inner.forgetIdempotencyKeys(keys),
   };
 }
 
@@ -400,6 +402,7 @@ async function build(seed: Seed, existingMock?: MockPaymentProvider) {
   let holdRef = seed.holdRef;
   if (holdRef === undefined && holdAmount > 0) {
     holdRef = (await mock.hold(holdAmount, 'setup-key')).providerRef;
+    mock.forgetIdempotencyKeys(['setup-key']);
   }
 
   const db = new FakeDb({ ...seed, holdRef });
@@ -1316,5 +1319,176 @@ describe('serialization failure retry', () => {
 
     await expect(svc.refundDeal(DEAL_ID)).rejects.toThrow(PaymentError);
     expect(db.attempts).toBe(1);
+  });
+});
+
+describe('request-local payment replay cleanup', () => {
+  const funded = {
+    id: DEAL_ID,
+    status: 'funded' as DealStatus,
+    totalPrice: 100_000,
+    commissionRate: '15.00',
+  };
+
+  it.each(['hold', 'payout', 'refund'] as const)(
+    'retains %s results through every retry and frees them after commit',
+    async (operation) => {
+      const seed: Seed =
+        operation === 'hold'
+          ? {
+              deals: [
+                { ...funded, status: 'accepted', totalPrice: 100_000 },
+                {
+                  ...funded,
+                  id: 'd0000000-0000-0000-0000-000000000002',
+                  status: 'accepted',
+                  totalPrice: 100_000,
+                },
+              ],
+            }
+          : {
+              targetDeal: {
+                ...funded,
+                status: operation === 'payout' ? 'delivered' : 'funded',
+              },
+              entries: [{ amount: 100_000 }],
+            };
+      const { db, svc, mock, holdRef } = await build({
+        ...seed,
+        commitFailures: 3,
+      });
+      const cleanup = vi.spyOn(mock, 'forgetIdempotencyKeys');
+      const holds = vi.spyOn(mock, 'hold');
+
+      if (operation === 'hold') await svc.holdForCampaign(CAMPAIGN_ID);
+      else if (operation === 'payout') await svc.payoutForDeal(DEAL_ID);
+      else await svc.refundDeal(DEAL_ID);
+
+      expect(db.attempts).toBe(4);
+      expect(cleanup).toHaveBeenCalledTimes(1);
+      expect(mock['idempotency'].size).toBe(0);
+      expect(db.log.at(-1)).toBe('COMMIT');
+      if (operation === 'hold') {
+        const results = await Promise.all(
+          holds.mock.results.map((result) => result.value)
+        );
+        expect(new Set(results.map((result) => result.providerRef)).size).toBe(
+          2
+        );
+        expect(ledgerRows(db)).toHaveLength(2);
+        for (const row of ledgerRows(db)) {
+          expect(await mock.getStatus(row.providerRef as string)).toMatchObject(
+            { state: 'held', amount: 100_000 }
+          );
+        }
+      } else {
+        expect(await mock.getStatus(holdRef!)).toMatchObject(
+          operation === 'payout'
+            ? { state: 'captured', amount: 0 }
+            : { state: 'released', amount: 100_000 }
+        );
+      }
+    }
+  );
+
+  it('frees replay results after exhausting retries without deleting provider state', async () => {
+    const { db, svc, mock, holdRef } = await build({
+      targetDeal: funded,
+      entries: [{ amount: 100_000 }],
+      commitFailures: 4,
+    });
+    const cleanup = vi.spyOn(mock, 'forgetIdempotencyKeys');
+
+    await expect(svc.refundDeal(DEAL_ID)).rejects.toMatchObject({
+      code: ErrorCode.PAYMENT_FAILED,
+    });
+
+    expect(db.attempts).toBe(4);
+    expect(ledgerRows(db)).toHaveLength(0);
+    expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(mock['idempotency'].size).toBe(0);
+    expect(await mock.getStatus(holdRef!)).toMatchObject({ state: 'released' });
+  });
+
+  it('cleans a successful payout leg when the next provider leg fails', async () => {
+    const { svc, mock, holdRef } = await build({
+      targetDeal: { ...funded, status: 'delivered' },
+      entries: [{ amount: 100_000 }],
+    });
+    mock.setFailNext('captureCommission');
+
+    await expect(svc.payoutForDeal(DEAL_ID)).rejects.toThrow(PaymentError);
+
+    expect(mock['idempotency'].size).toBe(0);
+    expect(await mock.getStatus(holdRef!)).toMatchObject({
+      state: 'held',
+      amount: 15_000,
+    });
+  });
+
+  it('cleans results when bookkeeping fails after moving provider funds', async () => {
+    const { svc, mock, holdRef } = await build({
+      targetDeal: funded,
+      entries: [{ amount: 100_000 }],
+    });
+    const failure = new Error('audit failed');
+
+    await expect(
+      svc.refundDeal(DEAL_ID, undefined, {
+        onCommit: async () => {
+          throw failure;
+        },
+      })
+    ).rejects.toBe(failure);
+
+    expect(mock['idempotency'].size).toBe(0);
+    expect(await mock.getStatus(holdRef!)).toMatchObject({ state: 'released' });
+  });
+
+  it('does not forget an active concurrent operation when another one finishes', async () => {
+    const mock = new MockPaymentProvider();
+    const seed: Seed = {
+      deals: [{ ...funded, status: 'accepted' }],
+    };
+    const first = await build({ ...seed, commitFailures: 1 }, mock);
+    const second = await build(seed, mock);
+    const transaction = first.db.transaction.bind(first.db);
+    let unblock!: () => void;
+    let started!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      unblock = resolve;
+    });
+    const ready = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    vi.spyOn(first.db, 'transaction').mockImplementationOnce((fn, opts) =>
+      transaction(async (tx) => {
+        const result = await fn(tx);
+        started();
+        await blocked;
+        return result;
+      }, opts)
+    );
+    const holds = vi.spyOn(mock, 'hold');
+    const pending = first.svc.holdForCampaign(CAMPAIGN_ID);
+    await ready;
+    const activeKey = holds.mock.calls[0][1];
+    const activeHold = await holds.mock.results[0].value;
+    try {
+      await second.svc.holdForCampaign(CAMPAIGN_ID);
+
+      expect([...mock['idempotency'].keys()]).toEqual([`hold:${activeKey}`]);
+      expect(await mock.hold(100_000, activeKey)).toBe(activeHold);
+    } finally {
+      unblock();
+      await pending;
+    }
+
+    expect(first.db.attempts).toBe(2);
+    expect(ledgerRows(first.db)[0].providerRef).toBe(activeHold.providerRef);
+    expect(ledgerRows(second.db)[0].providerRef).not.toBe(
+      activeHold.providerRef
+    );
+    expect(mock['idempotency'].size).toBe(0);
   });
 });
