@@ -1058,6 +1058,24 @@ describe('a still-open offer shows the terms currently in effect', () => {
     expect(detail?.rightsTermsAreCurrent).toBe(true);
   });
 
+  it('starts current terms while owned deliverables are still pending', async () => {
+    let finishDeliverables!: (
+      rows: Awaited<ReturnType<CreatorDealDeps['selectDeliverables']>>
+    ) => void;
+    const deliverables = new Promise<
+      Awaited<ReturnType<CreatorDealDeps['selectDeliverables']>>
+    >((resolve) => {
+      finishDeliverables = resolve;
+    });
+    const { deps, currentTerms } = depsFor('pending');
+    const selectDeliverables = vi.fn(() => deliverables);
+    const pending = readCreatorDeal(DEAL_ID, { ...deps, selectDeliverables });
+    await vi.waitFor(() => expect(currentTerms).toHaveBeenCalledOnce());
+    expect(selectDeliverables).toHaveBeenCalledWith(DEAL_ID);
+    finishDeliverables([]);
+    expect((await pending)?.rightsTerms).toEqual(CURRENT);
+  });
+
   it.each(ALL_STATUSES.filter((s) => s !== 'pending'))(
     'leaves %s showing the version that was agreed to',
     async (status) => {

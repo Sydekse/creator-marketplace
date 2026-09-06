@@ -90,6 +90,7 @@ export function NotificationToaster({ role }: { role: UserRole }) {
   useEffect(() => {
     if (ACTIONABLE[role].size === 0) return;
     let cancelled = false;
+    let controller: AbortController | null = null;
 
     function show(row: NotificationRow) {
       const payload = row.payload ?? {};
@@ -139,34 +140,42 @@ export function NotificationToaster({ role }: { role: UserRole }) {
     }
 
     async function poll() {
-      if (cancelled || onFeed.current || document.hidden) return;
-      let rows: NotificationRow[];
+      if (cancelled || controller || onFeed.current || document.hidden) return;
+      controller = new AbortController();
       try {
-        const res = await fetch('/api/notifications', { cache: 'no-store' });
+        const res = await fetch('/api/notifications', {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (cancelled || onFeed.current || document.hidden) return;
         if (!res.ok) return;
-        rows = (await res.json()).notifications ?? [];
+        const rows: NotificationRow[] = (await res.json()).notifications ?? [];
+        if (cancelled || onFeed.current || document.hidden) return;
+
+        for (const row of rows) {
+          if (visible.current >= MAX_VISIBLE) break;
+          if (row.readAt !== null) continue;
+          if (row.createdAt <= watermark.current) continue;
+          if (seen.current.has(row.id)) continue;
+          if (!ACTIONABLE[role].has(row.type)) continue;
+          seen.current.add(row.id);
+          show(row);
+        }
+        // Advance so a toast dismissed unread is not re-raised next minute.
+        if (rows[0] && rows[0].createdAt > watermark.current) {
+          watermark.current = rows[0].createdAt;
+        }
       } catch {
         return; // Silent: the bell still tells the truth.
-      }
-
-      for (const row of rows) {
-        if (visible.current >= MAX_VISIBLE) break;
-        if (row.readAt !== null) continue;
-        if (row.createdAt <= watermark.current) continue;
-        if (seen.current.has(row.id)) continue;
-        if (!ACTIONABLE[role].has(row.type)) continue;
-        seen.current.add(row.id);
-        show(row);
-      }
-      // Advance so a toast dismissed unread is not re-raised next minute.
-      if (rows[0] && rows[0].createdAt > watermark.current) {
-        watermark.current = rows[0].createdAt;
+      } finally {
+        controller = null;
       }
     }
 
     const timer = setInterval(() => void poll(), POLL_MS);
     return () => {
       cancelled = true;
+      controller?.abort();
       clearInterval(timer);
     };
   }, [role, router]);

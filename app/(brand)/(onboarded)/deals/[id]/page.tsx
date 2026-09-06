@@ -11,6 +11,8 @@ import {
   RejectVideoForm,
 } from '@/components/deals/review-actions';
 import { TiktokVideoCard } from '@/components/deals/tiktok-video-card';
+import { ThumbnailRefresh } from '@/components/deals/thumbnail-refresh';
+import { latestPendingThumbnailSubmission } from '@/lib/deliverables/thumbnail-refresh';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { canReview, labelForReviewStatus, labelForStatus } from '@/lib/deals';
 import type { DealStatus } from '@/db/schema';
@@ -199,6 +201,11 @@ export default async function BrandDealReviewPage({
             whichever row the server picked. */}
           {deal.deliverables.length > 0 ? (
             <section className="bd-dlvids">
+              <ThumbnailRefresh
+                latestPendingSubmission={latestPendingThumbnailSubmission(
+                  deal.deliverables
+                )}
+              />
               <div className="bd-capruler">
                 <span className="bd-caprulertitle">{DELIVERABLES_TITLE}</span>
                 <span className="bd-caprulerline" aria-hidden="true" />

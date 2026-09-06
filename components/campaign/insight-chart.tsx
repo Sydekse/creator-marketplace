@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
@@ -31,6 +32,14 @@ export function InsightChart({
   unit: string;
   height: number;
 }) {
+  const rowsById = useMemo(() => {
+    const index = new Map<string, InsightChartRow>();
+    for (const row of rows) {
+      if (!index.has(row.id)) index.set(row.id, row);
+    }
+    return index;
+  }, [rows]);
+
   return (
     <ResponsiveContainer
       width="100%"
@@ -61,15 +70,11 @@ export function InsightChart({
           tickLine={false}
           axisLine={false}
           tick={{ fill: 'var(--foreground)', fontSize: 11 }}
-          tickFormatter={(id: string) =>
-            rows.find((r) => r.id === id)?.label ?? id
-          }
+          tickFormatter={(id: string) => rowsById.get(id)?.label ?? id}
         />
         <Tooltip
           cursor={{ fill: 'var(--muted)' }}
-          labelFormatter={(id) =>
-            rows.find((r) => r.id === String(id))?.label ?? ''
-          }
+          labelFormatter={(id) => rowsById.get(String(id))?.label ?? ''}
           contentStyle={{
             borderColor: 'var(--border)',
             borderRadius: 8,

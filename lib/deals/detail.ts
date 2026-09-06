@@ -397,12 +397,13 @@ export async function readCreatorDeal(
   );
   if (!row) return null;
 
-  const detail = toDealDetail(row, await deps.selectDeliverables(row.id));
-
-  // Only the deals that can still be accepted pay for the second query.
-  if (!canAct(detail.status)) return detail;
-
-  return withCurrentTerms(detail, await deps.currentTerms());
+  const actionable = canAct(row.status);
+  const [deliverables, currentTerms] = await Promise.all([
+    deps.selectDeliverables(row.id),
+    actionable ? deps.currentTerms() : Promise.resolve(null),
+  ]);
+  const detail = toDealDetail(row, deliverables);
+  return actionable ? withCurrentTerms(detail, currentTerms) : detail;
 }
 
 /**

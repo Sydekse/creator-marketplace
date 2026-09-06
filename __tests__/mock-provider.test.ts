@@ -9,6 +9,56 @@ describe('MockPaymentProvider', () => {
     provider = new MockPaymentProvider();
   });
 
+  describe('forgetIdempotencyKeys', () => {
+    it('removes all method results for completed keys without deleting holds', async () => {
+      const captured = await provider.hold(1000, 'completed');
+      await provider.capturePayout(
+        850,
+        'creator',
+        captured.providerRef,
+        'completed'
+      );
+      await provider.captureCommission(150, captured.providerRef, 'completed');
+      const released = await provider.hold(2000, 'refunded');
+      await provider.releaseHold(released.providerRef, 'refunded');
+
+      expect(provider['idempotency'].size).toBe(5);
+      provider.forgetIdempotencyKeys(['completed', 'refunded']);
+      provider.forgetIdempotencyKeys(['completed', 'missing']);
+
+      expect(provider['idempotency'].size).toBe(0);
+      expect(await provider.getStatus(captured.providerRef)).toMatchObject({
+        state: 'captured',
+        amount: 0,
+      });
+      expect(await provider.getStatus(released.providerRef)).toMatchObject({
+        state: 'released',
+        amount: 2000,
+      });
+    });
+
+    it('preserves other exact keys, replay validation, holds, and failure hooks', async () => {
+      const completed = await provider.hold(1000, 'operation');
+      const active = await provider.hold(2000, 'operation:active');
+      provider.setFailNext('capturePayout');
+
+      provider.forgetIdempotencyKeys(['operation']);
+
+      expect(provider['idempotency'].size).toBe(1);
+      expect(await provider.hold(2000, 'operation:active')).toBe(active);
+      await expect(provider.hold(3000, 'operation:active')).rejects.toThrow(
+        'DUPLICATE_IDEMPOTENCY'
+      );
+      expect(await provider.getStatus(completed.providerRef)).toMatchObject({
+        state: 'held',
+        amount: 1000,
+      });
+      await expect(
+        provider.capturePayout(1000, 'creator', completed.providerRef, 'payout')
+      ).rejects.toThrow('Mock capture failed');
+    });
+  });
+
   describe('hold', () => {
     it('returns a hold result with provider ref and timestamp', async () => {
       const result = await provider.hold(1000, 'key-1');
