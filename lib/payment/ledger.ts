@@ -245,7 +245,7 @@ export class EscrowLedgerService {
     // this method used to do — would double-charge on the first conflict.
     const idempotencyKey = crypto.randomUUID();
 
-    return this.inSerializableTx(async (tx) => {
+    return this.inSerializableTx(async (tx, trackKey) => {
       const campaign = await this.lockCampaign(tx, campaignId);
 
       if (campaign.status !== 'confirmed') {
@@ -312,7 +312,7 @@ export class EscrowLedgerService {
         // same deal asks for the same key on every attempt.
         const held = await this.provider.hold(
           d.totalPrice,
-          `${idempotencyKey}:${d.id}`
+          trackKey(`${idempotencyKey}:${d.id}`)
         );
 
         balance += d.totalPrice;
@@ -388,7 +388,7 @@ export class EscrowLedgerService {
   ): Promise<PayoutResult> {
     const idempotencyKey = crypto.randomUUID();
 
-    return this.inSerializableTx(async (tx) => {
+    return this.inSerializableTx(async (tx, trackKey) => {
       const deal = await this.lockDeal(tx, dealId);
 
       if (deal.status !== PAYABLE_FROM) {
@@ -430,7 +430,7 @@ export class EscrowLedgerService {
         payout,
         deal.creatorId,
         holdRef,
-        `${idempotencyKey}:payout`
+        trackKey(`${idempotencyKey}:payout`)
       );
 
       // The platform's leg (KAN-68, F21). Until this existed the `commission`
@@ -458,7 +458,7 @@ export class EscrowLedgerService {
         await this.provider.captureCommission(
           commission,
           holdRef,
-          `${idempotencyKey}:commission`
+          trackKey(`${idempotencyKey}:commission`)
         );
       }
 
@@ -561,7 +561,7 @@ export class EscrowLedgerService {
   ): Promise<void> {
     const idempotencyKey = crypto.randomUUID();
 
-    await this.inSerializableTx(async (tx) => {
+    await this.inSerializableTx(async (tx, trackKey) => {
       const deal = await this.lockDeal(tx, dealId);
       const operationAt = new Date();
 
@@ -586,7 +586,7 @@ export class EscrowLedgerService {
         );
       }
 
-      await this.provider.releaseHold(holdRef, idempotencyKey);
+      await this.provider.releaseHold(holdRef, trackKey(idempotencyKey));
 
       await tx.insert(schema.ledgerEntry).values({
         campaignId: deal.campaignId,
@@ -624,25 +624,38 @@ export class EscrowLedgerService {
    * (spike §5.3). Only `40001` is retried — every other error, including a
    * `PaymentError` or a refused transition, propagates on the first attempt.
    */
-  private async inSerializableTx<T>(fn: (tx: Tx) => Promise<T>): Promise<T> {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        return await this.db.transaction(fn, {
-          isolationLevel: 'serializable',
-        });
-      } catch (error) {
-        if (!isSerializationFailure(error)) throw error;
+  private async inSerializableTx<T>(
+    fn: (tx: Tx, trackKey: (key: string) => string) => Promise<T>
+  ): Promise<T> {
+    const keys = new Set<string>();
+    const trackKey = (key: string) => {
+      keys.add(key);
+      return key;
+    };
+    try {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await this.db.transaction((tx) => fn(tx, trackKey), {
+            isolationLevel: 'serializable',
+          });
+        } catch (error) {
+          if (!isSerializationFailure(error)) throw error;
 
-        const backoff = RETRY_BACKOFF_MS[attempt];
-        if (backoff === undefined) {
-          // Out of retries. Nothing was committed — every attempt rolled back.
-          throw new LedgerError(
-            'Payment could not be completed due to concurrent activity.',
-            ErrorCode.PAYMENT_FAILED
-          );
+          const backoff = RETRY_BACKOFF_MS[attempt];
+          if (backoff === undefined) {
+            // Out of retries. Nothing was committed — every attempt rolled back.
+            throw new LedgerError(
+              'Payment could not be completed due to concurrent activity.',
+              ErrorCode.PAYMENT_FAILED
+            );
+          }
+          await sleep(backoff);
         }
-        await sleep(backoff);
       }
+    } finally {
+      // Outside the whole retry loop: even a rolled-back attempt may have
+      // moved provider funds. Keep its replay result until no attempt can recur.
+      this.provider.forgetIdempotencyKeys(keys);
     }
   }
 

@@ -571,10 +571,25 @@ describe('POST /api/campaigns/[id]/fund — the failed response (AC-020)', () =>
 
 describe('the fund button after a failure', () => {
   it('re-enables so the brand can retry', () => {
-    // Every early return sets it back to false. A `finally` would be tidier, but
-    // the success path deliberately leaves it true through `router.refresh()`.
-    const returns = FUND_BUTTON.match(/setFunding\(false\)/g);
-    expect(returns?.length).toBeGreaterThanOrEqual(4);
+    // React owns the pending flag; every failure returns from the async action.
+    expect(FUND_BUTTON).toMatch(
+      /const \[funding, startTransition\] = useTransition\(\)/
+    );
+    expect(FUND_BUTTON).toContain('startTransition(async () => {');
+    expect(FUND_BUTTON).toContain('disabled={funding || nothingAccepted}');
+    expect(FUND_BUTTON).toMatch(
+      /toast\.error\('Could not reach the server\. Reload to see the campaign\.'\);\s*return;/
+    );
+    expect(FUND_BUTTON).toMatch(
+      /toast\.error\(body\?\.error\?\.message \?\? FUND_CAMPAIGN_FAILED\);\s*return;/
+    );
+    for (const message of [
+      'FUND_NOT_FUNDABLE_MESSAGE',
+      'FUND_NO_ACCEPTED_DEALS_MESSAGE',
+    ]) {
+      expect(FUND_BUTTON).toContain(`toast.warning(${message})`);
+    }
+    expect(FUND_BUTTON).not.toContain('new Promise');
   });
 
   it('shows the server sentence rather than inventing one', () => {
@@ -585,6 +600,23 @@ describe('the fund button after a failure', () => {
     // Paraphrasing an AC's wording client-side would create a second copy free to
     // drift from the one the API returns.
     expect(FUND_BUTTON).not.toContain('PAYMENT_FAILED');
+  });
+
+  it('keeps checkout departure local instead of leaving a React action unsettled', () => {
+    const checkout = readFileSync(
+      'components/campaign/fund-checkout-button.tsx',
+      'utf8'
+    );
+    expect(checkout).toContain(
+      'const [isPending, startTransition] = useTransition()'
+    );
+    expect(checkout).toContain('const [leaving, setLeaving] = useState(false)');
+    expect(checkout).toContain(
+      'disabled={isPending || leaving || nothingAccepted}'
+    );
+    expect(checkout).toContain('window.location.assign(checkoutUrl)');
+    expect(checkout).toContain('setLeaving(true)');
+    expect(checkout).not.toContain('new Promise');
   });
 });
 

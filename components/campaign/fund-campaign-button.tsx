@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
@@ -45,68 +45,63 @@ export function FundCampaignButton({
   size = 'sm',
 }: FundCampaignButtonProps) {
   const router = useRouter();
-  const [funding, setFunding] = useState(false);
+  const [funding, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const nothingAccepted = acceptedCount === 0;
 
-  async function handleFund() {
+  function handleFund() {
     if (funding || nothingAccepted) return;
 
-    setFunding(true);
-
-    let response: Response;
-    try {
-      response = await fetch(
-        `/api/campaigns/${encodeURIComponent(campaignId)}/fund`,
-        { method: 'POST' }
-      );
-    } catch {
-      // No response, so no envelope and no code to branch on. A network failure
-      // says nothing about whether the hold was placed, which is why the copy
-      // sends the brand to reload rather than telling them to try again.
-      toast.error('Could not reach the server. Reload to see the campaign.');
-      setFunding(false);
-      return;
-    }
-
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      const code = body?.error?.code;
-
-      if (code === 'CAMPAIGN_NOT_FUNDABLE') {
-        // Already funded, in another tab or by a double submit, or not confirmed
-        // yet. Either way this view is the stale one — refresh and let the status
-        // badge say which.
-        toast.warning(FUND_NOT_FUNDABLE_MESSAGE);
-        setFunding(false);
-        router.refresh();
+    startTransition(async () => {
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/campaigns/${encodeURIComponent(campaignId)}/fund`,
+          { method: 'POST' }
+        );
+      } catch {
+        // No response, so no envelope and no code to branch on. A network failure
+        // says nothing about whether the hold was placed, which is why the copy
+        // sends the brand to reload rather than telling them to try again.
+        toast.error('Could not reach the server. Reload to see the campaign.');
         return;
       }
 
-      if (code === 'NO_ACCEPTED_DEALS') {
-        // Someone accepted or declined since this page rendered. Refreshing is
-        // what re-enables or re-disables the button correctly.
-        toast.warning(FUND_NO_ACCEPTED_DEALS_MESSAGE);
-        setFunding(false);
-        router.refresh();
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const code = body?.error?.code;
+
+        if (code === 'CAMPAIGN_NOT_FUNDABLE') {
+          // Already funded, in another tab or by a double submit, or not confirmed
+          // yet. Either way this view is the stale one — refresh and let the status
+          // badge say which.
+          toast.warning(FUND_NOT_FUNDABLE_MESSAGE);
+          router.refresh();
+          return;
+        }
+
+        if (code === 'NO_ACCEPTED_DEALS') {
+          // Someone accepted or declined since this page rendered. Refreshing is
+          // what re-enables or re-disables the button correctly.
+          toast.warning(FUND_NO_ACCEPTED_DEALS_MESSAGE);
+          router.refresh();
+          return;
+        }
+
+        // `PAYMENT_FAILED` lands here and shows the server's own sentence — "Payment
+        // failed — please try again." is an acceptance criterion's wording, and
+        // paraphrasing it here would create a second copy free to drift.
+        toast.error(body?.error?.message ?? FUND_CAMPAIGN_FAILED);
         return;
       }
 
-      // `PAYMENT_FAILED` lands here and shows the server's own sentence — "Payment
-      // failed — please try again." is an acceptance criterion's wording, and
-      // paraphrasing it here would create a second copy free to drift.
-      toast.error(body?.error?.message ?? FUND_CAMPAIGN_FAILED);
-      setFunding(false);
-      return;
-    }
+      toast.success(FUND_CAMPAIGN_SUCCESS);
 
-    toast.success(FUND_CAMPAIGN_SUCCESS);
-
-    // The status badge, the held-in-escrow row and this button's own disappearance
-    // all render on the server from `campaign.status` and the ledger. Refreshing
-    // re-reads both rather than patching a client copy that can disagree.
-    setFunding(false);
-    router.refresh();
+      // The status badge, the held-in-escrow row and this button's own disappearance
+      // all render on the server from `campaign.status` and the ledger. Refreshing
+      // re-reads both rather than patching a client copy that can disagree.
+      router.refresh();
+    });
   }
 
   return (

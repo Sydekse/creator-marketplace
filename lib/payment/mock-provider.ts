@@ -28,7 +28,8 @@ export class MockPaymentProvider implements PaymentProvider {
    * `lib/payment/ledger.ts` mints one with `crypto.randomUUID()` at the top of
    * the call, outside the transaction, so a key is only ever replayed inside one
    * request's own serialization-failure retry loop (spike §5.3). Persisting them
-   * would add a table that nothing could ever read a second time. `failNext` is a
+   * would add a table that nothing could ever read a second time. The ledger
+   * forgets these keys only after its entire retry loop settles. `failNext` is a
    * test and e2e affordance and is armed per process by construction.
    *
    * The default keeps every existing construction site — `db/seed.ts`,
@@ -43,6 +44,19 @@ export class MockPaymentProvider implements PaymentProvider {
 
   clearFailNext(method: string): void {
     this.failNext.delete(method);
+  }
+
+  forgetIdempotencyKeys(keys: Iterable<string>): void {
+    for (const key of keys) {
+      for (const method of [
+        'hold',
+        'capturePayout',
+        'captureCommission',
+        'releaseHold',
+      ]) {
+        this.idempotency.delete(this.idempotencyKey(method, key));
+      }
+    }
   }
 
   async reset(): Promise<void> {

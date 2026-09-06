@@ -146,7 +146,12 @@ async function fetchOembedFacts(
       `${TIKTOK_OEMBED_ENDPOINT}?url=${encodeURIComponent(tiktokUrl)}`,
       { cache: 'no-store' }
     );
-    if (!res.ok) return { thumbnailUrl: null, videoId: null };
+    if (!res.ok) {
+      console.warn('[deliverable-thumbnail] oEmbed request failed', {
+        status: res.status,
+      });
+      return { thumbnailUrl: null, videoId: null };
+    }
 
     const body: unknown = await res.json();
     if (typeof body !== 'object' || body === null) {
@@ -172,7 +177,8 @@ async function fetchOembedFacts(
     }
 
     return { thumbnailUrl, videoId };
-  } catch {
+  } catch (error) {
+    console.warn('[deliverable-thumbnail] oEmbed lookup failed', { error });
     return { thumbnailUrl: null, videoId: null };
   }
 }
@@ -190,7 +196,13 @@ async function copyImageToBlob(
 ): Promise<string | null> {
   try {
     const res = await d.fetchFn(sourceUrl, { cache: 'no-store' });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.warn('[deliverable-thumbnail] Image request failed', {
+        deliverableId,
+        status: res.status,
+      });
+      return null;
+    }
 
     const contentType = res.headers.get('content-type')?.split(';')[0]?.trim();
     const extension = contentType
@@ -214,7 +226,11 @@ async function copyImageToBlob(
       }
     );
     return blob.url;
-  } catch {
+  } catch (error) {
+    console.warn('[deliverable-thumbnail] Image copy failed', {
+      deliverableId,
+      error,
+    });
     return null;
   }
 }
@@ -228,7 +244,7 @@ export interface StoreThumbnailResult {
  * Resolves and persists the thumbnail and video id for one deliverable.
  *
  * Runs after the submission transaction has committed (the row must exist to
- * be updated), awaited but failure-tolerant: the caller ignores the result.
+ * be updated), inside Next's post-response task. The caller ignores the result.
  * Each fact is saved independently — an oEmbed response with a video id but a
  * dead image URL still stores the id, so in-app playback works even when the
  * thumbnail fell through.
@@ -256,8 +272,12 @@ export async function storeDeliverableThumbnail(
     if (url && isBlobUrl(url)) {
       try {
         if (!(await d.isReferenced(url))) await d.deleteBlob(url);
-      } catch {
-        /* Never delete when reference ownership is uncertain. */
+      } catch (error) {
+        // Never delete when reference ownership is uncertain.
+        console.warn('[deliverable-thumbnail] Blob cleanup failed', {
+          deliverableId,
+          error,
+        });
       }
     }
   };
@@ -315,7 +335,12 @@ export async function storeDeliverableThumbnail(
     ) {
       await cleanup(previous);
     }
-  } catch {
+  } catch (error) {
+    console.error('[deliverable-thumbnail] Enrichment persistence failed', {
+      deliverableId,
+      expectedVersion,
+      error,
+    });
     // Best-effort by contract: a thumbnail must never fail a submission.
     if (!attached) await cleanup(ownedBlob);
     return { thumbnailUrl: null, tiktokVideoId: null };

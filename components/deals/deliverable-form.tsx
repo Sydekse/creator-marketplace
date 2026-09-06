@@ -23,12 +23,10 @@ import {
   SUBMIT_DELIVERABLE_URL_PLACEHOLDER,
   SUBMITTING_DELIVERABLE_LABEL,
 } from '@/lib/deals/copy';
-import {
-  fieldErrorsAt,
-  submitDeliverableSchema,
-  zodIssuesToDetails,
-} from '@/lib/validation';
-import type { FieldErrorMap } from '@/lib/validation';
+import { zodIssuesToDetails } from '@/lib/validation/errors';
+import { fieldErrorsAt } from '@/lib/validation/field-errors';
+import type { FieldErrorMap } from '@/lib/validation/field-errors';
+import { submitDeliverableSchema } from '@/lib/validation/schemas';
 
 /**
  * Submit the live TikTok post URL for a funded deal (KAN-46, AC-022, AC-025).

@@ -33,20 +33,22 @@ export default async function AwaitingTierPage({
 }) {
   const page = pageFromParam((await searchParams).page);
   const offset = offsetForPage(page);
-  const { creators, hasMore } = await readAwaitingTier({
-    limit: PAGE_SIZE,
-    offset,
-  });
-
   // Flagged downgrades (phase 3). First page only — the flag is meant to be
   // acted on within a week (the next cron re-flags anyway), so a backlog deep
   // enough to page is itself the signal worth surfacing.
-  const flagged = await readFlaggedForReview({ limit: PAGE_SIZE });
   // The suggestion is recomputed pure from the current numbers at render, the
   // same `selectTier` the assign route will run — so the label on the button
   // and the band the press produces cannot disagree. Tiers loaded once.
-  const tierCandidates =
-    flagged.creators.length > 0 ? await listTierCandidates() : [];
+  const [{ creators, hasMore }, { flagged, tierCandidates }] =
+    await Promise.all([
+      readAwaitingTier({ limit: PAGE_SIZE, offset }),
+      (async () => {
+        const flagged = await readFlaggedForReview({ limit: PAGE_SIZE });
+        const tierCandidates =
+          flagged.creators.length > 0 ? await listTierCandidates() : [];
+        return { flagged, tierCandidates };
+      })(),
+    ]);
   const flaggedRows: FlaggedReviewRow[] = flagged.creators.map((creator) => ({
     creator,
     suggested: selectTier(tierCandidates, creator),

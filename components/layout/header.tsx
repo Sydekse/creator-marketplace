@@ -18,32 +18,34 @@ interface HeaderProps {
 export async function Header({ user }: HeaderProps) {
   // Notification count is best-effort — a query failure must not break the
   // header for every page. Default to 0 on error.
-  let count = 0;
-  try {
-    count = await unreadCount(user.id);
-  } catch {
-    // Swallow — the bell simply shows no badge.
-  }
-
   // The cart icon is brand-only and resolves to the active draft's cart.
   // With no draft there is nothing to stand in, so the entry hides entirely —
   // a cart pointing at the campaigns list is a dead link. Like the bell, a
   // query failure must not break the header; it simply hides the icon too.
-  let cart: CartTarget | undefined;
-  if (user.role === 'brand') {
-    try {
-      const profile = await getBrandProfileByUserId(user.id);
-      const draft = profile ? await getActiveDraftCart(profile.id) : null;
-      if (draft) {
-        cart = {
-          href: `/campaigns/${draft.campaignId}`,
-          itemCount: draft.itemCount,
-        };
+  const [count, cart] = await Promise.all([
+    (async () => {
+      try {
+        return await unreadCount(user.id);
+      } catch {
+        return 0;
       }
-    } catch {
-      // Swallow — the cart entry simply does not render.
-    }
-  }
+    })(),
+    (async (): Promise<CartTarget | undefined> => {
+      if (user.role !== 'brand') return undefined;
+      try {
+        const profile = await getBrandProfileByUserId(user.id);
+        const draft = profile ? await getActiveDraftCart(profile.id) : null;
+        return draft
+          ? {
+              href: `/campaigns/${draft.campaignId}`,
+              itemCount: draft.itemCount,
+            }
+          : undefined;
+      } catch {
+        return undefined;
+      }
+    })(),
+  ]);
 
   return (
     <>

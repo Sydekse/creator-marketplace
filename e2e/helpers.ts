@@ -149,6 +149,29 @@ export async function pickOption(
 }
 
 /**
+ * Open a deal page's native version-history disclosure and keep it open.
+ *
+ * The history is a plain `<details class="bd-vhist">`. The element needs no
+ * hydration, but a streamed RSC update (the router.refresh() that follows
+ * every mutation on these pages) can replace it after the test clicked the
+ * summary — and a fresh <details> defaults closed, hiding the entries the
+ * test is about to assert (flow 4 lost its 'Revision requested · brand'
+ * check this way on webkit-mobile). So don't trust one click: check the
+ * open attribute, click if it's missing, and re-check until it sticks.
+ * Returns the disclosure so callers scope their queries to it.
+ */
+export async function openVersionHistory(page: Page): Promise<Locator> {
+  const history = page.locator('details.bd-vhist').first();
+  await expect(async () => {
+    if ((await history.getAttribute('open')) === null) {
+      await history.locator('summary').click();
+    }
+    expect(await history.getAttribute('open')).not.toBeNull();
+  }).toPass({ timeout: 30_000 });
+  return history;
+}
+
+/**
  * Run `act` (a click that fires a client-side mutation) and require the
  * matching response to arrive ok before the caller moves on.
  *

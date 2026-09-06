@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
@@ -46,58 +46,54 @@ export function CancelCampaignButton({
   context = 'detail',
 }: CancelCampaignButtonProps) {
   const router = useRouter();
-  const [cancelling, setCancelling] = useState(false);
+  const [cancelling, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  async function handleCancel() {
+  function handleCancel() {
     if (cancelling) return;
 
-    setCancelling(true);
-
-    let response: Response;
-    try {
-      response = await fetch(
-        `/api/campaigns/${encodeURIComponent(campaignId)}/cancel`,
-        { method: 'POST' }
-      );
-    } catch {
-      toast.error('Could not reach the server. Check your connection.');
-      setCancelling(false);
-      return;
-    }
-
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      const code = body?.error?.code;
-
-      // `NOT_FOUND` is also what the route answers for a campaign on another
-      // brand, so it cannot be reported as "already cancelled" — that would make
-      // the id an existence oracle from the client side, the rule
-      // `readCreatorDetail` set. Both refusals reload instead, and the status chip
-      // says where the campaign actually stands.
-      if (code === 'NOT_FOUND' || code === 'VALIDATION_ERROR') {
-        toast.warning(CANCEL_NOT_CANCELLABLE_MESSAGE);
-        setCancelling(false);
-        router.refresh();
+    startTransition(async () => {
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/campaigns/${encodeURIComponent(campaignId)}/cancel`,
+          { method: 'POST' }
+        );
+      } catch {
+        toast.error('Could not reach the server. Check your connection.');
         return;
       }
 
-      toast.error(CANCEL_CAMPAIGN_FAILED);
-      setCancelling(false);
-      return;
-    }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const code = body?.error?.code;
 
-    toast.success(CANCEL_CAMPAIGN_SUCCESS);
+        // `NOT_FOUND` is also what the route answers for a campaign on another
+        // brand, so it cannot be reported as "already cancelled" — that would make
+        // the id an existence oracle from the client side, the rule
+        // `readCreatorDetail` set. Both refusals reload instead, and the status chip
+        // says where the campaign actually stands.
+        if (code === 'NOT_FOUND' || code === 'VALIDATION_ERROR') {
+          toast.warning(CANCEL_NOT_CANCELLABLE_MESSAGE);
+          router.refresh();
+          return;
+        }
 
-    // From the detail page this navigates to the list, which re-reads the
-    // status on arrival. From the list itself there is nowhere to go — the row
-    // is already here — so success refreshes and the chip reads `cancelled`.
-    if (context === 'list') {
-      setCancelling(false);
-      router.refresh();
-      return;
-    }
-    router.push('/campaigns');
+        toast.error(CANCEL_CAMPAIGN_FAILED);
+        return;
+      }
+
+      toast.success(CANCEL_CAMPAIGN_SUCCESS);
+
+      // From the detail page this navigates to the list, which re-reads the
+      // status on arrival. From the list itself there is nowhere to go — the row
+      // is already here — so success refreshes and the chip reads `cancelled`.
+      if (context === 'list') {
+        router.refresh();
+        return;
+      }
+      router.push('/campaigns');
+    });
   }
 
   return (

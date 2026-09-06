@@ -11,6 +11,8 @@ import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { MetricsForm } from '@/components/deals/metrics-form';
 import { DeliverableForm } from '@/components/deals/deliverable-form';
 import { TiktokVideoCard } from '@/components/deals/tiktok-video-card';
+import { ThumbnailRefresh } from '@/components/deals/thumbnail-refresh';
+import { latestPendingThumbnailSubmission } from '@/lib/deliverables/thumbnail-refresh';
 import { OfferActions } from '@/components/deals/offer-actions';
 import { UsageRightsCard } from '@/components/deals/usage-rights';
 import { NO_EXPIRY_LABEL, expiryLabel, formatDeadlineUtc } from '@/lib/dates';
@@ -101,8 +103,10 @@ export default async function CreatorDealDetailPage({
   const deal = await readCreatorDeal(id);
   if (!deal) notFound();
 
-  const history = await getDealHistory(id);
-  const videoHistory = await selectVideoHistory(id);
+  const [history, videoHistory] = await Promise.all([
+    getDealHistory(id),
+    selectVideoHistory(id),
+  ]);
 
   const isPending = canAct(deal.status);
 
@@ -337,6 +341,11 @@ export default async function CreatorDealDetailPage({
               strip above, one film card per video with its mono frame index. */}
           {deal.deliverables.length > 0 ? (
             <section className="bd-cr-deliverables">
+              <ThumbnailRefresh
+                latestPendingSubmission={latestPendingThumbnailSubmission(
+                  deal.deliverables
+                )}
+              />
               <div className="bd-capruler">
                 <span className="bd-caprulertitle">{DELIVERABLES_TITLE}</span>
                 <span className="bd-caprulerline" aria-hidden="true" />

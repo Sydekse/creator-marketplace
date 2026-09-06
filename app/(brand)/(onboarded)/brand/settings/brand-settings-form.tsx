@@ -13,13 +13,13 @@ import {
 } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
+import { zodIssuesToDetails } from '@/lib/validation/errors';
+import { fieldErrorsAt } from '@/lib/validation/field-errors';
+import type { FieldErrorMap } from '@/lib/validation/field-errors';
 import {
   MAX_COMPANY_NAME_LENGTH,
-  fieldErrorsAt,
   updateBrandSchema,
-  zodIssuesToDetails,
-} from '@/lib/validation';
-import type { FieldErrorMap } from '@/lib/validation';
+} from '@/lib/validation/schemas';
 
 /**
  * Rename a brand profile (KAN-27 AC-5).

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { deliveryTerm } from '@/lib/deals/deadline';
@@ -39,60 +39,56 @@ export function ConfirmCampaignButton({
   deliveryWindowDays,
 }: ConfirmCampaignButtonProps) {
   const router = useRouter();
-  const [sending, setSending] = useState(false);
+  const [sending, startTransition] = useTransition();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const empty = itemCount === 0;
 
-  async function handleConfirm() {
+  function handleConfirm() {
     if (sending || empty || deliveryWindowDays == null) return;
 
-    setSending(true);
-
-    let response: Response;
-    try {
-      response = await fetch(
-        `/api/campaigns/${encodeURIComponent(campaignId)}/confirm`,
-        { method: 'POST' }
-      );
-    } catch {
-      toast.error('Could not reach the server. Check your connection.');
-      setSending(false);
-      return;
-    }
-
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      const code = body?.error?.code;
-
-      if (code === 'CAMPAIGN_NOT_DRAFT') {
-        // Already confirmed, in another tab or by a double submit. Refresh —
-        // this view is the stale one, and the offers did go out.
-        toast.warning(CAMPAIGN_NOT_DRAFT_MESSAGE);
-        setSending(false);
-        router.refresh();
+    startTransition(async () => {
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/campaigns/${encodeURIComponent(campaignId)}/confirm`,
+          { method: 'POST' }
+        );
+      } catch {
+        toast.error('Could not reach the server. Check your connection.');
         return;
       }
 
-      // The server's own sentence, when it sent one. `BUDGET_EXCEEDED` carries
-      // the exact shortfall and `VALIDATION_ERROR` the empty-cart sentence;
-      // paraphrasing either here would drop the number that makes it useful.
-      const detail =
-        body?.error?.details?.excess?.[0] ??
-        body?.error?.details?.deliveryWindowDays?.[0] ??
-        body?.error?.details?._root?.[0];
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const code = body?.error?.code;
 
-      toast.error(detail ?? CONFIRM_CAMPAIGN_FAILED);
-      setSending(false);
-      return;
-    }
+        if (code === 'CAMPAIGN_NOT_DRAFT') {
+          // Already confirmed, in another tab or by a double submit. Refresh —
+          // this view is the stale one, and the offers did go out.
+          toast.warning(CAMPAIGN_NOT_DRAFT_MESSAGE);
+          router.refresh();
+          return;
+        }
 
-    toast.success(CONFIRM_CAMPAIGN_SUCCESS);
+        // The server's own sentence, when it sent one. `BUDGET_EXCEEDED` carries
+        // the exact shortfall and `VALIDATION_ERROR` the empty-cart sentence;
+        // paraphrasing either here would drop the number that makes it useful.
+        const detail =
+          body?.error?.details?.excess?.[0] ??
+          body?.error?.details?.deliveryWindowDays?.[0] ??
+          body?.error?.details?._root?.[0];
 
-    // The status badge, the locked brief and the vanished remove buttons all
-    // render on the server from `campaign.status`. Refreshing re-reads that
-    // rather than patching a client copy that can disagree with it.
-    setSending(false);
-    router.refresh();
+        toast.error(detail ?? CONFIRM_CAMPAIGN_FAILED);
+        return;
+      }
+
+      toast.success(CONFIRM_CAMPAIGN_SUCCESS);
+
+      // The status badge, the locked brief and the vanished remove buttons all
+      // render on the server from `campaign.status`. Refreshing re-reads that
+      // rather than patching a client copy that can disagree with it.
+      router.refresh();
+    });
   }
 
   return (

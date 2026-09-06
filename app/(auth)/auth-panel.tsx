@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { SlotText } from 'slot-text/react';
+import 'slot-text/style.css';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 import type { SelfRegisterableRole } from '@/lib/auth-policy';
 

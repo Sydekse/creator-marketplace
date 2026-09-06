@@ -66,6 +66,10 @@ import type { DealStatus } from '../db/schema';
  */
 
 const guardMock = vi.hoisted(() => vi.fn());
+const afterMock = vi.hoisted(() =>
+  vi.fn<(task: () => Promise<void>) => void>()
+);
+vi.mock('next/server', () => ({ after: afterMock }));
 const storeThumbnailMock = vi.hoisted(() =>
   vi.fn(async () => ({ thumbnailUrl: null, tiktokVideoId: null }))
 );
@@ -805,7 +809,12 @@ describe('AC-8 — the URL is never fetched server-side', () => {
 describe('POST /api/deals/[id]/deliverable', () => {
   beforeEach(() => {
     guardMock.mockReset();
-    storeThumbnailMock.mockClear();
+    afterMock.mockReset();
+    storeThumbnailMock.mockReset();
+    storeThumbnailMock.mockResolvedValue({
+      thumbnailUrl: null,
+      tiktokVideoId: null,
+    });
     guardMock.mockResolvedValue({
       user: {
         id: CREATOR_USER_ID,
@@ -856,16 +865,17 @@ describe('POST /api/deals/[id]/deliverable', () => {
   });
 
   it('stores the video-card enrichment after the submission committed', async () => {
-    // Thumbnail + video id, per the deliverable video cards feature. After the
-    // transaction, because the row must exist to be updated; awaited rather
-    // than fire-and-forget, because a serverless invocation may be frozen the
-    // moment the response returns.
-    const { deps } = makeDeps();
+    const { deps, recorded } = makeDeps();
 
     await handleSubmitDeliverable(post({ tiktokUrl: TIKTOK_URL }), DEAL_ID, {
       submitDeliverableDeps: deps,
     });
 
+    expect(recorded.committed).toBe(true);
+    expect(recorded.notifications).toHaveLength(1);
+    expect(storeThumbnailMock).not.toHaveBeenCalled();
+    expect(afterMock).toHaveBeenCalledTimes(1);
+    await afterMock.mock.calls[0][0]();
     expect(storeThumbnailMock).toHaveBeenCalledTimes(1);
     expect(storeThumbnailMock).toHaveBeenCalledWith(
       DELIVERABLE_ID,
@@ -877,6 +887,51 @@ describe('POST /api/deals/[id]/deliverable', () => {
     expect(SUBMIT_ROUTE.indexOf('await submitDeliverable')).toBeLessThan(
       SUBMIT_ROUTE.indexOf('storeDeliverableThumbnail(')
     );
+  });
+
+  it('measures response coupling to deferred thumbnail work', async () => {
+    const { deps } = makeDeps();
+    let release!: () => void;
+    const thumbnail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let finished = false;
+    storeThumbnailMock.mockImplementationOnce(async () => {
+      await thumbnail;
+      finished = true;
+      return { thumbnailUrl: null, tiktokVideoId: null };
+    });
+    vi.useFakeTimers();
+    try {
+      const started = Date.now();
+      setTimeout(release, 250);
+      let responseMs: number | undefined;
+      const response = handleSubmitDeliverable(
+        post({ tiktokUrl: TIKTOK_URL }),
+        DEAL_ID,
+        {
+          submitDeliverableDeps: deps,
+        }
+      ).then((value) => {
+        responseMs = Date.now() - started;
+        return value;
+      });
+      await vi.advanceTimersByTimeAsync(0);
+      const enrichment = afterMock.mock.calls[0]?.[0]();
+      await vi.advanceTimersByTimeAsync(249);
+      expect(finished).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect((await response).status).toBe(200);
+      await enrichment;
+      expect(finished).toBe(true);
+      console.info(
+        `Thumbnail coupling: response=${responseMs}ms, stub latency=250ms`
+      );
+      expect(responseMs).toBe(0);
+    } finally {
+      release();
+      vi.useRealTimers();
+    }
   });
 
   it('stores no enrichment when the submission was refused', async () => {
@@ -892,6 +947,88 @@ describe('POST /api/deals/[id]/deliverable', () => {
 
     expect(response.status).not.toBe(200);
     expect(storeThumbnailMock).not.toHaveBeenCalled();
+    expect(afterMock).not.toHaveBeenCalled();
+  });
+
+  it('preserves version and previous-thumbnail CAS inputs in the scheduled task', async () => {
+    const { deps } = makeDeps();
+    const record = deps.recordSubmission;
+    deps.recordSubmission = async (...args) => ({
+      ...(await record(...args)),
+      submissionVersion: 2,
+      previousThumbnailUrl:
+        'https://example.public.blob.vercel-storage.com/old.jpg',
+    });
+    const response = await handleSubmitDeliverable(
+      post({ tiktokUrl: TIKTOK_URL }),
+      DEAL_ID,
+      {
+        submitDeliverableDeps: deps,
+      }
+    );
+    expect((await response.json()).submission_version).toBe(2);
+    await afterMock.mock.calls[0][0]();
+    expect(storeThumbnailMock).toHaveBeenCalledWith(
+      DELIVERABLE_ID,
+      TIKTOK_URL,
+      undefined,
+      2,
+      'https://example.public.blob.vercel-storage.com/old.jpg'
+    );
+  });
+
+  it('does not schedule enrichment if the atomic notification write rolls back', async () => {
+    const { deps, recorded } = makeDeps({ failNotify: true });
+    await expect(
+      handleSubmitDeliverable(post({ tiktokUrl: TIKTOK_URL }), DEAL_ID, {
+        submitDeliverableDeps: deps,
+      })
+    ).rejects.toThrow('resend down');
+    expect(recorded.committed).toBe(false);
+    expect(afterMock).not.toHaveBeenCalled();
+  });
+
+  it('logs unexpected task failure without undoing the successful response', async () => {
+    const { deps, recorded } = makeDeps();
+    const error = new Error('unexpected enrichment failure');
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    storeThumbnailMock.mockRejectedValueOnce(error);
+    const response = await handleSubmitDeliverable(
+      post({ tiktokUrl: TIKTOK_URL }),
+      DEAL_ID,
+      {
+        submitDeliverableDeps: deps,
+      }
+    );
+    await expect(afterMock.mock.calls[0][0]()).resolves.toBeUndefined();
+    expect(response.status).toBe(200);
+    expect(recorded.committed).toBe(true);
+    expect(log).toHaveBeenCalledWith(
+      '[deliverable-thumbnail] Post-response enrichment failed',
+      expect.objectContaining({ deliverableId: DELIVERABLE_ID, error })
+    );
+  });
+
+  it('logs scheduler failure but still returns the committed submission', async () => {
+    const { deps, recorded } = makeDeps();
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    afterMock.mockImplementationOnce(() => {
+      throw new Error('scheduler unavailable');
+    });
+    const response = await handleSubmitDeliverable(
+      post({ tiktokUrl: TIKTOK_URL }),
+      DEAL_ID,
+      {
+        submitDeliverableDeps: deps,
+      }
+    );
+    expect(response.status).toBe(200);
+    expect(recorded.committed).toBe(true);
+    expect(storeThumbnailMock).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(
+      '[deliverable-thumbnail] Could not schedule enrichment',
+      expect.objectContaining({ deliverableId: DELIVERABLE_ID })
+    );
   });
 
   it('reports a partial delivery as a success that did not move the deal', async () => {
@@ -1256,7 +1393,7 @@ describe('the deal detail page mounts the submission surface', () => {
     // fetched for a deal this creator does not own.
     expect(DETAIL_MODULE).toContain('selectDeliverables');
     expect(DETAIL_MODULE.indexOf('if (!row) return null;')).toBeLessThan(
-      DETAIL_MODULE.indexOf('await deps.selectDeliverables(row.id)')
+      DETAIL_MODULE.indexOf('deps.selectDeliverables(row.id)')
     );
   });
 });

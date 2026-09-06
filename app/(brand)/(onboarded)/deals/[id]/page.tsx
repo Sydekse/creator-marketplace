@@ -11,6 +11,8 @@ import {
   RejectVideoForm,
 } from '@/components/deals/review-actions';
 import { TiktokVideoCard } from '@/components/deals/tiktok-video-card';
+import { ThumbnailRefresh } from '@/components/deals/thumbnail-refresh';
+import { latestPendingThumbnailSubmission } from '@/lib/deliverables/thumbnail-refresh';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { canReview, labelForReviewStatus, labelForStatus } from '@/lib/deals';
 import type { DealStatus } from '@/db/schema';
@@ -109,8 +111,10 @@ export default async function BrandDealReviewPage({
   const deal = await readBrandDeal(id);
   if (!deal) notFound();
 
-  const history = await getDealHistory(id);
-  const videoHistory = await selectVideoHistory(id);
+  const [history, videoHistory] = await Promise.all([
+    getDealHistory(id),
+    selectVideoHistory(id),
+  ]);
 
   const reviewable = canReview(deal.status);
 
@@ -197,6 +201,11 @@ export default async function BrandDealReviewPage({
             whichever row the server picked. */}
           {deal.deliverables.length > 0 ? (
             <section className="bd-dlvids">
+              <ThumbnailRefresh
+                latestPendingSubmission={latestPendingThumbnailSubmission(
+                  deal.deliverables
+                )}
+              />
               <div className="bd-capruler">
                 <span className="bd-caprulertitle">{DELIVERABLES_TITLE}</span>
                 <span className="bd-caprulerline" aria-hidden="true" />
