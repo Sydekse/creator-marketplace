@@ -121,18 +121,25 @@ export default async function CreatorDashboardPage() {
 
   const { profile, tier } = row;
 
-  const dashboard = await readCreatorDashboard();
+  // Independent reads, started together: the dashboard, the TikTok session
+  // check, and — only for an untiered creator — the tier-candidate list.
+  const tierCandidatesPromise = tier === null ? listTierCandidates() : null;
+  const [dashboard, linkedHandle, tierCandidates] = await Promise.all([
+    readCreatorDashboard(),
+    sessionTiktokHandle(user.id),
+    tierCandidatesPromise,
+  ]);
   // Null means no profile row, which the redirect above has already ruled out.
   if (!dashboard) redirect('/creator/onboarding');
 
   // Preview the tier an untiered creator would be assigned (KAN-23) — the
   // same rule assignment itself runs.
   const provisional =
-    tier === null ? selectTier(await listTierCandidates(), profile) : null;
+    tierCandidates !== null ? selectTier(tierCandidates, profile) : null;
 
   const bookable = isBookable({ ...profile, tierActive: tier?.active ?? null });
   const profileUrl = tiktokProfileUrl(profile.tiktokHandle);
-  const tiktokLinked = (await sessionTiktokHandle(user.id)) !== null;
+  const tiktokLinked = linkedHandle !== null;
   const now = new Date();
 
   // Urgency order for the attention list: work that blocks payment first,

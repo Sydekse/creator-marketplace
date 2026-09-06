@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { eq } from 'drizzle-orm';
 import { db } from '@/db';
 import { brandProfile } from '@/db/schema';
@@ -18,7 +19,10 @@ import { brandProfile } from '@/db/schema';
  * onboarded" is an ordinary state on the way in, not an error. The layout at
  * `app/(brand)/(onboarded)/layout.tsx` turns it into a redirect.
  */
-export async function getBrandProfileByUserId(userId: string) {
+// `cache()` dedupes the read per request — the onboarded layout and pages both
+// ask for it. In route handlers (outside a React render) the cache is a no-op
+// and the call falls through harmlessly.
+export const getBrandProfileByUserId = cache(async (userId: string) => {
   const [row] = await db
     .select()
     .from(brandProfile)
@@ -26,7 +30,7 @@ export async function getBrandProfileByUserId(userId: string) {
     .limit(1);
 
   return row ?? null;
-}
+});
 
 export type BrandProfileRow = NonNullable<
   Awaited<ReturnType<typeof getBrandProfileByUserId>>

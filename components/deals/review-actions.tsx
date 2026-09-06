@@ -29,12 +29,10 @@ import {
   REJECTING_LABEL,
   REVIEW_NETWORK_ERROR_MESSAGE,
 } from '@/lib/deals/copy';
-import {
-  fieldErrorsAt,
-  rejectDeliverableSchema,
-  zodIssuesToDetails,
-} from '@/lib/validation';
-import type { FieldErrorMap } from '@/lib/validation';
+import { zodIssuesToDetails } from '@/lib/validation/errors';
+import { fieldErrorsAt } from '@/lib/validation/field-errors';
+import type { FieldErrorMap } from '@/lib/validation/field-errors';
+import { rejectDeliverableSchema } from '@/lib/validation/schemas';
 import type {
   ExpectedVersion,
   RevisionCategory,

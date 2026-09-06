@@ -34,12 +34,10 @@ import {
 import type { AgeRange, Niche } from '@/lib/config/creator-profile';
 import { normalizeTiktokHandle } from '@/lib/creators/handle';
 import type { TiktokStats } from '@/lib/tiktok/stats';
-import {
-  createCreatorSchema,
-  fieldErrorsAt,
-  zodIssuesToDetails,
-} from '@/lib/validation';
-import type { FieldErrorMap } from '@/lib/validation';
+import { zodIssuesToDetails } from '@/lib/validation/errors';
+import { fieldErrorsAt } from '@/lib/validation/field-errors';
+import type { FieldErrorMap } from '@/lib/validation/field-errors';
+import { createCreatorSchema } from '@/lib/validation/schemas';
 
 /**
  * Creator onboarding form (US-001, AC-001, AC-003).

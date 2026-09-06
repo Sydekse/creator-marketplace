@@ -256,11 +256,11 @@ describe('the brand can reach the cancel path from the campaign page', () => {
     expect(cancelCampaignPrompt('Ramadan Push')).toMatch(/cannot be undone/i);
   });
 
-  it('leaves the page it is on rather than refreshing it', () => {
-    // The campaign this button sits on has nothing left to show, so the brand goes
-    // back to the list, which re-reads the status on arrival.
-    expect(button).toContain("router.push('/campaigns')");
-    expect(button).not.toMatch(/toast\.success[\s\S]{0,80}router\.refresh\(\)/);
+  it('refreshes in list context and leaves a cancelled campaign detail', () => {
+    expect(button).toContain("context = 'detail'");
+    expect(button).toMatch(
+      /toast\.success\(CANCEL_CAMPAIGN_SUCCESS\);\s*if \(context === 'list'\) \{\s*router\.refresh\(\);\s*return;\s*\}\s*router\.push\('\/campaigns'\)/
+    );
   });
 
   it('treats a refusal as "reload and look", never as an answer about the id', () => {

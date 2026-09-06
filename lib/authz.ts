@@ -115,16 +115,18 @@ export interface AuthzDeps {
 // -- Real data access -------------------------------------------------------
 
 async function loadProfileIds(userId: string) {
-  const [brand] = await db
-    .select({ id: brandProfile.id })
-    .from(brandProfile)
-    .where(eq(brandProfile.userId, userId))
-    .limit(1);
-  const [creator] = await db
-    .select({ id: creatorProfile.id })
-    .from(creatorProfile)
-    .where(eq(creatorProfile.userId, userId))
-    .limit(1);
+  const [[brand], [creator]] = await Promise.all([
+    db
+      .select({ id: brandProfile.id })
+      .from(brandProfile)
+      .where(eq(brandProfile.userId, userId))
+      .limit(1),
+    db
+      .select({ id: creatorProfile.id })
+      .from(creatorProfile)
+      .where(eq(creatorProfile.userId, userId))
+      .limit(1),
+  ]);
 
   return {
     brandProfileId: brand?.id ?? null,
