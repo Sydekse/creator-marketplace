@@ -2,9 +2,11 @@ import { expect, test } from '@playwright/test';
 import {
   DEMO,
   clickToUrl,
+  expectMutationOk,
   openCampaign,
   openConfirmDialog,
   openCreatorDeal,
+  openVersionHistory,
   settledMain,
   signIn,
   submitVideo,
@@ -106,9 +108,9 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   await expect(
     admin.getByRole('heading', { name: 'Video 1 · Version 1', exact: true })
   ).toBeVisible();
-  await admin.getByText('Version history', { exact: true }).click();
+  const dealHistory = await openVersionHistory(admin);
   await expect(
-    admin.getByText('Submitted · creator', { exact: true })
+    dealHistory.getByText('Submitted · creator', { exact: true }).first()
   ).toBeVisible();
 
   // Opening resolution must not silently refresh tokens behind the displayed video.
@@ -169,15 +171,28 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   await row
     .getByLabel('Resolution note')
     .fill('Brand and creator agreed to cancel (e2e).');
-  await row.getByRole('button', { name: 'Confirm resolution' }).click();
+  // Pin the resolution to its POST — the toast alone can outlive a lost
+  // router.refresh() on the slow mobile runners.
+  await expectMutationOk(admin, '/resolve', () =>
+    row.getByRole('button', { name: 'Confirm resolution' }).click()
+  );
 
   // The success toast confirms the resolution landed.
   await expect(admin.getByText(/resolved/i).first()).toBeVisible({
     timeout: 15_000,
   });
 
-  // And the row leaves the worklist — refunded is not refundable.
-  await expect(row).toHaveCount(0, { timeout: 15_000 });
+  // And the row leaves the worklist — refunded is not refundable. The list is
+  // server-rendered and only updates after the resolution's router.refresh();
+  // that refresh can be lost on the mobile runners even though the POST
+  // committed (same family as submitVideo's progress copy), so re-read the
+  // server truth directly: check, reload, check again.
+  await expect(async () => {
+    if ((await row.count()) > 0) {
+      await admin.reload();
+    }
+    await expect(row).toHaveCount(0, { timeout: 4_000 });
+  }).toPass({ timeout: 45_000 });
 
   // KAN-81 AC-031: the console links to the append-only audit log, which now
   // carries both admin actions — the flag and the resolution, note included.

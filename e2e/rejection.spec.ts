@@ -5,6 +5,7 @@ import {
   expectMutationOk,
   openCampaign,
   openCreatorDeal,
+  openVersionHistory,
   pickOption,
   settledMain,
   signIn,
@@ -58,8 +59,12 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   await expect(
     creator.getByText('Please include the actual engagement numbers.').first()
   ).toBeVisible();
-  await creator.getByText('Version history', { exact: true }).click();
-  await expect(creator.getByText('Revision requested · brand')).toBeVisible();
+  // `.first()`: a retry inherits the prior attempt's rejection events, so the
+  // line can legitimately appear once per recorded revision.
+  const history = await openVersionHistory(creator);
+  await expect(
+    history.getByText('Revision requested · brand').first()
+  ).toBeVisible();
   await submitVideo(
     creator,
     'https://www.tiktok.com/@creator.demo/video/1112223334445556668',
@@ -85,15 +90,15 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   await expect(
     creator.getByRole('heading', { name: 'Video 1 · Version 3', exact: true })
   ).toBeVisible();
-  await creator.getByText('Version history', { exact: true }).click();
+  const fullHistory = await openVersionHistory(creator);
   await expect(
-    creator.getByRole('heading', { name: 'Version 1', exact: true })
+    fullHistory.getByRole('heading', { name: 'Version 1', exact: true })
   ).toBeVisible();
   await expect(
-    creator.getByRole('heading', { name: 'Version 2', exact: true })
+    fullHistory.getByRole('heading', { name: 'Version 2', exact: true })
   ).toBeVisible();
   await expect(
-    creator.getByText('Please improve the audio.').first()
+    fullHistory.getByText('Please improve the audio.').first()
   ).toBeVisible();
   await creator.close();
   await brand.close();
