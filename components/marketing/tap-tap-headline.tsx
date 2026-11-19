@@ -42,7 +42,8 @@ const BOTTOM_CLASSES =
 export function TapTapHeadline({ className }: { className?: string }) {
   const [role, setRole] = useState<SelfRegisterableRole>('brand');
   const reduceMotion = useReducedMotion();
-  const otherRole: SelfRegisterableRole = role === 'brand' ? 'creator' : 'brand';
+  const otherRole: SelfRegisterableRole =
+    role === 'brand' ? 'creator' : 'brand';
 
   useEffect(() => {
     if (reduceMotion) return;
@@ -50,9 +51,7 @@ export function TapTapHeadline({ className }: { className?: string }) {
     const start = () => {
       if (intervalId === undefined) {
         intervalId = setInterval(() => {
-          setRole((current) =>
-            current === 'brand' ? 'creator' : 'brand'
-          );
+          setRole((current) => (current === 'brand' ? 'creator' : 'brand'));
         }, CYCLE_MS);
       }
     };
@@ -97,7 +96,9 @@ export function TapTapHeadline({ className }: { className?: string }) {
     <h1 className={cn('flex items-center gap-6', className)}>
       <span className="font-display text-[3.35rem] font-semibold leading-[1.023] tracking-[-0.08em] text-[oklch(0.18_0.055_185)] lg:text-[3.65rem] xl:text-[4rem]">
         <span className="block">Tap</span>
-        <span className="block pl-[0.638em] text-[oklch(0.32_0.085_185)]">tap</span>
+        <span className="block pl-[0.638em] text-[oklch(0.32_0.085_185)]">
+          tap
+        </span>
       </span>
 
       {/* The claim column is one grid. Two things keep it stable:

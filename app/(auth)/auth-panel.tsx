@@ -59,7 +59,9 @@ export function AuthPanel() {
       <div className="relative grid w-full max-w-[33rem] -translate-x-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-6 text-left xl:-translate-x-16">
         <div className="font-display text-[3.35rem] font-semibold leading-[1.023] tracking-[-0.08em] text-[oklch(0.18_0.055_185)] xl:text-[3.8rem]">
           <span className="block">Tap</span>
-          <span className="block pl-[0.638em] text-[oklch(0.32_0.085_185)]">tap</span>
+          <span className="block pl-[0.638em] text-[oklch(0.32_0.085_185)]">
+            tap
+          </span>
         </div>
 
         <div className="min-w-0 min-h-[10rem] border-l border-[oklch(0.28_0.07_185/0.24)] pl-6">
