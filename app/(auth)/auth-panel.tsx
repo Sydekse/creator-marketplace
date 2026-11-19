@@ -51,15 +51,15 @@ export function AuthPanel() {
           alt=""
           fill
           sizes="44vw"
-          className="object-cover blur-sm"
+          className="object-cover blur-sm scale-[1.2] opacity-80"
           priority
         />
       </div>
       <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-neutral-50" />
       <div className="relative grid w-full max-w-[33rem] -translate-x-12 grid-cols-[auto_minmax(0,1fr)] items-center gap-6 text-left xl:-translate-x-16">
-        <div className="font-display text-[3.35rem] font-semibold leading-[0.78] tracking-[-0.08em] text-[oklch(0.18_0.055_185)] xl:text-[3.8rem]">
+        <div className="font-display text-[3.35rem] font-semibold leading-[1.023] tracking-[-0.08em] text-[oklch(0.18_0.055_185)] xl:text-[3.8rem]">
           <span className="block">Tap</span>
-          <span className="block pl-7 text-[oklch(0.32_0.085_185)]">tap</span>
+          <span className="block pl-[0.638em] text-[oklch(0.32_0.085_185)]">tap</span>
         </div>
 
         <div className="min-w-0 min-h-[10rem] border-l border-[oklch(0.28_0.07_185/0.24)] pl-6">
@@ -82,7 +82,7 @@ export function AuthPanel() {
               }
             />
           </p>
-          <p className="mt-4 font-display text-[2.15rem] font-semibold leading-[1.04] tracking-tight text-[oklch(0.16_0.052_185)] xl:text-[2.5rem]">
+          <p className="mt-4 font-display text-[2.15rem] font-semibold leading-[1.04] tracking-tight text-brand-ink xl:text-[2.5rem]">
             <span className="block">
               <SlotText
                 text={PANEL_COPY[role].top}
@@ -102,7 +102,7 @@ export function AuthPanel() {
                 }
               />
             </span>
-            <span className="mt-1 block text-[oklch(0.24_0.07_185)]">
+            <span className="mt-1 block text-brand-ink">
               <SlotText
                 text={PANEL_COPY[role].bottom}
                 options={
