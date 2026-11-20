@@ -1,18 +1,19 @@
-import Image from 'next/image';
+﻿import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, CaretDown, Check } from '@phosphor-icons/react/dist/ssr';
 import { Mark } from '@/components/brand/mark';
 import { TikTokIcon } from '@/components/brand/tiktok-icon';
 import { BrandWorkspaceScrollRail } from '@/components/marketing/brand-workspace-scroll-rail';
 import { Reveal } from '@/components/marketing/reveal';
+import { TapTapHeadline } from '@/components/marketing/tap-tap-headline';
 import { SectionLabel } from '@/components/layout/section-label';
 
-/** The landing page's SectionLabel, pill chrome stripped — bare teal eyebrow text. */
+/** The landing page's SectionLabel, pill chrome stripped â€” bare teal eyebrow text. */
 const FLAT_LABEL = 'rounded-none bg-transparent px-0 py-0 shadow-none';
 import { cn } from '@/lib/utils';
 
 /* -------------------------------------------------------------------------- */
-/*  Landing page — Creator Marketplace                                        */
+/*  Landing page â€” Creator Marketplace                                        */
 /*  Direction: editorial, monochrome. Inspired by the Straton layout:         */
 /*  floating pill nav, serif display headlines, hairline dividers, CSS-built  */
 /*  app mockups, bordered pricing rows, multi-column footer.                  */
@@ -116,7 +117,7 @@ function SectionIntro({
 }) {
   return (
     <div className="flex flex-col gap-5">
-      {/* The workspace's chapter ruler: label Â· hairline. */}
+      {/* The workspace's chapter ruler: label Ã‚Â· hairline. */}
       <Reveal>
         <div className="flex items-center gap-4">
           <SectionLabel as="p" className={FLAT_LABEL}>
@@ -146,21 +147,21 @@ function AppFrame({
       aria-hidden
       className={cn(
         // The hero's bezel grammar: white rim, hard teal plate behind,
-        // pressing toward it on hover (radii concentric: 28 − 12 = 16).
-        'hero-plate overflow-hidden rounded-[28px] border border-[oklch(0.79_0.004_220)] bg-white p-3',
+        // pressing toward it on hover (radii concentric: 28 âˆ’ 12 = 16).
+        'hero-plate overflow-hidden rounded-[28px] border-2 border-[oklch(0.75_0.004_220)] bg-white p-3',
         className
       )}
     >
-      <div className="overflow-hidden rounded-2xl border border-neutral-200">
-        <div className="relative flex items-center border-b border-neutral-200 bg-neutral-50 px-4 py-3">
-          <span className="flex gap-2" aria-hidden>
-            <span className="h-2 w-2 rounded-full bg-[oklch(0.78_0.08_25)] ring-1 ring-black/5" />
-            <span className="h-2 w-2 rounded-full bg-[oklch(0.82_0.09_85)] ring-1 ring-black/5" />
-            <span className="h-2 w-2 rounded-full bg-[oklch(0.8_0.09_160)] ring-1 ring-black/5" />
+      <div className="overflow-hidden rounded-2xl border border-neutral-300">
+        <div className="relative flex items-center border-b border-neutral-300 bg-neutral-50 px-4 py-3">
+          <span className="flex gap-1.5" aria-hidden>
+            <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.68_0.14_25)] ring-1 ring-black/5" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.86_0.12_85)] ring-1 ring-black/5" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.12_150)] ring-1 ring-black/5" />
           </span>
           <span className="absolute left-1/2 top-1/2 hidden max-w-[70%] -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-neutral-200 bg-white px-3 py-1 text-[10px] font-medium text-neutral-600 sm:flex">
             <span className="h-2 w-2 shrink-0 rounded-full bg-brand-soft" />
-            <span className="truncate">creator-marketplace.et</span>
+            <span className="truncate">taptap.pro.et</span>
           </span>
           <span className="ml-auto w-14" aria-hidden />
         </div>
@@ -176,15 +177,25 @@ function AppFrame({
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen bg-neutral-50 text-neutral-900 antialiased">
+    <div className="relative min-h-screen bg-neutral-50 text-neutral-900 antialiased">
+      {/* Auth-panel image backdrop (auth treatment: mask + blur). */}
+      <div className="pointer-events-none fixed left-0 top-0 h-screen w-2/3 opacity-40 overflow-hidden [mask-image:linear-gradient(to_left,transparent_0%,transparent_45%,rgba(0,0,0,0.03)_50%,rgba(0,0,0,0.09)_57%,rgba(0,0,0,0.2)_66%,rgba(0,0,0,0.42)_76%,rgba(0,0,0,0.68)_88%,rgba(0,0,0,0.88)_96%,black_100%)]">
+        <Image
+          src="/marketing/auth-panel-teal.webp"
+          alt=""
+          fill
+          sizes="44vw"
+          className="object-cover blur-sm"
+        />
+      </div>
       {/* ------------------------------------------------------------------ */}
-      {/*  NAV — floating pill, dark on light                               */}
+      {/*  NAV â€” floating pill, dark on light                               */}
       {/* ------------------------------------------------------------------ */}
       <nav
         aria-label="Primary"
         className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-3"
       >
-        <div className="pointer-events-auto flex h-14 w-full max-w-6xl items-center justify-between rounded-full border border-neutral-800 bg-neutral-900/95 px-3 shadow-[0_12px_32px_rgba(23,23,23,0.18)] backdrop-blur">
+        <div className="pointer-events-auto flex h-14 w-full max-w-6xl items-center justify-between rounded-full border border-neutral-800 bg-neutral-900 px-3 shadow-[0_12px_32px_rgba(23,23,23,0.18)]">
           <Link
             href="/"
             className="flex items-center gap-3 rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-500"
@@ -230,10 +241,10 @@ export default function HomePage() {
 
       <main>
         {/* ---------------------------------------------------------------- */}
-        {/*  HERO — editorial headline beside the real dashboard, cropped    */}
+        {/*  HERO â€” editorial headline beside the real dashboard, cropped    */}
         {/*  by the viewport edge the way the reference frames its product.  */}
         {/* ---------------------------------------------------------------- */}
-        <section className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-20 lg:min-h-[calc((100vw-36rem)*0.7472+336px)] lg:pt-32 lg:pb-0">
+        <section className="relative overflow-hidden pt-24 pb-16 sm:pt-32 sm:pb-20 lg:min-h-[calc((100vw-36rem)*0.7472+336px)] lg:pt-28 lg:pb-0">
           <div
             className="pointer-events-none absolute inset-0 opacity-40"
             aria-hidden
@@ -245,19 +256,21 @@ export default function HomePage() {
             }}
           />
           <div className="pointer-events-none relative z-[1] w-full px-5 sm:px-9">
-            <div className="pointer-events-auto relative max-w-xl lg:max-w-[36rem] lg:origin-top-left lg:scale-[0.88] lg:pt-40">
+            {/* The text column stays unscaled: the headline roll animates layout
+                (slot widths), and a transform-scaled ancestor makes those frames
+                repaint at fractional scale — the jitter the auth panel never
+                has. 36rem at xl gives the claim lines room to roll without
+                wrapping and pushing the divider. */}
+            <div className="pointer-events-auto relative max-w-xl lg:max-w-[34rem] xl:max-w-[36rem] lg:pt-28">
               <div className="animate-rise-in flex items-center gap-3">
                 <TikTokIcon className="h-4 w-4 text-neutral-900" />
                 <SectionLabel as="p" className={FLAT_LABEL}>
                   Built for TikTok campaigns
                 </SectionLabel>
               </div>
-              <h1 className="animate-rise-in-1 mt-6 font-display text-[44px] font-medium leading-[1.04] tracking-tight text-neutral-900 sm:mt-8 sm:text-6xl lg:text-[68px] xl:text-[72px]">
-                Brands fund.
-                <br />
-                <em className="not-italic text-brand">Creators deliver.</em>
-              </h1>
-              <p className="animate-rise-in-2 mt-5 max-w-[48ch] text-base leading-relaxed text-neutral-600 sm:mt-7 sm:text-lg">
+              {/* The "Tap tap" lockup from the auth panel is the hero headline */}
+              <TapTapHeadline className="animate-rise-in-1 mt-6 sm:mt-8" />
+              <p className="animate-rise-in-2 mt-5 text-base leading-relaxed text-neutral-600 sm:mt-7 sm:text-lg">
                 Set the brief, choose verified creators, and pay only for work
                 you approve. The money and the deal stay together.
               </p>
@@ -306,25 +319,25 @@ export default function HomePage() {
               rail crops a long list: the populated brand dashboard in a
               bezeled v4 frame, anchored to the right edge and running past
               it. The bezel is a padded white rim; the shot carries its own
-              hairline and a concentric inner radius (28 âˆ’ 12 = 16). */}
+              hairline and a concentric inner radius (28 Ã¢Ë†â€™ 12 = 16). */}
           <div className="relative mt-14 lg:absolute lg:top-40 lg:-right-24 lg:left-[42rem] lg:mt-0">
             <div className="hero-frame-wrap relative h-full motion-reduce:animate-none">
               <div className="relative mx-6 h-full sm:mx-9 lg:mx-0">
                 <div
                   aria-hidden
-                  className="hero-plate h-full overflow-hidden rounded-[28px] border border-[oklch(0.79_0.004_220)] bg-white p-3"
+                  className="hero-plate h-full overflow-hidden rounded-[28px] border-2 border-[oklch(0.75_0.004_220)] bg-white p-3"
                 >
-                  <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-neutral-200">
+                  <div className="flex h-full flex-col overflow-hidden rounded-2xl border border-neutral-300">
                     {/* The same window chrome the section frames wear. */}
-                    <div className="relative flex shrink-0 items-center border-b border-neutral-200 bg-neutral-50 px-4 py-3">
-                      <span className="flex gap-2" aria-hidden>
-                        <span className="h-2 w-2 rounded-full bg-[oklch(0.78_0.08_25)] ring-1 ring-black/5" />
-                        <span className="h-2 w-2 rounded-full bg-[oklch(0.82_0.09_85)] ring-1 ring-black/5" />
-                        <span className="h-2 w-2 rounded-full bg-[oklch(0.8_0.09_160)] ring-1 ring-black/5" />
+                    <div className="relative flex shrink-0 items-center border-b border-neutral-300 bg-neutral-50 px-4 py-3">
+                      <span className="flex gap-1.5" aria-hidden>
+                        <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.68_0.14_25)] ring-1 ring-black/5" />
+                        <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.86_0.12_85)] ring-1 ring-black/5" />
+                        <span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.12_150)] ring-1 ring-black/5" />
                       </span>
                       <span className="absolute left-1/2 top-1/2 hidden max-w-[70%] -translate-x-1/2 -translate-y-1/2 items-center gap-2 whitespace-nowrap rounded-full border border-neutral-200 bg-white px-3 py-1 text-[10px] font-medium text-neutral-600 sm:flex">
                         <span className="h-2 w-2 shrink-0 rounded-full bg-brand-soft" />
-                        <span className="truncate">creator-marketplace.et</span>
+                        <span className="truncate">taptap.pro.et</span>
                       </span>
                       <span className="ml-auto w-14" aria-hidden />
                     </div>
@@ -350,7 +363,7 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  HOW IT WORKS — numbered steps, hairline-divided                  */}
+        {/*  HOW IT WORKS â€” numbered steps, hairline-divided                  */}
         {/* ---------------------------------------------------------------- */}
         <section id="how-it-works" className="scroll-mt-28 py-16 sm:py-20">
           <div className="w-full px-5 sm:px-9 [--step-run:0px] lg:[--step-run:8rem] xl:[--step-run:10rem]">
@@ -366,8 +379,8 @@ export default function HomePage() {
             />
 
             {/* The four steps as the deal's own timeline: one horizontal
-                rail running full width — the same grammar as the progress
-                rail inside the product — with stations alternating above
+                rail running full width â€” the same grammar as the progress
+                rail inside the product â€” with stations alternating above
                 and below the line. */}
             <Reveal className="mt-20 hidden lg:block">
               <div className="relative">
@@ -467,7 +480,7 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  WHY — label + serif headline + right-aligned description         */}
+        {/*  WHY â€” label + serif headline + right-aligned description         */}
         {/* ---------------------------------------------------------------- */}
         <section id="platform" className="scroll-mt-28 py-16 sm:py-20">
           <div className="w-full px-5 sm:px-9">
@@ -487,7 +500,7 @@ export default function HomePage() {
                 hairline. A pulse walks the chain, token by token. */}
             <Reveal className="mt-14">
               {/* Mobile: the chain becomes an orbit. Five stations circle one
-                  hub — everything the deal carries, held around one record.
+                  hub â€” everything the deal carries, held around one record.
                   The teal pulse laps the ring and wakes each station in turn. */}
               <div className="relative overflow-hidden rounded-2xl border border-[oklch(0.79_0.004_220)] bg-white px-4 py-8 shadow-[0_2px_0_rgba(23,23,23,0.07)] sm:hidden">
                 <div className="relative mx-auto aspect-square w-full max-w-[300px]">
@@ -591,7 +604,7 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  BRAND WORKSPACE — feature list + stacked app frames              */}
+        {/*  BRAND WORKSPACE â€” feature list + stacked app frames              */}
         {/* ---------------------------------------------------------------- */}
         <section id="for-brands" className="scroll-mt-28 py-16 sm:py-20">
           <div className="w-full px-5 sm:px-9">
@@ -607,7 +620,7 @@ export default function HomePage() {
             />
 
             <div className="mt-16 grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] lg:gap-x-16">
-              {/* Feature list as the deal's own progress rail — the same
+              {/* Feature list as the deal's own progress rail â€” the same
                   grammar as the rail inside the screenshot beside it: mono
                   step nodes on a vertical hairline, the active step filled
                   teal, and the flight stretched to run the mock's full
@@ -617,7 +630,7 @@ export default function HomePage() {
               </Reveal>
 
               {/* The real review screen: identity, progress rail, the
-                  submitted video, and the approve control — captured from
+                  submitted video, and the approve control â€” captured from
                   the populated demo workspace, not rebuilt in CSS. */}
               <Reveal delay={80} className="mt-12 lg:mt-0">
                 <AppFrame>
@@ -636,7 +649,7 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  CREATORS — stats band + creator app frame                        */}
+        {/*  CREATORS â€” stats band + creator app frame                        */}
         {/* ---------------------------------------------------------------- */}
         <section id="for-creators" className="scroll-mt-28 py-16 sm:py-20">
           <div className="w-full px-5 sm:px-9">
@@ -715,7 +728,7 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  PRICING — commission model as bordered cards                     */}
+        {/*  PRICING â€” commission model as bordered cards                     */}
         {/* ---------------------------------------------------------------- */}
         <section id="pricing" className="scroll-mt-28 py-16 sm:py-20">
           <div className="w-full px-5 sm:px-9">
@@ -733,7 +746,7 @@ export default function HomePage() {
             />
 
             {/* Two banded chapter panels: teal-washed header band over a
-                hairline ledger of inclusions — the deals-inbox grammar. */}
+                hairline ledger of inclusions â€” the deals-inbox grammar. */}
             <div className="mt-16 grid gap-6 md:grid-cols-2 md:gap-8">
               {[
                 {
@@ -856,14 +869,14 @@ export default function HomePage() {
         </section>
 
         {/* ---------------------------------------------------------------- */}
-        {/*  FINAL CTA — the ink rail-card, asymmetric: claim left, the      */}
+        {/*  FINAL CTA â€” the ink rail-card, asymmetric: claim left, the      */}
         {/*  ledger of facts and actions right, hairline-divided.            */}
         {/* ---------------------------------------------------------------- */}
         <section className="pb-16 sm:pb-20">
           <Reveal className="w-full px-5 sm:px-9">
             <div className="overflow-hidden rounded-[28px] bg-neutral-900 shadow-[0_32px_64px_-36px_rgba(15,55,52,0.65)]">
               {/* The ink chapter's own header band: teal eyebrow, hairline,
-                  mono note — the banded-panel grammar carried onto ink. */}
+                  mono note â€” the banded-panel grammar carried onto ink. */}
               <div className="flex items-center gap-4 border-b border-neutral-50/10 bg-neutral-50/[0.03] px-7 py-3 sm:px-12">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[oklch(0.82_0.07_185)]">
                   Get started
@@ -901,7 +914,7 @@ export default function HomePage() {
       </main>
 
       {/* ------------------------------------------------------------------ */}
-      {/*  FOOTER — multi-column, hairline-divided                           */}
+      {/*  FOOTER â€” multi-column, hairline-divided                           */}
       {/* ------------------------------------------------------------------ */}
       <footer className="border-t border-neutral-200 bg-white">
         <div className="grid w-full gap-12 px-5 sm:px-9 py-16 lg:grid-cols-[1.4fr_2fr]">
