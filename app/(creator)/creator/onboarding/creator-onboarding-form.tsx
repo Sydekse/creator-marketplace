@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { ArrowLeft, ArrowRight } from '@phosphor-icons/react';
+import { TikTokIcon } from '@/components/brand/tiktok-icon';
 import { Button } from '@/components/ui/button';
 import {
   Field,
@@ -222,38 +223,41 @@ export function CreatorOnboardingForm({
               /* Nothing here is input: the handle comes from the session and
                  the numbers from the API, both server-sourced on submit. */
               <div className="flex flex-col gap-3 rounded-2xl border border-brand/30 bg-brand-tint/40 p-5">
-                <p className="text-[13px] font-semibold text-neutral-700">
-                  Linked TikTok account
-                </p>
-                <p className="font-mono text-lg text-neutral-900">
+                <div className="flex items-center gap-2">
+                  <TikTokIcon className="h-5 w-5 shrink-0 text-brand-ink" />
+                  <p className="text-[13px] font-semibold text-neutral-700">
+                    Linked TikTok account
+                  </p>
+                </div>
+                <p className="break-all font-mono text-2xl font-semibold leading-tight text-brand-ink">
                   @{lockedHandle!.replace(/^@+/, '')}
                 </p>
-                <dl className="grid grid-cols-2 gap-3 border-t border-brand/20 pt-3">
+                <div className="flex items-center gap-6 border-t border-brand/20 pt-3">
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
                       Followers
-                    </dt>
-                    <dd className="mt-1 font-mono text-sm tabular-nums text-neutral-900">
+                    </p>
+                    <p className="mt-0.5 font-mono text-base tabular-nums text-neutral-900">
                       {lockedFollowers !== null
                         ? lockedFollowers.toLocaleString('en-US')
                         : '—'}
-                    </dd>
+                    </p>
                   </div>
                   <div>
-                    <dt className="text-xs uppercase tracking-wide text-muted-foreground">
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
                       Engagement
-                    </dt>
-                    <dd className="mt-1 font-mono text-sm tabular-nums text-neutral-900">
+                    </p>
+                    <p className="mt-0.5 font-mono text-base tabular-nums text-neutral-900">
                       {lockedEngagement !== null ? `${lockedEngagement}%` : '—'}
-                    </dd>
+                    </p>
                   </div>
-                </dl>
-                <p className="text-[13px] leading-relaxed text-neutral-600">
+                </div>
+                <p className="text-[12px] leading-relaxed text-neutral-600">
                   {lockedFollowers === null && lockedEngagement === null
-                    ? 'We could not pull your stats yet. You can refresh them from your dashboard after onboarding.'
+                    ? 'Stats unavailable — refresh from your dashboard later.'
                     : lockedEngagement === null
-                      ? 'No engagement data yet — it appears once your account has public videos. Refresh from your dashboard later.'
-                      : 'Pulled from your TikTok account. These set your tier and rate, and refresh automatically.'}
+                      ? 'No engagement yet — needs public videos.'
+                      : 'Pulled from TikTok. Sets your tier and rate.'}
                 </p>
               </div>
             ) : (
