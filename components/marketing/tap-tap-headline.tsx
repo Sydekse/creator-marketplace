@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { SlotText } from 'slot-text/react';
 import 'slot-text/style.css';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
@@ -35,15 +35,17 @@ const CYCLE_MS = 4800;
 const NOTE_CLASSES =
   'block font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-[oklch(0.28_0.07_185)]';
 const TOP_CLASSES =
-  'font-display text-2xl font-semibold leading-[1.06] tracking-tight text-brand-ink sm:text-[2.15rem] xl:text-[2.45rem]';
+  'font-display text-xl font-semibold leading-[1.06] tracking-tight text-brand-ink sm:text-[2.15rem] xl:text-[2.45rem]';
 const BOTTOM_CLASSES =
-  'font-display text-2xl font-semibold leading-[1.06] tracking-tight text-brand-ink sm:text-[2.15rem] xl:text-[2.45rem]';
+  'font-display text-xl font-semibold leading-[1.06] tracking-tight text-brand-ink sm:text-[2.15rem] xl:text-[2.45rem]';
 
 export function TapTapHeadline({ className }: { className?: string }) {
   const [role, setRole] = useState<SelfRegisterableRole>('brand');
   const reduceMotion = useReducedMotion();
   const otherRole: SelfRegisterableRole =
     role === 'brand' ? 'creator' : 'brand';
+
+  const rootRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     if (reduceMotion) return;
@@ -61,12 +63,22 @@ export function TapTapHeadline({ className }: { className?: string }) {
         intervalId = undefined;
       }
     };
-    // A roll firing while the tab is hidden lands as a burst on return.
-    const onVisibility = () => (document.hidden ? stop() : start());
-    start();
+    // Pause the cycle when the hero leaves the viewport (and when the tab
+    // is hidden) so we don't keep re-rendering the roll off-screen.
+    const onVisibility = () => (document.hidden ? stop() : undefined);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.some((entry) => entry.isIntersecting);
+        if (visible && !document.hidden) start();
+        else stop();
+      },
+      { threshold: 0.1 }
+    );
+    if (rootRef.current) observer.observe(rootRef.current);
     document.addEventListener('visibilitychange', onVisibility);
     return () => {
       stop();
+      observer.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [reduceMotion]);
@@ -93,28 +105,34 @@ export function TapTapHeadline({ className }: { className?: string }) {
         };
 
   return (
-    <h1 className={cn('flex items-center gap-6', className)}>
-      <span className="font-display text-[3.35rem] font-semibold leading-[1.023] tracking-[-0.08em] text-[oklch(0.18_0.055_185)] lg:text-[3.65rem] xl:text-[4rem]">
+    <h1
+      ref={rootRef}
+      className={cn('flex items-center gap-4 sm:gap-6', className)}
+    >
+      <span className="font-display text-[2.5rem] font-semibold leading-[1.023] tracking-[-0.08em] text-[oklch(0.18_0.055_185)] sm:text-[3.35rem] lg:text-[3.65rem] xl:text-[4rem]">
         <span className="block">Tap</span>
         <span className="block pl-[0.638em] text-[oklch(0.32_0.085_185)]">
           tap
         </span>
       </span>
 
-      {/* The claim column is one grid. Two things keep it stable:
+      {/* The claim column is one grid. Three things keep it stable:
+          — Track: `minmax(0, 1fr)` pins the column to the space it is given.
+            An auto track sizes to max-content instead, which pushed the claim
+            past the lockup on phones and let it change width per role.
           — Width: invisible in-flow copies of the *other* role's lines share
-            each row's cell, so the column is always as wide as the widest
-            phrase. Slot-text rolls animate slot `width` — a layout property —
-            and without the reservation every frame of the roll relayouts the
-            lockup. With it, the reflow stays inside this block.
+            each row's cell, so a row is always as tall as the taller phrase
+            and the block never re-centers when the claim swaps. Slot-text
+            rolls animate slot `width` — a layout property — so the reserved
+            space also keeps the reflow inside this block.
           — Rows: every child gets an explicit grid-area, including the
             visible ones. Grid auto-placement fills definite-position items
             first, so auto-placed children would land *below* the reserves
             and stack phantom rows on top of the claim.
-          The rule owns a 10rem minimum height (like the auth panel's) and
-          the rows center in it, so the claim text sits on the divider's
-          midpoint alongside the wordmark. */}
-      <span className="grid h-[10rem] min-w-0 flex-1 content-center border-l border-[oklch(0.28_0.07_185/0.24)] py-1 pl-6 [contain:layout] xl:overflow-clip [&>*]:[grid-area:var(--row)/1] [&>*:nth-child(even)]:invisible">
+          The rule owns a 10rem height (like the auth panel's) and the rows
+          center in it, so the claim text sits on the divider's midpoint
+          alongside the wordmark. */}
+      <span className="grid h-[6.5rem] min-w-0 flex-1 grid-cols-[minmax(0,1fr)] content-center border-l border-[oklch(0.28_0.07_185/0.24)] py-1 pl-6 [contain:layout] overflow-x-clip xl:overflow-clip sm:h-[10rem] sm:py-1 [&>*]:[grid-area:var(--row)/1] [&>*:nth-child(even)]:invisible">
         {/* Row 1 — role note */}
         <span className={cn(NOTE_CLASSES, '[--row:1]')}>
           <SlotText

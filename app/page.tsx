@@ -148,7 +148,7 @@ function AppFrame({
       className={cn(
         // The hero's bezel grammar: white rim, hard teal plate behind,
         // pressing toward it on hover (radii concentric: 28 âˆ’ 12 = 16).
-        'hero-plate overflow-hidden rounded-[28px] border-2 border-[oklch(0.75_0.004_220)] bg-white p-3',
+        'hero-plate ml-4 overflow-hidden rounded-[28px] border-2 border-[oklch(0.75_0.004_220)] bg-white p-3 sm:ml-0',
         className
       )}
     >
@@ -184,6 +184,7 @@ export default function HomePage() {
           src="/marketing/auth-panel-teal.webp"
           alt=""
           fill
+          priority
           sizes="44vw"
           className="object-cover blur-sm"
         />
@@ -262,15 +263,15 @@ export default function HomePage() {
                 has. 36rem at xl gives the claim lines room to roll without
                 wrapping and pushing the divider. */}
             <div className="pointer-events-auto relative max-w-xl lg:max-w-[34rem] xl:max-w-[36rem] lg:pt-28">
-              <div className="animate-rise-in flex items-center gap-3">
+              <div className="animate-rise-in flex items-center justify-center gap-3 sm:justify-start">
                 <TikTokIcon className="h-4 w-4 text-neutral-900" />
-                <SectionLabel as="p" className={FLAT_LABEL}>
-                  Built for TikTok campaigns
-                </SectionLabel>
+                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.18em] text-brand-ink">
+                  Built for TikTok campaigns for now
+                </span>
               </div>
               {/* The "Tap tap" lockup from the auth panel is the hero headline */}
               <TapTapHeadline className="animate-rise-in-1 mt-6 sm:mt-8" />
-              <p className="animate-rise-in-2 mt-5 text-base leading-relaxed text-neutral-600 sm:mt-7 sm:text-lg">
+              <p className="animate-rise-in-2 mt-5 text-center text-base leading-relaxed text-neutral-600 sm:mt-7 sm:text-left sm:text-lg">
                 Set the brief, choose verified creators, and pay only for work
                 you approve. The money and the deal stay together.
               </p>
@@ -322,7 +323,7 @@ export default function HomePage() {
               hairline and a concentric inner radius (28 Ã¢Ë†â€™ 12 = 16). */}
           <div className="relative mt-14 lg:absolute lg:top-40 lg:-right-24 lg:left-[42rem] lg:mt-0">
             <div className="hero-frame-wrap relative h-full motion-reduce:animate-none">
-              <div className="relative mx-6 h-full sm:mx-9 lg:mx-0">
+              <div className="relative ml-10 mr-6 h-full sm:mx-9 lg:mx-0">
                 <div
                   aria-hidden
                   className="hero-plate h-full overflow-hidden rounded-[28px] border-2 border-[oklch(0.75_0.004_220)] bg-white p-3"
@@ -686,7 +687,7 @@ export default function HomePage() {
             <div className="mx-auto mt-14 grid max-w-6xl items-start gap-10 lg:grid-cols-2 lg:gap-8">
               <Reveal delay={120}>
                 <div className="group">
-                  <div className="rotate-[-1.2deg] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-0 motion-reduce:rotate-0 motion-reduce:transition-none">
+                  <div className="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-0 motion-reduce:rotate-0 motion-reduce:transition-none">
                     <AppFrame>
                       <Image
                         src="/marketing/creator-home.webp"
@@ -698,7 +699,7 @@ export default function HomePage() {
                       />
                     </AppFrame>
                   </div>
-                  <p className="mt-4 text-center font-mono text-[11px] tracking-[0.08em] text-neutral-500">
+                  <p className="mt-8 max-w-xs mx-auto text-center font-mono text-[11px] tracking-[0.08em] text-neutral-500">
                     your workspace: showreel, earnings, queue
                   </p>
                 </div>
@@ -706,7 +707,7 @@ export default function HomePage() {
 
               <Reveal delay={200}>
                 <div className="group lg:mt-10">
-                  <div className="rotate-[1.2deg] transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-0 motion-reduce:rotate-0 motion-reduce:transition-none">
+                  <div className="transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-0 motion-reduce:rotate-0 motion-reduce:transition-none">
                     <AppFrame>
                       <Image
                         src="/marketing/creator-deal.webp"
@@ -718,7 +719,7 @@ export default function HomePage() {
                       />
                     </AppFrame>
                   </div>
-                  <p className="mt-4 text-center font-mono text-[11px] tracking-[0.08em] text-neutral-500">
+                  <p className="mt-8 max-w-xs mx-auto text-center font-mono text-[11px] tracking-[0.08em] text-neutral-500">
                     a funded deal: escrow held, ready to deliver
                   </p>
                 </div>
