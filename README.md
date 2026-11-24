@@ -268,7 +268,7 @@ Deal statuses: `pending` → `accepted` → `funded` → `delivered` → `comple
 
 |           |                                                                |
 | --------- | -------------------------------------------------------------- |
-| Framework | Next.js 16.2 (App Router, Server Components, Route Handlers)   |
+| Framework | Next.js 16.4 (App Router, Server Components, Route Handlers)   |
 | UI        | React 19.2, Tailwind CSS v4, Base UI primitives, Framer Motion |
 | Database  | Postgres (Neon) with Drizzle ORM and drizzle-kit migrations    |
 | Auth      | Better Auth                                                    |
