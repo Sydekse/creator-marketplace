@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -23,12 +23,10 @@ import {
   SUBMIT_DELIVERABLE_URL_PLACEHOLDER,
   SUBMITTING_DELIVERABLE_LABEL,
 } from '@/lib/deals/copy';
-import {
-  fieldErrorsAt,
-  submitDeliverableSchema,
-  zodIssuesToDetails,
-} from '@/lib/validation';
-import type { FieldErrorMap } from '@/lib/validation';
+import { zodIssuesToDetails } from '@/lib/validation/errors';
+import { fieldErrorsAt } from '@/lib/validation/field-errors';
+import type { FieldErrorMap } from '@/lib/validation/field-errors';
+import { submitDeliverableSchema } from '@/lib/validation/schemas';
 
 /**
  * Submit the live TikTok post URL for a funded deal (KAN-46, AC-022, AC-025).
@@ -53,12 +51,23 @@ import type { FieldErrorMap } from '@/lib/validation';
  * The copy comes from `lib/deals/copy.ts`, not `lib/deals/detail.ts` — the
  * same bundle-boundary rule as `offer-actions.tsx`; see that module's header.
  */
-export function DeliverableForm({ dealId }: { dealId: string }) {
+export function DeliverableForm({
+  dealId,
+  deliverableId,
+  expectedVersion,
+  expectedSubmitted,
+}: {
+  dealId: string;
+  deliverableId: string | null;
+  expectedVersion: number;
+  expectedSubmitted: number;
+}) {
   const router = useRouter();
 
   const [tiktokUrl, setTiktokUrl] = useState('');
   const [errors, setErrors] = useState<FieldErrorMap>({});
   const [submitting, setSubmitting] = useState(false);
+  const request = useRef<{ id: string; url: string } | null>(null);
 
   const urlErrors = fieldErrorsAt(errors, 'tiktokUrl');
 
@@ -73,7 +82,16 @@ export function DeliverableForm({ dealId }: { dealId: string }) {
 
     setErrors({});
 
-    const parsed = submitDeliverableSchema.safeParse({ tiktokUrl });
+    if (!request.current || request.current.url !== tiktokUrl.trim()) {
+      request.current = { id: crypto.randomUUID(), url: tiktokUrl.trim() };
+    }
+    const parsed = submitDeliverableSchema.safeParse({
+      tiktokUrl,
+      requestId: request.current.id,
+      deliverableId,
+      expectedVersion,
+      expectedSubmitted,
+    });
     if (!parsed.success) {
       setErrors(zodIssuesToDetails(parsed.error));
       return;
@@ -107,6 +125,7 @@ export function DeliverableForm({ dealId }: { dealId: string }) {
       // server-rendered from `deal.status` — the refresh is what swaps the
       // form for the submitted-video section.
       setTiktokUrl('');
+      request.current = null;
       setSubmitting(false);
       router.refresh();
       return;

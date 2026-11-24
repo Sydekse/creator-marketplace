@@ -28,9 +28,9 @@ function getInitials(name: string): string {
 }
 
 const SIZE_CLASSES = {
-  sm: 'size-6 text-[10px]',
-  default: 'size-8 text-xs',
-  lg: 'size-12 text-base',
+  sm: 'size-6 rounded-[8px] text-[10px]',
+  default: 'size-8 rounded-[10px] text-xs',
+  lg: 'size-12 rounded-2xl text-base',
 } as const;
 
 export function InitialsAvatar({
@@ -48,11 +48,13 @@ export function InitialsAvatar({
   return (
     <div
       className={cn(
-        'relative flex shrink-0 items-center justify-center overflow-hidden rounded-full',
-        'bg-white border border-neutral-200',
-        'shadow-[0_4px_12px_rgba(23,23,23,0.02)]',
+        // The brand-dashboard portrait grammar (bd-pfp): ink square with a
+        // proportional radius and light initials. The top-nav trigger opts
+        // back into its circle via className.
+        'relative flex shrink-0 items-center justify-center overflow-hidden',
+        'bg-[oklch(0.22_0.005_220)] text-[#fafafa]',
         'font-[family-name:var(--font-bungee)] font-normal uppercase',
-        'text-neutral-900 select-none',
+        'select-none',
         SIZE_CLASSES[size],
         className
       )}

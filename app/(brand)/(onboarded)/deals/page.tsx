@@ -1,8 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { buttonVariants } from '@/components/ui/button';
-import { EmptyState } from '@/components/feedback/empty-state';
-import { PageHeader } from '@/components/layout/page-header';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { BrandDealInbox } from '@/components/deals/brand-deal-inbox';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
@@ -13,13 +11,13 @@ import {
   BRAND_NO_DEALS_DESCRIPTION,
   readBrandDealInbox,
 } from '@/lib/deals/brand-inbox';
-import { cn, textLinkFeedback } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
 
 /**
- * Brand deals inbox (§15).
+ * Brand deals inbox (§15) — the v4 visual language shared with the rest of
+ * the brand workspace.
  *
  * Every deal across all of the brand's campaigns, grouped by campaign.
  * Inside `(onboarded)`, so the layout there gates a brand with no profile.
@@ -36,46 +34,40 @@ export default async function BrandDealsPage() {
   const inbox = await readBrandDealInbox();
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-10 py-4">
-      <PageHeader
-        label="Brand workspace"
+    <BdShell>
+      <BdPageHead
         title={BRAND_INBOX_TITLE}
-        description={BRAND_INBOX_DESCRIPTION}
+        facts={BRAND_INBOX_DESCRIPTION}
+        actions={
+          <Link className="bd-btn bd-btn--primary" href="/campaigns">
+            View campaigns
+          </Link>
+        }
+        ruled
       />
 
       {inbox === null || inbox.isEmpty ? (
-        <EmptyState
-          align="start"
-          title={BRAND_NO_DEALS_TITLE}
-          description={BRAND_NO_DEALS_DESCRIPTION}
-          action={
-            <Link
-              href="/discover"
-              className={buttonVariants({ variant: 'default', size: 'sm' })}
-            >
+        <div className="bd-rise" style={{ '--i': 1 } as React.CSSProperties}>
+          <div className="bd-emptyfeed">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <rect x="4" y="7" width="16" height="13" rx="2.5" />
+              <path d="M4 12h16M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7" />
+            </svg>
+            <h3>{BRAND_NO_DEALS_TITLE}</h3>
+            <p>{BRAND_NO_DEALS_DESCRIPTION}</p>
+            <Link className="bd-btn bd-btn--primary" href="/discover">
               Discover creators
             </Link>
-          }
-        />
-      ) : (
-        <div className="flex flex-col gap-6">
-          <div className="flex items-end justify-between gap-4">
-            <p className="text-[13px] font-semibold tracking-[0.14em] text-brand uppercase">
-              Review queue
-            </p>
-            <Link
-              href="/campaigns"
-              className={cn(
-                'text-sm text-muted-foreground hover:text-foreground',
-                textLinkFeedback
-              )}
-            >
-              View campaigns
-            </Link>
           </div>
+        </div>
+      ) : (
+        <div
+          className="bd-dealswrap bd-rise"
+          style={{ '--i': 1 } as React.CSSProperties}
+        >
           <BrandDealInbox campaigns={inbox.campaigns} />
         </div>
       )}
-    </div>
+    </BdShell>
   );
 }

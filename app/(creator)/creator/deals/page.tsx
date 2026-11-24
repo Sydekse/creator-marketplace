@@ -1,6 +1,7 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { DealInbox } from '@/components/deals/deal-inbox';
-import { PageHeader } from '@/components/layout/page-header';
 import {
   INBOX_DESCRIPTION,
   INBOX_TITLE,
@@ -28,6 +29,9 @@ export const runtime = 'nodejs';
  * component would give two rows rendered either side of a deadline different
  * answers about the same instant, and it would make the expiry tense untestable
  * without freezing time globally.
+ *
+ * v4 conversion: shared `.bd` shell/header, with the inbox rows reskinned as a
+ * compact ledger surface.
  */
 export default async function CreatorDealsPage() {
   const inbox = await readDealInbox();
@@ -37,18 +41,50 @@ export default async function CreatorDealsPage() {
 
   const now = new Date();
 
-  // A creator with no deals still gets the five groups — the ghost rows are
-  // the empty state (KAN-200 review): the page's structure teaches the deal
-  // lifecycle, which a single "No offers yet" block cannot.
+  const dealCount = inbox.groups.reduce(
+    (total, group) => total + group.count,
+    0
+  );
+
   return (
-    <div className="flex flex-col gap-10 py-4">
-      <PageHeader
-        label="Creator workspace"
+    <BdShell className="bd-cr bd-cr-deals-page">
+      <BdPageHead
+        eyebrow="Creator workspace"
         title={INBOX_TITLE}
-        description={INBOX_DESCRIPTION}
+        facts={
+          <>
+            <span className="bd-mono">{dealCount}</span> total deals ·{' '}
+            {INBOX_DESCRIPTION}
+          </>
+        }
+        ruled
       />
 
-      <DealInbox groups={inbox.groups} now={now} />
-    </div>
+      <section
+        className="bd-cr-inboxwrap bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
+        {dealCount === 0 ? (
+          <div className="bd-emptyfeed">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 7.5h14" />
+              <path d="M6.5 7.5v10h11v-10" />
+              <path d="M9 11h6" />
+              <path d="M9 14h4" />
+            </svg>
+            <h3>No deals yet</h3>
+            <p>
+              Offers from brands will appear here with their status, payout, and
+              deadline once a campaign invites you.
+            </p>
+            <Link href="/creator" className="bd-btn bd-btn--ghost">
+              Back to dashboard
+            </Link>
+          </div>
+        ) : (
+          <DealInbox groups={inbox.groups} now={now} />
+        )}
+      </section>
+    </BdShell>
   );
 }

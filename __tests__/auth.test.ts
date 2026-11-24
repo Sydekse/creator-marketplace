@@ -188,4 +188,37 @@ describe('TikTok Login Kit wiring', () => {
     );
     expect(page).toContain("process.env.CREATOR_DEMO_SIGNUP === 'true'");
   });
+
+  it('preselects the sign-up role from safe role query params only', () => {
+    const page = readFileSync(
+      join(ROOT, 'app/(auth)/sign-up/page.tsx'),
+      'utf8'
+    );
+    const card = readFileSync(
+      join(ROOT, 'app/(auth)/sign-up/sign-up-card.tsx'),
+      'utf8'
+    );
+
+    expect(page).toContain('role?: string | string[]');
+    expect(page).toContain("rawRole === 'creator' || rawRole === 'brand'");
+    expect(page).toContain('initialRole={initialRole}');
+    expect(card).toContain('initialRole?: RoleOption');
+    expect(card).toContain("oauthError ? 'creator' : (initialRole ?? 'brand')");
+  });
+
+  it('wires the decorative auth panel to the sign-up role slider only', () => {
+    const panel = readFileSync(join(ROOT, 'app/(auth)/auth-panel.tsx'), 'utf8');
+    const card = readFileSync(
+      join(ROOT, 'app/(auth)/sign-up/sign-up-card.tsx'),
+      'utf8'
+    );
+    const layout = readFileSync(join(ROOT, 'app/(auth)/layout.tsx'), 'utf8');
+
+    expect(panel).toContain('AUTH_ROLE_EVENT');
+    expect(panel).toContain('SlotText');
+    expect(panel).toContain("brand: {\n    top: 'Review first.'");
+    expect(panel).toContain("creator: {\n    top: 'Accept with clarity.'");
+    expect(card).toContain('new CustomEvent(AUTH_ROLE_EVENT');
+    expect(layout).toContain('<AuthPanel />');
+  });
 });

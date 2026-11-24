@@ -11,8 +11,11 @@ import {
   Text,
 } from '@react-email/components';
 import { render } from '@react-email/render';
-import { formatDeadline } from '@/lib/dates';
+import { formatDeadline, formatDeadlineUtc } from '@/lib/dates';
 import { formatEtb } from '@/lib/money';
+import { deliveryTerm } from '@/lib/deals/deadline';
+import { DEADLINE_NOTIFICATION_LABELS, inAppNotificationDetail } from './copy';
+import { deepLink } from './deep-link';
 import type {
   EmailMessage,
   NotificationInput,
@@ -354,6 +357,10 @@ function Breakdown({
 const subjects: {
   [K in keyof NotificationPayloadMap]: (p: NotificationPayloadMap[K]) => string;
 } = {
+  deadline_requested: () => DEADLINE_NOTIFICATION_LABELS.deadline_requested,
+  deadline_accepted: () => DEADLINE_NOTIFICATION_LABELS.deadline_accepted,
+  deadline_rejected: () => DEADLINE_NOTIFICATION_LABELS.deadline_rejected,
+  deadline_withdrawn: () => DEADLINE_NOTIFICATION_LABELS.deadline_withdrawn,
   offer_received: (p) => `${p.companyName} sent you an offer`,
   verification_result: (p) =>
     p.outcome === 'approved'
@@ -379,6 +386,30 @@ const subjects: {
 
 function Content({ type, payload }: NotificationInput): React.ReactElement {
   switch (type) {
+    case 'deadline_requested':
+    case 'deadline_accepted':
+    case 'deadline_rejected':
+    case 'deadline_withdrawn':
+      return (
+        <Layout
+          preview={DEADLINE_NOTIFICATION_LABELS[type]}
+          heading={DEADLINE_NOTIFICATION_LABELS[type]}
+        >
+          <Text style={styles.text}>
+            {payload.campaignTitle}:{' '}
+            {inAppNotificationDetail(type, { ...payload })}
+          </Text>
+          <Text style={styles.text}>
+            Previous delivery deadline:{' '}
+            {formatDeadlineUtc(payload.previousDueAt)}. Proposed delivery
+            deadline: {formatDeadlineUtc(payload.proposedDueAt)}.
+          </Text>
+          <Cta
+            href={appUrl(deepLink(type, { ...payload }, payload.recipientRole))}
+            label="Review delivery agreement"
+          />
+        </Layout>
+      );
     case 'offer_received': {
       // AC-3: video count, price, **payout net of commission**, expiry. The net
       // is the figure the decision actually turns on, and until KAN-55 this
@@ -413,6 +444,12 @@ function Content({ type, payload }: NotificationInput): React.ReactElement {
             that it is released automatically.
           </Text>
           <Cta href={appUrl('/creator/deals')} label="Review the offer →" />
+          {payload.deliveryWindowDays != null && (
+            <Text style={styles.text}>
+              Delivery agreement: {deliveryTerm(payload.deliveryWindowDays)}.
+              Each day is 24 hours. This is separate from offer expiry.
+            </Text>
+          )}
         </Layout>
       );
     }

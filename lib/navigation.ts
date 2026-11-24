@@ -7,6 +7,7 @@ export interface NavLink {
     | 'dashboard'
     | 'discover'
     | 'campaigns'
+    | 'insights'
     | 'deals'
     | 'cart'
     | 'tiers'
@@ -19,6 +20,7 @@ const NAV_LINKS: Record<UserRole, NavLink[]> = {
   brand: [
     { label: 'Dashboard', href: '/brand', icon: 'dashboard' },
     { label: 'Campaigns', href: '/campaigns', icon: 'campaigns' },
+    { label: 'Insights', href: '/insights', icon: 'insights' },
     { label: 'Discover', href: '/discover', icon: 'discover' },
     { label: 'Deals', href: '/deals', icon: 'deals' },
     // Not a fixed route — the cart is per-campaign, so MainNav resolves this

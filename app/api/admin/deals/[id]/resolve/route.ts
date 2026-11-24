@@ -87,7 +87,7 @@ export async function handleResolveDispute(
 
   const result = await resolveDispute(
     id,
-    { resolution: parsed.data.resolution, note: parsed.data.note },
+    parsed.data,
     actorUserId,
     deps?.resolveDisputeDeps
   );

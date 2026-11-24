@@ -24,13 +24,13 @@ export interface AddToCartFormProps {
 }
 
 const triggerClass =
-  'h-11 w-full rounded-xl border-neutral-700 bg-neutral-800 px-3.5 text-sm text-neutral-50 shadow-none hover:border-neutral-500 focus-visible:border-neutral-50 focus-visible:ring-neutral-50/20 [&_svg]:text-neutral-400';
+  'h-11 w-full rounded-xl border-neutral-200 bg-white px-3 text-sm text-neutral-900 shadow-none hover:border-neutral-400 focus-visible:border-brand focus-visible:ring-brand/20 [&_svg]:text-neutral-500';
 
 const popupClass =
-  'rounded-xl border border-neutral-700 bg-neutral-900 p-1.5 shadow-[0_18px_40px_-20px_rgba(23,23,23,0.7)] ring-neutral-50/10';
+  'w-max min-w-(--anchor-width) max-w-72 rounded-xl border border-neutral-200 bg-neutral-50 p-1.5 shadow-[0_18px_40px_-20px_rgba(23,23,23,0.45)]';
 
 const itemClass =
-  'rounded-lg px-3 py-2.5 text-sm font-medium whitespace-nowrap text-neutral-100 data-[highlighted]:bg-neutral-800 data-[highlighted]:text-neutral-50';
+  'rounded-lg py-2.5 pl-3 pr-8 text-sm font-medium whitespace-nowrap text-neutral-800 data-[highlighted]:bg-brand-tint data-[highlighted]:text-brand-ink';
 
 export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
   const router = useRouter();
@@ -41,19 +41,17 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
 
   if (campaigns.length === 0) {
     return (
-      <section className="flex flex-col gap-3 rounded-[24px] bg-neutral-900 p-6 text-neutral-50 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.45)] sm:p-8">
-        <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
-          Shortlist
-        </p>
-        <h2 className="font-display text-2xl font-medium tracking-tight">
-          Add to a campaign
-        </h2>
-        <p className="max-w-[36ch] text-sm leading-relaxed text-neutral-400">
-          {NO_DRAFT_CAMPAIGN_MESSAGE}
-        </p>
-        <Button type="button" size="xl" className="mt-2 w-full" disabled>
-          {ADD_TO_CAMPAIGN_LABEL}
-        </Button>
+      <section className="bd-caprail bd-bookcard">
+        <div className="bd-railcell">
+          <span className="bd-railk">Shortlist</span>
+          <h2 className="bd-booktitle">Add to a campaign</h2>
+          <p className="bd-railn">{NO_DRAFT_CAMPAIGN_MESSAGE}</p>
+        </div>
+        <div className="bd-railcell">
+          <Button type="button" size="xl" className="w-full" disabled>
+            {ADD_TO_CAMPAIGN_LABEL}
+          </Button>
+        </div>
       </section>
     );
   }
@@ -106,84 +104,88 @@ export function AddToCartForm({ creatorId, campaigns }: AddToCartFormProps) {
   }
 
   return (
-    <section className="flex flex-col gap-5 rounded-[24px] bg-neutral-900 p-6 text-neutral-50 shadow-[0_24px_60px_-28px_rgba(23,23,23,0.45)] sm:p-8">
-      <div className="flex flex-col gap-2">
-        <p className="text-[13px] font-semibold tracking-[0.14em] text-neutral-300 uppercase">
-          Shortlist
-        </p>
-        <h2 className="font-display text-2xl font-medium tracking-tight">
-          Add to a campaign
-        </h2>
-        <p className="max-w-[36ch] text-sm leading-relaxed text-neutral-400">
+    <section className="bd-caprail bd-bookcard">
+      <div className="bd-railcell">
+        <span className="bd-railk">Shortlist</span>
+        <h2 className="bd-booktitle">Add to a campaign</h2>
+        <p className="bd-railn">
           Pick a draft and how many videos you want from this creator.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
-        <div className="flex flex-col gap-2 text-sm">
-          <span
-            id="add-to-cart-campaign-label"
-            className="font-medium text-neutral-200"
-          >
-            Select draft campaign
-          </span>
-          <input type="hidden" name="campaignId" value={campaignId} />
-          <Select
-            value={campaignId}
-            onValueChange={(next) => {
-              if (next) setCampaignId(next);
-            }}
-          >
-            <SelectTrigger
-              aria-labelledby="add-to-cart-campaign-label"
-              className={cn(triggerClass)}
+      <form
+        onSubmit={handleSubmit}
+        className="bd-railcell bd-bookform"
+        noValidate
+      >
+        <div className="bd-bookrow">
+          <div className="bd-bookfield bd-bookfield--grow">
+            <span id="add-to-cart-campaign-label" className="bd-disclab">
+              Draft campaign
+            </span>
+            <input type="hidden" name="campaignId" value={campaignId} />
+            <Select
+              value={campaignId}
+              onValueChange={(next) => {
+                if (next) setCampaignId(next);
+              }}
             >
-              <span className="min-w-0 flex-1 truncate text-left">
-                {campaigns.find((c) => c.id === campaignId)?.name ??
-                  'Choose a campaign'}
-              </span>
-            </SelectTrigger>
-            <SelectContent
-              align="start"
-              alignItemWithTrigger={false}
-              className={popupClass}
-            >
-              {campaigns.map((camp) => (
-                <SelectItem key={camp.id} value={camp.id} className={itemClass}>
-                  {camp.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+              <SelectTrigger
+                aria-labelledby="add-to-cart-campaign-label"
+                className={cn(triggerClass)}
+              >
+                <span className="min-w-0 flex-1 truncate text-left">
+                  {campaigns.find((c) => c.id === campaignId)?.name ??
+                    'Choose a campaign'}
+                </span>
+              </SelectTrigger>
+              <SelectContent
+                align="start"
+                alignItemWithTrigger={false}
+                className={popupClass}
+              >
+                {campaigns.map((camp) => (
+                  <SelectItem
+                    key={camp.id}
+                    value={camp.id}
+                    className={itemClass}
+                  >
+                    {camp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
-        <div className="flex flex-col gap-2 text-sm">
-          <span className="font-medium text-neutral-200">Videos</span>
-          <VideoStepper
-            name="videoCount"
-            value={videoCount}
-            onChange={setVideoCount}
-          />
+          <div className="bd-bookfield">
+            <span className="bd-disclab">Videos</span>
+            <VideoStepper
+              name="videoCount"
+              value={videoCount}
+              onChange={setVideoCount}
+              tone="light"
+            />
+          </div>
         </div>
 
         {formError ? (
-          <p
-            role="alert"
-            className="rounded-lg border border-red-400/30 bg-red-500/10 px-3.5 py-2.5 text-[13px] leading-snug text-red-300"
-          >
+          <p role="alert" className="bd-bookerror">
             {formError}
           </p>
         ) : null}
 
-        <Button
+        <button
           type="submit"
           disabled={loading}
-          size="xl"
-          className="mt-1 w-full bg-neutral-50 text-neutral-900 hover:bg-neutral-100"
+          className="bd-btn bd-btn--primary bd-booksubmit"
         >
           {loading ? 'Adding...' : ADD_TO_CAMPAIGN_LABEL}
-        </Button>
+        </button>
       </form>
+
+      <p className="bd-railfoot">
+        Nothing is charged now. Money is only held when you fund accepted deals.
+      </p>
     </section>
   );
 }

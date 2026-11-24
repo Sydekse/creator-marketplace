@@ -5,7 +5,8 @@
  * Every mutation accepts an `idempotencyKey` — re-invoking with the same key
  * returns the original result without re-executing. Different methods that
  * share the same key are NOT deduplicated (each method's key space is
- * independent).
+ * independent). Request-local keys may be forgotten only after their entire
+ * retry lifecycle has settled; a forgotten key must never be reused.
  *
  * Implementations must guard against illegal state transitions:
  *   held  → held      (allowed: partial capture reduces remaining amount)
@@ -69,6 +70,14 @@ export interface PaymentProvider {
 
   /** Query current state of a hold by its `providerRef`. */
   getStatus(providerRef: string): Promise<ProviderStatus>;
+
+  /**
+   * Discard request-local replay results for exactly these keys, across methods.
+   * Call only after all attempts and in-flight calls using them have settled.
+   * Must not throw, remove holds, or change other operations' replay results.
+   * Providers with durable idempotency may retain their records instead.
+   */
+  forgetIdempotencyKeys(keys: Iterable<string>): void;
 }
 
 export interface ProviderHoldResult {

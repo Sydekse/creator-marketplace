@@ -354,8 +354,9 @@ describe('the engagement-rate explanation', () => {
     for (const file of SITES) {
       expect(src(file)).not.toMatch(/title=[{"]\s*ENGAGEMENT_RATE_HINT/);
     }
-    // And the one indirection is rendered as text at the other end.
-    expect(src(DETAIL_PAGE)).toMatch(/<p[^>]*>\s*\{hint\}/);
+    // And the indirection is rendered as visible text, not a title tooltip.
+    expect(src(DETAIL_PAGE)).toContain('{hint ? (');
+    expect(src(DETAIL_PAGE)).toContain('{hint}');
   });
 });
 
@@ -414,7 +415,7 @@ describe('the card keeps two working links', () => {
   const source = src(CARD);
 
   it('covers the card with the detail link instead of wrapping it', () => {
-    expect(source).toMatch(/<Card[^>]*className="relative/);
+    expect(source).toMatch(/<article[^>]*className="bd-disccard/);
     expect(source).toMatch(/className="absolute inset-0/);
     // Self-closing, which is the whole of "wraps nothing" — an element with no
     // children cannot contain the outbound anchor. Asserted positively rather

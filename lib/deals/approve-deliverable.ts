@@ -7,6 +7,8 @@ import { notify } from '@/lib/notifications/notify';
 import { getPaymentProvider, PaymentError } from '@/lib/payment';
 import { EscrowLedgerService, LedgerError } from '@/lib/payment/ledger';
 import type { PayoutResult } from '@/lib/payment/ledger';
+import type { ExpectedVersion } from '@/lib/deliverables/evidence';
+import { VersionConflict } from '@/lib/deliverables/history';
 import { logPaymentFailure } from '@/lib/payment/log';
 import { advanceCampaignIfComplete } from '@/lib/campaigns/advance-completion';
 import { extractSafeErrorDetails, toLogString } from '@/lib/logging';
@@ -69,7 +71,7 @@ export type ApproveDeliverableResult =
     }
   | {
       ok: false;
-      reason: 'not_found' | 'not_delivered' | 'payment_failed';
+      reason: 'not_found' | 'not_delivered' | 'payment_failed' | 'conflict';
     };
 
 export interface ApproveDeliverableDeps {
@@ -92,7 +94,11 @@ export interface ApproveDeliverableDeps {
     creatorUserId: string;
   } | null>;
   /** Defaults to the real ledger. The seam is what keeps tests off Postgres. */
-  pay: (dealId: string, actorId: string) => Promise<PayoutResult>;
+  pay: (
+    dealId: string,
+    actorId: string,
+    expectedVersions?: ExpectedVersion[]
+  ) => Promise<PayoutResult>;
   notify: typeof notify;
   /** A seam, so a test can assert *what* was logged — see `fund-campaign.ts`. */
   logFailure: typeof logPaymentFailure;
@@ -133,11 +139,14 @@ const defaultDeps: ApproveDeliverableDeps = {
   // `fund-campaign.ts`: the service holds no state between calls, and a
   // module-level instance would call `getPaymentProvider()` at import time,
   // binding the provider before any test could swap it.
-  pay: (dealId, actorId) =>
-    new EscrowLedgerService(db, getPaymentProvider()).payoutForDeal(
+  pay: (dealId, actorId, expectedVersions) => {
+    if (!expectedVersions) throw new VersionConflict();
+    return new EscrowLedgerService(db, getPaymentProvider()).payoutForDeal(
       dealId,
-      actorId
-    ),
+      actorId,
+      { expectedVersions, actorRole: 'brand' }
+    );
+  },
   notify,
   logFailure: logPaymentFailure,
   logNotifyFailure: (error, context) => {
@@ -163,9 +172,9 @@ const defaultDeps: ApproveDeliverableDeps = {
  * campaign, paying the creator net of commission (AC-023).
  *
  * `brandProfileId` and `actorUserId` come from `guard()`, never from the
- * client. There is no request body at all: the amounts are derived from the
- * deal under the ledger's own lock, so a client-supplied figure would be a
- * second source for money that already has one authoritative source.
+ * client. Expected submission versions are echoed by the review form; the
+ * ledger compares them under lock before paying. Amounts are still derived
+ * only from the stored deal.
  *
  * **The status guard lives in the ledger, not here.** `payoutForDeal` refuses
  * anything but `delivered` under its own lock, so this action invents no
@@ -178,7 +187,8 @@ export async function approveDeliverable(
   dealId: string,
   brandProfileId: string,
   actorUserId: string,
-  deps: ApproveDeliverableDeps = defaultDeps
+  deps: ApproveDeliverableDeps = defaultDeps,
+  expectedVersions?: ExpectedVersion[]
 ): Promise<ApproveDeliverableResult> {
   // Ownership before the money moves, and before the notification has a name
   // to use. `payoutForDeal` locks by deal id alone: without this, any brand
@@ -190,8 +200,10 @@ export async function approveDeliverable(
 
   let result: PayoutResult;
   try {
-    result = await deps.pay(dealId, actorUserId);
+    result = await deps.pay(dealId, actorUserId, expectedVersions);
   } catch (error) {
+    if (error instanceof VersionConflict)
+      return { ok: false, reason: 'conflict' };
     const reason = approveFailureReason(error);
 
     // The KAN-44 rule: a money-path failure must leave a trace. Logged for

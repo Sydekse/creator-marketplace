@@ -1,4 +1,4 @@
-import { asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { creatorProfile, deal, deliverable, videoMetric } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
@@ -275,9 +275,15 @@ export function campaignVideosQuery(campaignId: string) {
     .from(deal)
     .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
     .leftJoin(deliverable, eq(deliverable.dealId, deal.id))
-    .leftJoin(videoMetric, eq(videoMetric.deliverableId, deliverable.id))
+    .leftJoin(
+      videoMetric,
+      and(
+        eq(videoMetric.deliverableId, deliverable.id),
+        eq(videoMetric.submissionVersion, deliverable.submissionVersion)
+      )
+    )
     .where(eq(deal.campaignId, campaignId))
-    .orderBy(asc(creatorProfile.tiktokHandle), asc(deliverable.submittedAt));
+    .orderBy(asc(creatorProfile.tiktokHandle), asc(deliverable.videoOrdinal));
 }
 
 /**

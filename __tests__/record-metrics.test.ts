@@ -395,7 +395,8 @@ describe('admin writes are audited, creator writes are not (AC-031)', () => {
     // The plain path runs on the db runner, with nothing else to keep atomic
     // with it — no audit row, no transaction.
     expect(recorded.upserts[0].runner).toBe(db);
-    expect(METRICS_MODULE).toContain('return write(db);');
+    expect(METRICS_MODULE).toContain('deps.runCreator(write)');
+    expect(METRICS_MODULE).toContain("for('update')");
   });
 
   it('takes the source from the caller, never from the values', async () => {
@@ -498,6 +499,8 @@ describe('PUT /api/deliverables/[id]/metrics', () => {
   });
 
   function put(body: unknown, id = DELIVERABLE_ID): Request {
+    if (typeof body === 'object' && body !== null)
+      body = { expectedVersion: 1, ...body };
     return new Request(`http://localhost/api/deliverables/${id}/metrics`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -519,6 +522,7 @@ describe('PUT /api/deliverables/[id]/metrics', () => {
     expect(body).toEqual({
       deliverable_id: DELIVERABLE_ID,
       metric_id: METRIC_ID,
+      submission_version: 1,
       views: 1000,
       likes: 500,
       shares: null,

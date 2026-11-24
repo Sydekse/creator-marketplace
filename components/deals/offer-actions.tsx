@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { DELIVERY_TERMS_VERSION, deliveryTerm } from '@/lib/deals/deadline';
 import { UsageRightsAgreement } from '@/components/deals/usage-rights-agreement';
 import type { RightsTermsRow } from '@/components/deals/usage-rights';
 import { buttonVariants } from '@/components/ui/button';
@@ -55,6 +56,7 @@ import {
  */
 
 export interface OfferActionsProps {
+  deliveryWindowDays?: number | null;
   dealId: string;
   /**
    * The terms to agree to — the version **currently** in effect, which is what
@@ -64,7 +66,11 @@ export interface OfferActionsProps {
   terms: RightsTermsRow | null;
 }
 
-export function OfferActions({ dealId, terms }: OfferActionsProps) {
+export function OfferActions({
+  dealId,
+  terms,
+  deliveryWindowDays,
+}: OfferActionsProps) {
   const router = useRouter();
   const [agreed, setAgreed] = useState(false);
   const [accepting, setAccepting] = useState(false);
@@ -91,7 +97,11 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
           // The id of the version this screen actually displayed. The server
           // compares it against its own read; if the terms were republished
           // while this page sat open, that mismatch is the 409 below.
-          body: JSON.stringify({ rightsTermsId: terms.id }),
+          body: JSON.stringify({
+            rightsTermsId: terms.id,
+            deliveryWindowDays: deliveryWindowDays ?? null,
+            deliveryTermsVersion: DELIVERY_TERMS_VERSION,
+          }),
         }
       );
     } catch {
@@ -110,7 +120,7 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
 
       setAccepting(false);
 
-      if (code === 'RIGHTS_TERMS_STALE') {
+      if (code === 'RIGHTS_TERMS_STALE' || code === 'DELIVERY_TERMS_STALE') {
         // The one code with a behaviour rather than just a message. Refreshing
         // re-renders this page with the terms now in effect and an unticked box,
         // so the creator can read the new text and agree to *that*. Without the
@@ -187,6 +197,11 @@ export function OfferActions({ dealId, terms }: OfferActionsProps) {
 
   return (
     <section className="flex flex-col gap-4">
+      <p className="text-sm">
+        By accepting, you also agree to initial delivery:{' '}
+        <strong>{deliveryTerm(deliveryWindowDays)}</strong>. All ordered videos;
+        a day is 24 hours.
+      </p>
       {terms ? (
         <UsageRightsAgreement
           terms={terms}

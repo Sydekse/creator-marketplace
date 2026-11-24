@@ -146,14 +146,17 @@ neither good nor bad (e.g. "1 of 1 video").
 
 ### 4.1 Fonts
 
-| Face           | Variable            | Role                                                            |
-| -------------- | ------------------- | --------------------------------------------------------------- |
-| **DM Sans**    | `--font-dm-sans`    | Everything inside the UI: body, buttons, labels, tables, forms  |
-| **Noto Serif** | `--font-noto-serif` | Display face: page-level h1s, marketing headlines, big numerals |
-| **DM Mono**    | `--font-dm-mono`    | Code, numbers that need monospacing                             |
+| Face               | Variable            | Role                                                            |
+| ------------------ | ------------------- | --------------------------------------------------------------- |
+| **Outfit**         | `--font-bd-sans`    | Everything inside the UI: body, buttons, labels, tables, forms  |
+| **Noto Serif**     | `--font-noto-serif` | Display face: page-level h1s, marketing headlines, big numerals |
+| **JetBrains Mono** | `--font-bd-mono`    | Code, numbers that need monospacing                             |
 
-The app's legacy `--font-heading` (Outfit) was retired in KAN-84 — page
-headings use `--font-display` (Noto Serif), and everything else uses DM Sans.
+The v4 design layer's pair (Outfit + JetBrains Mono, `lib/fonts.ts`) is now
+the app-wide default — `--font-sans`/`--font-mono` alias the `--font-bd-*`
+variables, so the brand surfaces and the rest of the app share one set of
+font files. DM Sans/DM Mono were retired with that unification; the app's
+legacy `--font-heading` (Outfit) mapping from KAN-84 is effectively restored.
 
 ### 4.2 Roles — serif vs sans
 

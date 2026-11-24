@@ -1,10 +1,8 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { PageHeader } from '@/components/layout/page-header';
-import { SectionLabel } from '@/components/layout/section-label';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { Chip } from '@/components/ui/chip';
 import type { ChipTone } from '@/components/ui/chip';
-import { EmptyState } from '@/components/feedback/empty-state';
 import { PayoutMethodForm } from '@/components/wallet/payout-method-form';
 import { WithdrawForm } from '@/components/wallet/withdraw-form';
 import { guard } from '@/lib/authz';
@@ -25,6 +23,7 @@ import {
   WITHDRAWALS_EMPTY,
   WITHDRAWALS_TITLE,
 } from '@/lib/wallet/constants';
+import { cn } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
@@ -40,6 +39,9 @@ export const dynamic = 'force-dynamic';
  * In mock mode (no `CHAPA_SECRET_KEY`) the page states plainly that there is
  * no payout rail here rather than hiding: a creator who follows a link should
  * learn why, not get a 404.
+ *
+ * v4 conversion: shared creator shell, rail-card balance cells, and ruled
+ * payout/withdrawal sections without changing wallet reads or forms.
  */
 
 const STATUS_TONE: Record<string, ChipTone> = {
@@ -56,15 +58,18 @@ const STATUS_LABEL: Record<string, string> = {
   failed: 'Failed',
 };
 
+const STATUS_ACCENT: Record<string, string> = {
+  pending: 'bd-cw-row--wait',
+  processing: 'bd-cw-row--live',
+  paid: 'bd-cw-row--done',
+  failed: 'bd-cw-row--wait',
+};
+
 function Figure({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col gap-1 rounded-2xl border border-neutral-200 bg-background px-4 py-4">
-      <dt className="text-xs font-semibold tracking-wide text-neutral-600 uppercase">
-        {label}
-      </dt>
-      <dd className="mt-1 font-sans text-3xl font-bold tracking-[-0.04em] text-brand-ink tabular-nums">
-        {value}
-      </dd>
+    <div className="bd-railcell bd-cw-figure">
+      <dt className="bd-railk">{label}</dt>
+      <dd className="bd-railv bd-mono">{value}</dd>
     </div>
   );
 }
@@ -78,13 +83,24 @@ export default async function WalletPage() {
   const uxMode = paymentUxMode();
   if (uxMode === 'mock') {
     return (
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-8">
-        <PageHeader label="Creator" title={WALLET_TITLE} />
-        <EmptyState
-          title={WALLET_UNAVAILABLE_TITLE}
-          description={WALLET_UNAVAILABLE_BODY}
+      <BdShell className="bd-cw">
+        <BdPageHead
+          eyebrow="Creator workspace"
+          title={WALLET_TITLE}
+          facts="Earnings, payout method, and withdrawals."
+          ruled
         />
-      </div>
+        <div className="bd-rise" style={{ '--i': 1 } as React.CSSProperties}>
+          <div className="bd-emptyfeed">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 7.5h16v11H4z" />
+              <path d="M8 7.5V5h8v2.5M16 13h4" />
+            </svg>
+            <h3>{WALLET_UNAVAILABLE_TITLE}</h3>
+            <p>{WALLET_UNAVAILABLE_BODY}</p>
+          </div>
+        </div>
+      </BdShell>
     );
   }
 
@@ -99,83 +115,121 @@ export default async function WalletPage() {
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-10">
-      <PageHeader
-        label="Creator"
+    <BdShell className="bd-cw">
+      <BdPageHead
+        eyebrow="Creator workspace"
         title={WALLET_TITLE}
-        description="Earnings land here when a brand approves your video. Withdraw them to your bank or telebirr account."
+        facts="Earnings land here when a brand approves your video. Withdraw them to your bank or telebirr account."
+        ruled
       />
 
-      <section className="flex flex-col gap-4">
-        <dl className="grid gap-3 sm:grid-cols-3">
-          <Figure
-            label={WALLET_AVAILABLE_LABEL}
-            value={formatEtb(balance.available)}
-          />
-          <Figure
-            label={WALLET_LIFETIME_LABEL}
-            value={formatEtb(balance.earned)}
-          />
-          <Figure
-            label={WALLET_PENDING_LABEL}
-            value={formatEtb(balance.inFlight)}
-          />
-        </dl>
-        <WithdrawForm
-          availableSantim={balance.available}
-          formattedAvailable={formatEtb(balance.available)}
-          methodSummary={
-            method ? `${method.bankName} ${method.accountNumberMasked}` : null
-          }
-          testMode={uxMode === 'chapa-test'}
-        />
-      </section>
+      <div
+        className="bd-cw-split bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
+        <aside className="bd-caprail bd-cw-rail">
+          <dl className="bd-cw-figures">
+            <Figure
+              label={WALLET_AVAILABLE_LABEL}
+              value={formatEtb(balance.available)}
+            />
+            <Figure
+              label={WALLET_LIFETIME_LABEL}
+              value={formatEtb(balance.earned)}
+            />
+            <Figure
+              label={WALLET_PENDING_LABEL}
+              value={formatEtb(balance.inFlight)}
+            />
+          </dl>
+          <div className="bd-railcell bd-cw-withdraw">
+            <span className="bd-railk">Withdrawal</span>
+            <span className="bd-railn">
+              Send available earnings to your saved destination.
+            </span>
+            <WithdrawForm
+              availableSantim={balance.available}
+              formattedAvailable={formatEtb(balance.available)}
+              methodSummary={
+                method
+                  ? `${method.bankName} ${method.accountNumberMasked}`
+                  : null
+              }
+              testMode={uxMode === 'chapa-test'}
+            />
+          </div>
+        </aside>
 
-      <section className="flex flex-col gap-4 border-t border-neutral-200 pt-8">
-        <SectionLabel>{PAYOUT_METHOD_TITLE}</SectionLabel>
-        {method === null ? (
-          <p className="text-sm text-muted-foreground">{PAYOUT_METHOD_EMPTY}</p>
-        ) : null}
-        <PayoutMethodForm
-          banks={banks.map((bank) => ({ code: bank.code, name: bank.name }))}
-          method={method}
-        />
-      </section>
+        <div className="bd-cw-main">
+          <section className="bd-cw-section">
+            <div className="bd-capruler">
+              <span className="bd-caprulertitle">{PAYOUT_METHOD_TITLE}</span>
+              <span className="bd-caprulerline" aria-hidden="true" />
+              {method === null ? (
+                <span className="bd-caprulernote">{PAYOUT_METHOD_EMPTY}</span>
+              ) : null}
+            </div>
+            <div className="bd-cw-panel">
+              <PayoutMethodForm
+                banks={banks.map((bank) => ({
+                  code: bank.code,
+                  name: bank.name,
+                }))}
+                method={method}
+              />
+            </div>
+          </section>
 
-      <section className="flex flex-col gap-4 border-t border-neutral-200 pt-8">
-        <SectionLabel>{WITHDRAWALS_TITLE}</SectionLabel>
-        {withdrawals.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{WITHDRAWALS_EMPTY}</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-neutral-200">
-            {withdrawals.map((row) => (
-              <li key={row.id}>
-                <Link
-                  href={`/creator/wallet/withdrawals/${row.id}`}
-                  className="flex items-center justify-between gap-4 py-3 hover:bg-neutral-50"
-                >
-                  <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-semibold text-brand-ink tabular-nums">
-                      {formatEtb(row.amount)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {row.bankName} {row.accountNumberMasked} ·{' '}
-                      {row.createdAt.toLocaleDateString('en-GB', {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </span>
-                  </div>
-                  <Chip tone={STATUS_TONE[row.status] ?? 'gray'}>
-                    {STATUS_LABEL[row.status] ?? row.status}
-                  </Chip>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </div>
+          <section className="bd-cw-section">
+            <div className="bd-capruler">
+              <span className="bd-caprulertitle">{WITHDRAWALS_TITLE}</span>
+              <span className="bd-caprulerline" aria-hidden="true" />
+              <span className="bd-caprulercount bd-mono">
+                {withdrawals.length} {withdrawals.length === 1 ? 'row' : 'rows'}
+              </span>
+            </div>
+            {withdrawals.length === 0 ? (
+              <div className="bd-emptyfeed bd-cw-empty">
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4.5 7.5h15v11h-15z" />
+                  <path d="M8 7.5V5.5h8v2" />
+                  <path d="M15.5 13h4" />
+                </svg>
+                <h3>No withdrawals yet</h3>
+                <p>{WITHDRAWALS_EMPTY}</p>
+              </div>
+            ) : (
+              <ul className="bd-cw-list">
+                {withdrawals.map((row) => (
+                  <li key={row.id}>
+                    <Link
+                      href={`/creator/wallet/withdrawals/${row.id}`}
+                      className={cn('bd-cw-row', STATUS_ACCENT[row.status])}
+                    >
+                      <div className="bd-cw-rowmain">
+                        <span className="bd-cw-amount bd-mono">
+                          {formatEtb(row.amount)}
+                        </span>
+                        <span className="bd-cw-meta">
+                          {row.bankName} {row.accountNumberMasked} ·{' '}
+                          {row.createdAt.toLocaleDateString('en-GB', {
+                            day: 'numeric',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                      <Chip tone={STATUS_TONE[row.status] ?? 'gray'}>
+                        {STATUS_LABEL[row.status] ?? row.status}
+                      </Chip>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
+    </BdShell>
   );
 }

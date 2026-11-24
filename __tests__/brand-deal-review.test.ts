@@ -119,12 +119,18 @@ const joinRow = (over: Partial<BrandDealJoinRow> = {}): BrandDealJoinRow => ({
 const video = (
   over: Partial<BrandDeliverableView> = {}
 ): BrandDeliverableView => ({
+  videoOrdinal: 1,
+  submissionVersion: 1,
+  historyCompleteness: 'complete',
+  revisionCategory: null,
   id: DELIVERABLE_ID,
   tiktokUrl: 'https://www.tiktok.com/@selam/video/123',
   submittedAt: new Date('2026-08-15T09:00:00Z'),
   reviewStatus: 'pending',
   reviewedAt: null,
   rejectionReason: null,
+  thumbnailUrl: null,
+  tiktokVideoId: null,
   ...over,
 });
 
@@ -174,6 +180,37 @@ describe('readBrandDeal — settlement and external refund are status-gated', ()
       selectRefundStatus,
     };
   }
+
+  it.each(['completed', 'refunded'] as const)(
+    'starts the %s money read without waiting for deliverables',
+    async (status) => {
+      const { deps, selectSettlement, selectRefundStatus } = settlementDeps(
+        joinRow({ status })
+      );
+      let releaseVideos: (videos: BrandDeliverableView[]) => void = () => {};
+      const videos = new Promise<BrandDeliverableView[]>((resolve) => {
+        releaseVideos = resolve;
+      });
+      const selectDeliverables = vi.fn(() => videos);
+      const result = readBrandDeal(DEAL_ID, { ...deps, selectDeliverables });
+
+      try {
+        await vi.waitFor(() => {
+          expect(selectDeliverables).toHaveBeenCalledWith(DEAL_ID);
+          expect(
+            status === 'completed' ? selectSettlement : selectRefundStatus
+          ).toHaveBeenCalledWith(DEAL_ID);
+        });
+      } finally {
+        releaseVideos([video()]);
+      }
+
+      expect((await result)?.deliverables).toEqual([video()]);
+      expect(
+        status === 'completed' ? selectRefundStatus : selectSettlement
+      ).not.toHaveBeenCalled();
+    }
+  );
 
   it('fetches the ledger split only for a completed deal', async () => {
     const { deps, selectSettlement, selectRefundStatus } = settlementDeps(
@@ -278,15 +315,13 @@ describe('readBrandDeal — ownership is the base of the lookup', () => {
     expect(calls).toHaveLength(0);
   });
 
-  it('gates before it looks at the id', async () => {
-    // Order matters: a shape check that ran first would tell an unauthenticated
-    // caller which ids are well-formed. The gate throws, so a malformed id from a
-    // denied caller must still be a denial rather than a null.
+  it('rejects malformed ids without auth reads, but gates every valid id', async () => {
     const calls: SQL[] = [];
+    const requireBrand = vi.fn(async () => {
+      throw new Error('forbidden');
+    });
     const deps: BrandDealDeps = {
-      requireBrand: async () => {
-        throw new Error('forbidden');
-      },
+      requireBrand,
       select: async (where) => {
         calls.push(where);
         return null;
@@ -294,9 +329,12 @@ describe('readBrandDeal — ownership is the base of the lookup', () => {
       selectDeliverables: async () => [],
     };
 
-    await expect(readBrandDeal('not-a-uuid', deps)).rejects.toThrow(
-      'forbidden'
-    );
+    await expect(readBrandDeal('not-a-uuid', deps)).resolves.toBeNull();
+    expect(requireBrand).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
+
+    await expect(readBrandDeal(DEAL_ID, deps)).rejects.toThrow('forbidden');
+    expect(requireBrand).toHaveBeenCalledOnce();
     expect(calls).toHaveLength(0);
   });
 
@@ -416,7 +454,7 @@ describe('readBrandDeal — the deal’s videos are a second, gated read (F38)',
     );
 
     expect(query).toContain('eq(deliverable.dealId, dealId)');
-    expect(query).toContain('asc(deliverable.submittedAt)');
+    expect(query).toContain('asc(deliverable.videoOrdinal)');
   });
 
   it('no longer joins the deliverable into the one-row deal query', () => {
@@ -436,7 +474,7 @@ describe('readBrandDeal — the deal’s videos are a second, gated read (F38)',
     // The reject endpoint takes a `deliverableId` now. Without the id on the read
     // the screen could render three videos and send back none of them.
     expect(src(READ_MODULE)).toMatch(
-      /interface BrandDeliverableView \{\s*\n\s*id: string/
+      /interface BrandDeliverableView \{[^}]*id: string/
     );
   });
 
@@ -714,7 +752,7 @@ describe('the review page is the surface the endpoints were missing', () => {
 
   it('lists every submitted video with its own link and timestamp (AC-3)', () => {
     expect(page).toContain('DELIVERABLES_TITLE');
-    expect(page).toContain('videoHeading(index)');
+    expect(page).toContain('videoHeading(video.videoOrdinal - 1)');
     expect(page).toContain('SUBMITTED_AT_LABEL');
     expect(page).toContain('video.tiktokUrl');
   });
@@ -764,12 +802,15 @@ describe('the review page is the surface the endpoints were missing', () => {
   });
 
   it('does not fetch or embed the submitted URL', () => {
-    // Tech Spec §6.3 — the link is stored and displayed, never followed by the
-    // platform, and an anchor the brand clicks carries `rel` so the destination
-    // gets no handle on the opener.
-    expect(page).toContain('rel="noopener noreferrer nofollow"');
+    // Tech Spec §6.3 — the link is stored, never followed by the platform. The
+    // card renders our own blob snapshot and TikTok's player from a numeric id;
+    // the submitted URL itself leaves this page only as the card's explicit
+    // external link (which carries `rel` — asserted in the card's own suite).
+    expect(page).toContain('TiktokVideoCard');
     expect(page).not.toContain('<iframe');
     expect(page).not.toMatch(/fetch\(/);
+    // The raw URL is no longer linked by the page itself.
+    expect(page).not.toContain('href={video.tiktokUrl}');
   });
 
   it('computes no money of its own', () => {
@@ -831,15 +872,15 @@ describe('ReviewActions posts to the endpoints and re-reads the server', () => {
     );
   });
 
-  it('sends no body to approve', () => {
+  it('sends current versions, never payment amounts, to approve', () => {
     // The amounts are derived under the ledger's lock, so there is nothing for a
     // client to vary except which deal — and that is in the path.
     const approve = source.slice(
       source.indexOf('export function ApproveDealButton'),
       source.indexOf('export function RejectVideoForm')
     );
-    expect(approve).toMatch(/\{ method: 'POST' \}/);
-    expect(approve).not.toContain('JSON.stringify');
+    expect(approve).toMatch(/JSON.stringify\(\{\s*expectedVersions\s*\}\)/);
+    expect(approve).not.toContain('JSON.stringify({payout');
   });
 
   it('confirms before an irreversible payment, naming the whole deal', () => {

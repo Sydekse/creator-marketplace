@@ -1,10 +1,11 @@
-import { PageHeader } from '@/components/layout/page-header';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import { BrandSettingsForm } from './brand-settings-form';
 
 /**
  * Brand settings — KAN-27 AC-5, "the brand can edit their company name later".
+ * Rendered in the v4 visual language, sharing the brief pages' form-card skin.
  *
  * Inside `(onboarded)`, so the layout has already established that a profile
  * exists; the non-null assertion below is that guarantee, not an assumption.
@@ -20,17 +21,25 @@ export default async function BrandSettingsPage() {
   if (!profile) return null;
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-10 py-4">
-      <PageHeader
-        label="Settings"
+    <BdShell>
+      <BdPageHead
+        eyebrow="Settings"
         title="Brand profile"
-        description="Creators see this name on every offer you send, including offers you have already sent."
+        facts="Creators see this name on every offer you send, including offers you have already sent."
+        ruled
       />
 
-      <BrandSettingsForm
-        brandProfileId={profile.id}
-        companyName={profile.companyName}
-      />
-    </div>
+      <div
+        className="bd-briefsplit bd-briefsplit--solo bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
+        <section className="bd-briefcard">
+          <BrandSettingsForm
+            brandProfileId={profile.id}
+            companyName={profile.companyName}
+          />
+        </section>
+      </div>
+    </BdShell>
   );
 }

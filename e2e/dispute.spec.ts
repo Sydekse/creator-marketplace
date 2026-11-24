@@ -1,5 +1,16 @@
 import { expect, test } from '@playwright/test';
-import { DEMO, openCampaign, openCreatorDeal, signIn } from './helpers';
+import {
+  DEMO,
+  clickToUrl,
+  expectMutationOk,
+  openCampaign,
+  openConfirmDialog,
+  openCreatorDeal,
+  openVersionHistory,
+  settledMain,
+  signIn,
+  submitVideo,
+} from './helpers';
 
 /**
  * KAN-60 flow 6 — admin dispute resolution (AC-030, AC-031). The refund path
@@ -36,9 +47,11 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Summer Dispute');
-  // Funding asks first through the shared ConfirmDialog — click Fund, then
-  // the dialog's confirm button.
-  await brand.getByRole('button', { name: 'Fund campaign' }).click();
+  // Funding asks first through the shared ConfirmDialog — open it
+  // (hydration-safe: the first click can land before React attaches the
+  // handler and burn the whole test timeout waiting on a dialog that never
+  // opens), then confirm.
+  await openConfirmDialog(brand, 'Fund campaign');
   await brand
     .getByRole('dialog')
     .getByRole('button', { name: 'Fund campaign' })
@@ -53,13 +66,11 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   const submitter = await browser.newPage();
   await signIn(submitter, DEMO.creator);
   await openCreatorDeal(submitter, 'Summer Dispute');
-  await submitter
-    .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/9876543210987654321');
-  await submitter.getByRole('button', { name: 'Submit your video' }).click();
-  await expect(submitter.getByText(/submitted/i).first()).toBeVisible({
-    timeout: 15_000,
-  });
+  await submitVideo(
+    submitter,
+    'https://www.tiktok.com/@creator.demo/video/9876543210987654321',
+    '1 of 1 video submitted'
+  );
   await submitter.close();
 
   // -- Admin refunds from the worklist --------------------------------------
@@ -94,31 +105,106 @@ test('flow 6: an admin refunds a disputed deal from the worklist (AC-030)', asyn
   });
   await expect(admin.getByText(/Campaign: Summer Dispute/i)).toBeVisible();
   await expect(admin.getByText('Video submitted').first()).toBeVisible();
+  await expect(
+    admin.getByRole('heading', { name: 'Video 1 · Version 1', exact: true })
+  ).toBeVisible();
+  const dealHistory = await openVersionHistory(admin);
+  await expect(
+    dealHistory.getByText('Submitted · creator', { exact: true }).first()
+  ).toBeVisible();
+
+  // Opening resolution must not silently refresh tokens behind the displayed video.
+  let fetchedNewerEvidence = false;
+  await admin.route('**/api/admin/deals/*/videos', async (route) => {
+    fetchedNewerEvidence = true;
+    const response = await route.fetch();
+    const evidence = await response.json();
+    await route.fulfill({
+      json: {
+        ...evidence,
+        videos: evidence.videos.map((video: { submissionVersion: number }) => ({
+          ...video,
+          submissionVersion: video.submissionVersion + 1,
+        })),
+      },
+    });
+  });
+  await admin.route('**/api/admin/deals/*/resolve', async (route) => {
+    expect(route.request().postDataJSON().expectedVersions).toMatchObject([
+      { submissionVersion: 1 },
+    ]);
+    await route.fulfill({
+      status: 409,
+      json: {
+        error: {
+          code: 'DELIVERABLE_VERSION_STALE',
+          message: 'This video changed. Reload the page and try again.',
+        },
+      },
+    });
+  });
+  await admin.getByRole('button', { name: 'Resolve dispute' }).click();
+  await expect(
+    admin.getByRole('link', { name: 'Video 1 · Version 1', exact: true })
+  ).toBeVisible();
+  await admin.getByLabel('Resolution', { exact: true }).selectOption('release');
+  await admin.getByLabel('Resolution note').fill('Review displayed version.');
+  await admin.getByRole('button', { name: 'Confirm resolution' }).click();
+  await expect(
+    admin.getByText('This video changed.', { exact: false })
+  ).toBeVisible();
+  expect(fetchedNewerEvidence).toBe(false);
+  await admin.unroute('**/api/admin/deals/*/videos');
+  await admin.unroute('**/api/admin/deals/*/resolve');
   await admin.goBack();
   await expect(row).toBeVisible();
 
   // Resolve: refund the brand, with the required audit note.
   await row.getByRole('button', { name: 'Resolve dispute' }).click();
+  await expect(
+    row.getByRole('link', { name: 'Video 1 · Version 1', exact: true })
+  ).toHaveAttribute(
+    'href',
+    'https://www.tiktok.com/@creator.demo/video/9876543210987654321'
+  );
   await row.getByLabel('Resolution', { exact: true }).selectOption('refund');
   await row
     .getByLabel('Resolution note')
     .fill('Brand and creator agreed to cancel (e2e).');
-  await row.getByRole('button', { name: 'Confirm resolution' }).click();
+  // Pin the resolution to its POST — the toast alone can outlive a lost
+  // router.refresh() on the slow mobile runners.
+  await expectMutationOk(admin, '/resolve', () =>
+    row.getByRole('button', { name: 'Confirm resolution' }).click()
+  );
 
   // The success toast confirms the resolution landed.
   await expect(admin.getByText(/resolved/i).first()).toBeVisible({
     timeout: 15_000,
   });
 
-  // And the row leaves the worklist — refunded is not refundable.
-  await expect(row).toHaveCount(0, { timeout: 15_000 });
+  // And the row leaves the worklist — refunded is not refundable. The list is
+  // server-rendered and only updates after the resolution's router.refresh();
+  // that refresh can be lost on the mobile runners even though the POST
+  // committed (same family as submitVideo's progress copy), so re-read the
+  // server truth directly: check, reload, check again.
+  await expect(async () => {
+    if ((await row.count()) > 0) {
+      await admin.reload();
+    }
+    await expect(row).toHaveCount(0, { timeout: 4_000 });
+  }).toPass({ timeout: 45_000 });
 
   // KAN-81 AC-031: the console links to the append-only audit log, which now
   // carries both admin actions — the flag and the resolution, note included.
   await admin.goto('/admin');
   // The admin console has both a nav link and a card link to Audit log.
   // Use the card link (the larger one) by scoping to the card grid.
-  await admin.locator('a[href="/admin/audit-log"]').last().click();
+  await clickToUrl(
+    admin,
+    admin.locator('a[href="/admin/audit-log"]').last(),
+    /\/admin\/audit-log/
+  );
+  await settledMain(admin);
   await expect(admin.getByRole('heading', { name: 'Audit log' })).toBeVisible({
     timeout: 15_000,
   });

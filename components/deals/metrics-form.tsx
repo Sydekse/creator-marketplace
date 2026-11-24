@@ -27,12 +27,10 @@ import {
   SUBMIT_METRICS_SUCCESS_MESSAGE,
   SUBMITTING_METRICS_LABEL,
 } from '@/lib/deals/copy';
-import {
-  fieldErrorsAt,
-  updateMetricsSchema,
-  zodIssuesToDetails,
-} from '@/lib/validation';
-import type { FieldErrorMap } from '@/lib/validation';
+import { zodIssuesToDetails } from '@/lib/validation/errors';
+import { fieldErrorsAt } from '@/lib/validation/field-errors';
+import type { FieldErrorMap } from '@/lib/validation/field-errors';
+import { updateMetricsSchema } from '@/lib/validation/schemas';
 
 /**
  * The creator records engagement metrics for a delivered video (KAN-48,
@@ -75,7 +73,13 @@ const METRIC_FIELDS = [
 
 type MetricKey = (typeof METRIC_FIELDS)[number]['key'];
 
-export function MetricsForm({ deliverableId }: { deliverableId: string }) {
+export function MetricsForm({
+  deliverableId,
+  expectedVersion,
+}: {
+  deliverableId: string;
+  expectedVersion: number;
+}) {
   const router = useRouter();
 
   const [values, setValues] = useState<Record<MetricKey, string>>({
@@ -108,7 +112,10 @@ export function MetricsForm({ deliverableId }: { deliverableId: string }) {
       converted[field.key] = number;
     }
 
-    const parsed = updateMetricsSchema.safeParse(converted);
+    const parsed = updateMetricsSchema.safeParse({
+      ...converted,
+      expectedVersion,
+    });
     if (!parsed.success) {
       setErrors(zodIssuesToDetails(parsed.error));
       return;
@@ -160,6 +167,7 @@ export function MetricsForm({ deliverableId }: { deliverableId: string }) {
       toast.error(error?.message ?? SUBMIT_METRICS_FAILED_MESSAGE);
     }
     setSubmitting(false);
+    if (response.status === 409) router.refresh();
   }
 
   return (

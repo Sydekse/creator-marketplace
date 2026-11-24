@@ -1,8 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { buttonVariants } from '@/components/ui/button';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { Chip } from '@/components/ui/chip';
-import { PageHeader } from '@/components/layout/page-header';
 import { getCampaignLedgerForAdmin } from '@/lib/admin/overview';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { formatEtb } from '@/lib/money';
@@ -10,6 +9,13 @@ import { cn, textLinkFeedback } from '@/lib/utils';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
 export const runtime = 'nodejs';
+
+const ENTRY_ACCENT: Record<string, string> = {
+  hold: 'bd-ad-ledgerrow--live',
+  release_payout: 'bd-ad-ledgerrow--done',
+  commission: 'bd-ad-ledgerrow--dead',
+  refund: 'bd-ad-ledgerrow--wait',
+};
 
 /**
  * One campaign's full ledger (KAN-78 over the KAN-53 read layer).
@@ -25,6 +31,9 @@ export const runtime = 'nodejs';
  * The signed amounts render with the ledger's own U+2212 minus sign
  * (`formatEtb`), so a release reads as −ETB rather than a hyphen-ambiguous
  * dash.
+ *
+ * v4 conversion: the detail page uses the admin console masthead, rail-card
+ * totals, and v4 ledger table while preserving reconciliation reads.
  */
 export default async function AdminCampaignLedgerPage({
   params,
@@ -38,122 +47,130 @@ export default async function AdminCampaignLedgerPage({
   const { campaign, entries, totals, reconciled } = ledger;
 
   return (
-    <div className="flex flex-col gap-10">
-      <div className="flex flex-col gap-3">
-        <Link
-          href="/admin/campaigns"
-          className={cn('text-sm text-muted-foreground', textLinkFeedback)}
-        >
-          ← Campaigns
-        </Link>
-        <PageHeader
-          label="Campaign ledger"
-          title={campaign.name}
-          action={
-            <Chip tone={reconciled ? 'success' : 'red'} size="md">
-              {reconciled ? 'Reconciled' : 'Ledger out of balance'}
-            </Chip>
-          }
-          description={`${campaign.status} · Budget ${formatEtb(campaign.budget)}`}
-        />
-      </div>
+    <BdShell className="bd-ad bd-ad-campaignledger">
+      <Link
+        href="/admin/campaigns"
+        className={cn('bd-cdback', textLinkFeedback)}
+      >
+        ← Campaigns
+      </Link>
+      <BdPageHead
+        eyebrow="Admin console"
+        title={campaign.name}
+        actions={
+          <Chip tone={reconciled ? 'success' : 'red'} size="md">
+            {reconciled ? 'Reconciled' : 'Ledger out of balance'}
+          </Chip>
+        }
+        facts={
+          <>
+            {campaign.status} · Budget{' '}
+            <span className="bd-mono">{formatEtb(campaign.budget)}</span> ·{' '}
+            <span className="bd-mono">{entries.length}</span> entries
+          </>
+        }
+        ruled
+        rise={1}
+      />
 
-      <dl className="grid rounded-[24px] bg-neutral-900 text-neutral-50 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="border-b border-neutral-200 p-5 sm:border-r lg:border-b-0">
-          <dt className="text-xs tracking-wide text-neutral-400 uppercase">
-            Held in escrow
-          </dt>
-          <dd className="mt-2 font-mono text-base text-neutral-50">
-            {formatEtb(totals.held)}
-          </dd>
+      <dl
+        className="bd-caprail bd-ad-totals bd-rise"
+        style={{ '--i': 2 } as React.CSSProperties}
+      >
+        <div className="bd-railcell">
+          <dt className="bd-railk">Held in escrow</dt>
+          <dd className="bd-railv bd-mono">{formatEtb(totals.held)}</dd>
         </div>
-        <div className="border-b border-neutral-200 p-5 lg:border-r lg:border-b-0">
-          <dt className="text-xs tracking-wide text-neutral-400 uppercase">
-            Paid out
-          </dt>
-          <dd className="mt-2 font-mono text-base text-neutral-50">
-            {formatEtb(totals.paidOut)}
-          </dd>
+        <div className="bd-railcell">
+          <dt className="bd-railk">Paid out</dt>
+          <dd className="bd-railv bd-mono">{formatEtb(totals.paidOut)}</dd>
         </div>
-        <div className="border-b border-neutral-200 p-5 sm:border-r sm:border-b-0">
-          <dt className="text-xs tracking-wide text-neutral-400 uppercase">
-            Commission
-          </dt>
-          <dd className="mt-2 font-mono text-base text-neutral-50">
-            {formatEtb(totals.commission)}
-          </dd>
+        <div className="bd-railcell">
+          <dt className="bd-railk">Commission</dt>
+          <dd className="bd-railv bd-mono">{formatEtb(totals.commission)}</dd>
         </div>
-        <div className="p-5">
-          <dt className="text-xs tracking-wide text-neutral-400 uppercase">
-            Refunded
-          </dt>
-          <dd className="mt-2 font-mono text-base text-neutral-50">
-            {formatEtb(totals.refunded)}
-          </dd>
+        <div className="bd-railcell">
+          <dt className="bd-railk">Refunded</dt>
+          <dd className="bd-railv bd-mono">{formatEtb(totals.refunded)}</dd>
         </div>
       </dl>
 
-      <div className="overflow-x-auto border-y border-neutral-200 bg-neutral-50">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-neutral-200 bg-neutral-100/70 text-left text-[11px] tracking-[0.12em] text-neutral-500 uppercase">
-              <th className="px-4 py-3 font-medium">#</th>
-              <th className="px-4 py-3 font-medium">Type</th>
-              <th className="px-4 py-3 text-right font-medium">Amount</th>
-              <th className="px-4 py-3 text-right font-medium">
-                Balance after
-              </th>
-              <th className="px-4 py-3 font-medium">Provider ref</th>
-              <th className="px-4 py-3 font-medium">When</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-4 py-12 text-left text-muted-foreground"
-                >
-                  No ledger entries yet. Money has not moved on this campaign.
-                </td>
-              </tr>
-            ) : (
-              entries.map((entry) => (
-                <tr
+      <section
+        className="bd-ad-section bd-rise"
+        style={{ '--i': 3 } as React.CSSProperties}
+      >
+        <div className="bd-capruler">
+          <span className="bd-caprulertitle">Entries</span>
+          <span className="bd-caprulerline" aria-hidden="true" />
+          <span className="bd-caprulercount bd-mono">
+            {entries.length} {entries.length === 1 ? 'entry' : 'entries'}
+          </span>
+        </div>
+        {entries.length === 0 ? (
+          <div className="bd-emptyfeed">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 4.5h12v15H6z" />
+              <path d="M9 8h6" />
+              <path d="M9 11.5h6" />
+              <path d="M9 15h3" />
+            </svg>
+            <h3>No ledger entries yet</h3>
+            <p>
+              Money has not moved on this campaign, so there is nothing to
+              reconcile.
+            </p>
+            <Link href="/admin/campaigns" className="bd-btn bd-btn--ghost">
+              Back to campaigns
+            </Link>
+          </div>
+        ) : (
+          <div className="bd-ad-ledgerframe">
+            <div
+              className="bd-ad-ledgercols bd-ad-ledgercols--entries"
+              aria-hidden="true"
+            >
+              <span>#</span>
+              <span>Type</span>
+              <span>Amount</span>
+              <span>Balance after</span>
+              <span>Provider ref</span>
+              <span>When</span>
+            </div>
+            <ul className="bd-ad-ledgerlist">
+              {entries.map((entry) => (
+                <li
                   key={entry.id}
-                  className="border-b border-neutral-200 last:border-b-0 hover:bg-neutral-100/60"
+                  className={cn(
+                    'bd-ad-ledgerrow bd-ad-entryrow',
+                    ENTRY_ACCENT[entry.entryType] ?? 'bd-ad-ledgerrow--dead'
+                  )}
                 >
-                  <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
-                    {entry.seq}
-                  </td>
-                  <td className="px-4 py-2.5">{entry.entryType}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">
+                  <span className="bd-ad-ledgeridx bd-mono">{entry.seq}</span>
+                  <span className="bd-ad-ledgermain">{entry.entryType}</span>
+                  <span className="bd-ad-ledgernum bd-mono">
                     {formatEtb(entry.amount)}
-                  </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums">
+                  </span>
+                  <span className="bd-ad-ledgernum bd-mono">
                     {formatEtb(entry.balanceAfter)}
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-xs text-muted-foreground">
+                  </span>
+                  <span className="bd-ad-ledgermeta bd-mono">
                     {entry.providerRef ?? 'Not provided'}
-                  </td>
-                  <td className="px-4 py-2.5 text-muted-foreground">
+                  </span>
+                  <span className="bd-ad-ledgermeta">
                     {formatDeadlineUtc(entry.createdAt)}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
 
       <div>
-        <Link
-          href="/admin"
-          className={buttonVariants({ variant: 'outline', size: 'sm' })}
-        >
+        <Link href="/admin" className="bd-btn bd-btn--ghost">
           Back to the console
         </Link>
       </div>
-    </div>
+    </BdShell>
   );
 }

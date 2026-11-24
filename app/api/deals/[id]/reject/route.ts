@@ -116,6 +116,8 @@ export async function handleRejectDeliverable(
       actorUserId,
       deliverableId: parsed.data.deliverableId,
       reason: parsed.data.reason,
+      expectedVersion: parsed.data.expectedVersion,
+      category: parsed.data.category,
     },
     deps?.rejectDeliverableDeps
   );

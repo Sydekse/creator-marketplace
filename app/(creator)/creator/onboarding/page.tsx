@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { PageHeader } from '@/components/layout/page-header';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { needsCredentials, requireRole } from '@/lib/auth';
 import { sessionTiktokHandle } from '@/lib/creators/credentials';
 import { getCreatorProfileByUserId } from '@/lib/creators/queries';
@@ -13,6 +13,9 @@ import { CreatorOnboardingForm } from './creator-onboarding-form';
  * unique, so a creator who reaches the endpoint directly gets a 409 regardless
  * of what this page does. Sending them to their dashboard just means they never
  * see a form that cannot succeed.
+ *
+ * v4 conversion: the application uses the creator workspace shell, ruled
+ * masthead, and a rail-card preview while keeping the form payload untouched.
  */
 export default async function CreatorOnboardingPage() {
   const user = await requireRole('creator');
@@ -34,31 +37,48 @@ export default async function CreatorOnboardingPage() {
   const stats = lockedHandle ? await fetchTiktokStats(user.id) : null;
 
   return (
-    <div className="mx-auto grid max-w-6xl gap-12 py-8 sm:py-12 lg:grid-cols-[minmax(0,0.75fr)_minmax(0,1.25fr)] lg:items-start lg:gap-20 lg:py-16">
-      <div className="lg:sticky lg:top-24 lg:pt-4">
-        <PageHeader
-          label="Creator application"
-          title="Build your creator profile"
-          description="Tell brands what you create and who watches it. Your profile goes live immediately and becomes searchable once a pricing tier matches your numbers."
-          className="max-w-xl"
-        />
-        <div className="mt-10 hidden border-l border-brand/40 pl-5 lg:block">
-          <p className="text-sm font-semibold text-neutral-900">
-            What brands will see
-          </p>
-          <ul className="mt-3 space-y-2 text-sm leading-relaxed text-neutral-600">
-            <li>TikTok account and niche</li>
-            <li>Top audience markets and age</li>
-            <li>
+    <BdShell className="bd-cr bd-cr-onboarding">
+      <BdPageHead
+        eyebrow="Creator workspace"
+        title="Build your creator profile"
+        facts="Tell brands what you create and who watches it. Your profile goes live immediately and becomes searchable once a pricing tier matches your numbers."
+        ruled
+      />
+
+      <div
+        className="bd-cr-onboardsplit bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
+        <aside className="bd-caprail bd-cr-onboardrail">
+          <div className="bd-railcell">
+            <span className="bd-railk">What brands will see</span>
+            <span className="bd-railv">Profile signal</span>
+            <span className="bd-railn">
+              The marketplace reads your niche, audience, and performance as a
+              bookable rate card.
+            </span>
+          </div>
+          <div className="bd-railcell bd-cr-onboardcheck">
+            <span>TikTok account and niche</span>
+            <span>Top audience markets and age</span>
+            <span>
               {lockedHandle
                 ? 'Performance figures pulled from TikTok'
                 : 'Optional performance figures for tier review'}
-            </li>
-          </ul>
-        </div>
-      </div>
+            </span>
+          </div>
+          <p className="bd-railfoot">
+            Use the same account brands should evaluate before sending an offer.
+          </p>
+        </aside>
 
-      <CreatorOnboardingForm lockedHandle={lockedHandle} lockedStats={stats} />
-    </div>
+        <section className="bd-briefcard bd-cr-formcard bd-cr-onboardform">
+          <CreatorOnboardingForm
+            lockedHandle={lockedHandle}
+            lockedStats={stats}
+          />
+        </section>
+      </div>
+    </BdShell>
   );
 }

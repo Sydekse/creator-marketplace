@@ -3,6 +3,7 @@ import {
   bigserial,
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -15,6 +16,11 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { user } from './auth-schema';
+import type {
+  DeliverableEventKind,
+  EvidenceMetadata,
+  RevisionCategory,
+} from '@/lib/deliverables/evidence';
 
 /**
  * Data model for the Creator Marketplace MVP — Tech Spec §3.2.
@@ -211,6 +217,7 @@ export const campaign = pgTable(
     targetAudience: jsonb('target_audience'),
     budget: integer('budget').notNull(),
     desiredVideos: integer('desired_videos').notNull(),
+    deliveryWindowDays: integer('delivery_window_days'),
     status: text('status').$type<CampaignStatus>().notNull().default('draft'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -221,6 +228,10 @@ export const campaign = pgTable(
     // Last line of defence behind the server-side guard (AC-008).
     check('campaign_budget_positive', sql`${t.budget} > 0`),
     check('campaign_desired_videos_positive', sql`${t.desiredVideos} > 0`),
+    check(
+      'campaign_delivery_window_valid',
+      sql`${t.deliveryWindowDays} between 1 and 90`
+    ),
   ]
 );
 
@@ -302,6 +313,21 @@ export const deal = pgTable(
     rightsTermsId: uuid('rights_terms_id').references(() => rightsTerms.id),
     rightsAcceptedAt: timestamp('rights_accepted_at', { withTimezone: true }),
     offerExpiresAt: timestamp('offer_expires_at', { withTimezone: true }),
+    deliveryWindowDays: integer('delivery_window_days'),
+    fundedAt: timestamp('funded_at', { withTimezone: true }),
+    originalDeliveryDueAt: timestamp('original_delivery_due_at', {
+      withTimezone: true,
+    }),
+    currentDeliveryDueAt: timestamp('current_delivery_due_at', {
+      withTimezone: true,
+    }),
+    firstDeliveredAt: timestamp('first_delivered_at', { withTimezone: true }),
+    dueAtFirstDelivery: timestamp('due_at_first_delivery', {
+      withTimezone: true,
+    }),
+    missedDeliveryCommitment: boolean('missed_delivery_commitment')
+      .notNull()
+      .default(false),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -314,6 +340,18 @@ export const deal = pgTable(
     // One deal per creator per campaign.
     unique('deal_campaign_creator_unique').on(t.campaignId, t.creatorId),
     check('deal_video_count_positive', sql`${t.videoCount} > 0`),
+    check(
+      'deal_delivery_window_valid',
+      sql`${t.deliveryWindowDays} between 1 and 90`
+    ),
+    check(
+      'deal_delivery_dates_valid',
+      sql`(${t.originalDeliveryDueAt} is null and ${t.currentDeliveryDueAt} is null) or (${t.deliveryWindowDays} is not null and ${t.fundedAt} is not null and ${t.originalDeliveryDueAt} is not null and ${t.currentDeliveryDueAt} is not null and ${t.originalDeliveryDueAt} > ${t.fundedAt} and ${t.currentDeliveryDueAt} >= ${t.originalDeliveryDueAt})`
+    ),
+    check(
+      'deal_first_delivery_due_valid',
+      sql`${t.dueAtFirstDelivery} is null or (${t.firstDeliveredAt} is not null and ${t.currentDeliveryDueAt} is not null and ${t.dueAtFirstDelivery} = ${t.currentDeliveryDueAt})`
+    ),
     check(
       'deal_total_price_valid',
       sql`${t.totalPrice} = ${t.unitPrice} * ${t.videoCount}`
@@ -330,6 +368,65 @@ export const deal = pgTable(
     check(
       'deal_rights_accepted_when_accepted',
       sql`${t.status} in ('pending', 'declined', 'expired') or (${t.rightsTermsId} is not null and ${t.rightsAcceptedAt} is not null)`
+    ),
+  ]
+);
+
+export type DeadlineRequestStatus =
+  'pending' | 'accepted' | 'rejected' | 'withdrawn' | 'closed';
+export const deadlineRequest = pgTable(
+  'deadline_request',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    dealId: uuid('deal_id')
+      .notNull()
+      .references(() => deal.id),
+    proposedBy: uuid('proposed_by')
+      .notNull()
+      .references(() => user.id),
+    proposerRole: text('proposer_role').$type<'brand' | 'creator'>().notNull(),
+    previousDueAt: timestamp('previous_due_at', {
+      withTimezone: true,
+    }).notNull(),
+    proposedDueAt: timestamp('proposed_due_at', {
+      withTimezone: true,
+    }).notNull(),
+    note: text('note').notNull(),
+    proposedAt: timestamp('proposed_at', { withTimezone: true }).notNull(),
+    status: text('status')
+      .$type<DeadlineRequestStatus>()
+      .notNull()
+      .default('pending'),
+    decidedBy: uuid('decided_by').references(() => user.id),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    closureReason: text('closure_reason').$type<
+      'first_delivery' | 'refunded'
+    >(),
+  },
+  (t) => [
+    uniqueIndex('deadline_request_one_pending')
+      .on(t.dealId)
+      .where(sql`${t.status} = 'pending'`),
+    index('deadline_request_deal_time_idx').on(t.dealId, t.proposedAt),
+    check(
+      'deadline_request_later',
+      sql`${t.proposedDueAt} > ${t.previousDueAt} and ${t.proposedDueAt} > ${t.proposedAt}`
+    ),
+    check(
+      'deadline_request_role',
+      sql`${t.proposerRole} in ('brand', 'creator')`
+    ),
+    check(
+      'deadline_request_decision',
+      sql`(${t.status} = 'pending' and ${t.decidedAt} is null and ${t.decidedBy} is null and ${t.closureReason} is null) or (${t.status} in ('accepted','rejected','withdrawn') and ${t.decidedAt} is not null and ${t.decidedBy} is not null and ${t.closureReason} is null) or (${t.status} = 'closed' and ${t.decidedAt} is not null and ${t.closureReason} is not null and ${t.closureReason} in ('first_delivery','refunded'))`
+    ),
+    check(
+      'deadline_request_decider',
+      sql`(${t.status} not in ('accepted','rejected') or ${t.decidedBy} <> ${t.proposedBy}) and (${t.status} <> 'withdrawn' or ${t.decidedBy} = ${t.proposedBy})`
+    ),
+    check(
+      'deadline_request_decision_time',
+      sql`${t.decidedAt} is null or (${t.decidedAt} >= ${t.proposedAt} and (${t.status} <> 'accepted' or ${t.proposedDueAt} > ${t.decidedAt}))`
     ),
   ]
 );
@@ -386,6 +483,14 @@ export const deliverable = pgTable(
       .notNull()
       .references(() => deal.id),
     tiktokUrl: text('tiktok_url').notNull(),
+    videoOrdinal: integer('video_ordinal').notNull(),
+    submissionVersion: integer('submission_version').notNull().default(1),
+    historyCompleteness: text('history_completeness')
+      .$type<'complete' | 'legacy_baseline'>()
+      .notNull()
+      .default('complete'),
+    revisionCategory: text('revision_category').$type<RevisionCategory>(),
+    reviewCycleId: uuid('review_cycle_id'),
     submittedAt: timestamp('submitted_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -395,6 +500,24 @@ export const deliverable = pgTable(
       .default('pending'),
     reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
     rejectionReason: text('rejection_reason'),
+    /**
+     * Snapshot of the video's cover image, copied into our Vercel Blob store
+     * at submit (KAN-46 follow-up). Stored rather than fetched per render
+     * because TikTok's oEmbed thumbnail URLs are signed and expire — and the
+     * snapshot survives the video being deleted or made private, which is
+     * exactly when the brand needs evidence of what was submitted. Null when
+     * the best-effort copy failed (no blob token, oEmbed down, …); the UI
+     * falls back to the placeholder frame.
+     */
+    thumbnailUrl: text('thumbnail_url'),
+    /**
+     * TikTok's numeric video id, resolved from the oEmbed response at submit.
+     * Long-form URLs carry it in the path, but `vm.tiktok.com` share links do
+     * not — and the in-app player (`tiktok.com/embed/v2/{id}`) needs it. Null
+     * when oEmbed could not be reached; the card then falls back to opening
+     * TikTok instead of playing inline.
+     */
+    tiktokVideoId: text('tiktok_video_id'),
   },
   (t) => [
     // Replaces the unique constraint's index. Every read of this table is
@@ -402,6 +525,59 @@ export const deliverable = pgTable(
     // metric-reminder sweep — so the lookup that was free under `unique` has
     // to stay free without it.
     index('deliverable_deal_id_idx').on(t.dealId),
+    unique('deliverable_deal_ordinal_unique').on(t.dealId, t.videoOrdinal),
+    unique('deliverable_id_deal_unique').on(t.id, t.dealId),
+    check('deliverable_ordinal_positive', sql`${t.videoOrdinal} > 0`),
+    check('deliverable_version_nonnegative', sql`${t.submissionVersion} >= 0`),
+    check(
+      'deliverable_history_completeness',
+      sql`${t.historyCompleteness} in ('complete', 'legacy_baseline')`
+    ),
+  ]
+);
+
+export const deliverableEvent = pgTable(
+  'deliverable_event',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    seq: bigserial('seq', { mode: 'number' }).notNull().unique(),
+    dealId: uuid('deal_id').notNull(),
+    deliverableId: uuid('deliverable_id').notNull(),
+    submissionVersion: integer('submission_version').notNull(),
+    kind: text('kind').$type<DeliverableEventKind>().notNull(),
+    actorId: uuid('actor_id').references(() => user.id),
+    actorRole: text('actor_role')
+      .$type<UserRole | 'system' | 'unknown'>()
+      .notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    tiktokUrl: text('tiktok_url').notNull(),
+    revisionCategory: text('revision_category').$type<RevisionCategory>(),
+    note: text('note'),
+    reviewCycleId: uuid('review_cycle_id'),
+    requestId: uuid('request_id'),
+    metadata: jsonb('metadata').$type<EvidenceMetadata>().notNull().default({}),
+  },
+  (t) => [
+    foreignKey({
+      columns: [t.deliverableId, t.dealId],
+      foreignColumns: [deliverable.id, deliverable.dealId],
+    }),
+    index('deliverable_event_deal_seq_idx').on(t.dealId, t.seq),
+    index('deliverable_event_video_seq_idx').on(t.deliverableId, t.seq),
+    index('deliverable_event_kind_time_idx').on(t.kind, t.occurredAt),
+    uniqueIndex('deliverable_event_request_unique')
+      .on(t.dealId, t.requestId)
+      .where(sql`${t.requestId} is not null`),
+    uniqueIndex('deliverable_event_version_kind_unique')
+      .on(t.deliverableId, t.submissionVersion, t.kind)
+      .where(sql`${t.kind} not in ('review_ready', 'review_interrupted')`),
+    uniqueIndex('deliverable_event_cycle_unique')
+      .on(t.deliverableId, t.reviewCycleId, t.kind)
+      .where(sql`${t.reviewCycleId} is not null`),
+    check(
+      'deliverable_event_version_nonnegative',
+      sql`${t.submissionVersion} >= 0`
+    ),
   ]
 );
 
@@ -417,6 +593,7 @@ export const videoMetric = pgTable('video_metric', {
     .unique()
     .references(() => deliverable.id),
   views: integer('views'),
+  submissionVersion: integer('submission_version').notNull().default(0),
   likes: integer('likes'),
   shares: integer('shares'),
   comments: integer('comments'),
@@ -424,6 +601,66 @@ export const videoMetric = pgTable('video_metric', {
   lastUpdatedAt: timestamp('last_updated_at', { withTimezone: true }),
   stale: boolean('stale').notNull().default(false),
 });
+
+/**
+ * Append-only history of view counts, one row per metric write (KAN mock v4:
+ * "new reach this week"). `video_metric` keeps only the latest totals, so any
+ * "how much did reach grow since X" question needs the value as of X — this
+ * table is that memory. Written alongside the upsert in
+ * `lib/deals/record-metrics.ts`; never updated, never deleted.
+ */
+export const videoMetricSnapshot = pgTable(
+  'video_metric_snapshot',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    deliverableId: uuid('deliverable_id')
+      .notNull()
+      .references(() => deliverable.id),
+    views: integer('views').notNull(),
+    likes: integer('likes'),
+    shares: integer('shares'),
+    comments: integer('comments'),
+    capturedAt: timestamp('captured_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // Every read is "this deliverable's views as of a cutoff" — the dashboard
+    // resolves one row per deliverable via max(captured_at) <= cutoff.
+    index('video_metric_snapshot_deliverable_captured_idx').on(
+      t.deliverableId,
+      t.capturedAt
+    ),
+  ]
+);
+
+/**
+ * Append-only creator profile metric history. `creator_profile` stores the
+ * latest follower/engagement numbers; this table remembers the trend each time
+ * a TikTok refresh succeeds so the creator dashboard can show growth and tier
+ * movement instead of a static profile snapshot.
+ */
+export const creatorMetricSnapshot = pgTable(
+  'creator_metric_snapshot',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    creatorId: uuid('creator_id')
+      .notNull()
+      .references(() => creatorProfile.id),
+    followerCount: integer('follower_count').notNull(),
+    engagementRate: numeric('engagement_rate', { precision: 5, scale: 2 }),
+    capturedAt: timestamp('captured_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    source: text('source').notNull().default('tiktok'),
+  },
+  (t) => [
+    index('creator_metric_snapshot_creator_captured_idx').on(
+      t.creatorId,
+      t.capturedAt
+    ),
+  ]
+);
 
 // -- Money ------------------------------------------------------------------
 
@@ -534,6 +771,36 @@ export const notification = pgTable(
   },
   (t) => [index('notification_user_created_idx').on(t.userId, t.createdAt)]
 );
+
+// -- Notification preferences -------------------------------------------------
+
+/**
+ * Per-user email opt-outs, one row per user, absent meaning "everything on".
+ *
+ * Four category booleans rather than a per-type map: thirteen toggles is a
+ * chore no one completes, and new notification types get a sensible default by
+ * joining a category instead of being silently unmuteable. The in-app feed is
+ * deliberately not muteable — these govern *email* dispatch only, so a muted
+ * category still writes its `notification` row and shows in the bell.
+ */
+export const notificationPref = pgTable('notification_pref', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id')
+    .notNull()
+    .unique()
+    .references(() => user.id),
+  /** Offers, deliveries, reviews, disputes — the deal lifecycle. */
+  emailDeals: boolean('email_deals').notNull().default(true),
+  /** Funding and wallet movement. */
+  emailMoney: boolean('email_money').notNull().default(true),
+  /** Verification results and tier changes. */
+  emailAccount: boolean('email_account').notNull().default(true),
+  /** Scheduled nudges (metric reminders). */
+  emailReminders: boolean('email_reminders').notNull().default(true),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
 
 // -- Chapa payment rails (KAN-70) ---------------------------------------------
 

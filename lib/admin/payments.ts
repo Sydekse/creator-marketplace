@@ -104,27 +104,29 @@ export interface AdminPaymentsDeps {
 const defaultDeps: AdminPaymentsDeps = {
   requireAdmin: () => guard({ roles: ['admin'] }),
   totals: async () => {
-    const [moneyIn] = await db
-      .select({
-        deposited: sql<number>`COALESCE(SUM(${fundingSession.amount}) FILTER (WHERE ${fundingSession.status} = 'consumed'), 0)::int`,
-      })
-      .from(fundingSession);
-    const [moneyOut] = await db
-      .select({
-        withdrawn: sql<number>`COALESCE(SUM(${withdrawal.amount}) FILTER (WHERE ${withdrawal.status} = 'paid'), 0)::int`,
-      })
-      .from(withdrawal);
-    const [moneyBack] = await db
-      .select({
-        refunded: sql<number>`COALESCE(SUM(${refund.amount}) FILTER (WHERE ${refund.status} = 'refunded'), 0)::int`,
-      })
-      .from(refund);
-    const [ledger] = await db
-      .select({
-        commission: sql<number>`COALESCE(-SUM(${ledgerEntry.amount}) FILTER (WHERE ${ledgerEntry.entryType} = 'commission'), 0)::int`,
-        escrowHeld: sql<number>`COALESCE(SUM(${ledgerEntry.amount}), 0)::int`,
-      })
-      .from(ledgerEntry);
+    const [[moneyIn], [moneyOut], [moneyBack], [ledger]] = await Promise.all([
+      db
+        .select({
+          deposited: sql<number>`COALESCE(SUM(${fundingSession.amount}) FILTER (WHERE ${fundingSession.status} = 'consumed'), 0)::int`,
+        })
+        .from(fundingSession),
+      db
+        .select({
+          withdrawn: sql<number>`COALESCE(SUM(${withdrawal.amount}) FILTER (WHERE ${withdrawal.status} = 'paid'), 0)::int`,
+        })
+        .from(withdrawal),
+      db
+        .select({
+          refunded: sql<number>`COALESCE(SUM(${refund.amount}) FILTER (WHERE ${refund.status} = 'refunded'), 0)::int`,
+        })
+        .from(refund),
+      db
+        .select({
+          commission: sql<number>`COALESCE(-SUM(${ledgerEntry.amount}) FILTER (WHERE ${ledgerEntry.entryType} = 'commission'), 0)::int`,
+          escrowHeld: sql<number>`COALESCE(SUM(${ledgerEntry.amount}), 0)::int`,
+        })
+        .from(ledgerEntry),
+    ]);
     return {
       deposited: moneyIn?.deposited ?? 0,
       withdrawn: moneyOut?.withdrawn ?? 0,

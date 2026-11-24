@@ -1,6 +1,6 @@
 import { and, eq } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
-import { campaign, creatorProfile, deal, deliverable } from '@/db/schema';
+import { campaign, creatorProfile, deal } from '@/db/schema';
 import type { DealStatus } from '@/db/schema';
 import type { Tx } from '@/lib/authz';
 import {
@@ -12,6 +12,8 @@ import {
 import { withNotifications } from '@/lib/notifications/notify';
 import type { Notify } from '@/lib/notifications/notify';
 import type { ErrorCode } from '@/lib/validation/errors';
+import { rejectCurrent, VersionConflict } from '@/lib/deliverables/history';
+import type { RevisionCategory } from '@/lib/deliverables/evidence';
 
 /**
  * Rejecting a delivered video with a reason (KAN-47, US-008, AC-024,
@@ -89,7 +91,8 @@ export interface RejectDeliverableDeps {
     tx: Tx,
     dealId: string,
     actorId: string,
-    reason: string
+    reason: string,
+    occurredAt?: Date
   ) => Promise<unknown>;
   /**
    * Stores the rejection on the one video being sent back (AC-3, F38).
@@ -110,7 +113,12 @@ export interface RejectDeliverableDeps {
     dealId: string,
     deliverableId: string,
     reason: string,
-    reviewedAt: Date
+    reviewedAt: Date,
+    evidence: {
+      expectedVersion?: number;
+      category?: RevisionCategory;
+      actorId: string;
+    }
   ) => Promise<{ tiktokUrl: string } | null>;
   run: <T>(fn: (tx: Tx, notify: Notify) => Promise<T>) => Promise<T>;
 }
@@ -134,7 +142,7 @@ export function buildRejectDeliverableWhere(
   return and(eq(deal.id, dealId), eq(campaign.brandId, brandProfileId)) as SQL;
 }
 
-const defaultDeps: RejectDeliverableDeps = {
+export const defaultDeps: RejectDeliverableDeps = {
   loadDeal: async (tx, dealId, brandProfileId) => {
     const [row] = await tx
       .select({
@@ -158,27 +166,34 @@ const defaultDeps: RejectDeliverableDeps = {
   },
   // Delegated to the state machine, which owns every `deal_event` write and
   // re-reads the row under its own lock before judging legality (invariant 6).
-  transition: (tx, dealId, actorId, reason) =>
-    transitionDeal(tx, dealId, 'revision_requested', actorId, { reason }),
-  recordRejection: async (tx, dealId, deliverableId, reason, reviewedAt) => {
+  transition: (tx, dealId, actorId, reason, occurredAt) =>
+    transitionDeal(tx, dealId, 'revision_requested', actorId, {
+      reason,
+      occurredAt,
+    }),
+  recordRejection: async (
+    tx,
+    dealId,
+    deliverableId,
+    reason,
+    reviewedAt,
+    evidence
+  ) => {
     // One statement, and the `and` is the security half: an id naming a video on
     // another brand's deal matches nothing and returns null, without this module
     // needing a second read to check who owns it.
-    const [updated] = await tx
-      .update(deliverable)
-      .set({
-        reviewStatus: 'rejected',
-        reviewedAt,
-        rejectionReason: reason,
-      })
-      .where(
-        and(eq(deliverable.id, deliverableId), eq(deliverable.dealId, dealId))
-      )
-      // The URL travels into the creator's notification, so they are told which
-      // of their videos to redo rather than just that one of them was refused.
-      .returning({ tiktokUrl: deliverable.tiktokUrl });
-
-    return updated ?? null;
+    if (evidence.expectedVersion === undefined || !evidence.category)
+      throw new VersionConflict();
+    return rejectCurrent(
+      tx,
+      dealId,
+      deliverableId,
+      evidence.expectedVersion,
+      evidence.category,
+      reason,
+      { actorId: evidence.actorId, actorRole: 'brand' },
+      reviewedAt
+    );
   },
   run: (fn) => withNotifications(fn),
 };
@@ -213,76 +228,83 @@ export async function rejectDeliverable(
     actorUserId: string;
     deliverableId: string;
     reason: string;
+    expectedVersion?: number;
+    category?: RevisionCategory;
   },
   deps: RejectDeliverableDeps = defaultDeps
 ): Promise<RejectDeliverableResult> {
-  return deps.run(async (tx, notify) => {
-    const row = await deps.loadDeal(tx, dealId, input.brandProfileId);
-    if (!row) {
-      return { ok: false, reason: 'not_found' };
-    }
+  try {
+    return await deps.run(async (tx, notify) => {
+      const row = await deps.loadDeal(tx, dealId, input.brandProfileId);
+      if (!row) {
+        return { ok: false, reason: 'not_found' };
+      }
 
-    // AC-024 and AC-5. `delivered` is the only status a rejection is legal from,
-    // and the code for every other one is the machine's rather than one this
-    // module invents.
-    if (!canReview(row.status)) {
-      return {
-        ok: false,
-        reason: 'illegal',
-        code: getErrorCodeForInvalidTransition(
-          row.status,
-          'revision_requested'
-        ),
-      };
-    }
+      // AC-024 and AC-5. `delivered` is the only status a rejection is legal from,
+      // and the code for every other one is the machine's rather than one this
+      // module invents.
+      if (!canReview(row.status)) {
+        return {
+          ok: false,
+          reason: 'illegal',
+          code: getErrorCodeForInvalidTransition(
+            row.status,
+            'revision_requested'
+          ),
+        };
+      }
 
-    // AC-3, in the same transaction as the status change below: a rejection note
-    // must never exist for a deal that is not `revision_requested`, and a deal
-    // the brand sent back must always carry one.
-    const reviewedAt = new Date();
-    const rejected = await deps.recordRejection(
-      tx,
-      dealId,
-      input.deliverableId,
-      input.reason,
-      reviewedAt
-    );
+      // AC-3, in the same transaction as the status change below: a rejection note
+      // must never exist for a deal that is not `revision_requested`, and a deal
+      // the brand sent back must always carry one.
+      const reviewedAt = new Date();
+      const rejected = await deps.recordRejection(
+        tx,
+        dealId,
+        input.deliverableId,
+        input.reason,
+        reviewedAt,
+        {
+          expectedVersion: input.expectedVersion,
+          category: input.category,
+          actorId: input.actorUserId,
+        }
+      );
 
-    if (!rejected) {
-      return { ok: false, reason: 'not_found' };
-    }
+      if (!rejected) {
+        return { ok: false, reason: 'not_found' };
+      }
 
-    try {
       await deps.transition(
         tx,
         dealId,
         input.actorUserId,
-        REJECT_DELIVERABLE_EVENT_REASON
+        REJECT_DELIVERABLE_EVENT_REASON,
+        reviewedAt
       );
-    } catch (error) {
-      if (error instanceof TransitionError) {
-        return { ok: false, reason: 'illegal', code: error.code };
-      }
-      throw error;
-    }
 
-    // AC-1. The creator's `user.id`, resolved through `creator_profile` in
-    // the load above. Inside the transaction, so a rollback takes the row
-    // with it and the email is never queued. The reason travels with the
-    // notification, which is what the creator acts on (AC-3), and so does the
-    // URL — with several videos on one deal, the note alone would not say which.
-    await notify(row.creatorUserId, 'revision_requested', {
-      dealId,
-      campaignTitle: row.campaignName,
-      reason: input.reason,
-      tiktokUrl: rejected.tiktokUrl,
+      // AC-1. The creator's `user.id`, resolved through `creator_profile` in
+      // the load above. Inside the transaction, so a rollback takes the row
+      // with it and the email is never queued. The reason travels with the
+      // notification, which is what the creator acts on (AC-3), and so does the
+      // URL — with several videos on one deal, the note alone would not say which.
+      await notify(row.creatorUserId, 'revision_requested', {
+        dealId,
+        campaignTitle: row.campaignName,
+        reason: input.reason,
+        tiktokUrl: rejected.tiktokUrl,
+      });
+
+      return {
+        ok: true,
+        dealId,
+        status: 'revision_requested',
+        reason: input.reason,
+      };
     });
-
-    return {
-      ok: true,
-      dealId,
-      status: 'revision_requested',
-      reason: input.reason,
-    };
-  });
+  } catch (error) {
+    if (error instanceof TransitionError || error instanceof VersionConflict)
+      return { ok: false, reason: 'illegal', code: error.code };
+    throw error;
+  }
 }

@@ -4,6 +4,7 @@ import { db as defaultDb } from '@/db';
 import * as schema from '@/db/schema';
 import { dispatchWithRetry } from './dispatch';
 import type { DispatchLog } from './dispatch';
+import { emailAllowed } from './prefs';
 import { providerFromEnv } from './providers';
 import { renderNotification } from './templates';
 import type {
@@ -198,6 +199,19 @@ async function insertRow<K extends NotificationType>(
 async function flush(pending: Pending[], deps: NotifyDeps): Promise<void> {
   for (const item of pending) {
     try {
+      // Preference gate, fail-open: a prefs read that throws must not stop a
+      // deal email. Muted means "no courtesy copy" — the in-app row already
+      // exists, so nothing the user is owed goes missing.
+      const allowed = await emailAllowed(item.userId, item.input.type).catch(
+        () => true
+      );
+      if (!allowed) {
+        deps.log.info(
+          `[email] muted by preference user=${item.userId} type=${item.input.type}`
+        );
+        continue;
+      }
+
       const recipient = await recipientFor(deps.db, item.userId);
       if (!recipient) {
         // The in-app row still exists — the user will see it on next login.

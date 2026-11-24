@@ -121,7 +121,11 @@ export function selectTier(
     return { assigned: false, reason: 'no_matching_tier' };
   }
 
-  const [best] = [...eligible].sort(byHighestFirst);
+  // Single pass rather than sort-and-take-first: only the top element by the
+  // same comparator is needed.
+  const best = eligible.reduce((top, tier) =>
+    byHighestFirst(tier, top) < 0 ? tier : top
+  );
 
   return {
     assigned: true,

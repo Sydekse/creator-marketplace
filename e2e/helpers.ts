@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * KAN-60 helpers — deterministic seeded data only (AC-9). Every test signs in
@@ -24,8 +24,10 @@ export async function signIn(page: Page, email: string): Promise<void> {
   await page.locator('#email').fill(email);
   await page.locator('#password').fill(DEMO_PASSWORD);
   await page.getByRole('button', { name: 'Sign In' }).click();
-  // Landing on a role home is the sign-in succeeding.
-  await expect(page).not.toHaveURL(/sign-in/);
+  // Landing on a role home is the sign-in succeeding. Auth does several DB
+  // round trips; against a remote database (local runs on Neon) that can
+  // outlive the 5s default, so give it the same budget as other steps.
+  await expect(page).not.toHaveURL(/sign-in/, { timeout: 15_000 });
   // The sign-in flow router.push()es to /dashboard, which server-redirects to
   // the role home — a client-side navigation. Wait for that redirect to commit
   // before the caller navigates again: webkit aborts a page.goto that races
@@ -37,13 +39,66 @@ export async function signIn(page: Page, email: string): Promise<void> {
   await page.waitForURL(/\/(brand|creator|admin)(\/|$)/);
 }
 
+/**
+ * Wait for a just-navigated page's content to actually stream in, reloading
+ * once if it never does.
+ *
+ * Clicking a link at automation speed — milliseconds after load, while
+ * hydration and the router's prefetches are still in flight — can land on a
+ * page whose banner renders but whose `main` stays empty: the RSC response
+ * arrives (200 in the trace) and is never painted. Seen on the audit-log
+ * step of flow 6 in CI and on a creator deal page locally, both only in
+ * production mode and never on a reload of the same URL. Same family as
+ * `openConfirmDialog`'s not-yet-hydrated click: unobservable from outside,
+ * so check, reload, check again.
+ */
+export async function settledMain(page: Page): Promise<void> {
+  await expect(async () => {
+    const children = await page.evaluate(
+      () => document.querySelector('main')?.childElementCount ?? 0
+    );
+    if (children === 0) {
+      await page.reload();
+    }
+    expect(
+      await page.evaluate(
+        () => document.querySelector('main')?.childElementCount ?? 0
+      )
+    ).toBeGreaterThan(0);
+  }).toPass({ timeout: 30_000 });
+}
+
+/**
+ * Click a link and require the URL to actually change.
+ *
+ * A Next.js `<Link>` click that lands before hydration can be swallowed: the
+ * router attaches its own handler mid-flight and the native navigation never
+ * fires (flow 1 burned its whole 5-minute budget waiting for `/deals/[id]`
+ * this way on webkit-desktop). Unobservable from outside, so click, give the
+ * navigation a beat, and click again if the URL never moved.
+ */
+export async function clickToUrl(
+  page: Page,
+  link: Locator,
+  urlPattern: RegExp
+): Promise<void> {
+  await expect(async () => {
+    if (!urlPattern.test(page.url())) {
+      await link.click();
+    }
+    await page.waitForURL(urlPattern, { timeout: 5_000 });
+  }).toPass({ timeout: 60_000 });
+}
+
 /** Open the creator's deal detail page by campaign name. */
 export async function openCreatorDeal(page: Page, campaignName: string) {
   await page.goto('/creator/deals');
-  await page
-    .getByRole('link', { name: new RegExp(campaignName) })
-    .first()
-    .click();
+  await clickToUrl(
+    page,
+    page.getByRole('link', { name: new RegExp(campaignName) }).first(),
+    /\/creator\/deals\/[0-9a-f-]+/
+  );
+  await settledMain(page);
 }
 
 /**
@@ -68,6 +123,55 @@ export async function openConfirmDialog(
 }
 
 /**
+ * Open a Radix select by its labelled trigger and pick an option.
+ *
+ * The trigger is a client component: a click that lands before hydration
+ * attaches the handler does nothing, and the option locator then waits out
+ * the whole test timeout (flow 4's second rejection lost exactly this way on
+ * webkit-desktop — the first select, further from the `reload()`, always
+ * worked). Same family as `openConfirmDialog`'s not-yet-hydrated click:
+ * unobservable from outside, so click, give the listbox a beat to appear,
+ * click again if it didn't.
+ */
+export async function pickOption(
+  page: Page,
+  triggerLabel: string,
+  optionName: string
+): Promise<void> {
+  const option = page.getByRole('option', { name: optionName, exact: true });
+  await expect(async () => {
+    if (!(await option.isVisible())) {
+      await page.getByLabel(triggerLabel).click();
+    }
+    await expect(option).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  await option.click();
+}
+
+/**
+ * Open a deal page's native version-history disclosure and keep it open.
+ *
+ * The history is a plain `<details class="bd-vhist">`. The element needs no
+ * hydration, but a streamed RSC update (the router.refresh() that follows
+ * every mutation on these pages) can replace it after the test clicked the
+ * summary — and a fresh <details> defaults closed, hiding the entries the
+ * test is about to assert (flow 4 lost its 'Revision requested · brand'
+ * check this way on webkit-mobile). So don't trust one click: check the
+ * open attribute, click if it's missing, and re-check until it sticks.
+ * Returns the disclosure so callers scope their queries to it.
+ */
+export async function openVersionHistory(page: Page): Promise<Locator> {
+  const history = page.locator('details.bd-vhist').first();
+  await expect(async () => {
+    if ((await history.getAttribute('open')) === null) {
+      await history.locator('summary').click();
+    }
+    expect(await history.getAttribute('open')).not.toBeNull();
+  }).toPass({ timeout: 30_000 });
+  return history;
+}
+
+/**
  * Run `act` (a click that fires a client-side mutation) and require the
  * matching response to arrive ok before the caller moves on.
  *
@@ -83,17 +187,18 @@ export async function expectMutationOk(
   page: Page,
   pathSuffix: string,
   act: () => Promise<void>,
-  method: 'POST' | 'PUT' = 'POST'
+  method: 'POST' | 'PUT' = 'POST',
+  timeoutMs = 30_000
 ): Promise<void> {
   const responded = page.waitForResponse(
     (response) =>
       response.url().includes(pathSuffix) &&
-      response.request().method() === method
+      response.request().method() === method,
+    { timeout: timeoutMs }
   );
   await act();
-  expect((await responded).ok(), `${method} ${pathSuffix} must succeed`).toBe(
-    true
-  );
+  const response = await responded;
+  expect(response.ok(), `${method} ${pathSuffix} must succeed`).toBe(true);
 }
 
 /**
@@ -111,16 +216,63 @@ export async function expectMutationOk(
  *    outlive a fixed expect window even though the POST has long committed.
  *    A reload re-reads the same server truth without trusting the refresh,
  *    so poll: check, reload, check again.
+ * 3. The submit click can land before hydration attaches the form's onSubmit
+ *    and the POST never fires (flow 1 on webkit-mobile burned its budget in
+ *    waitForResponse this way). Blindly re-clicking risks a double submit, so
+ *    prove hydration first: `#tiktokUrl` is useState-controlled, and a fill
+ *    that survives the mount (fillHydrated) means the handlers are live.
  */
 export async function submitVideo(
   page: Page,
   videoUrl: string,
   progressCopy: string
 ): Promise<void> {
-  await page.locator('#tiktokUrl').fill(videoUrl);
-  await expectMutationOk(page, '/deliverable', () =>
-    page.getByRole('button', { name: 'Submit your video' }).click()
-  );
+  await fillHydrated(page, [['#tiktokUrl', videoUrl]]);
+  const submitButton = page.getByRole('button', { name: 'Submit your video' });
+  await submitButton.waitFor({ state: 'visible' });
+  await expect(submitButton).toBeEnabled();
+
+  // Race 3 (helpers.ts:218): on webkit-mobile the click can land before
+  // React attaches onSubmit, so the POST never fires and waitForResponse
+  // hangs. Two layers of defence:
+  //   (a) prove hydration (input value survives + button enabled) before
+  //       clicking, giving hydration a beat to finish;
+  //   (b) bound the wait at 15s and retry once, re-proving hydration first.
+  //       A retry only happens when no response arrived (so there is no
+  //       double-submit risk), and re-runs fillHydrated before re-clicking.
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // If a previous attempt's POST actually landed (late response), stop.
+    if (
+      await page
+        .getByText(progressCopy)
+        .isVisible()
+        .catch(() => false)
+    ) {
+      lastError = undefined;
+      break;
+    }
+    try {
+      await expectMutationOk(
+        page,
+        '/deliverable',
+        () => submitButton.click(),
+        'POST',
+        30_000
+      );
+      lastError = undefined;
+      break;
+    } catch (err) {
+      lastError = err;
+      if (attempt === 0) {
+        await page.waitForTimeout(300);
+        await fillHydrated(page, [['#tiktokUrl', videoUrl]]);
+        await expect(submitButton).toBeEnabled();
+      }
+    }
+  }
+  if (lastError) throw lastError;
+
   await expect(async () => {
     if (!(await page.getByText(progressCopy).isVisible())) {
       await page.reload();
@@ -167,9 +319,21 @@ export async function fillHydrated(
 /** Open the brand's campaign page by name. */
 export async function openCampaign(page: Page, campaignName: string) {
   await page.goto('/campaigns');
-  // The list renders the campaign name as the card title and the action as a
-  // "View campaign" / "Edit brief" link — the name itself is not a link. So
-  // the card is found by its text and the action link inside it is clicked.
-  const card = page.locator('li').filter({ hasText: campaignName });
-  await card.getByRole('link', { name: /View campaign|Edit brief/i }).click();
+  // Live campaigns render as whole-card links and closed ones as ledger
+  // rows — both carry an "Open {name}" accessible name. Drafts offer
+  // "Edit brief" instead, inside the row that names the campaign.
+  const open = page.getByRole('link', { name: `Open ${campaignName}` });
+  if ((await open.count()) > 0) {
+    await clickToUrl(page, open.first(), /\/campaigns\/[0-9a-f-]+/);
+  } else {
+    await clickToUrl(
+      page,
+      page
+        .locator('.bd-caprow')
+        .filter({ hasText: campaignName })
+        .getByRole('link', { name: /Edit brief/i }),
+      /\/campaigns\/[0-9a-f-]+/
+    );
+  }
+  await settledMain(page);
 }

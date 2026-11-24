@@ -62,6 +62,10 @@ export const NOTIFICATION_TYPES = [
   // glance.
   'withdrawal_paid',
   'withdrawal_failed',
+  'deadline_requested',
+  'deadline_accepted',
+  'deadline_rejected',
+  'deadline_withdrawn',
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -92,8 +96,21 @@ export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
  * fall back to the one-figure sentence when they are absent, and the tests
  * assert each producer always sets them, which is where "required" belongs.
  */
+export interface DeadlineNotificationPayload {
+  dealId: string;
+  requestId: string;
+  campaignTitle: string;
+  recipientRole: 'brand' | 'creator';
+  previousDueAt: string;
+  proposedDueAt: string;
+}
 export interface NotificationPayloadMap {
+  deadline_requested: DeadlineNotificationPayload;
+  deadline_accepted: DeadlineNotificationPayload;
+  deadline_rejected: DeadlineNotificationPayload;
+  deadline_withdrawn: DeadlineNotificationPayload;
   offer_received: {
+    deliveryWindowDays?: number;
     dealId: string;
     campaignTitle: string;
     /** The brand offering — creators must know who (KAN-27 AC-3). */

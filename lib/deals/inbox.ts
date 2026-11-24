@@ -28,7 +28,10 @@ import type { DealGroup } from '@/lib/deals/groups';
  * screen as "you have no offers", which is the quiet version of this bug.
  */
 
-export interface InboxDealRow {
+import type { DeadlineEvidence } from './deadline';
+import { deadlineColumns } from './deadline-columns';
+
+export interface InboxDealRow extends DeadlineEvidence {
   id: string;
   status: DealStatus;
   campaignName: string;
@@ -87,6 +90,7 @@ export function inboxQuery(creatorProfileId: string) {
       videoCount: deal.videoCount,
       totalPrice: deal.totalPrice,
       offerExpiresAt: deal.offerExpiresAt,
+      ...deadlineColumns,
     })
     .from(deal)
     .innerJoin(campaign, eq(deal.campaignId, campaign.id))

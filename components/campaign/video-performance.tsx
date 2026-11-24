@@ -1,17 +1,15 @@
 import Link from 'next/link';
 import { ArrowSquareOut } from '@phosphor-icons/react/dist/ssr';
-import { Chip } from '@/components/ui/chip';
-import { Card, CardContent } from '@/components/ui/card';
-import { EmptyState } from '@/components/feedback/empty-state';
 import { formatDeadlineUtc } from '@/lib/dates';
 import { labelForStatus } from '@/lib/deals';
-import { dealStatusTone } from '@/lib/deals/status-tone';
+import type { DealStatus } from '@/db/schema';
 import { cn, textLinkFeedback } from '@/lib/utils';
 import {
   AWAITING_DELIVERY_LABEL,
   CAMPAIGN_TOTAL_LABEL,
   METRIC_KEYS,
   METRIC_LABELS,
+  METRICS_PENDING,
   NO_VIDEOS_DESCRIPTION,
   NO_VIDEOS_TITLE,
   PERFORMANCE_TITLE,
@@ -72,13 +70,28 @@ import { formatEtb } from '@/lib/money';
  * — this file receives it already grouped, and still computes nothing.
  */
 
+/** Deal status → v4 chip tone, the campaigns pages' chip vocabulary. */
+const DEAL_TONE: Partial<Record<DealStatus, string>> = {
+  pending: 'bd-capstatus--wait',
+  accepted: 'bd-capstatus--wait',
+  funded: 'bd-capstatus--live',
+  delivered: 'bd-capstatus--live',
+  revision_requested: 'bd-capstatus--wait',
+  completed: 'bd-capstatus--done',
+  declined: 'bd-capstatus--dead',
+  expired: 'bd-capstatus--dead',
+  refunded: 'bd-capstatus--dead',
+};
+
 function Metric({ label, value }: { label: string; value: string }) {
+  // Unmeasured cells shrink to a whisper: the sentence repeated four times is
+  // structure, not information, so it must not weigh like a numeral.
   return (
-    <div className="flex flex-col gap-1">
-      <dt className="text-xs tracking-wide text-muted-foreground uppercase">
-        {label}
-      </dt>
-      <dd className="font-mono text-sm tabular-nums">{value}</dd>
+    <div className="bd-vpmetric">
+      <dt>{label}</dt>
+      <dd className={cn('bd-mono', value === METRICS_PENDING && 'bd-vpwait')}>
+        {value}
+      </dd>
     </div>
   );
 }
@@ -90,39 +103,20 @@ function VideoMetrics({ video }: { video: CampaignVideoRow }) {
   const updated = metricsUpdatedLabel(video.lastUpdatedAt, video.stale);
 
   return (
-    <div className="flex flex-col gap-3 border-t border-border pt-4 first:border-t-0 first:pt-0">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          {/* AC-027 bullet 4. Beside the video's own numbers rather than over the
-              whole deal, because it qualifies these counts and a deal can hold
-              three videos measured at different times. The red tint rather than
-              a colour alone — the word is what carries it. */}
-          {video.stale ? <Chip tone="red">{STALE_LABEL}</Chip> : null}
+    <div className="bd-vpvideo">
+      {/* AC-027 bullet 4. Beside the video's own numbers rather than over the
+          whole deal, because it qualifies these counts and a deal can hold
+          three videos measured at different times. The amber ground rather
+          than a colour alone — the word is what carries it. */}
+      {video.stale ? (
+        <div className="bd-vpvideohead">
+          <span className="bd-capstatus bd-capstatus--wait">{STALE_LABEL}</span>
         </div>
-
-        {/* AC-026: each video links to its own live post. Shown as a link the
-            brand chooses to follow, never an embed — the URL is stored and
-            displayed and nothing here fetches it (Tech Spec §6.3). `rel` keeps
-            the destination from getting a handle on the opener. */}
-        {video.tiktokUrl ? (
-          <a
-            href={video.tiktokUrl}
-            target="_blank"
-            rel="noopener noreferrer nofollow"
-            className={cn(
-              'inline-flex items-center gap-1.5 text-sm',
-              textLinkFeedback
-            )}
-          >
-            {VIEW_POST_LABEL}
-            <ArrowSquareOut size={14} weight="regular" aria-hidden />
-          </a>
-        ) : null}
-      </div>
+      ) : null}
 
       {/* Two up on a phone, four from `sm:` — no fixed widths, nothing that
           scrolls sideways (NFR-007). */}
-      <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
+      <dl className="bd-vpmetrics">
         {METRIC_KEYS.map((key) => (
           <Metric
             key={key}
@@ -135,23 +129,35 @@ function VideoMetrics({ video }: { video: CampaignVideoRow }) {
       {/* AC-027 bullet 4's second half: why the video still shows numbers it
           cannot vouch for. Above the timestamps, because it changes how the
           "Last confirmed" one should be read. */}
-      {video.stale ? (
-        <p className="text-xs text-muted-foreground">{STALE_NOTE}</p>
-      ) : null}
+      {video.stale ? <p className="bd-vpnote">{STALE_NOTE}</p> : null}
 
-      {/* Both timestamps on one line: when the video went up, and when its
-          numbers were written (AC-027 bullet 3). Each is omitted rather than
-          placeholdered when absent — a video with no metrics already says
-          `Metrics pending` four times above, and a fifth empty field would add
-          nothing. */}
-      {video.submittedAt || updated ? (
-        <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+      {/* One footer line: the timestamps at the left, the outbound link at the
+          right — beside the facts it opens, not orphaned above the numbers.
+          AC-026: each video links to its own live post, shown as a link the
+          brand chooses to follow, never an embed — the URL is stored and
+          displayed and nothing here fetches it (Tech Spec §6.3). `rel` keeps
+          the destination from getting a handle on the opener. Each timestamp
+          is omitted rather than placeholdered when absent — a video with no
+          metrics already says `Metrics pending` four times above. */}
+      {video.submittedAt || updated || video.tiktokUrl ? (
+        <p className="bd-vpnote bd-vpstamps">
           {video.submittedAt ? (
             <span>
               {SUBMITTED_LABEL} {formatDeadlineUtc(video.submittedAt)}
             </span>
           ) : null}
           {updated ? <span>{updated}</span> : null}
+          {video.tiktokUrl ? (
+            <a
+              href={video.tiktokUrl}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className={cn('bd-vplink', textLinkFeedback)}
+            >
+              {VIEW_POST_LABEL}
+              <ArrowSquareOut size={14} weight="regular" aria-hidden />
+            </a>
+          ) : null}
         </p>
       ) : null}
     </div>
@@ -160,69 +166,70 @@ function VideoMetrics({ video }: { video: CampaignVideoRow }) {
 
 function DealCard({ deal }: { deal: CampaignDealGroup }) {
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-4 p-6">
-        <div className="flex flex-col gap-1">
-          {/* Into the deal's own review screen (KAN-68), which re-checks
-              ownership in its own `where` rather than trusting this href. */}
-          <Link
-            href={`/deals/${deal.dealId}`}
-            className={cn('text-lg font-semibold', textLinkFeedback)}
-          >
-            {deal.creatorHandle}
-          </Link>
-          <div className="flex flex-wrap items-center gap-2">
-            {/* The shared vocabulary from `lib/deals/groups.ts`, so this list
-                and the deal screen cannot call one state two things. */}
-            <Chip
-              tone={dealStatusTone[deal.status] ?? 'gray'}
-              className="capitalize"
-            >
-              {labelForStatus(deal.status)}
-            </Chip>
-            {/* AC-026's "tier price paid": the rate and what it came to. Both,
-                not just the total — the rate is the tier's price snapshotted onto
-                the deal at offer time (invariant 8), and it is the figure a brand
-                compares between creators. Stated **once per deal**: printing it
-                over each of three videos would show three times the money the
-                campaign owes (F38). */}
-            <span className="text-sm text-muted-foreground">
-              {formatEtb(deal.unitPrice)} × {deal.videoCount} ={' '}
-              <span className="font-medium text-foreground">
-                {formatEtb(deal.totalPrice)}
-              </span>
-            </span>
-            {/* How much of what was ordered has arrived. The reason a deal can
-                show two sets of counts and no approval yet. */}
-            <span className="text-sm text-muted-foreground">
-              {deliveryProgress(deal.videos.length, deal.videoCount)}
-            </span>
-          </div>
-        </div>
+    <article className="bd-vpcard">
+      <div className="bd-vpcardhead">
+        {/* Into the deal's own review screen (KAN-68), which re-checks
+            ownership in its own `where` rather than trusting this href. */}
+        <Link
+          href={`/deals/${deal.dealId}`}
+          className={cn('bd-vphandle', textLinkFeedback)}
+        >
+          {deal.creatorHandle}
+        </Link>
+        {/* The shared vocabulary from `lib/deals/groups.ts`, so this list
+            and the deal screen cannot call one state two things. */}
+        <span
+          className={cn(
+            'bd-capstatus',
+            DEAL_TONE[deal.status] ?? 'bd-capstatus--draft'
+          )}
+        >
+          {labelForStatus(deal.status)}
+        </span>
+        {/* The explicit way in — the handle link above stays, but a card
+            this size earns a visible affordance (same grammar as the deals
+            inbox cards). */}
+        <Link href={`/deals/${deal.dealId}`} className="bd-vpgo">
+          Open deal{' '}
+          <span className="bd-dicardarrow" aria-hidden="true">
+            →
+          </span>
+        </Link>
+      </div>
+      <p className="bd-vpterms">
+        {/* AC-026's "tier price paid": the rate and what it came to. Both,
+            not just the total — the rate is the tier's price snapshotted onto
+            the deal at offer time (invariant 8), and it is the figure a brand
+            compares between creators. Stated **once per deal**: printing it
+            over each of three videos would show three times the money the
+            campaign owes (F38). */}
+        <span className="bd-mono">
+          {formatEtb(deal.unitPrice)} × {deal.videoCount} ={' '}
+          <b>{formatEtb(deal.totalPrice)}</b>
+        </span>
+        {/* How much of what was ordered has arrived. The reason a deal can
+            show two sets of counts and no approval yet. */}
+        <span className="bd-factdim">
+          {deliveryProgress(deal.videos.length, deal.videoCount)}
+        </span>
+      </p>
 
-        {deal.videos.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {AWAITING_DELIVERY_LABEL}
-          </p>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {deal.videos.map((video, index) => (
-              <div key={video.deliverableId} className="flex flex-col gap-2">
-                {/* Numbered only where the number distinguishes something. A
-                    one-video deal has nothing to disambiguate, and "Video 1"
-                    over a single set of counts is noise. */}
-                {deal.videoCount > 1 ? (
-                  <h4 className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
-                    {videoHeading(index)}
-                  </h4>
-                ) : null}
-                <VideoMetrics video={video} />
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+      {deal.videos.length === 0 ? (
+        <p className="bd-vpawaiting">{AWAITING_DELIVERY_LABEL}</p>
+      ) : (
+        <div className="bd-vpvideos">
+          {deal.videos.map((video, index) => (
+            <div key={video.deliverableId} className="bd-vpvideoslot">
+              {/* Numbered only where the number distinguishes something. A
+                  one-video deal has nothing to disambiguate, and "Video 1"
+                  over a single set of counts is noise. */}
+              {deal.videoCount > 1 ? <h4>{videoHeading(index)}</h4> : null}
+              <VideoMetrics video={video} />
+            </div>
+          ))}
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -234,20 +241,27 @@ export function VideoPerformance({
   totals: CampaignTotals;
 }) {
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="text-xl font-semibold tracking-tight">
-        {PERFORMANCE_TITLE}
-      </h2>
+    <section className="bd-vpsection">
+      <div className="bd-capruler">
+        <span className="bd-caprulertitle">{PERFORMANCE_TITLE}</span>
+        <span className="bd-caprulerline" aria-hidden="true" />
+        <span className="bd-caprulernote">
+          Per-video engagement, one card per deal
+        </span>
+      </div>
 
       {deals.length === 0 ? (
-        <EmptyState
-          align="start"
-          title={NO_VIDEOS_TITLE}
-          description={NO_VIDEOS_DESCRIPTION}
-        />
+        <div className="bd-emptyfeed">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="4" y="5" width="16" height="14" rx="2.5" />
+            <path d="m10 9.5 5 2.5-5 2.5v-5Z" />
+          </svg>
+          <h3>{NO_VIDEOS_TITLE}</h3>
+          <p>{NO_VIDEOS_DESCRIPTION}</p>
+        </div>
       ) : (
         <>
-          <ul className="flex flex-col gap-4">
+          <ul className="bd-vplist">
             {deals.map((deal) => (
               <li key={deal.dealId}>
                 <DealCard deal={deal} />
@@ -258,26 +272,24 @@ export function VideoPerformance({
           {/* AC-026's "plus a campaign total". Its own card rather than a row in
               the list, because it is a different kind of thing and a brand should
               not have to work out which card is the sum. */}
-          <Card>
-            <CardContent className="flex flex-col gap-4 p-6">
-              <h3 className="text-sm font-medium">{CAMPAIGN_TOTAL_LABEL}</h3>
-              <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-                {METRIC_KEYS.map((key) => (
-                  <Metric
-                    key={key}
-                    label={METRIC_LABELS[key]}
-                    value={formatMetricCount(totals[key])}
-                  />
-                ))}
-              </dl>
-              {/* Which videos the figures above actually cover. A total over 2 of
-                  5 videos is a different claim from a total over all 5, and
-                  without this line the number reads as complete. */}
-              <p className="text-xs text-muted-foreground">
-                {coverageNote(totals.measuredVideos, totals.totalVideos)}
-              </p>
-            </CardContent>
-          </Card>
+          <section className="bd-vptotal">
+            <h3>{CAMPAIGN_TOTAL_LABEL}</h3>
+            <dl className="bd-vpmetrics">
+              {METRIC_KEYS.map((key) => (
+                <Metric
+                  key={key}
+                  label={METRIC_LABELS[key]}
+                  value={formatMetricCount(totals[key])}
+                />
+              ))}
+            </dl>
+            {/* Which videos the figures above actually cover. A total over 2 of
+                5 videos is a different claim from a total over all 5, and
+                without this line the number reads as complete. */}
+            <p className="bd-vpnote">
+              {coverageNote(totals.measuredVideos, totals.totalVideos)}
+            </p>
+          </section>
         </>
       )}
     </section>

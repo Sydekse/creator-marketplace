@@ -211,28 +211,27 @@ export function CreatorCredentialsForm({
     if (Object.keys(next).length > 0) return;
 
     setLoading(true);
-    const response = await fetch('/api/creators/credentials', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: needsEmail ? email : undefined,
-        code: needsEmail ? code : undefined,
-        password: hasPassword ? undefined : password,
-      }),
-    });
-    const body = await response.json().catch(() => null);
+    try {
+      const response = await fetch('/api/creators/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: needsEmail ? email : undefined,
+          code: needsEmail ? code : undefined,
+          password: hasPassword ? undefined : password,
+        }),
+      });
+      const body = await response.json().catch(() => null);
 
-    if (!response.ok) {
-      const details = body?.error?.details as Record<string, string[]> | null;
-      const fieldErrors: FieldErrors = {};
-      if (details?.email?.[0]) fieldErrors.email = details.email[0];
-      if (details?.code?.[0]) fieldErrors.code = details.code[0];
-      if (details?.password?.[0]) fieldErrors.password = details.password[0];
-      if (Object.keys(fieldErrors).length > 0) {
+      if (!response.ok) {
+        const details = body?.error?.details as Record<string, string[]> | null;
+        const fieldErrors: FieldErrors = {};
+        if (details?.email?.[0]) fieldErrors.email = details.email[0];
+        if (details?.code?.[0]) fieldErrors.code = details.code[0];
+        if (details?.password?.[0]) fieldErrors.password = details.password[0];
         setErrors(fieldErrors);
-      } else {
-        // No renderable field to pin it on — say what the server said, or the
-        // first detail it sent, before falling back to the generic sentence.
+        // Earlier-step fields may no longer be mounted, so always announce
+        // the failure as well as attaching any available inline errors.
         const firstDetail = details
           ? Object.values(details).flat()[0]
           : undefined;
@@ -241,14 +240,17 @@ export function CreatorCredentialsForm({
             firstDetail ??
             'Could not save. Please try again.'
         );
+        return;
       }
-      setLoading(false);
-      return;
-    }
 
-    toast.success('Saved.');
-    router.refresh();
-    router.push('/creator/onboarding');
+      toast.success('Saved.');
+      router.refresh();
+      router.push('/creator/onboarding');
+    } catch {
+      toast.error('Could not reach the server. Check your connection.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   const copy =

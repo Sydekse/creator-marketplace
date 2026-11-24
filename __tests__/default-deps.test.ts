@@ -56,7 +56,16 @@ vi.mock('../db', () => {
       ]);
     return chain;
   };
-  return { db: { select: vi.fn(() => makeChain()) } };
+  return {
+    db: {
+      select: vi.fn(() => makeChain()),
+      // `selectNewViewsThisWeek` runs one raw CTE via `db.execute`; a
+      // baseline_count of 0 makes it resolve null without further queries.
+      execute: vi.fn(async () => ({
+        rows: [{ baseline_count: 0, delta: 0 }],
+      })),
+    },
+  };
 });
 
 // -- Mock authz to return a brand session ------------------------------------

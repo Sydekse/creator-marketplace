@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
@@ -224,11 +225,26 @@ export interface CurrentUser {
   tiktokHandle?: string | null;
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+// `cache()` dedupes the session read per request — layouts and pages both
+// call this, and without it every render pays for two session lookups. In
+// route handlers (outside a React render) the cache is a no-op and the call
+// falls through harmlessly.
+export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   const { headers } = await import('next/headers');
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  const requestHeaders = await headers();
+
+  // One retry on failure. The pool can hand out a socket Neon has already
+  // closed (or a suspended compute can miss the first connect), and either
+  // way the *second* attempt gets a fresh connection — without this, every
+  // cold start renders the error page instead of the page the user asked
+  // for. A second failure is a real outage and still throws.
+  let session: Awaited<ReturnType<typeof auth.api.getSession>>;
+  try {
+    session = await auth.api.getSession({ headers: requestHeaders });
+  } catch {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    session = await auth.api.getSession({ headers: requestHeaders });
+  }
   if (!session) return null;
 
   const role = (session.user as { role?: unknown }).role;
@@ -247,7 +263,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     role: isUserRole(role) ? role : 'creator',
     tiktokHandle: typeof handle === 'string' && handle !== '' ? handle : null,
   };
-}
+});
 
 /**
  * Whether this session still owes the credentials step (phase 1).

@@ -187,6 +187,10 @@ describe('notification types', () => {
       // comment for why they are a pair rather than one outcome-branched type.
       'withdrawal_paid',
       'withdrawal_failed',
+      'deadline_requested',
+      'deadline_accepted',
+      'deadline_rejected',
+      'deadline_withdrawn',
     ]);
   });
 

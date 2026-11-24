@@ -1,7 +1,10 @@
+import { after } from 'next/server';
 import { ForbiddenError, guard, toErrorResponse } from '@/lib/authz';
 import type { AuthzContext, GuardOptions } from '@/lib/authz';
 import { submitDeliverable } from '@/lib/deals/submit-deliverable';
 import type { SubmitDeliverableDeps } from '@/lib/deals/submit-deliverable';
+import { storeDeliverableThumbnail } from '@/lib/deliverables/thumbnail';
+import type { StoreThumbnailDeps } from '@/lib/deliverables/thumbnail';
 import {
   ErrorCode,
   ErrorHttpStatus,
@@ -19,6 +22,7 @@ export const runtime = 'nodejs';
 export interface RouteDeps {
   submitDeliverableDeps?: SubmitDeliverableDeps;
   guard?: (opts: GuardOptions) => Promise<AuthzContext>;
+  storeThumbnailDeps?: Partial<StoreThumbnailDeps>;
 }
 
 /**
@@ -105,6 +109,10 @@ export async function handleSubmitDeliverable(
       creatorProfileId,
       actorUserId,
       tiktokUrl: parsed.data.tiktokUrl,
+      requestId: parsed.data.requestId,
+      deliverableId: parsed.data.deliverableId,
+      expectedVersion: parsed.data.expectedVersion,
+      expectedSubmitted: parsed.data.expectedSubmitted,
     },
     deps?.submitDeliverableDeps
   );
@@ -131,10 +139,44 @@ export async function handleSubmitDeliverable(
     }
   }
 
+  // Only optional media runs after the response. Submission, history and the
+  // notification have already committed together; Next owns this task's lifetime.
+  try {
+    after(async () => {
+      try {
+        await storeDeliverableThumbnail(
+          result.deliverableId,
+          parsed.data.tiktokUrl,
+          deps?.storeThumbnailDeps,
+          result.submissionVersion,
+          result.previousThumbnailUrl
+        );
+      } catch (error) {
+        console.error(
+          '[deliverable-thumbnail] Post-response enrichment failed',
+          {
+            deliverableId: result.deliverableId,
+            submissionVersion: result.submissionVersion,
+            error,
+          }
+        );
+      }
+    });
+  } catch (error) {
+    // A scheduling failure must not turn an already committed submission into 500.
+    console.error('[deliverable-thumbnail] Could not schedule enrichment', {
+      deliverableId: result.deliverableId,
+      submissionVersion: result.submissionVersion,
+      error,
+    });
+  }
+
   return Response.json(
     {
       deal_id: result.dealId,
       deliverable_id: result.deliverableId,
+      submission_version: result.submissionVersion,
+      video_ordinal: result.videoOrdinal,
       status: result.status,
       // ISO string, like every timestamp in these envelopes.
       submitted_at: result.submittedAt.toISOString(),

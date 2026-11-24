@@ -313,8 +313,14 @@ export const MAX_CAMPAIGN_NAME_LENGTH = 120;
 export const MAX_CAMPAIGN_GOAL_LENGTH = 1000;
 export const MAX_CAMPAIGN_TARGET_AUDIENCE_LENGTH = 1000;
 
+import {
+  deliveryWindowSchema,
+  DELIVERY_TERMS_VERSION,
+} from '@/lib/deals/deadline';
+
 export const createCampaignSchema = z
   .object({
+    deliveryWindowDays: deliveryWindowSchema.nullable().optional(),
     name: z
       .string({ message: 'Campaign name is required.' })
       .trim()
@@ -360,6 +366,7 @@ export const createCampaignSchema = z
  */
 export const updateCampaignSchema = z
   .object({
+    deliveryWindowDays: deliveryWindowSchema.nullable().optional(),
     name: z
       .string({ message: 'Campaign name is required.' })
       .trim()
@@ -434,6 +441,8 @@ export type BulkAddCampaignItemsInput = z.infer<
 >;
 
 export const acceptDealSchema = z.object({
+  deliveryWindowDays: deliveryWindowSchema.nullable().optional(),
+  deliveryTermsVersion: z.literal(DELIVERY_TERMS_VERSION).optional(),
   rightsTermsId: z
     .string()
     .uuid({ message: 'Valid rights terms ID is required.' }),
@@ -452,7 +461,20 @@ export const acceptDealSchema = z.object({
  */
 export const MAX_TIKTOK_URL_LENGTH = 2048;
 
+export const expectedVersionsSchema = z
+  .array(
+    z.object({
+      id: z.string().uuid(),
+      submissionVersion: z.number().int().min(0),
+    })
+  )
+  .max(1000);
+
 export const submitDeliverableSchema = z.object({
+  requestId: z.string().uuid(),
+  deliverableId: z.string().uuid().nullable(),
+  expectedVersion: z.number().int().min(0),
+  expectedSubmitted: z.number().int().min(0),
   tiktokUrl: z
     .string({ message: 'Enter a valid public TikTok video link.' })
     .trim()
@@ -483,6 +505,8 @@ export const submitDeliverableSchema = z.object({
 export const MAX_REJECTION_REASON_LENGTH = MAX_STRING_LENGTH;
 
 export const rejectDeliverableSchema = z.object({
+  expectedVersion: z.number().int().min(0),
+  category: z.enum(REVISION_CATEGORIES),
   /**
    * Which video is being sent back (F38).
    *
@@ -522,6 +546,7 @@ export const MAX_METRIC_COUNT = 2_147_483_647;
 
 export const updateMetricsSchema = z
   .object({
+    expectedVersion: z.number().int().min(0),
     views: z.number().int().min(0).max(MAX_METRIC_COUNT).optional(),
     likes: z.number().int().min(0).max(MAX_METRIC_COUNT).optional(),
     shares: z.number().int().min(0).max(MAX_METRIC_COUNT).optional(),
@@ -536,9 +561,15 @@ export const updateMetricsSchema = z
   // `last_updated_at` while all four counts stay null — a row that claims
   // fresh data and measures nothing (KAN-50 renders null as "Metrics
   // pending").
-  .refine((values) => Object.keys(values).length > 0, {
-    message: 'Provide at least one metric value.',
-  });
+  .refine(
+    (values) =>
+      ['views', 'likes', 'shares', 'comments'].some(
+        (key) => values[key as keyof typeof values] !== undefined
+      ),
+    {
+      message: 'Provide at least one metric value.',
+    }
+  );
 
 /**
  * Longest rejection note accepted, deliberately the same bound `audit_log`
@@ -595,6 +626,10 @@ export const MAX_RESOLUTION_NOTE_LENGTH = MAX_STRING_LENGTH;
 
 export const resolveDisputeSchema = z
   .object({
+    deliverableId: z.string().uuid().optional(),
+    expectedVersion: z.number().int().min(0).optional(),
+    category: z.enum(REVISION_CATEGORIES).optional(),
+    expectedVersions: expectedVersionsSchema.optional(),
     resolution: z.enum(['release', 'refund', 'revision'], {
       message: 'Resolution must be "release", "refund", or "revision".',
     }),
@@ -611,7 +646,26 @@ export const resolveDisputeSchema = z
   // Refused rather than stripped, the same call every other mutation schema in
   // this repo makes and for the same reason: a typo'd `resoultion` should fail
   // loudly instead of resolving with a default the admin never chose.
-  .strict();
+  .strict()
+  .refine(
+    (value) =>
+      value.resolution !== 'revision' ||
+      (value.deliverableId !== undefined &&
+        value.expectedVersion !== undefined &&
+        value.category !== undefined),
+    {
+      message: 'Select a current video and revision category.',
+      path: ['deliverableId'],
+    }
+  )
+  .refine(
+    (value) =>
+      value.resolution !== 'release' || value.expectedVersions !== undefined,
+    {
+      message: 'Reload the current videos before releasing payment.',
+      path: ['expectedVersions'],
+    }
+  );
 
 /**
  * KAN-69 (F40) — the admin flag mutation body: `POST /api/admin/deals/{id}/flag`.
@@ -711,3 +765,4 @@ export const notificationReadSchema = z
       .optional(),
   })
   .strict();
+import { REVISION_CATEGORIES } from '@/lib/deliverables/evidence';

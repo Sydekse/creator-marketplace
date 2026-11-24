@@ -48,7 +48,9 @@ describe('the metrics-entry form targets the KAN-48 endpoint', () => {
     // as three rows. The gate is still exactly the `{completed}` set the reminder
     // sweep selects from.
     expect(PAGE).toContain('canReportMetrics(deal.status)');
-    expect(PAGE).toContain('<MetricsForm deliverableId={video.id} />');
+    expect(PAGE).toMatch(
+      /<MetricsForm[^>]*deliverableId=\{video.id\}[^>]*expectedVersion=\{video.submissionVersion\}/
+    );
     // Inside the loop over the deal's videos, not beside it.
     const loop = PAGE.slice(PAGE.indexOf('deal.deliverables.map('));
     expect(loop).toContain('<MetricsForm');

@@ -1,19 +1,18 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Spinner } from '@/components/ui/spinner';
-import { EmptyState } from '@/components/feedback/empty-state';
 import { ENGAGEMENT_RATE_HINT } from '@/lib/config/creator-profile';
 import type { AwaitingTierCreator } from '@/lib/creators/awaiting-tier';
 import {
   missingFieldLabel,
   missingTierFields,
 } from '@/lib/creators/tier-rules';
-import { updateCreatorNumbersSchema } from '@/lib/validation';
+import { updateCreatorNumbersSchema } from '@/lib/validation/schemas';
 import type { TierResponse } from '@/lib/creators/tier-assignment';
 
 /**
@@ -93,43 +92,40 @@ function announceTierOutcome(handle: string, tier: TierResponse | null): void {
 
 function RetryButton({ creator }: { creator: AwaitingTierCreator }) {
   const router = useRouter();
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, startTransition] = useTransition();
 
-  async function handleRetry() {
-    setSubmitting(true);
+  function handleRetry() {
+    startTransition(async () => {
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/admin/creators/${encodeURIComponent(creator.id)}/assign-tier`,
+          { method: 'POST' }
+        );
+      } catch {
+        toast.error('Could not reach the server. Check your connection.');
+        return;
+      }
 
-    let response: Response;
-    try {
-      response = await fetch(
-        `/api/admin/creators/${encodeURIComponent(creator.id)}/assign-tier`,
-        { method: 'POST' }
-      );
-    } catch {
-      toast.error('Could not reach the server. Check your connection.');
-      setSubmitting(false);
-      return;
-    }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(
+          body?.error?.message ?? 'Something went wrong. Please try again.'
+        );
+        return;
+      }
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      toast.error(
-        body?.error?.message ?? 'Something went wrong. Please try again.'
-      );
-      setSubmitting(false);
-      return;
-    }
+      const payload = (await response.json().catch(() => null)) as {
+        tier?: TierResponse;
+      } | null;
+      announceTierOutcome(creator.tiktokHandle, payload?.tier ?? null);
 
-    const payload = (await response.json().catch(() => null)) as {
-      tier?: TierResponse;
-    } | null;
-    announceTierOutcome(creator.tiktokHandle, payload?.tier ?? null);
-
-    // Reset before the refresh, not after: an assigned creator leaves this list
-    // and the component unmounts, but an unassigned one stays, keyed by the same
-    // id, so React reuses this instance — and a `submitting` left true would
-    // disable the button until the page is reloaded by hand.
-    setSubmitting(false);
-    router.refresh();
+      // An assigned creator leaves this list and the component unmounts, but an
+      // unassigned one stays, keyed by the same id, so React reuses this
+      // instance — the transition's pending flag clears itself once the refresh
+      // settles, re-enabling the button.
+      router.refresh();
+    });
   }
 
   return (
@@ -174,9 +170,9 @@ function EditNumbersForm({
       ? ''
       : String(parseFloat(creator.engagementRate))
   );
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, startTransition] = useTransition();
 
-  async function handleSave() {
+  function handleSave() {
     const payload = {
       followerCount: toOptionalNumber(followerCount),
       engagementRate: toOptionalNumber(engagementRate),
@@ -193,45 +189,42 @@ function EditNumbersForm({
       return;
     }
 
-    setSubmitting(true);
+    startTransition(async () => {
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/admin/creators/${encodeURIComponent(creator.id)}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(parsed.data),
+          }
+        );
+      } catch {
+        toast.error('Could not reach the server. Check your connection.');
+        return;
+      }
 
-    let response: Response;
-    try {
-      response = await fetch(
-        `/api/admin/creators/${encodeURIComponent(creator.id)}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(parsed.data),
-        }
-      );
-    } catch {
-      toast.error('Could not reach the server. Check your connection.');
-      setSubmitting(false);
-      return;
-    }
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        toast.error(
+          body?.error?.message ?? 'Something went wrong. Please try again.'
+        );
+        return;
+      }
 
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      toast.error(
-        body?.error?.message ?? 'Something went wrong. Please try again.'
-      );
-      setSubmitting(false);
-      return;
-    }
+      const body = (await response.json().catch(() => null)) as {
+        tier?: TierResponse;
+      } | null;
+      announceTierOutcome(creator.tiktokHandle, body?.tier ?? null);
 
-    const body = (await response.json().catch(() => null)) as {
-      tier?: TierResponse;
-    } | null;
-    announceTierOutcome(creator.tiktokHandle, body?.tier ?? null);
-
-    // Close before refreshing: an assigned creator leaves this list and the row
-    // unmounts, but one still below a band stays keyed by the same id, so React
-    // reuses this instance — collapsing the form is what returns it to its
-    // resting state instead of leaving the editor open over stale values.
-    setSubmitting(false);
-    onDone();
-    router.refresh();
+      // Close before refreshing: an assigned creator leaves this list and the row
+      // unmounts, but one still below a band stays keyed by the same id, so React
+      // reuses this instance — collapsing the form is what returns it to its
+      // resting state instead of leaving the editor open over stale values.
+      onDone();
+      router.refresh();
+    });
   }
 
   return (
@@ -240,19 +233,17 @@ function EditNumbersForm({
         event.preventDefault();
         void handleSave();
       }}
-      className="flex flex-col gap-5"
+      className="bd-ad-inlineform"
     >
-      <div className="flex flex-col gap-1">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand">
-          Correct profile data
-        </p>
-        <p className="max-w-2xl text-sm leading-relaxed text-neutral-600">
+      <div className="bd-ad-inlineform-head">
+        <p className="bd-eyebrow">Correct profile data</p>
+        <p>
           Update the figures used for tier matching, then run assignment again.
           Changes are saved to the creator profile.
         </p>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 lg:max-w-xl">
-        <label className="flex flex-col gap-2 text-sm font-medium text-neutral-800">
+      <div className="bd-ad-inlineform-grid">
+        <label className="bd-ad-field">
           Followers
           <Input
             type="number"
@@ -262,12 +253,12 @@ function EditNumbersForm({
             value={followerCount}
             onChange={(event) => setFollowerCount(event.target.value)}
             disabled={submitting}
-            className="h-10 w-full bg-neutral-50 font-mono tabular-nums"
+            className="bd-mono"
           />
         </label>
-        <label className="flex flex-col gap-2 text-sm font-medium text-neutral-800">
+        <label className="bd-ad-field">
           Engagement rate
-          <div className="relative">
+          <div className="bd-ad-percentfield">
             <Input
               type="number"
               min={0}
@@ -276,21 +267,17 @@ function EditNumbersForm({
               value={engagementRate}
               onChange={(event) => setEngagementRate(event.target.value)}
               disabled={submitting}
-              className="h-10 w-full bg-neutral-50 pr-9 font-mono tabular-nums"
+              className="bd-mono"
             />
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-neutral-500">
-              %
-            </span>
+            <span>%</span>
           </div>
           {/* The admin correcting this figure needs the same definition the
             creator was given (KAN-200) — it feeds `matchTier`, so entering a
             different quantity here silently puts a creator in the wrong band. */}
-          <span className="max-w-72 leading-normal font-normal text-balance">
-            {ENGAGEMENT_RATE_HINT}
-          </span>
+          <span className="bd-ad-fieldnote">{ENGAGEMENT_RATE_HINT}</span>
         </label>
       </div>
-      <div className="flex flex-wrap items-center gap-3 border-t border-neutral-200 pt-4">
+      <div className="bd-ad-inlineform-actions">
         <Button type="submit" size="sm" disabled={submitting}>
           {submitting ? <Spinner className="size-3" /> : null}
           {submitting ? 'Saving and retrying' : 'Save and retry assignment'}
@@ -314,59 +301,64 @@ function EditNumbersForm({
  *
  * The `editing` toggle lives here rather than on the list so opening one row's
  * editor does not re-render or disturb the others. The form renders in a second
- * `<tr>` spanning the table so the inputs have room the cramped Actions cell
- * does not.
+ * panel beneath the ledger row so the inputs have room the compact actions
+ * cell does not.
  */
 function CreatorRow({ creator }: { creator: AwaitingTierCreator }) {
   const [editing, setEditing] = useState(false);
 
   return (
-    <Fragment>
-      <tr className="transition-colors hover:bg-neutral-100/60">
-        <td className="px-4 py-3">
-          <span className="text-sm font-semibold text-neutral-900">
+    <li className="bd-ad-tierrow bd-ad-workrow--wait">
+      <div className="bd-ad-tierrow-grid">
+        <div className="bd-ad-tiercell">
+          <span className="bd-ad-tierlabel">Creator</span>
+          <span className="bd-ad-tiertitle">
             @{creator.tiktokHandle.replace(/^@+/, '')}
           </span>
-        </td>
-        <td className="px-4 py-3 text-sm capitalize">{creator.niche}</td>
-        <td className="px-4 py-3 font-mono text-xs tabular-nums">
-          {formatFollowerCount(creator.followerCount)}
-        </td>
-        <td className="px-4 py-3 font-mono text-xs tabular-nums">
-          {formatEngagementRate(creator.engagementRate)}
-        </td>
-        <td className="px-4 py-3 text-sm text-muted-foreground">
-          {blockedReason(creator)}
-        </td>
-        <td className="px-4 py-3 text-sm text-muted-foreground">
-          {formatDate(creator.verifiedAt)}
-        </td>
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-2">
-            {/* Below-threshold creators (complete numbers, no band) can still be
-                retried after a new tier is seeded, so the plain retry stays. */}
-            <RetryButton creator={creator} />
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setEditing((open) => !open)}
-            >
-              {editing ? 'Close' : 'Edit numbers'}
-            </Button>
-          </div>
-        </td>
-      </tr>
+        </div>
+        <div className="bd-ad-tiercell">
+          <span className="bd-ad-tierlabel">Niche</span>
+          <span className="capitalize">{creator.niche}</span>
+        </div>
+        <div className="bd-ad-tiercell">
+          <span className="bd-ad-tierlabel">Followers</span>
+          <span className="bd-mono">
+            {formatFollowerCount(creator.followerCount)}
+          </span>
+        </div>
+        <div className="bd-ad-tiercell">
+          <span className="bd-ad-tierlabel">Engagement</span>
+          <span className="bd-mono">
+            {formatEngagementRate(creator.engagementRate)}
+          </span>
+        </div>
+        <div className="bd-ad-tiercell bd-ad-tiercell--wide">
+          <span className="bd-ad-tierlabel">Why</span>
+          <span>{blockedReason(creator)}</span>
+        </div>
+        <div className="bd-ad-tiercell">
+          <span className="bd-ad-tierlabel">Verified</span>
+          <span>{formatDate(creator.verifiedAt)}</span>
+        </div>
+        <div className="bd-ad-tieractions">
+          {/* Below-threshold creators (complete numbers, no band) can still be
+              retried after a new tier is seeded, so the plain retry stays. */}
+          <RetryButton creator={creator} />
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setEditing((open) => !open)}
+          >
+            {editing ? 'Close' : 'Edit numbers'}
+          </Button>
+        </div>
+      </div>
       {editing && (
-        <tr className="bg-brand-tint/35">
-          <td colSpan={7} className="px-4 py-4">
-            <EditNumbersForm
-              creator={creator}
-              onDone={() => setEditing(false)}
-            />
-          </td>
-        </tr>
+        <div className="bd-ad-tieredit">
+          <EditNumbersForm creator={creator} onDone={() => setEditing(false)} />
+        </div>
       )}
-    </Fragment>
+    </li>
   );
 }
 
@@ -377,48 +369,37 @@ export function AwaitingTierList({
 }) {
   if (creators.length === 0) {
     return (
-      <EmptyState
-        align="start"
-        title="Every verified creator has a tier"
-        description="Nobody is waiting on a price. Verified creators appear here only when no tier matches their audience."
-      />
+      <div className="bd-emptyfeed">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5.5 7h13" />
+          <path d="M7 7v10h10V7" />
+          <path d="M9 11.5l2 2 4-4" />
+        </svg>
+        <h3>Every verified creator has a tier</h3>
+        <p>
+          Nobody is waiting on a price. Verified creators appear here only when
+          no tier matches their audience.
+        </p>
+      </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto border-b border-neutral-200">
-      <table className="w-full">
-        <thead className="bg-neutral-100/70">
-          <tr>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              TikTok Handle
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Niche
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Followers
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Engagement
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Why
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Verified
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-neutral-200 bg-neutral-50">
-          {creators.map((creator) => (
-            <CreatorRow key={creator.id} creator={creator} />
-          ))}
-        </tbody>
-      </table>
+    <div className="bd-ad-ledgerframe bd-ad-tierframe">
+      <div className="bd-ad-tiercols" aria-hidden="true">
+        <span>Creator</span>
+        <span>Niche</span>
+        <span>Followers</span>
+        <span>Engagement</span>
+        <span>Why</span>
+        <span>Verified</span>
+        <span>Actions</span>
+      </div>
+      <ul className="bd-ad-ledgerlist">
+        {creators.map((creator) => (
+          <CreatorRow key={creator.id} creator={creator} />
+        ))}
+      </ul>
     </div>
   );
 }

@@ -77,7 +77,7 @@ function Row({
 
 function PricingTable({ pricing }: { pricing: TierPricing }) {
   return (
-    <dl className="divide-y divide-neutral-200">
+    <dl className="divide-y divide-neutral-200 border-y border-neutral-200">
       <Row label="Your tier" value={pricing.tierName} />
       <Row
         label="A brand pays"
@@ -246,9 +246,7 @@ export function TierPricing({
       {heading}
       {view.kind === 'priced' ? (
         <>
-          <div className="flex-1 content-center">
-            <PricingTable pricing={priceForTier(view.tier)} />
-          </div>
+          <PricingTable pricing={priceForTier(view.tier)} />
           {/* Load-bearing, not a disclaimer out of habit: invariant 8 snapshots
               `deal.commission_rate` onto each deal at offer time, so the split
               above is the current rate rather than a promise about a future one. */}

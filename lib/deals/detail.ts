@@ -82,6 +82,7 @@ export interface CreatorDealDetail {
    */
   expectedPayout: number;
   offerExpiresAt: Date | null;
+  deliveryWindowDays?: number | null;
   /**
    * The terms the creator is being asked to agree to, or is governed by.
    *
@@ -135,6 +136,11 @@ export interface CreatorDealDetail {
 
 /** One submitted video, as the creator is allowed to see it. */
 export interface DeliverableView {
+  videoOrdinal: number;
+  submissionVersion: number;
+  historyCompleteness: 'complete' | 'legacy_baseline';
+  revisionCategory:
+    import('@/lib/deliverables/evidence').RevisionCategory | null;
   /**
    * The row's own id — the target of `PUT /api/deliverables/{id}/metrics`
    * (KAN-48), which the metrics-entry form on this page needs. The URL is not
@@ -161,6 +167,18 @@ export interface DeliverableView {
    * possible.
    */
   rejectionReason: string | null;
+  /**
+   * Our blob-store snapshot of the video's cover, or null when the
+   * best-effort copy at submit failed — the card falls back to the
+   * placeholder frame.
+   */
+  thumbnailUrl: string | null;
+  /**
+   * TikTok's numeric video id, for the in-app embed player. Null when
+   * unresolvable (oEmbed down at submit and a `vm.` share link, which carries
+   * no id itself) — the card then opens TikTok instead of playing inline.
+   */
+  tiktokVideoId: string | null;
 }
 
 /**
@@ -190,6 +208,7 @@ export interface CreatorDealJoinRow {
   totalPrice: number;
   commissionRate: string;
   offerExpiresAt: Date | null;
+  deliveryWindowDays?: number | null;
   rightsTerms: DealRightsTerms | null;
 }
 
@@ -223,6 +242,7 @@ export function creatorDealQuery(where: SQL) {
       totalPrice: deal.totalPrice,
       commissionRate: deal.commissionRate,
       offerExpiresAt: deal.offerExpiresAt,
+      deliveryWindowDays: deal.deliveryWindowDays,
       rightsTerms: rightsTerms,
     })
     .from(deal)
@@ -246,15 +266,21 @@ export function creatorDealDeliverablesQuery(dealId: string) {
   return db
     .select({
       id: deliverable.id,
+      videoOrdinal: deliverable.videoOrdinal,
+      submissionVersion: deliverable.submissionVersion,
+      historyCompleteness: deliverable.historyCompleteness,
+      revisionCategory: deliverable.revisionCategory,
       tiktokUrl: deliverable.tiktokUrl,
       submittedAt: deliverable.submittedAt,
       reviewStatus: deliverable.reviewStatus,
       reviewedAt: deliverable.reviewedAt,
       rejectionReason: deliverable.rejectionReason,
+      thumbnailUrl: deliverable.thumbnailUrl,
+      tiktokVideoId: deliverable.tiktokVideoId,
     })
     .from(deliverable)
     .where(eq(deliverable.dealId, dealId))
-    .orderBy(asc(deliverable.submittedAt));
+    .orderBy(asc(deliverable.videoOrdinal));
 }
 
 /**
@@ -343,14 +369,13 @@ const defaultDeps: CreatorDealDeps = {
 
 /**
  * One of the caller's own deals by id, or `null`. Throws `ForbiddenError` for
- * every non-creator caller, including unauthenticated ones — `guard` fails
- * closed.
+ * every non-creator caller with a well-formed id — `guard` fails closed.
  *
- * The gate runs first, before the id is even looked at, so a denied caller
- * learns nothing about which ids are well-formed or which deals exist. The
- * shape check comes second and short-circuits the query entirely: Postgres
- * answers a non-uuid compared against a `uuid` column with `22P02`, which turns
- * a mistyped link into a 500 rather than a 404.
+ * The id's shape is checked first — a pure format test that touches no data,
+ * so a malformed link resolves to not-found without a DB round trip and
+ * without revealing anything. The gate then runs before any query: Postgres
+ * answers a non-uuid compared against a `uuid` column with `22P02`, which
+ * would turn a mistyped link into a 500 rather than a 404.
  *
  * A still-open offer comes back carrying the terms **currently** in effect
  * rather than the version stamped on it — see `rightsTerms` on the result type
@@ -360,22 +385,25 @@ export async function readCreatorDeal(
   dealId: string,
   deps: CreatorDealDeps = defaultDeps
 ): Promise<CreatorDealDetail | null> {
+  // Pure format check — rejects malformed ids without a DB round trip and
+  // leaks nothing about which deals exist.
+  if (!UUID_REGEX.test(dealId)) return null;
+
   const { creatorProfileId } = await deps.requireCreator();
   if (!creatorProfileId) return null;
-
-  if (!UUID_REGEX.test(dealId)) return null;
 
   const row = await deps.select(
     buildCreatorDealWhere(dealId, creatorProfileId)
   );
   if (!row) return null;
 
-  const detail = toDealDetail(row, await deps.selectDeliverables(row.id));
-
-  // Only the deals that can still be accepted pay for the second query.
-  if (!canAct(detail.status)) return detail;
-
-  return withCurrentTerms(detail, await deps.currentTerms());
+  const actionable = canAct(row.status);
+  const [deliverables, currentTerms] = await Promise.all([
+    deps.selectDeliverables(row.id),
+    actionable ? deps.currentTerms() : Promise.resolve(null),
+  ]);
+  const detail = toDealDetail(row, deliverables);
+  return actionable ? withCurrentTerms(detail, currentTerms) : detail;
 }
 
 /**

@@ -103,18 +103,42 @@ export async function storeAvatarFromUrl(
     if (!res.ok) return null;
 
     const contentType = res.headers.get('content-type')?.split(';')[0]?.trim();
-    const extension = contentType
-      ? EXTENSION_BY_CONTENT_TYPE[contentType]
-      : undefined;
-    // Unknown or non-image content type: refuse rather than store bytes the
-    // <img> tag may not render (and TikTok always serves one of the above).
-    if (!contentType || !extension) return null;
+    if (!contentType) return null;
 
     const bytes = await res.arrayBuffer();
-    if (bytes.byteLength === 0 || bytes.byteLength > MAX_AVATAR_BYTES) {
-      return null;
-    }
+    return await storeAvatarFromBytes(userId, bytes, contentType, deps);
+  } catch {
+    return null;
+  }
+}
 
+/**
+ * The direct-upload leg (settings page): same validation, store, swap, and
+ * cleanup as the URL copy, minus the fetch — the bytes arrived in the request.
+ * Same contract too: null means "not stored", never an exception.
+ */
+export async function storeAvatarFromBytes(
+  userId: string,
+  bytes: ArrayBuffer,
+  contentType: string,
+  deps?: Partial<StoreAvatarDeps>
+): Promise<string | null> {
+  const d = { ...defaultDeps, ...deps };
+  if (!d.hasToken()) return null;
+
+  const normalized = contentType.split(';')[0]?.trim();
+  const extension = normalized
+    ? EXTENSION_BY_CONTENT_TYPE[normalized]
+    : undefined;
+  // Unknown or non-image content type: refuse rather than store bytes the
+  // <img> tag may not render.
+  if (!normalized || !extension) return null;
+
+  if (bytes.byteLength === 0 || bytes.byteLength > MAX_AVATAR_BYTES) {
+    return null;
+  }
+
+  try {
     const previous = await d.loadCurrentImage(userId);
 
     const blob = await d.putBlob(
@@ -122,7 +146,7 @@ export async function storeAvatarFromUrl(
       bytes,
       {
         access: 'public',
-        contentType,
+        contentType: normalized,
         // A fresh URL per store — the delete below is what reclaims space.
         addRandomSuffix: true,
       }

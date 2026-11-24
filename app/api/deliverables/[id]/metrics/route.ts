@@ -100,11 +100,19 @@ export async function handleRecordMetrics(
 
   const result = await recordMetrics(
     id,
-    { values: parsed.data, source: role },
+    {
+      values: parsed.data,
+      source: role,
+      expectedVersion: parsed.data.expectedVersion,
+    },
     deps?.recordMetricsDeps
   );
 
   if (!result.ok) {
+    if (result.reason === 'conflict')
+      return Response.json(errorResponse(ErrorCode.DELIVERABLE_VERSION_STALE), {
+        status: 409,
+      });
     // See the module header: the same `not_found` answer, split by who is
     // asking — 403 for a creator (anti-oracle collapse, §6.3), 404 for an
     // admin (the action's existence check, and the admin-route convention).
@@ -118,6 +126,7 @@ export async function handleRecordMetrics(
     {
       deliverable_id: id,
       metric_id: result.metricId,
+      submission_version: result.submissionVersion,
       views: result.views,
       likes: result.likes,
       shares: result.shares,

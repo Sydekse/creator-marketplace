@@ -169,7 +169,13 @@ export function awaitingMetricsQuery(cutoff: Date, limit: number) {
     .innerJoin(campaign, eq(deal.campaignId, campaign.id))
     .innerJoin(creatorProfile, eq(deal.creatorId, creatorProfile.id))
     .innerJoin(dealEvent, eq(dealEvent.dealId, deal.id))
-    .leftJoin(videoMetric, eq(videoMetric.deliverableId, deliverable.id))
+    .leftJoin(
+      videoMetric,
+      and(
+        eq(videoMetric.deliverableId, deliverable.id),
+        eq(videoMetric.submissionVersion, deliverable.submissionVersion)
+      )
+    )
     .where(buildAwaitingMetricsWhere(cutoff))
     .orderBy(asc(dealEvent.createdAt))
     .limit(limit);

@@ -7,6 +7,8 @@ import {
   ErrorHttpStatus,
   UUID_REGEX,
   errorResponse,
+  expectedVersionsSchema,
+  validationError,
 } from '@/lib/validation';
 
 // `pg` needs Node APIs; it cannot run on the edge runtime.
@@ -22,11 +24,9 @@ export interface RouteDeps {
  * held funds are released to the creator minus commission and the deal moves
  * to `completed` (KAN-45, AC-023, Tech Spec §4.4 approve).
  *
- * Takes no request body, for the reason the fund route gives and one more:
- * the payout and commission are split from the deal under the ledger's own
- * row lock, so a client-supplied figure would be a second source for money
- * that already has an authoritative one. There is nothing about this request
- * for a client to vary except which deal, which is in the path.
+ * The body echoes the versions the brand reviewed. The ledger compares the
+ * entire set under its deal lock before contacting the provider. Payment
+ * amounts still come exclusively from the stored deal, never the request.
  *
  * Not idempotent, and deliberately not pretending to be: a second approval
  * is a 409, not a 200 with the first call's figures. AC-6 asks that paying
@@ -35,7 +35,8 @@ export interface RouteDeps {
  */
 export async function handleApproveDeliverable(
   id: string,
-  deps?: RouteDeps
+  deps?: RouteDeps,
+  request?: Request
 ): Promise<Response> {
   let brandProfileId: string;
   let actorUserId: string;
@@ -68,15 +69,30 @@ export async function handleApproveDeliverable(
     return toErrorResponse(error);
   }
 
+  const body = await request?.json().catch(() => null);
+  const versions = expectedVersionsSchema.safeParse(body?.expectedVersions);
+  if (!versions.success)
+    return Response.json(
+      validationError({
+        _root: ['Reload the page before approving the current videos.'],
+      }),
+      { status: 422 }
+    );
   const result = await approveDeliverable(
     id,
     brandProfileId,
     actorUserId,
-    deps?.approveDeliverableDeps
+    deps?.approveDeliverableDeps,
+    versions.data
   );
 
   if (!result.ok) {
     switch (result.reason) {
+      case 'conflict':
+        return Response.json(
+          errorResponse(ErrorCode.DELIVERABLE_VERSION_STALE),
+          { status: 409 }
+        );
       // Collapsed into 403 like every other owner-scoped route: a distinct
       // 404 would make this endpoint an existence oracle for other brands'
       // deal ids.
@@ -116,9 +132,9 @@ export async function handleApproveDeliverable(
 }
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   const { id } = await params;
-  return handleApproveDeliverable(id);
+  return handleApproveDeliverable(id, undefined, request);
 }

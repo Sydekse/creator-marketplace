@@ -7,7 +7,6 @@ import {
   Wallet,
   X,
 } from '@phosphor-icons/react/dist/ssr';
-import { SectionLabel } from '@/components/layout/section-label';
 import { InitialsAvatar } from '@/components/ui/initials-avatar';
 import { formatDeadlineUtc } from '@/lib/dates';
 import {
@@ -41,10 +40,27 @@ const STEP_ICON = {
   completed: SealCheck,
 } as const;
 
+const HISTORY_ACCENT: Record<string, string> = {
+  pending: 'bd-dealhist-row--wait',
+  accepted: 'bd-dealhist-row--live',
+  funded: 'bd-dealhist-row--live',
+  delivered: 'bd-dealhist-row--wait',
+  revision_requested: 'bd-dealhist-row--wait',
+  completed: 'bd-dealhist-row--done',
+  declined: 'bd-dealhist-row--dead',
+  expired: 'bd-dealhist-row--dead',
+  refunded: 'bd-dealhist-row--dead',
+};
+
 function Event({ event }: { event: DealHistoryEvent }) {
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-xl border border-neutral-200 bg-background px-4 py-3">
-      <div className="flex min-w-0 items-center gap-2">
+    <li
+      className={cn(
+        'bd-dealhist-row',
+        HISTORY_ACCENT[event.toStatus] ?? 'bd-dealhist-row--dead'
+      )}
+    >
+      <div className="bd-dealhist-who">
         {event.actor ? (
           <InitialsAvatar
             name={event.actor.name}
@@ -52,21 +68,19 @@ function Event({ event }: { event: DealHistoryEvent }) {
             size="sm"
           />
         ) : null}
-        <div className="flex min-w-0 flex-col gap-1">
-          <span className="text-sm font-medium text-neutral-900">
+        <div className="bd-dealhist-copy">
+          <span className="bd-dealhist-title">
             {labelForStatus(event.toStatus)}
           </span>
           {event.reason ? (
-            <span className="text-xs text-muted-foreground">
-              {event.reason}
-            </span>
+            <span className="bd-dealhist-meta">{event.reason}</span>
           ) : null}
-          <span className="text-xs text-muted-foreground">
+          <span className="bd-dealhist-meta">
             {event.actor ? event.actor.name : SYSTEM_ACTOR_LABEL}
           </span>
         </div>
       </div>
-      <span className="font-mono text-xs text-muted-foreground tabular-nums">
+      <span className="bd-dealhist-time bd-mono">
         {formatDeadlineUtc(event.createdAt)}
       </span>
     </li>
@@ -217,17 +231,32 @@ export function DealProgressRail({
 
 export function DealHistory({ events }: { events: DealHistoryEvent[] }) {
   return (
-    <section className="flex flex-col gap-5">
-      <SectionLabel>{DEAL_HISTORY_TITLE}</SectionLabel>
+    <section className="bd-dealhist">
+      <div className="bd-capruler">
+        <span className="bd-caprulertitle">{DEAL_HISTORY_TITLE}</span>
+        <span className="bd-caprulerline" aria-hidden="true" />
+        <span className="bd-caprulercount bd-mono">
+          {events.length} {events.length === 1 ? 'event' : 'events'}
+        </span>
+      </div>
 
       {events.length > 0 ? (
-        <ol className="flex flex-col gap-2">
+        <ol className="bd-dealhist-list">
           {events.map((event) => (
             <Event key={event.id} event={event} />
           ))}
         </ol>
       ) : (
-        <p className="text-sm text-muted-foreground">{DEAL_HISTORY_EMPTY}</p>
+        <div className="bd-emptyfeed">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 5h12v14H6z" />
+            <path d="M9 9h6" />
+            <path d="M9 12.5h4" />
+            <path d="M9 16h6" />
+          </svg>
+          <h3>No history yet</h3>
+          <p>{DEAL_HISTORY_EMPTY}</p>
+        </div>
       )}
     </section>
   );

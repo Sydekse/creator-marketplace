@@ -3,7 +3,12 @@
 import { useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { NavActivePill } from '@/components/nav/nav-active-pill';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import type { CurrentUser } from '@/lib/auth';
 import { getNavLinks, isNavLinkActive } from '@/lib/navigation';
@@ -12,6 +17,7 @@ import {
   Binoculars,
   Briefcase,
   ChartDonut,
+  ChartBar,
   ClipboardText,
   CurrencyCircleDollar,
   List,
@@ -42,24 +48,41 @@ export function MobileNav({ user, cart }: MobileNavProps) {
         it — the pattern SheetClose already uses in `components/ui/sheet.tsx`.
         Passing <Button> as a child instead puts a <button> inside a <button>,
         which browsers reparent, so the server and client trees disagree and
-        hydration fails. `md:hidden` rides on the Button for the same reason.
+        hydration fails. The responsive visibility rides on the Button too.
       */}
       <SheetTrigger
         render={
           <Button
             variant="ghost"
             size="icon"
-            className="-ml-1 text-neutral-50 hover:bg-neutral-800 hover:text-neutral-50 md:hidden"
+            className="relative -ml-1 text-neutral-50 hover:bg-neutral-800 hover:text-neutral-50 min-[1100px]:hidden"
           />
         }
       >
         <List size={21} weight="regular" aria-hidden />
-        <span className="sr-only">Toggle navigation menu</span>
+        {/* The draft cart's count rides the trigger, so the number is visible
+            before the sheet is opened — same source as the cart entry's badge
+            inside. */}
+        {cart && cart.itemCount > 0 ? (
+          <span
+            aria-hidden="true"
+            className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-tint px-1 text-[10px] leading-none font-semibold text-brand-ink"
+          >
+            {cart.itemCount > 99 ? '99+' : cart.itemCount}
+          </span>
+        ) : null}
+        <span className="sr-only">
+          Toggle navigation menu
+          {cart && cart.itemCount > 0
+            ? `, ${cart.itemCount} ${cart.itemCount === 1 ? 'item' : 'items'} in cart`
+            : ''}
+        </span>
       </SheetTrigger>
       <SheetContent
         side="left"
         className="w-[min(88vw,320px)] gap-0 border-neutral-200 bg-neutral-50 p-0 shadow-[12px_0_40px_-24px_rgba(23,23,23,0.3)]"
       >
+        <SheetTitle className="sr-only">Workspace navigation</SheetTitle>
         <div className="border-b border-neutral-200 px-5 py-5">
           <Link
             href="/"
@@ -92,8 +115,9 @@ export function MobileNav({ user, cart }: MobileNavProps) {
           {links.map((link) => {
             const Icon = NAV_ICONS[link.icon];
             // Same resolution as MainNav: the cart entry points at the active
-            // draft's cart and is active only when standing in it.
+            // draft's cart and hides entirely when there is no draft cart.
             const isCart = link.icon === 'cart';
+            if (isCart && !cart) return null;
             const href = isCart ? (cart?.href ?? link.href) : link.href;
             const isActive = isNavLinkActive(link, pathname, cart?.href, links);
             const badge =
@@ -132,6 +156,7 @@ const NAV_ICONS = {
   dashboard: ChartDonut,
   discover: Binoculars,
   campaigns: Megaphone,
+  insights: ChartBar,
   deals: Briefcase,
   cart: ShoppingCart,
   tiers: Stack,

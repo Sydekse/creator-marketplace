@@ -1,6 +1,5 @@
 import Link from 'next/link';
-import { EmptyState } from '@/components/feedback/empty-state';
-import { buttonVariants } from '@/components/ui/button';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 
 /**
  * What a creator sees when `/creator/deals/[id]` has no deal to show (KAN-39).
@@ -14,27 +13,34 @@ import { buttonVariants } from '@/components/ui/button';
  * real deal belonging to another creator — all three land here, and saying which
  * would make the URL an existence oracle for deal ids (Tech Spec §6.3).
  *
- * A `<Link>` styled with `buttonVariants`, never `<Button render={<Link/>}>` —
- * the latter announces a link as a button. The `discover/[id]/not-found.tsx`
- * precedent.
+ * v4 conversion: the unavailable-deal state uses the creator workspace shell
+ * and the shared ghost empty-feed grammar.
  */
 export default function DealNotFound() {
   return (
-    <div className="mx-auto flex min-h-[60dvh] max-w-3xl items-center py-8">
-      <div className="w-full rounded-[24px] border border-neutral-200 bg-neutral-50 px-6 shadow-[0_24px_60px_-40px_rgba(23,23,23,0.3)] sm:px-10">
-        <EmptyState
-          title="This deal is not available."
-          description="It may have been withdrawn, or the link may be out of date. Your other deals are still there."
-          action={
-            <Link
-              href="/creator/deals"
-              className={buttonVariants({ variant: 'outline', size: 'sm' })}
-            >
-              Back to your deals
-            </Link>
-          }
-        />
+    <BdShell className="bd-cr bd-cr-dealdetail">
+      <BdPageHead
+        eyebrow="Creator workspace"
+        title="Deal unavailable"
+        facts="The link may be out of date, or the deal may no longer be visible to this account."
+        ruled
+      />
+      <div className="bd-emptyfeed">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M5 7.5h14" />
+          <path d="M6.5 7.5v10h11v-10" />
+          <path d="M9 11h6" />
+          <path d="M9 14h3" />
+        </svg>
+        <h3>This deal is not available</h3>
+        <p>
+          It may have been withdrawn, or the link may be out of date. Your other
+          deals are still there.
+        </p>
+        <Link href="/creator/deals" className="bd-btn bd-btn--ghost">
+          Back to your deals
+        </Link>
       </div>
-    </div>
+    </BdShell>
   );
 }

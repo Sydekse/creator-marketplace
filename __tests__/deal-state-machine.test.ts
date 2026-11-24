@@ -167,7 +167,15 @@ describe('transitionDeal — every ordered pair (AC-002, AC-004, NFR-009)', () =
       });
 
       expect(result.status).toBe(to);
-      expect(spies.setUpdate).toHaveBeenCalledWith({ status: to });
+      expect(spies.setUpdate).toHaveBeenCalledWith(
+        from === 'funded' && to === 'delivered'
+          ? {
+              status: to,
+              firstDeliveredAt: expect.any(Date),
+              dueAtFirstDelivery: undefined,
+            }
+          : { status: to }
+      );
       expect(spies.valuesInsert).toHaveBeenCalledWith({
         dealId: DEAL_ID,
         fromStatus: from,
@@ -555,7 +563,7 @@ describe('AC-001 — one function owns every deal.status write', () => {
     expect(
       readFileSync(join(root, 'lib/deals/state-machine.ts'), 'utf8')
     ).toMatch(
-      /update\(deal\)\s*\.set\(\{ status: toStatus, \.\.\.opts\?\.set \}\)/
+      /update\(deal\)\s*\.set\(\{ status: toStatus, \.\.\.opts\?\.set, \.\.\.frozen \}\)/
     );
   });
 

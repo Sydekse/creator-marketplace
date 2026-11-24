@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { deliveryWindowSchema } from '@/lib/deals/deadline';
 import {
   brandProfile,
   campaign,
@@ -43,6 +44,7 @@ import { getCurrentRightsTerms } from '@/lib/rights-terms/current';
  */
 
 export interface ConfirmCampaignContext {
+  deliveryWindowDays: number | null;
   id: string;
   name: string;
   budget: number;
@@ -70,6 +72,7 @@ export interface ConfirmCampaignItem {
 }
 
 export interface NewDealRow {
+  deliveryWindowDays: number;
   campaignId: string;
   creatorId: string;
   videoCount: number;
@@ -98,7 +101,11 @@ export type ConfirmCampaignResult =
       offerExpiresAt: Date;
     }
   | { ok: false; reason: 'budget_exceeded'; excess: number }
-  | { ok: false; reason: 'not_found' | 'not_draft' | 'empty_cart' };
+  | {
+      ok: false;
+      reason:
+        'not_found' | 'not_draft' | 'empty_cart' | 'missing_delivery_window';
+    };
 
 /**
  * No usage-rights version has taken effect, so there is nothing for an offer to
@@ -164,6 +171,7 @@ const defaultDeps: ConfirmCampaignDeps = {
         name: campaign.name,
         budget: campaign.budget,
         status: campaign.status,
+        deliveryWindowDays: campaign.deliveryWindowDays,
         companyName: brandProfile.companyName,
       })
       .from(campaign)
@@ -245,6 +253,9 @@ export async function confirmCampaign(
     if (camp.status !== 'draft') {
       return { ok: false, reason: 'not_draft' };
     }
+    const window = deliveryWindowSchema.safeParse(camp.deliveryWindowDays);
+    if (!window.success)
+      return { ok: false, reason: 'missing_delivery_window' };
 
     const items = await deps.listItems(tx, campaignId);
 
@@ -285,6 +296,7 @@ export async function confirmCampaign(
       tx,
       items.map((item) => ({
         campaignId,
+        deliveryWindowDays: window.data,
         creatorId: item.creatorId,
         // AC-2: copied from the cart row, not re-read from `pricing_tier`. A
         // re-read would let a tier re-priced between carting and confirming
@@ -354,6 +366,7 @@ export async function confirmCampaign(
         offerExpiresAt: expiresAt.toISOString(),
         payout,
         commission,
+        deliveryWindowDays: window.data,
       });
     }
 

@@ -366,19 +366,31 @@ describe('the detail read returns every field AC-2 names', () => {
     const videos = [
       {
         id: 'dl-9',
+        videoOrdinal: 1,
+        submissionVersion: 1,
+        historyCompleteness: 'complete' as const,
+        revisionCategory: null,
         tiktokUrl: 'https://www.tiktok.com/@selam/video/1',
         submittedAt: new Date('2026-08-01T00:00:00.000Z'),
         reviewStatus: 'approved' as const,
         reviewedAt: new Date('2026-08-03T00:00:00.000Z'),
         rejectionReason: null,
+        thumbnailUrl: null,
+        tiktokVideoId: null,
       },
       {
         id: 'dl-10',
+        videoOrdinal: 2,
+        submissionVersion: 1,
+        historyCompleteness: 'complete' as const,
+        revisionCategory: null,
         tiktokUrl: 'https://www.tiktok.com/@selam/video/2',
         submittedAt: new Date('2026-08-02T00:00:00.000Z'),
         reviewStatus: 'pending' as const,
         reviewedAt: null,
         rejectionReason: null,
+        thumbnailUrl: null,
+        tiktokVideoId: null,
       },
     ];
 
@@ -419,8 +431,10 @@ describe('the detail query', () => {
 
     // Unprefixed column names: this query selects from `deliverable` alone, with
     // no join to disambiguate against.
-    expect(videos.sql).toMatch(/select "id", "tiktok_url", "submitted_at"/);
-    expect(videos.sql).toMatch(/order by[^;]*"submitted_at"/i);
+    expect(videos.sql).toMatch(
+      /select "id", "video_ordinal", "submission_version"/
+    );
+    expect(videos.sql).toMatch(/order by[^;]*"video_ordinal"/i);
     expect(videos.params).toContain(DEAL_ID);
   });
 
@@ -691,13 +705,17 @@ describe('the deliverable path renders under canDeliver and nowhere else', () =>
 
   it('is conditioned on the predicate', () => {
     expect(source).toMatch(/canDeliver\(deal\.status\) \?/);
-    expect(source).toContain('<DeliverableForm dealId={deal.id} />');
+    expect(source).toMatch(
+      /<DeliverableForm[\s\S]*?dealId=\{deal.id\}[\s\S]*?expectedVersion=/
+    );
   });
 
   it('mounts the working form rather than a disabled placeholder (KAN-46)', () => {
     // AC-022's submission path: the form posts to the deliverable route and
     // the label lives beside it in the pure copy module.
-    expect(source).toContain('<DeliverableForm dealId={deal.id} />');
+    expect(source).toMatch(
+      /<DeliverableForm[\s\S]*?dealId=\{deal.id\}[\s\S]*?expectedSubmitted=/
+    );
     expect(form).toContain('SUBMIT_DELIVERABLE_LABEL');
     expect(form).toMatch(
       /fetch\(\s*`\/api\/deals\/\$\{encodeURIComponent\(dealId\)\}\/deliverable`/
@@ -825,12 +843,16 @@ describe('the detail page shows the deal history', () => {
     // `getDealHistory` throws where `readCreatorDeal` returns null, and this app
     // has no error boundary — running them together turns a stale link into an
     // unstyled 500 instead of the not-found page.
-    expect(page).not.toContain('Promise.all');
     const detailAt = page.indexOf('readCreatorDeal(');
+    const parallelAt = page.indexOf('Promise.all(');
     const historyAt = page.indexOf('getDealHistory(');
     expect(detailAt).toBeGreaterThan(-1);
-    expect(historyAt).toBeGreaterThan(detailAt);
-    expect(page.indexOf('notFound()')).toBeLessThan(historyAt);
+    expect(page.indexOf('if (!deal) notFound();')).toBeGreaterThan(detailAt);
+    expect(parallelAt).toBeGreaterThan(page.indexOf('if (!deal) notFound();'));
+    expect(historyAt).toBeGreaterThan(parallelAt);
+    expect(page).toMatch(
+      /Promise\.all\(\[\s*getDealHistory\(id\),\s*selectVideoHistory\(id\),?\s*\]\)/
+    );
   });
 
   it('names a null actor as the system rather than leaving it blank', () => {
@@ -926,21 +948,31 @@ describe('ownership is in the where clause on the detail read', () => {
     expect(params).toContain(DEAL_ID);
   });
 
-  it('gates before it looks at the id', async () => {
+  it('rejects malformed ids without auth reads, but gates every valid id', async () => {
     const select = vi.fn();
+    const selectDeliverables = vi.fn();
+    const currentTerms = vi.fn();
+    const requireCreator = vi.fn(async () => {
+      throw new ForbiddenError('not a creator');
+    });
+    const deps: CreatorDealDeps = {
+      requireCreator,
+      select,
+      selectDeliverables,
+      currentTerms,
+    };
 
-    await expect(
-      readCreatorDeal('not-a-uuid', {
-        requireCreator: async () => {
-          throw new ForbiddenError('not a creator');
-        },
-        select,
-        selectDeliverables: async () => [],
-        currentTerms: async () => null,
-      })
-    ).rejects.toBeInstanceOf(ForbiddenError);
-
+    await expect(readCreatorDeal('not-a-uuid', deps)).resolves.toBeNull();
+    expect(requireCreator).not.toHaveBeenCalled();
     expect(select).not.toHaveBeenCalled();
+
+    await expect(readCreatorDeal(DEAL_ID, deps)).rejects.toBeInstanceOf(
+      ForbiddenError
+    );
+    expect(requireCreator).toHaveBeenCalledOnce();
+    expect(select).not.toHaveBeenCalled();
+    expect(selectDeliverables).not.toHaveBeenCalled();
+    expect(currentTerms).not.toHaveBeenCalled();
   });
 
   it('short-circuits a malformed id before Postgres sees it', async () => {
@@ -1026,6 +1058,24 @@ describe('a still-open offer shows the terms currently in effect', () => {
     expect(detail?.rightsTermsAreCurrent).toBe(true);
   });
 
+  it('starts current terms while owned deliverables are still pending', async () => {
+    let finishDeliverables!: (
+      rows: Awaited<ReturnType<CreatorDealDeps['selectDeliverables']>>
+    ) => void;
+    const deliverables = new Promise<
+      Awaited<ReturnType<CreatorDealDeps['selectDeliverables']>>
+    >((resolve) => {
+      finishDeliverables = resolve;
+    });
+    const { deps, currentTerms } = depsFor('pending');
+    const selectDeliverables = vi.fn(() => deliverables);
+    const pending = readCreatorDeal(DEAL_ID, { ...deps, selectDeliverables });
+    await vi.waitFor(() => expect(currentTerms).toHaveBeenCalledOnce());
+    expect(selectDeliverables).toHaveBeenCalledWith(DEAL_ID);
+    finishDeliverables([]);
+    expect((await pending)?.rightsTerms).toEqual(CURRENT);
+  });
+
   it.each(ALL_STATUSES.filter((s) => s !== 'pending'))(
     'leaves %s showing the version that was agreed to',
     async (status) => {
@@ -1075,7 +1125,7 @@ describe('the not-found page is not an existence oracle', () => {
   });
 
   it('offers the way back as a styled link, never a Button wrapping one', () => {
-    expect(source).toContain('buttonVariants');
+    expect(source).toContain('className="bd-btn bd-btn--ghost"');
     expect(source).not.toMatch(/<Button\s+render=/);
   });
 });

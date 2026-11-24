@@ -50,6 +50,7 @@ export {
   bulkAddCampaignItemsSchema,
   acceptDealSchema,
   submitDeliverableSchema,
+  expectedVersionsSchema,
   rejectDeliverableSchema,
   updateMetricsSchema,
   verifyCreatorSchema,

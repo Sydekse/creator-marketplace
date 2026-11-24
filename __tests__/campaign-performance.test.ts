@@ -186,6 +186,9 @@ const okDeps = (
 
 describe('the settlement sums read the ledger', () => {
   const moduleSource = src(ESCROW_MODULE);
+  const settlementBody = moduleSource
+    .slice(moduleSource.indexOf('export async function sumSettledByCampaign('))
+    .split('\nexport ')[0];
 
   it('filters each figure to its own entry type', () => {
     expect(moduleSource).toContain("= 'release_payout'");
@@ -197,9 +200,7 @@ describe('the settlement sums read the ledger', () => {
     // `release_payout`, `commission` and `refund` are each written negative
     // (positive is into escrow, negative is out). A raw SUM would render as
     // −12,750.00 ETB paid out.
-    const body = moduleSource.slice(
-      moduleSource.indexOf('sumSettledByCampaign')
-    );
+    const body = settlementBody;
     expect(body).toMatch(/then\s*-\$\{ledgerEntry\.amount\}/);
     expect(body.match(/then -\$\{ledgerEntry\.amount\}/g)).toHaveLength(3);
   });
@@ -207,16 +208,12 @@ describe('the settlement sums read the ledger', () => {
   it('casts all three aggregates, because SUM() returns bigint as a string', () => {
     // Without the cast the figure is a string that concatenates instead of adding
     // — the trap `sumBalance` and `earningsQuery` both document.
-    const body = moduleSource.slice(
-      moduleSource.indexOf('sumSettledByCampaign')
-    );
+    const body = settlementBody;
     expect(body.match(/::int/g)).toHaveLength(3);
   });
 
   it('keys on the campaign, not by walking to a deal', () => {
-    const body = moduleSource.slice(
-      moduleSource.indexOf('sumSettledByCampaign')
-    );
+    const body = settlementBody;
     expect(body).toContain('eq(ledgerEntry.campaignId, campaignId)');
     // `ledger_entry.deal_id` is nullable for campaign-level rows; filtering on the
     // campaign keeps them, which is right for a campaign-wide figure.
@@ -729,7 +726,12 @@ describe('the campaign page shows the performance section', () => {
     // F34 both document.
     expect(page).toContain('VideoPerformance');
     expect(page).toContain('readCampaignPerformance');
-    expect(page).toMatch(/settled \? \(\s*<VideoPerformance/);
+    // The settled arm now leads with the insights panel (KAN-158), so assert
+    // VideoPerformance renders inside that arm rather than immediately after it.
+    const ternary = page.search(/settled \? \(/);
+    const video = page.indexOf('<VideoPerformance');
+    expect(ternary).toBeGreaterThan(-1);
+    expect(video).toBeGreaterThan(ternary);
   });
 
   it('skips the read entirely for a draft', () => {
@@ -827,7 +829,7 @@ describe('VideoPerformance', () => {
     // brand-facing screen. Cards with a responsive grid instead.
     expect(source).not.toContain('overflow-x-auto');
     expect(source).not.toContain('<table');
-    expect(source).toMatch(/grid-cols-2[^"]*sm:grid-cols-4/);
+    expect(source).toContain('bd-vpmetrics');
   });
 
   it('uses the shared status vocabulary', () => {
@@ -892,7 +894,9 @@ describe('VideoPerformance', () => {
     // The assertion that keeps an unreachable state unreachable: nothing sets
     // `stale` today, so a marker rendered unconditionally would tell every brand
     // their fresh numbers are out of date.
-    expect(source).toMatch(/\{video\.stale \? \(?\s*<Chip/);
+    expect(source).toMatch(
+      /\{video\.stale \? \(?\s*<div className="bd-vpvideohead"/
+    );
     expect(source).toMatch(/\{video\.stale \?[\s\S]{0,200}STALE_NOTE/);
     expect(source).toContain('STALE_LABEL');
   });
@@ -1017,11 +1021,13 @@ describe('the source guards are not vacuous', () => {
     // The guard that matters most, because the state it protects is unreachable:
     // nothing sets `stale`, so a marker rendered unconditionally would never fail
     // in a walkthrough and would tell every brand their numbers are out of date.
-    const gated = /\{video\.stale \? \(?\s*<Chip/;
-    expect('<Chip tone="red">{STALE_LABEL}</Chip>').not.toMatch(gated);
-    expect('{video.stale ? (\n  <Chip tone="red">{STALE_LABEL}</Chip>').toMatch(
+    const gated = /\{video\.stale \? \(?\s*<div className="bd-vpvideohead"/;
+    expect('<div className="bd-vpvideohead">{STALE_LABEL}</div>').not.toMatch(
       gated
     );
+    expect(
+      '{video.stale ? (\n  <div className="bd-vpvideohead">{STALE_LABEL}</div>'
+    ).toMatch(gated);
   });
 
   it('would catch a placeholdered timestamp', () => {

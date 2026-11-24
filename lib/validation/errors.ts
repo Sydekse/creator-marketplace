@@ -1,6 +1,7 @@
 import type { ZodError } from 'zod';
 
 export enum ErrorCode {
+  DELIVERABLE_VERSION_STALE = 'DELIVERABLE_VERSION_STALE',
   TIKTOK_HANDLE_TAKEN = 'TIKTOK_HANDLE_TAKEN',
   /**
    * Extends the error table in CLAUDE.md — flagged in the KAN-21 PR.
@@ -204,6 +205,8 @@ export enum ErrorCode {
 }
 
 export const ErrorMessage: Record<ErrorCode, string> = {
+  [ErrorCode.DELIVERABLE_VERSION_STALE]:
+    'This video changed. Reload the page and try again.',
   [ErrorCode.TIKTOK_HANDLE_TAKEN]: 'This TikTok account is already registered.',
   [ErrorCode.PROFILE_EXISTS]: 'You already have a profile.',
   [ErrorCode.BUDGET_NOT_POSITIVE]: 'Budget must be greater than zero.',
@@ -250,6 +253,7 @@ export const ErrorMessage: Record<ErrorCode, string> = {
 };
 
 export const ErrorHttpStatus: Record<ErrorCode, number> = {
+  [ErrorCode.DELIVERABLE_VERSION_STALE]: 409,
   [ErrorCode.TIKTOK_HANDLE_TAKEN]: 409,
   [ErrorCode.PROFILE_EXISTS]: 409,
   [ErrorCode.BUDGET_NOT_POSITIVE]: 422,

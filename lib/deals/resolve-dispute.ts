@@ -20,6 +20,11 @@ import type {
 import { logPaymentFailure } from '@/lib/payment/log';
 import { issueExternalRefund } from '@/lib/refunds/external-refund';
 import { extractSafeErrorDetails, toLogString } from '@/lib/logging';
+import { rejectCurrent, VersionConflict } from '@/lib/deliverables/history';
+import type {
+  ExpectedVersion,
+  RevisionCategory,
+} from '@/lib/deliverables/evidence';
 
 /**
  * Admin resolves a disputed deal: release, refund, or request revision
@@ -72,6 +77,14 @@ import { extractSafeErrorDetails, toLogString } from '@/lib/logging';
  */
 
 export type DisputeResolution = 'release' | 'refund' | 'revision';
+export interface ResolutionInput {
+  resolution: DisputeResolution;
+  note: string;
+  deliverableId?: string;
+  expectedVersion?: number;
+  category?: RevisionCategory;
+  expectedVersions?: ExpectedVersion[];
+}
 
 /** The resolution as the notification vocabulary names it (types.ts). */
 const NOTIFICATION_RESOLUTION: Record<
@@ -117,6 +130,13 @@ export interface ResolveDeal {
 }
 
 export interface ResolveDisputeDeps {
+  recordRevision?: (
+    tx: Tx,
+    dealId: string,
+    input: ResolutionInput,
+    actorId: string,
+    at: Date
+  ) => Promise<void>;
   /**
    * Existence check and the names both parties are notified under. Not
    * ownership-scoped: an admin resolves any deal, so the route's `admin` gate
@@ -152,7 +172,7 @@ export interface ResolveDisputeDeps {
     dealId: string,
     toStatus: DealStatus,
     actorId?: string | null,
-    opts?: { reason?: string }
+    opts?: { reason?: string; occurredAt?: Date }
   ) => Promise<DealRow>;
   /** Passed through to `withNotifications`; undefined means its lazy defaults. */
   notifyDeps?: NotifyDeps;
@@ -187,6 +207,27 @@ export interface ResolveDisputeDeps {
 // `{ ...defaultDeps, adminAuditDeps: { getCurrentUser: userFromCookie } }` —
 // the production defaults for everything else (KAN-59).
 export const defaultDeps: ResolveDisputeDeps = {
+  recordRevision: async (tx, dealId, input, actorId, at) => {
+    if (
+      !input.deliverableId ||
+      input.expectedVersion === undefined ||
+      !input.category
+    )
+      throw new VersionConflict();
+    if (
+      !(await rejectCurrent(
+        tx,
+        dealId,
+        input.deliverableId,
+        input.expectedVersion,
+        input.category,
+        input.note,
+        { actorId, actorRole: 'admin' },
+        at
+      ))
+    )
+      throw new VersionConflict();
+  },
   loadDeal: async (dealId) => {
     const [row] = await db
       .select({
@@ -211,12 +252,14 @@ export const defaultDeps: ResolveDisputeDeps = {
   // no state between calls, and a module-level instance would call
   // `getPaymentProvider()` at import time, binding the provider before any test
   // could swap it.
-  pay: (dealId, actorId, opts) =>
-    new EscrowLedgerService(db, getPaymentProvider()).payoutForDeal(
+  pay: (dealId, actorId, opts) => {
+    if (!opts?.expectedVersions) throw new VersionConflict();
+    return new EscrowLedgerService(db, getPaymentProvider()).payoutForDeal(
       dealId,
       actorId,
       opts
-    ),
+    );
+  },
   refund: (dealId, actorId, opts) =>
     new EscrowLedgerService(db, getPaymentProvider()).refundDeal(
       dealId,
@@ -251,7 +294,7 @@ export const defaultDeps: ResolveDisputeDeps = {
  */
 export async function resolveDispute(
   dealId: string,
-  input: { resolution: DisputeResolution; note: string },
+  input: ResolutionInput,
   actorUserId: string,
   deps: ResolveDisputeDeps = defaultDeps
 ): Promise<ResolveDisputeResult> {
@@ -267,7 +310,7 @@ export async function resolveDispute(
   // is gone — reaches the money path's parameter type.
   return resolveWithLedger(
     row,
-    { resolution: input.resolution, note: input.note },
+    { ...input, resolution: input.resolution },
     actorUserId,
     deps
   );
@@ -276,7 +319,7 @@ export async function resolveDispute(
 /** The `revision` path: one transaction for transition + audit + notifications. */
 async function resolveRevision(
   row: ResolveDeal,
-  input: { resolution: DisputeResolution; note: string },
+  input: ResolutionInput,
   actorUserId: string,
   deps: ResolveDisputeDeps
 ): Promise<ResolveDisputeResult> {
@@ -302,6 +345,7 @@ async function resolveRevision(
           }),
         },
         async (auditTx) => {
+          const at = new Date();
           // The machine judges legality under the lock — a `revision` on a
           // funded or completed deal is refused with its own code, exactly
           // like the ledger guards the other two paths.
@@ -310,8 +354,9 @@ async function resolveRevision(
             row.id,
             'revision_requested',
             actorUserId,
-            { reason: input.note }
+            { reason: input.note, occurredAt: at }
           );
+          await deps.recordRevision?.(auditTx, row.id, input, actorUserId, at);
 
           // F40: a resolution is the attention a flag asked for — the flag has
           // no reason to outlive it, and flag and status share this transaction.
@@ -337,6 +382,8 @@ async function resolveRevision(
       );
     }, deps?.notifyDeps);
   } catch (error) {
+    if (error instanceof VersionConflict)
+      return { ok: false, reason: 'illegal', code: error.code };
     const failure = revisionFailureReason(error);
     if (!failure) throw error;
     return failure;
@@ -346,7 +393,7 @@ async function resolveRevision(
 /** The `release`/`refund` paths: the ledger runs first, audit + notify follow. */
 async function resolveWithLedger(
   row: ResolveDeal,
-  input: { resolution: 'release' | 'refund'; note: string },
+  input: ResolutionInput & { resolution: 'release' | 'refund' },
   actorUserId: string,
   deps: ResolveDisputeDeps
 ): Promise<ResolveDisputeResult> {
@@ -360,6 +407,8 @@ async function resolveWithLedger(
       // approval's. F39: the audit row (and the flag clear, F40) run inside the
       // ledger's transaction via `onCommit`.
       const result = await deps.pay(row.id, actorUserId, {
+        expectedVersions: input.expectedVersions,
+        actorRole: 'admin',
         reason: 'Dispute resolved: released to creator',
         onCommit: (tx, figures) =>
           writeResolutionAudit(row, input, actorUserId, deps, tx, {
@@ -381,6 +430,7 @@ async function resolveWithLedger(
       };
     } else {
       await deps.refund(row.id, actorUserId, {
+        actorRole: 'admin',
         reason: 'Dispute resolved: refunded to brand',
         onCommit: (tx) =>
           writeResolutionAudit(row, input, actorUserId, deps, tx, {
@@ -398,6 +448,8 @@ async function resolveWithLedger(
       };
     }
   } catch (error) {
+    if (error instanceof VersionConflict)
+      return { ok: false, reason: 'illegal', code: error.code };
     const failure = ledgerFailureReason(error);
 
     // The KAN-44 rule: every money-path failure leaves a trace, and the

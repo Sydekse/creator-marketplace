@@ -6,6 +6,18 @@ vi.mock('@/lib/auth', () => ({
   auth: { api: { getAccessToken: vi.fn() } },
 }));
 
+vi.mock('@/db', () => ({
+  db: {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          limit: () => [{ id: 'acct-1' }],
+        }),
+      }),
+    }),
+  },
+}));
+
 import { auth } from '@/lib/auth';
 
 const getAccessToken = vi.mocked(auth.api.getAccessToken);

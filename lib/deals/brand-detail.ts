@@ -50,6 +50,11 @@ import { UUID_REGEX } from '@/lib/validation';
 
 /** One submitted video, as the reviewing brand sees it. */
 export interface BrandDeliverableView {
+  videoOrdinal: number;
+  submissionVersion: number;
+  historyCompleteness: 'complete' | 'legacy_baseline';
+  revisionCategory:
+    import('@/lib/deliverables/evidence').RevisionCategory | null;
   /**
    * The row's own id — the target of `POST /api/deals/{id}/reject`, which now
    * names which video is being sent back (F38). The URL is not enough: two
@@ -67,6 +72,18 @@ export interface BrandDeliverableView {
   reviewedAt: Date | null;
   /** The brand's own words from a previous rejection, or null if never rejected. */
   rejectionReason: string | null;
+  /**
+   * Our blob-store snapshot of the video's cover, or null when the
+   * best-effort copy at submit failed — the card falls back to the
+   * placeholder frame.
+   */
+  thumbnailUrl: string | null;
+  /**
+   * TikTok's numeric video id, for the in-app embed player. Null when
+   * unresolvable (oEmbed down at submit and a `vm.` share link, which carries
+   * no id itself) — the card then opens TikTok instead of playing inline.
+   */
+  tiktokVideoId: string | null;
 }
 
 export interface BrandDealDetail {
@@ -217,15 +234,21 @@ export function brandDealDeliverablesQuery(dealId: string) {
   return db
     .select({
       id: deliverable.id,
+      videoOrdinal: deliverable.videoOrdinal,
+      submissionVersion: deliverable.submissionVersion,
+      historyCompleteness: deliverable.historyCompleteness,
+      revisionCategory: deliverable.revisionCategory,
       tiktokUrl: deliverable.tiktokUrl,
       submittedAt: deliverable.submittedAt,
       reviewStatus: deliverable.reviewStatus,
       reviewedAt: deliverable.reviewedAt,
       rejectionReason: deliverable.rejectionReason,
+      thumbnailUrl: deliverable.thumbnailUrl,
+      tiktokVideoId: deliverable.tiktokVideoId,
     })
     .from(deliverable)
     .where(eq(deliverable.dealId, dealId))
-    .orderBy(asc(deliverable.submittedAt));
+    .orderBy(asc(deliverable.videoOrdinal));
 }
 
 /*
@@ -313,47 +336,48 @@ const defaultDeps: BrandDealDeps = {
 
 /**
  * One of the caller's own deals by id, or `null`. Throws `ForbiddenError` for
- * every non-brand caller, including unauthenticated ones — `guard` fails closed.
+ * every non-brand caller with a well-formed id — `guard` fails closed.
  *
- * The gate runs first, before the id is looked at, so a denied caller learns
- * nothing about which ids are well-formed or which deals exist. The shape check
- * comes second and short-circuits the query entirely: Postgres answers a non-uuid
- * compared against a `uuid` column with `22P02`, which would turn a mistyped link
- * into a 500 rather than a not-found.
+ * The id's shape is checked first — a pure format test that touches no data, so
+ * a malformed link resolves to not-found without a DB round trip and without
+ * revealing anything. The gate then runs before any query: Postgres would answer
+ * a non-uuid compared against a `uuid` column with `22P02`, which would turn a
+ * mistyped link into a 500 rather than a not-found.
  *
- * **Two reads, in order** (F38). The deal proves ownership; only then are its
- * videos fetched. Sequential rather than concurrent for the same reason the
- * creator's deal page awaits its two reads in order: the second is scoped by an
- * id the first had to validate, and issuing them together would fetch videos for
- * a deal the caller may not own.
+ * **Ownership before videos** (F38). The deal row proves ownership; the
+ * follow-up reads are all scoped by the id that lookup validated, so they can
+ * run concurrently with each other once the row is in hand.
  */
 export async function readBrandDeal(
   dealId: string,
   deps: BrandDealDeps = defaultDeps
 ): Promise<BrandDealDetail | null> {
+  // Pure format check — rejects malformed ids without a DB round trip and
+  // leaks nothing about which deals exist.
+  if (!UUID_REGEX.test(dealId)) return null;
+
   const { brandProfileId } = await deps.requireBrand();
   if (!brandProfileId) return null;
-
-  if (!UUID_REGEX.test(dealId)) return null;
 
   const row = await deps.select(buildBrandDealWhere(dealId, brandProfileId));
   if (!row) return null;
 
-  // Both post-ownership, both conditional on the status that makes them
-  // meaningful — a delivered deal has no settlement to fetch and a completed
-  // one no refund. The fallbacks keep older test deps objects valid.
-  const settlement =
+  // All post-ownership; the money reads stay conditional on the status that
+  // makes them meaningful — a delivered deal has no settlement to fetch and a
+  // completed one no refund. The fallbacks keep older test deps objects valid.
+  const [deliverables, settlement, externalRefundStatus] = await Promise.all([
+    deps.selectDeliverables(row.id),
     row.status === 'completed'
-      ? await (deps.selectSettlement ?? selectSettlementFromLedger)(row.id)
-      : null;
-  const externalRefundStatus =
+      ? (deps.selectSettlement ?? selectSettlementFromLedger)(row.id)
+      : Promise.resolve(null),
     row.status === 'refunded'
-      ? await (deps.selectRefundStatus ?? selectRefundStatusRow)(row.id)
-      : null;
+      ? (deps.selectRefundStatus ?? selectRefundStatusRow)(row.id)
+      : Promise.resolve(null),
+  ]);
 
   return {
     ...row,
-    deliverables: await deps.selectDeliverables(row.id),
+    deliverables,
     settlement,
     externalRefundStatus,
   };

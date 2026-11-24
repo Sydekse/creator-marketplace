@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import { PageHeader } from '@/components/layout/page-header';
+import { BdPageHead, BdShell } from '@/components/brand/v4-shell';
 import { Chip } from '@/components/ui/chip';
 import type { ChipTone } from '@/components/ui/chip';
 import { guard } from '@/lib/authz';
@@ -21,6 +21,9 @@ export const dynamic = 'force-dynamic';
  * existed — no existence oracle (NFR-005). The method details shown are the
  * snapshot the withdrawal itself carries: the receipt stays true even after
  * the payout method changes.
+ *
+ * v4 conversion: the receipt is a ruled creator wallet surface with a compact
+ * fact ledger and print-safe back affordance.
  */
 
 const STATUS_TONE: Record<string, ChipTone> = {
@@ -41,13 +44,9 @@ const STATUS_COPY: Record<string, string> = {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-baseline justify-between gap-6 py-2">
-      <dt className="text-xs font-semibold tracking-wide text-neutral-600 uppercase">
-        {label}
-      </dt>
-      <dd className="text-right text-sm text-brand-ink tabular-nums">
-        {value}
-      </dd>
+    <div className="bd-fundrow bd-fundrow--mono">
+      <dt>{label}</dt>
+      <dd className="bd-mono">{value}</dd>
     </div>
   );
 }
@@ -76,60 +75,93 @@ export default async function WithdrawalReceiptPage({
   };
 
   return (
-    <div className="mx-auto flex w-full max-w-xl flex-col gap-8 print:max-w-none">
-      <PageHeader
-        label="Wallet"
+    <BdShell className="bd-cw bd-cw-receipt">
+      <BdPageHead
+        eyebrow="Creator workspace"
         title="Withdrawal receipt"
-        action={
+        facts="A snapshot of the payout destination and transfer references."
+        actions={
           <Chip tone={STATUS_TONE[row.status] ?? 'gray'}>
             {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
           </Chip>
         }
+        ruled
       />
 
-      <p className="font-sans text-4xl font-bold tracking-[-0.04em] text-brand-ink tabular-nums">
-        {formatEtb(row.amount)}
-      </p>
+      <div
+        className="bd-fundwrap bd-cw-fundwrap bd-rise"
+        style={{ '--i': 1 } as React.CSSProperties}
+      >
+        <section className="bd-fundcard bd-cw-fundcard">
+          <header className="bd-fundhead">
+            <svg
+              className={
+                row.status === 'paid'
+                  ? 'bd-fundicon--ok'
+                  : row.status === 'failed'
+                    ? 'bd-fundicon--bad'
+                    : 'bd-fundicon--wait'
+              }
+              width="44"
+              height="44"
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+            >
+              <path
+                d="M5.5 7h13v10h-13z"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+              <path
+                d="M8 10.5h8M8 13.5h5"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+              />
+            </svg>
+            <h1 className="bd-mono">{formatEtb(row.amount)}</h1>
+            <p>
+              {STATUS_COPY[row.status] ?? ''}
+              {row.status === 'failed' && row.failureReason
+                ? ` (${row.failureReason})`
+                : ''}
+            </p>
+          </header>
 
-      <p className="text-sm text-muted-foreground">
-        {STATUS_COPY[row.status] ?? ''}
-        {row.status === 'failed' && row.failureReason
-          ? ` (${row.failureReason})`
-          : ''}
-      </p>
+          <dl className="bd-fundrows">
+            <Row
+              label="Destination"
+              value={`${row.bankName} ${row.accountNumberMasked}`}
+            />
+            <Row label="Account holder" value={row.accountName} />
+            <Row
+              label="Requested"
+              value={row.createdAt.toLocaleDateString('en-GB', dateFormat)}
+            />
+            {row.resolvedAt ? (
+              <Row
+                label={row.status === 'paid' ? 'Paid' : 'Resolved'}
+                value={row.resolvedAt.toLocaleDateString('en-GB', dateFormat)}
+              />
+            ) : null}
+            <Row label="Reference" value={row.txRef} />
+            {row.providerRef ? (
+              <Row label="Chapa reference" value={row.providerRef} />
+            ) : null}
+          </dl>
 
-      <dl className="flex flex-col divide-y divide-neutral-200 border-y border-neutral-200">
-        <Row
-          label="Destination"
-          value={`${row.bankName} ${row.accountNumberMasked}`}
-        />
-        <Row label="Account holder" value={row.accountName} />
-        <Row
-          label="Requested"
-          value={row.createdAt.toLocaleDateString('en-GB', dateFormat)}
-        />
-        {row.resolvedAt ? (
-          <Row
-            label={row.status === 'paid' ? 'Paid' : 'Resolved'}
-            value={row.resolvedAt.toLocaleDateString('en-GB', dateFormat)}
-          />
-        ) : null}
-        <Row label="Reference" value={row.txRef} />
-        {row.providerRef ? (
-          <Row label="Chapa reference" value={row.providerRef} />
-        ) : null}
-      </dl>
+          <div className="bd-fundacts print:hidden">
+            <Link href="/creator/wallet" className="bd-btn bd-btn--ghost">
+              Back to wallet
+            </Link>
+          </div>
+        </section>
+      </div>
 
-      <p className="text-xs text-muted-foreground print:hidden">
+      <p className="bd-fundprint bd-cw-printnote print:hidden">
         Use your browser&apos;s print function to save this receipt as a PDF.
       </p>
-
-      <Link
-        href="/creator/wallet"
-        className="text-sm font-semibold text-brand-ink underline-offset-4 hover:underline print:hidden"
-      >
-        ← Back to wallet
-      </Link>
-    </div>
+    </BdShell>
   );
 }

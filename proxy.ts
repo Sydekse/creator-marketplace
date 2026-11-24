@@ -35,7 +35,14 @@ export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const hasSession = getSessionCookie(request) !== null;
 
-  if (pathname === '/' || PUBLIC_ROUTES.includes(pathname)) {
+  if (
+    pathname === '/' ||
+    PUBLIC_ROUTES.includes(pathname) ||
+    // Marketing assets (the landing page's product screenshots) are static
+    // files in public/ — the image optimizer fetches them with no cookies,
+    // and a sign-in redirect here turns the hero into a broken image.
+    pathname.startsWith('/marketing/')
+  ) {
     return NextResponse.next();
   }
 

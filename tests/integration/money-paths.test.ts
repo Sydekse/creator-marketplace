@@ -86,6 +86,7 @@ describe('money-path atomicity (NFR-003)', () => {
       dealId,
       tiktokUrl: 'https://www.tiktok.com/@creator.demo/video/integration-1',
       reviewStatus: 'pending',
+      videoOrdinal: 1,
     });
 
     const beforeDeal = await db

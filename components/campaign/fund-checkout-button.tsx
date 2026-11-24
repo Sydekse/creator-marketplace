@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { buttonVariants } from '@/components/ui/button';
@@ -43,61 +43,60 @@ export function FundCheckoutButton({
   size = 'sm',
 }: FundCheckoutButtonProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [leaving, setLeaving] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const nothingAccepted = acceptedCount === 0;
 
-  async function handleCheckout() {
-    if (leaving || nothingAccepted) return;
-    setLeaving(true);
+  function handleCheckout() {
+    if (isPending || leaving || nothingAccepted) return;
 
-    let response: Response;
-    try {
-      response = await fetch(
-        `/api/campaigns/${encodeURIComponent(campaignId)}/fund/session`,
-        { method: 'POST' }
-      );
-    } catch {
-      toast.error('Could not reach the server. Reload and try again.');
-      setLeaving(false);
-      return;
-    }
+    startTransition(async () => {
+      let response: Response;
+      try {
+        response = await fetch(
+          `/api/campaigns/${encodeURIComponent(campaignId)}/fund/session`,
+          { method: 'POST' }
+        );
+      } catch {
+        toast.error('Could not reach the server. Reload and try again.');
+        return;
+      }
 
-    if (!response.ok) {
+      if (!response.ok) {
+        const body = await response.json().catch(() => null);
+        const code = body?.error?.code;
+
+        if (code === 'CAMPAIGN_NOT_FUNDABLE') {
+          toast.warning(FUND_NOT_FUNDABLE_MESSAGE);
+          router.refresh();
+          return;
+        }
+        if (code === 'NO_ACCEPTED_DEALS') {
+          toast.warning(FUND_NO_ACCEPTED_DEALS_MESSAGE);
+          router.refresh();
+          return;
+        }
+        // PAYMENT_FAILED (Chapa unreachable) and anything else: the server's
+        // own sentence, with our generic fallback.
+        toast.error(body?.error?.message ?? FUND_CAMPAIGN_FAILED);
+        return;
+      }
+
       const body = await response.json().catch(() => null);
-      const code = body?.error?.code;
-
-      if (code === 'CAMPAIGN_NOT_FUNDABLE') {
-        toast.warning(FUND_NOT_FUNDABLE_MESSAGE);
-        setLeaving(false);
-        router.refresh();
+      const checkoutUrl: unknown = body?.checkout_url;
+      if (typeof checkoutUrl !== 'string' || checkoutUrl.length === 0) {
+        toast.error(FUND_CAMPAIGN_FAILED);
         return;
       }
-      if (code === 'NO_ACCEPTED_DEALS') {
-        toast.warning(FUND_NO_ACCEPTED_DEALS_MESSAGE);
-        setLeaving(false);
-        router.refresh();
-        return;
-      }
-      // PAYMENT_FAILED (Chapa unreachable) and anything else: the server's
-      // own sentence, with our generic fallback.
-      toast.error(body?.error?.message ?? FUND_CAMPAIGN_FAILED);
-      setLeaving(false);
-      return;
-    }
 
-    const body = await response.json().catch(() => null);
-    const checkoutUrl: unknown = body?.checkout_url;
-    if (typeof checkoutUrl !== 'string' || checkoutUrl.length === 0) {
-      toast.error(FUND_CAMPAIGN_FAILED);
-      setLeaving(false);
-      return;
-    }
-
-    // `assign`, not `router.push`: the checkout is another origin entirely,
-    // and the browser's back button should return to this campaign page.
-    // `leaving` stays true — the button has done its job.
-    window.location.assign(checkoutUrl);
+      // `assign`, not `router.push`: the checkout is another origin entirely,
+      // and the browser's back button should return to this campaign page.
+      window.location.assign(checkoutUrl);
+      // External navigation is not a React transition. Keep only this button
+      // disabled until unload without leaving an async action pending forever.
+      setLeaving(true);
+    });
   }
 
   return (
@@ -105,7 +104,7 @@ export function FundCheckoutButton({
       <button
         type="button"
         onClick={() => setConfirmOpen(true)}
-        disabled={leaving || nothingAccepted}
+        disabled={isPending || leaving || nothingAccepted}
         className={cn(
           buttonVariants({ size }),
           'w-full border-0 bg-brand text-neutral-50 shadow-[0_0_0_1px_rgba(250,250,250,0.12)] hover:bg-brand-soft hover:text-neutral-50 active:bg-brand-deep',
@@ -114,7 +113,9 @@ export function FundCheckoutButton({
             : 'ring-2 ring-brand-tint/80 ring-offset-2 ring-offset-neutral-900'
         )}
       >
-        {leaving ? FUND_CHECKOUT_PENDING_LABEL : FUND_CHECKOUT_LABEL}
+        {isPending || leaving
+          ? FUND_CHECKOUT_PENDING_LABEL
+          : FUND_CHECKOUT_LABEL}
       </button>
       <ConfirmDialog
         open={confirmOpen}

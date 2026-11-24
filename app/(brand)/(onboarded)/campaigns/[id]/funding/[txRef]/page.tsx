@@ -7,7 +7,7 @@ import {
   Receipt,
   XCircle,
 } from '@phosphor-icons/react/dist/ssr';
-import { buttonVariants } from '@/components/ui/button';
+import { BdShell } from '@/components/brand/v4-shell';
 import { requireRole } from '@/lib/auth';
 import { getBrandProfileByUserId } from '@/lib/brands/queries';
 import { getFundingSessionForBrand } from '@/lib/campaigns/fund-session';
@@ -75,124 +75,115 @@ export default async function FundingReturnPage({
   });
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-8 py-10">
-      {status === 'consumed' ? (
-        <section className="flex flex-col gap-6 rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm print:border-0 print:shadow-none">
-          <div className="flex flex-col items-center gap-3 text-center">
-            <CheckCircle
-              size={48}
-              weight="fill"
-              aria-hidden
-              className="text-emerald-500"
-            />
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
-              Payment received
-            </h1>
-            <p className="max-w-[40ch] text-sm leading-relaxed text-neutral-600">
-              Your campaign is funded. {HELD_IN_ESCROW_NOTE}
-            </p>
-          </div>
-
-          <dl className="flex flex-col gap-3 border-t border-neutral-200 pt-6 text-sm">
-            <ReceiptRow label="Campaign" value={session.campaignName} />
-            <ReceiptRow
-              label="Amount paid"
-              value={formatEtb(session.amount)}
-              strong
-            />
-            <ReceiptRow label="Date" value={paidDate} />
-            <ReceiptRow label="Reference" value={txRef} mono />
-            {session.providerRef ? (
-              <ReceiptRow
-                label="Chapa reference"
-                value={session.providerRef}
-                mono
+    <BdShell>
+      <div
+        className="bd-fundwrap bd-rise"
+        style={{ '--i': 0 } as React.CSSProperties}
+      >
+        {status === 'consumed' ? (
+          <section className="bd-fundcard print:border-0 print:shadow-none">
+            <div className="bd-fundhead">
+              <CheckCircle
+                size={48}
+                weight="fill"
+                aria-hidden
+                className="bd-fundicon--ok"
               />
-            ) : null}
-          </dl>
+              <h1>Payment received</h1>
+              <p>Your campaign is funded. {HELD_IN_ESCROW_NOTE}</p>
+            </div>
 
-          <div className="flex flex-wrap items-center justify-center gap-2 border-t border-neutral-200 pt-6 print:hidden">
-            <Link
-              href={`/campaigns/${id}`}
-              className={cn(buttonVariants({ size: 'sm' }), 'gap-1.5')}
-            >
-              <ArrowLeft size={14} weight="regular" aria-hidden />
-              Back to campaign
-            </Link>
-            <PrintHint />
-          </div>
-        </section>
-      ) : status === 'failed' ? (
-        <section className="flex flex-col items-center gap-5 rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
-          <XCircle
-            size={48}
-            weight="fill"
-            aria-hidden
-            className="text-red-500"
-          />
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
-              Payment not completed
-            </h1>
-            <p className="max-w-[42ch] text-sm leading-relaxed text-neutral-600">
-              This payment didn&apos;t go through, and nothing was charged to
-              your campaign. You can start a new payment from the campaign page.
-            </p>
-          </div>
-          <Link
-            href={`/campaigns/${id}`}
-            className={cn(buttonVariants({ size: 'sm' }), 'gap-1.5')}
-          >
-            <ArrowLeft size={14} weight="regular" aria-hidden />
-            Back to campaign
-          </Link>
-        </section>
-      ) : (
-        <section className="flex flex-col items-center gap-5 rounded-2xl border border-neutral-200 bg-white p-8 text-center shadow-sm">
-          <ArrowsClockwise
-            size={48}
-            weight="regular"
-            aria-hidden
-            className="animate-spin text-brand [animation-duration:2.5s]"
-          />
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">
-              Confirming your payment…
-            </h1>
-            <p className="max-w-[42ch] text-sm leading-relaxed text-neutral-600">
-              We&apos;re waiting for Chapa to confirm the charge. This usually
-              takes a few seconds — refresh to check again, or resume the
-              checkout if you haven&apos;t paid yet.
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <Link
-              href={`/campaigns/${id}/funding/${txRef}`}
-              className={cn(buttonVariants({ size: 'sm' }), 'gap-1.5')}
-            >
-              <ArrowsClockwise size={14} weight="regular" aria-hidden />
-              Refresh
-            </Link>
-            <a
-              href={session.checkoutUrl}
-              className={cn(buttonVariants({ variant: 'outline', size: 'sm' }))}
-            >
-              Resume checkout
-            </a>
-            <Link
-              href={`/campaigns/${id}`}
-              className={cn(
-                buttonVariants({ variant: 'outline', size: 'sm' }),
-                'gap-1.5'
-              )}
-            >
-              <ArrowLeft size={14} weight="regular" aria-hidden />
-              Back to campaign
-            </Link>
-          </div>
-        </section>
-      )}
-    </div>
+            <dl className="bd-fundrows">
+              <ReceiptRow label="Campaign" value={session.campaignName} />
+              <ReceiptRow
+                label="Amount paid"
+                value={formatEtb(session.amount)}
+                strong
+              />
+              <ReceiptRow label="Date" value={paidDate} />
+              <ReceiptRow label="Reference" value={txRef} mono />
+              {session.providerRef ? (
+                <ReceiptRow
+                  label="Chapa reference"
+                  value={session.providerRef}
+                  mono
+                />
+              ) : null}
+            </dl>
+
+            <div className="bd-fundacts print:hidden">
+              <Link
+                href={`/campaigns/${id}`}
+                className="bd-btn bd-btn--primary"
+              >
+                <ArrowLeft size={14} weight="regular" aria-hidden />
+                Back to campaign
+              </Link>
+              <PrintHint />
+            </div>
+          </section>
+        ) : status === 'failed' ? (
+          <section className="bd-fundcard">
+            <div className="bd-fundhead">
+              <XCircle
+                size={48}
+                weight="fill"
+                aria-hidden
+                className="bd-fundicon--bad"
+              />
+              <h1>Payment not completed</h1>
+              <p>
+                This payment didn&apos;t go through, and nothing was charged to
+                your campaign. You can start a new payment from the campaign
+                page.
+              </p>
+            </div>
+            <div className="bd-fundacts">
+              <Link
+                href={`/campaigns/${id}`}
+                className="bd-btn bd-btn--primary"
+              >
+                <ArrowLeft size={14} weight="regular" aria-hidden />
+                Back to campaign
+              </Link>
+            </div>
+          </section>
+        ) : (
+          <section className="bd-fundcard">
+            <div className="bd-fundhead">
+              <ArrowsClockwise
+                size={48}
+                weight="regular"
+                aria-hidden
+                className="bd-fundicon--wait animate-spin [animation-duration:2.5s]"
+              />
+              <h1>Confirming your payment…</h1>
+              <p>
+                We&apos;re waiting for Chapa to confirm the charge. This usually
+                takes a few seconds — refresh to check again, or resume the
+                checkout if you haven&apos;t paid yet.
+              </p>
+            </div>
+            <div className="bd-fundacts">
+              <Link
+                href={`/campaigns/${id}/funding/${txRef}`}
+                className="bd-btn bd-btn--primary"
+              >
+                <ArrowsClockwise size={14} weight="regular" aria-hidden />
+                Refresh
+              </Link>
+              <a href={session.checkoutUrl} className="bd-btn bd-btn--ghost">
+                Resume checkout
+              </a>
+              <Link href={`/campaigns/${id}`} className="bd-btn bd-btn--ghost">
+                <ArrowLeft size={14} weight="regular" aria-hidden />
+                Back to campaign
+              </Link>
+            </div>
+          </section>
+        )}
+      </div>
+    </BdShell>
   );
 }
 
@@ -208,13 +199,13 @@ function ReceiptRow({
   mono?: boolean;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4">
-      <dt className="text-neutral-500">{label}</dt>
+    <div className="bd-fundrow">
+      <dt>{label}</dt>
       <dd
         className={cn(
-          'text-right break-all text-neutral-900',
-          strong && 'font-mono text-base font-semibold tabular-nums',
-          mono && 'font-mono text-xs'
+          (strong || mono) && 'bd-mono',
+          strong && 'bd-fundrow--strong',
+          mono && 'bd-fundrow--mono'
         )}
       >
         {value}
@@ -225,7 +216,7 @@ function ReceiptRow({
 
 function PrintHint() {
   return (
-    <p className="flex items-center gap-1.5 text-xs text-neutral-400">
+    <p className="bd-fundprint">
       <Receipt size={14} weight="regular" aria-hidden />
       Print this page for your records
     </p>

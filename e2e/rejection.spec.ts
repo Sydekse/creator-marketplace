@@ -1,5 +1,16 @@
 import { expect, test } from '@playwright/test';
-import { DEMO, openCampaign, openCreatorDeal, signIn } from './helpers';
+import {
+  DEMO,
+  clickToUrl,
+  expectMutationOk,
+  openCampaign,
+  openCreatorDeal,
+  openVersionHistory,
+  pickOption,
+  settledMain,
+  signIn,
+  submitVideo,
+} from './helpers';
 
 /**
  * KAN-60 flow 4 — deliverable rejection (AC-024). The brand requests changes;
@@ -17,14 +28,11 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   const creator = await browser.newPage();
   await signIn(creator, DEMO.creator);
   await openCreatorDeal(creator, 'Tech Review Series');
-  await creator
-    .locator('#tiktokUrl')
-    .fill('https://www.tiktok.com/@creator.demo/video/1112223334445556667');
-  await creator.getByRole('button', { name: 'Submit your video' }).click();
-  await expect(creator.getByText(/submitted/i).first()).toBeVisible({
-    timeout: 15_000,
-  });
-  await creator.close();
+  await submitVideo(
+    creator,
+    'https://www.tiktok.com/@creator.demo/video/1112223334445556667',
+    '1 of 1 video submitted'
+  );
 
   // Brand rejects with a reason. There is no standalone `/deals` list — the
   // brand reaches the deal review screen through the campaign page, whose
@@ -32,15 +40,67 @@ test('flow 4: rejection returns the deal to the creator, funds stay held (AC-024
   const brand = await browser.newPage();
   await signIn(brand, DEMO.brand);
   await openCampaign(brand, 'Tech Review Series');
-  await brand.getByRole('link', { name: '@demo_creator' }).click();
-  await brand.getByRole('button', { name: 'Request changes' }).click();
+  await clickToUrl(
+    brand,
+    brand.getByRole('link', { name: '@demo_creator' }),
+    /\/deals\/[0-9a-f-]+/
+  );
+  await settledMain(brand);
+  await pickOption(brand, 'Revision category', 'Message accuracy');
   // The reject form asks for a reason (AC-024) — fill it and confirm.
   const reasonField = brand.locator('textarea, input[type="text"]').last();
   await reasonField.fill('Please include the actual engagement numbers.');
-  await brand
-    .getByRole('button', { name: /request changes|send|reject/i })
-    .last()
-    .click();
+  await expectMutationOk(brand, '/reject', () =>
+    brand.getByRole('button', { name: 'Request changes', exact: true }).click()
+  );
+  await creator.reload();
+  await settledMain(creator);
+  await expect(creator.getByText('Message accuracy').first()).toBeVisible();
+  await expect(
+    creator.getByText('Please include the actual engagement numbers.').first()
+  ).toBeVisible();
+  // `.first()`: a retry inherits the prior attempt's rejection events, so the
+  // line can legitimately appear once per recorded revision.
+  const history = await openVersionHistory(creator);
+  await expect(
+    history.getByText('Revision requested · brand').first()
+  ).toBeVisible();
+  await submitVideo(
+    creator,
+    'https://www.tiktok.com/@creator.demo/video/1112223334445556668',
+    '1 of 1 video submitted'
+  );
+  await expect(
+    creator.getByRole('heading', { name: 'Video 1 · Version 2', exact: true })
+  ).toBeVisible();
+  await brand.reload();
+  await settledMain(brand);
+  await pickOption(brand, 'Revision category', 'Audio / visual quality');
+  await brand.locator('textarea').fill('Please improve the audio.');
+  await expectMutationOk(brand, '/reject', () =>
+    brand.getByRole('button', { name: 'Request changes', exact: true }).click()
+  );
+  await creator.reload();
+  await settledMain(creator);
+  await submitVideo(
+    creator,
+    'https://www.tiktok.com/@creator.demo/video/1112223334445556669',
+    '1 of 1 video submitted'
+  );
+  await expect(
+    creator.getByRole('heading', { name: 'Video 1 · Version 3', exact: true })
+  ).toBeVisible();
+  const fullHistory = await openVersionHistory(creator);
+  await expect(
+    fullHistory.getByRole('heading', { name: 'Version 1', exact: true })
+  ).toBeVisible();
+  await expect(
+    fullHistory.getByRole('heading', { name: 'Version 2', exact: true })
+  ).toBeVisible();
+  await expect(
+    fullHistory.getByText('Please improve the audio.').first()
+  ).toBeVisible();
+  await creator.close();
   await brand.close();
 
   // The campaign still holds its funds — rejection does not release money.

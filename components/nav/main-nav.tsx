@@ -10,6 +10,7 @@ import {
   Binoculars,
   Briefcase,
   ChartDonut,
+  ChartBar,
   ClipboardText,
   CurrencyCircleDollar,
   Megaphone,
@@ -44,7 +45,7 @@ export function MainNav({ user, cart }: MainNavProps) {
     <nav
       ref={navRef}
       aria-label="Primary navigation"
-      className="relative ml-1 hidden min-w-0 items-center gap-0.5 overflow-hidden rounded-full md:flex lg:ml-4"
+      className="relative ml-4 hidden min-w-0 items-center gap-0.5 overflow-hidden rounded-full min-[1100px]:flex"
     >
       <NavActivePill
         containerRef={navRef}
@@ -55,8 +56,10 @@ export function MainNav({ user, cart }: MainNavProps) {
         const Icon = NAV_ICONS[link.icon];
         // The cart entry's href is a placeholder — it resolves to the active
         // draft's cart, and it is active exactly when the brand is standing in
-        // that cart, not whenever any /campaigns page is open.
+        // that cart. With no draft cart there is nowhere for it to go, so it
+        // does not render at all.
         const isCart = link.icon === 'cart';
+        if (isCart && !cart) return null;
         const href = isCart ? (cart?.href ?? link.href) : link.href;
         const isActive = isNavLinkActive(link, pathname, cart?.href, links);
         const badge = isCart && cart && cart.itemCount > 0 ? cart.itemCount : 0;
@@ -98,6 +101,7 @@ const NAV_ICONS = {
   dashboard: ChartDonut,
   discover: Binoculars,
   campaigns: Megaphone,
+  insights: ChartBar,
   deals: Briefcase,
   cart: ShoppingCart,
   tiers: Stack,
