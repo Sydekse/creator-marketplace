@@ -229,7 +229,7 @@ export function CreatorOnboardingForm({
                     Linked TikTok account
                   </p>
                 </div>
-                <p className="break-all font-mono text-2xl font-semibold leading-tight text-brand-ink">
+                <p className="min-h-[5.625rem] break-all font-mono text-2xl font-semibold leading-tight text-brand-ink">
                   @{lockedHandle!.replace(/^@+/, '')}
                 </p>
                 <div className="flex items-center gap-6 border-t border-brand/20 pt-3">
