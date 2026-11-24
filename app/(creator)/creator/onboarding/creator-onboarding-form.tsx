@@ -243,6 +243,7 @@ export function CreatorOnboardingForm({
                         : '—'}
                     </p>
                   </div>
+                  <div className="h-8 w-px shrink-0 bg-brand/20" aria-hidden />
                   <div>
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
                       Engagement
