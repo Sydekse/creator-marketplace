@@ -218,7 +218,7 @@ export function CreatorOnboardingForm({
               Start with the account and category brands will use to find you.
             </p>
           </div>
-          <div className="grid gap-7 sm:grid-cols-2">
+          <div className="grid items-start gap-5 sm:grid-cols-2">
             {tiktokMode ? (
               /* Nothing here is input: the handle comes from the session and
                  the numbers from the API, both server-sourced on submit. */
@@ -229,35 +229,39 @@ export function CreatorOnboardingForm({
                     Linked TikTok account
                   </p>
                 </div>
-                <p className="min-h-[5.625rem] break-all font-mono text-2xl font-semibold leading-tight text-brand-ink">
-                  @{lockedHandle!.replace(/^@+/, '')}
-                </p>
-                <div className="flex items-center gap-6 border-t border-brand/20 pt-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                <div className="flex h-9 min-w-0 items-center">
+                  <p
+                    className="truncate font-mono text-xl font-semibold text-brand-ink"
+                    title={`@${lockedHandle!.replace(/^@+/, '')}`}
+                  >
+                    @{lockedHandle!.replace(/^@+/, '')}
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 border-t border-brand/20 pt-2.5">
+                  <div className="min-w-0 pr-2">
+                    <p className="truncate text-[10px] text-muted-foreground">
                       Followers
                     </p>
-                    <p className="mt-0.5 font-mono text-base tabular-nums text-neutral-900">
+                    <p className="mt-0.5 truncate font-mono text-sm tabular-nums text-neutral-900">
                       {lockedFollowers !== null
                         ? lockedFollowers.toLocaleString('en-US')
-                        : '—'}
+                        : '-'}
                     </p>
                   </div>
-                  <div className="h-8 w-px shrink-0 bg-brand/20" aria-hidden />
-                  <div>
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  <div className="min-w-0 border-l border-brand/20 pl-2">
+                    <p className="truncate text-[10px] text-muted-foreground">
                       Engagement
                     </p>
-                    <p className="mt-0.5 font-mono text-base tabular-nums text-neutral-900">
-                      {lockedEngagement !== null ? `${lockedEngagement}%` : '—'}
+                    <p className="mt-0.5 truncate font-mono text-sm tabular-nums text-neutral-900">
+                      {lockedEngagement !== null ? `${lockedEngagement}%` : '-'}
                     </p>
                   </div>
                 </div>
-                <p className="text-[12px] leading-relaxed text-neutral-600">
+                <p className="text-[11px] leading-snug text-neutral-600">
                   {lockedFollowers === null && lockedEngagement === null
-                    ? 'Stats unavailable — refresh from your dashboard later.'
+                    ? 'Stats unavailable. Refresh from your dashboard later.'
                     : lockedEngagement === null
-                      ? 'No engagement yet — needs public videos.'
+                      ? 'No engagement yet. Needs public videos.'
                       : 'Pulled from TikTok. Sets your tier and rate.'}
                 </p>
               </div>
@@ -338,7 +342,10 @@ export function CreatorOnboardingForm({
                       : 'bg-neutral-50'
                   }`}
                 >
-                  <SelectValue placeholder="Choose the niche you post in" />
+                  <SelectValue
+                    placeholder="Choose a niche"
+                    className="truncate"
+                  />
                 </SelectTrigger>
                 <SelectContent>
                   {NICHES.map((value) => (
@@ -348,8 +355,8 @@ export function CreatorOnboardingForm({
                   ))}
                 </SelectContent>
               </Select>
-              <FieldDescription className="text-[13px] leading-relaxed text-neutral-600">
-                Choose the category that best describes most of your posts.
+              <FieldDescription className="text-[12px] leading-relaxed text-neutral-600">
+                The category that best describes your posts.
               </FieldDescription>
               <FieldError errors={fieldError('niche')} />
             </Field>
