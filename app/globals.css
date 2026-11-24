@@ -1028,6 +1028,7 @@ body {
   font-size: 27px;
   font-weight: 700;
   letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
 }
 .bd .bd-idfacts {
   margin: 4px 0 0;
@@ -1358,6 +1359,7 @@ body {
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--bd-faint);
+  overflow-wrap: anywhere;
 }
 .bd .bd-capgrid {
   display: grid;
@@ -3518,6 +3520,7 @@ body {
   color: var(--bd-ink);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .bd .bd-strown {
   font-size: 12.5px;

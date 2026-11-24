@@ -100,7 +100,7 @@ export function VerificationStatus({
           />
           <h1 className="page-title opener-title min-w-0">{name}</h1>
           <div className="col-start-2 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-            <p className="font-mono text-xs text-neutral-600 sm:text-sm">
+            <p className="font-mono text-xs text-neutral-600 sm:text-sm min-w-0 truncate">
               {tiktokHandle}
             </p>
             <StatusChip status={status} />
