@@ -95,8 +95,10 @@ jobs:
     name: E2E ${{ matrix.project }}
     runs-on: ubuntu-latest
     # A hung `playwright install` once ran 35+ minutes against the 6-hour
-    # default ceiling; this kills a stuck leg fast. A healthy leg is ~2–3 min.
-    timeout-minutes: 15
+    # default ceiling; this kills a stuck leg well before that. A warm leg is
+    # ~6–8 min; a cold browser download plus apt deps can legitimately take
+    # 10+ min, so leave headroom above that without allowing the old hang.
+    timeout-minutes: 25
     strategy:
       # Each leg seeds its own database on its own runner, so a red project must
       # not cancel the others — every project's verdict stands on its own.
@@ -147,16 +149,24 @@ jobs:
           restore-keys: |
             nextjs-e2e-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
       # The browser binaries live in ~/.cache/ms-playwright and are the slow,
-      # network-bound half of the install — cache them keyed on the lockfile so
-      # a hit skips the download. The OS libraries `--with-deps` pulls are
-      # system packages that do not survive between runs, so on a hit we still
-      # install just those via `install-deps`.
+      # network-bound half of the install. Key them on the Playwright version,
+      # not the lockfile: a dependency bump that leaves Playwright untouched
+      # changes the lockfile hash but not the browser build, and a spurious
+      # cache miss forces a full re-download that can stall on a slow mirror.
+      # The OS libraries `--with-deps` pulls are system packages that do not
+      # survive between runs, so on a hit we still install just those via
+      # `install-deps`.
+      - name: Resolve Playwright version
+        id: playwright-version
+        run: echo "version=$(npx playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
       - name: Cache Playwright browsers
         id: playwright-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.playwright-version.outputs.version }}
+          restore-keys: |
+            playwright-${{ runner.os }}-${{ matrix.browser }}-
       - name: Install Playwright (${{ matrix.browser }}) with OS deps
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps ${{ matrix.browser }}

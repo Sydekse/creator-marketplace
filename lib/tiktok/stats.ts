@@ -1,4 +1,7 @@
 import { auth } from '@/lib/auth';
+import { db } from '@/db';
+import { account } from '@/db/auth-schema';
+import { eq, and } from 'drizzle-orm';
 import { MAX_ENGAGEMENT_RATE } from '@/lib/config/creator-profile';
 
 /**
@@ -79,10 +82,19 @@ export function engagementFromVideos(videos: VideoCounts[]): string | null {
 
 async function tiktokAccessToken(userId: string): Promise<string | null> {
   try {
+    // better-auth 1.7+ resolves the linked account by its internal id rather
+    // than by providerId, so look up the TikTok account record first.
+    const rows = await db
+      .select({ id: account.id })
+      .from(account)
+      .where(and(eq(account.userId, userId), eq(account.providerId, 'tiktok')))
+      .limit(1);
+    const accountId = rows[0]?.id;
+    if (!accountId) return null;
     // Refreshes against TikTok when the stored token is expired — Login Kit
     // access tokens live 24h, so anything but the sign-up session needs this.
     const token = await auth.api.getAccessToken({
-      body: { providerId: 'tiktok', userId },
+      body: { accountId, userId },
     });
     return token?.accessToken ?? null;
   } catch {
