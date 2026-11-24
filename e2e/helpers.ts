@@ -187,17 +187,18 @@ export async function expectMutationOk(
   page: Page,
   pathSuffix: string,
   act: () => Promise<void>,
-  method: 'POST' | 'PUT' = 'POST'
+  method: 'POST' | 'PUT' = 'POST',
+  timeoutMs = 30_000
 ): Promise<void> {
   const responded = page.waitForResponse(
     (response) =>
       response.url().includes(pathSuffix) &&
-      response.request().method() === method
+      response.request().method() === method,
+    { timeout: timeoutMs }
   );
   await act();
-  expect((await responded).ok(), `${method} ${pathSuffix} must succeed`).toBe(
-    true
-  );
+  const response = await responded;
+  expect(response.ok(), `${method} ${pathSuffix} must succeed`).toBe(true);
 }
 
 /**
@@ -227,9 +228,51 @@ export async function submitVideo(
   progressCopy: string
 ): Promise<void> {
   await fillHydrated(page, [['#tiktokUrl', videoUrl]]);
-  await expectMutationOk(page, '/deliverable', () =>
-    page.getByRole('button', { name: 'Submit your video' }).click()
-  );
+  const submitButton = page.getByRole('button', { name: 'Submit your video' });
+  await submitButton.waitFor({ state: 'visible' });
+  await expect(submitButton).toBeEnabled();
+
+  // Race 3 (helpers.ts:218): on webkit-mobile the click can land before
+  // React attaches onSubmit, so the POST never fires and waitForResponse
+  // hangs. Two layers of defence:
+  //   (a) prove hydration (input value survives + button enabled) before
+  //       clicking, giving hydration a beat to finish;
+  //   (b) bound the wait at 15s and retry once, re-proving hydration first.
+  //       A retry only happens when no response arrived (so there is no
+  //       double-submit risk), and re-runs fillHydrated before re-clicking.
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    // If a previous attempt's POST actually landed (late response), stop.
+    if (
+      await page
+        .getByText(progressCopy)
+        .isVisible()
+        .catch(() => false)
+    ) {
+      lastError = undefined;
+      break;
+    }
+    try {
+      await expectMutationOk(
+        page,
+        '/deliverable',
+        () => submitButton.click(),
+        'POST',
+        30_000
+      );
+      lastError = undefined;
+      break;
+    } catch (err) {
+      lastError = err;
+      if (attempt === 0) {
+        await page.waitForTimeout(300);
+        await fillHydrated(page, [['#tiktokUrl', videoUrl]]);
+        await expect(submitButton).toBeEnabled();
+      }
+    }
+  }
+  if (lastError) throw lastError;
+
   await expect(async () => {
     if (!(await page.getByText(progressCopy).isVisible())) {
       await page.reload();
